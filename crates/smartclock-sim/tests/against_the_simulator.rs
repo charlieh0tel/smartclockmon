@@ -299,3 +299,27 @@ fn a_subscriber_that_stops_reading_is_dropped_not_indulged() {
     drop(handle);
     joiner.join().expect("the device thread");
 }
+
+#[test]
+fn a_tier_as_slow_as_its_period_does_not_starve_client_commands() {
+    // Polls used to take absolute priority, so a tier always overdue
+    // meant the request queue was never reached: every caller blocked
+    // forever and the queue grew without bound.
+    let (handle, joiner) = task::spawn(
+        device(Receiver::default()),
+        Cadence {
+            // Far faster than the polls can actually complete.
+            fast: Duration::from_nanos(1),
+            medium: Duration::from_nanos(1),
+            slow: Duration::from_nanos(1),
+        },
+    );
+    for _ in 0..3 {
+        let reply = handle
+            .request(":SYNChronization:TFOMerit?")
+            .expect("a command served between polls");
+        assert_eq!(reply.lines, vec!["+3"]);
+    }
+    drop(handle);
+    joiner.join().expect("the device thread");
+}

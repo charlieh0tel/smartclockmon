@@ -187,10 +187,12 @@ fn supervise(
         baud,
         read_timeout: Duration::from_millis(250),
     };
+    // from_secs_f64 panics on a negative or non-finite value, so a
+    // typo in a flag would abort rather than being reported.
     let cadence = Cadence {
-        fast: Duration::from_secs_f64(cli.fast),
-        medium: Duration::from_secs_f64(cli.medium),
-        slow: Duration::from_secs_f64(cli.slow),
+        fast: seconds(cli.fast, "--fast")?,
+        medium: seconds(cli.medium, "--medium")?,
+        slow: seconds(cli.slow, "--slow")?,
     };
 
     let policy = Policy {
@@ -259,6 +261,14 @@ fn supervise(
             }
         }
     }
+}
+
+/// A cadence flag as a duration, refusing what cannot be one.
+fn seconds(value: f64, flag: &str) -> Result<Duration> {
+    if !value.is_finite() || value <= 0.0 {
+        anyhow::bail!("{flag} must be a positive number of seconds, not {value}");
+    }
+    Ok(Duration::from_secs_f64(value))
 }
 
 /// Open whatever the device path names.

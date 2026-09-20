@@ -19,6 +19,7 @@ use std::sync::mpsc::Receiver;
 use std::sync::mpsc::RecvTimeoutError;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::SyncSender;
+use std::sync::mpsc::TryRecvError;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::sync_channel;
 use std::thread;
@@ -308,6 +309,25 @@ impl<T: Transport> DeviceTask<T> {
             let now = Instant::now();
             let (tier, due) = self.next_due();
 
+            // Serve anything waiting before running a due tier.  Polls
+            // used to take absolute priority, so a tier as slow as its
+            // own period was always overdue and client commands were
+            // never served at all: every caller blocked forever and the
+            // queue grew without bound.
+            //
+            // Disconnection has to be noticed here too.  When every tier
+            // is permanently overdue the blocking wait below is never
+            // reached, so it was the only thing watching for the handles
+            // going away, and the task ran on after the last one had
+            // been dropped.
+            loop {
+                match self.requests.try_recv() {
+                    Ok(request) => self.serve(request),
+                    Err(TryRecvError::Empty) => break,
+                    Err(TryRecvError::Disconnected) => return Stopped::HandlesDropped,
+                }
+            }
+
             if due <= now {
                 if let Some(stopped) = self.run_tier(tier) {
                     return stopped;
@@ -349,7 +369,18 @@ impl<T: Transport> DeviceTask<T> {
         let now = Timestamp::now();
         let mut snapshot = self.shared.latest().unwrap_or_else(|| Snapshot::new(now));
         let outcome = self.device.poll(tier, &mut snapshot, now);
-        self.due[tier as usize] = Instant::now() + self.cadence.of(tier);
+        // Measured from when the tier was due, not from when its poll
+        // finished, or the period becomes cadence plus wire time and
+        // the sampling of a drifting oscillator is uneven.  Clamped
+        // forward when a poll overruns so a slow tier cannot accumulate
+        // a backlog of missed deadlines.
+        let cadence = self.cadence.of(tier);
+        let slot = &mut self.due[tier as usize];
+        *slot += cadence;
+        let now_monotonic = Instant::now();
+        if *slot < now_monotonic {
+            *slot = now_monotonic + cadence;
+        }
 
         match outcome {
             Ok(()) => self.failures = 0,
