@@ -196,3 +196,21 @@ fn the_commands_that_can_strand_the_link_are_marked_dangerous() {
         assert!(dangerous.contains(expected), "{expected} is not dangerous");
     }
 }
+
+#[test]
+fn the_generated_matrix_matches_the_table() {
+    // docs/commands.md is generated from commands.toml, so the two can
+    // only disagree if someone changed the table and did not regenerate.
+    // Failing here is what stops the documentation drifting, which is
+    // the whole reason it is generated rather than written.
+    let checked_in = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/commands.md")
+        .canonicalize()
+        .expect("docs/commands.md should exist; run `make docs`");
+    let on_disk = std::fs::read_to_string(&checked_in).expect("read docs/commands.md");
+    let generated = smartclock::matrix::markdown();
+    assert!(
+        on_disk == generated,
+        "docs/commands.md is out of date with commands.toml; run `make docs`"
+    );
+}

@@ -8,7 +8,7 @@
 
 CARGO ?= cargo
 
-.PHONY: all build ci fmt fmt-check clippy test test-hw doc clean deb install-service
+.PHONY: all build ci fmt fmt-check clippy test test-hw doc docs clean deb install-service
 
 all: build
 
@@ -38,6 +38,11 @@ test-hw:
 
 doc:
 	$(CARGO) doc --workspace --no-deps --all-features
+
+# Regenerate the documentation that is derived from the command table.
+# A test fails if docs/commands.md and the table disagree.
+docs:
+	$(CARGO) run -q -p smartclock-cli -- commands > docs/commands.md
 
 clean:
 	$(CARGO) clean

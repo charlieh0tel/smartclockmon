@@ -6,6 +6,7 @@
 pub mod control;
 pub mod device;
 pub mod error;
+pub mod matrix;
 pub mod parse;
 pub mod rollover;
 pub mod screen;

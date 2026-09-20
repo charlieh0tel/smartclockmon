@@ -73,6 +73,8 @@ enum Command {
     },
     /// Report oscillator and holdover health in one pass.
     Diagnose,
+    /// Print the command table as Markdown.  Sends nothing.
+    Commands,
     /// Try each command in a file and report which the receiver knows.
     ///
     /// For finding commands the manuals do not document.  Only sends
@@ -87,6 +89,14 @@ enum Command {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    // Reading the table needs no receiver, so this runs before the port
+    // is opened rather than failing for want of hardware.
+    if matches!(cli.command, Command::Commands) {
+        print!("{}", smartclock::matrix::markdown());
+        return Ok(());
+    }
+
     let baud = BaudRate::new(cli.baud).with_context(|| {
         let supported = BaudRate::ALL.map(|b| b.to_string()).join(", ");
         format!(
@@ -141,6 +151,8 @@ fn run<T: Transport>(session: &mut Session<T>, command: &Command) -> Result<()> 
         Command::Probe { dialect } => probe(session, dialect),
         Command::Diagnose => diagnose(session),
         Command::Sweep { from } => sweep(session, from),
+        // Handled before the port is opened.
+        Command::Commands => Ok(()),
     }
 }
 

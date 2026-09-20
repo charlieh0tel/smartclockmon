@@ -15,9 +15,9 @@ and a TUI client.  A GUI is possible later but is not planned.
 | 4 | Simulated receiver | done |
 | 5 | The monitor, with history graphs | done |
 | 6 | Control commands, audit trail, raw console | done |
-| 7 | Generated command matrix, protocol and deployment notes | **not started** |
+| 7 | Generated command matrix | done; protocol and deployment notes not written |
 
-105 tests, none needing hardware.  `make ci` is what CI runs; `make
+106 tests, none needing hardware.  `make ci` is what CI runs; `make
 test-hw` is the hardware-only set and CI never runs it.
 
 Running against the development unit, logging to a database given on the
@@ -547,12 +547,13 @@ Done, and what each turned out to involve:
 | 5 | `smartclockmon`, dashboard and history graphs | columns carry min and max as well as mean, or quantization steps vanish into a ramp |
 | 6 | `Control` handle, daemon flags, audit trail, raw console | flags replaced the nonce; the classifier could not match a caller-supplied argument |
 | 4 | `smartclock-sim`, in process and over TCP | TCP rather than a pseudo-terminal, which would have been Unix-only |
+| 7 | `docs/commands.md`, generated | a test compares it against the table, so it cannot drift |
 
 Still to do:
 
 | # | Deliverable |
 | - | ----------- |
-| 7 | Documentation: a per-model command matrix generated from the command table, and notes on the socket protocol and deployment. |
+| 7 | Notes on the socket protocol, and on deployment.  The command matrix is done and generated; these two are not written.  The protocol notes wait on a second client existing, since one client that shares the wire type needs no prose.  The deployment notes wait on the service actually being installed, so they describe what happened rather than what was expected. |
 
 Suggest a commit at each phase boundary.
 
