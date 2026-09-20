@@ -5,8 +5,42 @@ time and frequency reference receivers, spoken to over RS-232.
 
 ## Status
 
-Early.  No code yet -- the repository currently holds vendor
-documentation and firmware only.  See `PLAN.md`.
+Working against the development receiver.  The library, the daemon and
+the monitor all run; a PTY simulator and the generated documentation are
+not written yet.  See `PLAN.md` for what is done and what is not.
+
+## Parts
+
+| | |
+| - | - |
+| `smartclock` | the library: transports, SCPI framing, the command table, parsers, the status screen scraper, and the polling task |
+| `smartclockd` | holds the serial port, logs to SQLite, serves clients over a local socket |
+| `smartclockmon` | terminal monitor: a dashboard and history graphs |
+| `smartclock-cli` | one-shot queries, `diagnose`, transcript capture, and sweeping for undocumented commands |
+
+## Running it
+
+Build with `make`, or `make deb` for a package.
+
+The daemon holds the port, so everything else is a client of it:
+
+    smartclockd --device /dev/serial/by-id/usb-... \
+                --database ~/smartclock.sqlite \
+                --socket /tmp/smartclockd.sock
+
+    smartclockmon --socket /tmp/smartclockd.sock
+
+In the monitor, `g` switches to the graphs, `w` cycles their span, `c`
+opens a command line, `u` falls back to ASCII, `q` quits.
+
+`smartclockmon --device ...` talks to the receiver directly, which needs
+the daemon stopped and records no history; the header says so.
+
+The daemon refuses anything that changes the receiver unless started
+with `--allow-control`, refuses what can strand the link without
+`--allow-dangerous`, and refuses commands the table does not know
+without `--allow-raw`.  All three are off by default and every command
+that is not a scheduled poll is recorded in the log.
 
 ## Hardware
 

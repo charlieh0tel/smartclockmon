@@ -38,7 +38,11 @@ holdover and may have a failing OCXO.
 - Read code before modifying it.  Understand existing patterns and
   context before proposing changes.
 - Always list unresolved questions at end.
-- Keep documentation (.md files) up to date with code changes.
+- Keep documentation (.md files) up to date with code changes, in the
+  same commit as the change.  This means all of them: `README.md`,
+  `PLAN.md` and everything in `docs/`.  A decision that is reversed, a
+  phase that is finished, or a figure that is retracted is a
+  documentation change as much as a code one.
 
 
 ## Revision Control

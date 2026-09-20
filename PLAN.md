@@ -4,6 +4,32 @@ Build a Rust library for talking to HP / Symmetricom SmartClock GPS
 receivers over serial, a logging daemon that runs as a system service,
 and a TUI client.  A GUI is possible later but is not planned.
 
+## Status
+
+| Phase | | |
+| ----- | - | - |
+| 0 | Workspace, command table, CI | done |
+| 1 | Transport, session framing, CLI | done |
+| 2 | Types, parsers, screen scraper, `diagnose` | done |
+| 3 | `Device`, `Snapshot`, `DeviceTask`, `smartclockd` | done |
+| 4 | PTY simulator | **not started** |
+| 5 | The monitor, with history graphs | done |
+| 6 | Control commands, audit trail, raw console | done |
+| 7 | Generated command matrix, protocol and deployment notes | **not started** |
+
+96 tests, none needing hardware.  `make ci` is what CI runs; `make
+test-hw` is the hardware-only set and CI never runs it.
+
+Running against the development unit, logging to a database given on the
+command line.  Not yet installed as a service, though `make deb` builds
+the package and the unit file is written.
+
+The gap worth naming: nothing tests the daemon or the socket without a
+receiver.  Every test that exists is of a pure function or a parser
+driven by a fixture, which is why the argument-matching bug in the
+socket's command classifier survived until a command was actually sent.
+That is what phase 4 is for.
+
 ## Goals
 
 - Read-only monitoring of a 58503A first; control commands later.
@@ -218,9 +244,10 @@ authentication layer it would otherwise have to carry on every platform.
 The cost is that the daemon cannot tell two connected clients apart, so
 the audit trail records what was done but not by whom.
 
-The nonce on dangerous commands stays, but it guards against accidents
-rather than against people: it stops a fat-finger or a stray script, not
-someone who already has socket access.
+Nothing guards against a fat-finger at the socket beyond the flags, and
+nothing needs to: a daemon started without `--allow-dangerous` will not
+run the command however it is asked.  Restarting it with the flag is the
+deliberate act, and the audit trail records what followed.
 
 The TUI's raw SCPI console deliberately bypasses the dialect table, so
 it is its own flag, `--allow-raw`, off by default.  The daemon still
@@ -493,20 +520,33 @@ examined before either the daemon or the TUI exists.
 
 ## Phases
 
+Done, and what each turned out to involve:
+
+| # | Deliverable | Notes |
+| - | ----------- | ----- |
+| 0 | Workspace, TOML command table with `build.rs` codegen, fixtures, Makefile CI | 113 commands; evidence became three-valued rather than a boolean |
+| 1 | `transport`, `session`, `smartclock-cli` | the manuals had the prompt wrong, and an abandoned reply desynchronised everything after it |
+| 2 | `types`, `parse`, screen scraper, `diagnose` | the scraper had to read by label, not column; the manuals' own ASCII does not line up |
+| 3 | `Device`, `Snapshot`, `DeviceTask`, `smartclockd`, systemd unit, deb | reconnection meant handing the request channel back out of the task |
+| 5 | `smartclockmon`, dashboard and history graphs | columns carry min and max as well as mean, or quantization steps vanish into a ramp |
+| 6 | `Control` handle, daemon flags, audit trail, raw console | flags replaced the nonce; the classifier could not match a caller-supplied argument |
+
+Still to do:
+
 | # | Deliverable |
 | - | ----------- |
-| 0 | Workspace scaffold.  Rewrite `CLAUDE.md`, which still says "asl-dmr-bridge".  Transcribe chapter 5 of `097-59551-02` into the TOML command table -- id, class, citation, per-dialect command string, response parser, per-model availability -- and write the `build.rs` codegen for it.  Extract sample status screens into `tests/fixtures/`.  Makefile with a `ci` target, a pinned `rust-toolchain.toml`, and a GitHub Actions workflow that calls it. |
-| 1 | `transport` + `session` + `smartclock-cli capture`, direct to device.  Confirm the documented tree against the live unit and record transcripts.  Verification, not discovery. |
-| 2 | `dialect`, `types`, `parse`, status screen scraper, driven by the fixtures.  `smartclock-cli diagnose`: holdover reason, hardware condition bits, EFC, holdover duration and present uncertainty, tracked count, full log. |
-| 3 | `Device`, `Snapshot`, `DeviceTask` with the tiered scheduler and request queue.  `smartclockd` with the SQLite logger, socket protocol, reconnection handling, and a systemd unit.  Queries only over the socket; control lands in phase 6.  Logging starts here and runs from here on. |
-| 4 | `smartclock-sim`: PTY-backed emulator replaying recorded state, so client work needs no hardware and no daemon contention. |
-| 5 | `smartclockmon`: socket client for live state, read-only SQLite for trends.  Panes for synchronization, acquisition and satellite table, health and EFC trend, position, log, raw SCPI console. |
-| 6 | Control operations behind an explicit `Control` handle, proxied over the socket: holdover initiate and recover, survey, antenna delay, elevation mask, preset.  Command classification in the dialect table, socket-permission authorization, daemon flags gating control and dangerous commands, audit rows, and force-refresh after a successful control operation.  `:SYSTem:COMMunicate:*` gated hard -- baud changes persist across power cycles and will strand the link. |
-| 7 | Documentation: per-model command matrix generated from the command table, wire protocol notes, socket protocol, deployment. |
+| 4 | `smartclock-sim`: a PTY-backed emulator replaying recorded transcripts, so the daemon and the socket can be tested without a receiver.  The largest hole in the tests. |
+| 7 | Documentation: a per-model command matrix generated from the command table, and notes on the socket protocol and deployment. |
 
 Suggest a commit at each phase boundary.
 
 ## Open questions
 
 1. Which other SmartClock variants are on hand, so their dialects can be
-   entered from the manuals rather than discovered later.
+   entered from the manuals rather than discovered later.  The Z3801A
+   tree is in the table but has never met hardware.
+2. Whether the receiver drives the oscillator's whole -5 V to +5 V input
+   or a sliver of it.  See `docs/efc.md`: one paired reading is
+   recorded, and a second once the count has moved settles it.
+3. Whether to install the daemon as a service.  The package builds and
+   the unit is written, but neither has been installed or tested.
