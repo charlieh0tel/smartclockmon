@@ -55,6 +55,40 @@ Revisit `scpi` at phase 4 for the simulator, where implementing an
 instrument is the actual task.  Even there the prompt, echo and status
 screen -- the parts worth emulating -- are what it does not model.
 
+### Firmware reversing is deferred
+
+`strings` over `the keyword table` already yielded the screen's
+printf formats, the time code layouts and the log and tolerance
+messages, which is recorded in `docs/screen-format-strings.md`.  Those
+are string literals, and literals are what `strings` finds; reversing
+would add control flow, not more of them.
+
+The SCPI keyword table is in the image but stored in some structured
+form that `strings` only fragments -- `ROSC`, `TINT`, `PTIM`, `ESHOLD`.
+Recovering it properly would need a disassembler.  It is not worth one:
+`097-z3801-01` documents that tree already, and a Z3801A on the line
+would settle it in seconds.
+
+The decisive point is that both images are Z3801A/Z3816A firmware while
+the unit in front of us is a 58503A running 3704-C, which we do not
+have an image of.  Reversing what we hold would describe a receiver we
+do not own.  The live unit has been strictly more informative than the
+documents so far: it is what revealed the real prompt, the SS column,
+and the asterisk classification error.
+
+Three things would justify it.  The 58503A's own EEPROMs, if they are
+ever pulled, since that is the firmware actually being monitored.  A
+Z3801A that contradicts its manual.  Or the one question hardware
+cannot answer cheaply: what EFC value and averaging window set hardware
+bit 6, "EFC near end of range", which would let the monitor warn before
+the receiver does.  The firmware has `last efc average`, `tempco` and
+`EFC near end of range` in it, so the answer is there.
+
+Even that last one is better approached by logging EFC for months and
+measuring the drift rate, which says when the rail will be reached
+rather than only where it is.  It is 68k, so a disassembler would cope
+whenever the case arises.
+
 ### The daemon owns the port
 
 `smartclockd` runs as a systemd system service and holds
