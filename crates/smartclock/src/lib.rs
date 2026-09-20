@@ -3,6 +3,7 @@
 //!
 //! See `PLAN.md` at the repository root for architecture and decisions.
 
+pub mod device;
 pub mod error;
 pub mod parse;
 pub mod rollover;

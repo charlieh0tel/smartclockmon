@@ -50,6 +50,17 @@ pub enum Error {
         expected: &'static str,
     },
 
+    /// This dialect has no spelling for the operation.  Held as a typed
+    /// error so a caller learns of it without a command reaching the
+    /// receiver.
+    #[error("{dialect} has no command for {operation}")]
+    Unsupported {
+        /// The command tree in use.
+        dialect: &'static str,
+        /// The operation that has no spelling.
+        operation: &'static str,
+    },
+
     /// The transcript being replayed ran out, or diverged from what the
     /// caller sent.
     #[error("replay: {0}")]

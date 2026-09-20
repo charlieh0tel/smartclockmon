@@ -1,0 +1,295 @@
+//! Typed access to one receiver.
+//!
+//! Sits on a [`Session`] and resolves logical operations through the
+//! dialect table, so a caller names what it wants rather than how a
+//! particular firmware spells it.
+
+use crate::command::CommandId;
+use crate::command::Dialect;
+use crate::error::Error;
+use crate::error::Result;
+use crate::parse;
+use crate::parse::Identity;
+use crate::rollover::ReceiverDate;
+use crate::screen;
+use crate::screen::Screen;
+use crate::session::Session;
+use crate::transport::Transport;
+use crate::types::Datum;
+use crate::types::EfcPercent;
+use crate::types::Ffom;
+use crate::types::HardwareCondition;
+use crate::types::HoldoverWaitReason;
+use crate::types::Position;
+use crate::types::SmartClockMode;
+use crate::types::Tfom;
+
+use jiff::civil::Date;
+
+/// One receiver, addressed by logical operation.
+#[derive(Debug)]
+pub struct Device<T: Transport> {
+    session: Session<T>,
+    dialect: Dialect,
+    identity: Identity,
+}
+
+impl<T: Transport> Device<T> {
+    /// Identify the receiver and choose a dialect for it.
+    ///
+    /// The session is synchronised first, since the receiver may be
+    /// mid-reply from whatever spoke to it last.
+    pub fn open(mut session: Session<T>) -> Result<Self> {
+        session.sync()?;
+        let reply = session.query("*IDN?")?;
+        let identity = parse::identity(reply.one_line("an identity")?)?;
+        let dialect = dialect_for(&identity.model);
+        Ok(Self {
+            session,
+            dialect,
+            identity,
+        })
+    }
+
+    /// Override the dialect chosen from `*IDN?`.
+    pub fn with_dialect(mut self, dialect: Dialect) -> Self {
+        self.dialect = dialect;
+        self
+    }
+
+    /// What the receiver said it is.
+    pub fn identity(&self) -> &Identity {
+        &self.identity
+    }
+
+    /// Which command tree is in use.
+    pub fn dialect(&self) -> Dialect {
+        self.dialect
+    }
+
+    /// The underlying session, for raw commands.
+    pub fn session(&mut self) -> &mut Session<T> {
+        &mut self.session
+    }
+
+    /// Send one logical operation and return its single reply line.
+    fn ask(&mut self, id: CommandId) -> Result<String> {
+        let spec = self.dialect.spec(id).ok_or(Error::Unsupported {
+            dialect: match self.dialect {
+                Dialect::Hp58503 => "hp58503",
+                Dialect::Z3801 => "z3801",
+            },
+            operation: "the requested command",
+        })?;
+        let scpi = spec.scpi;
+        let reply = self.session.query(scpi)?;
+        Ok(reply.one_line("a single line")?.to_owned())
+    }
+
+    /// As [`Device::ask`], but a receiver declining on state yields
+    /// `None` rather than an error.
+    ///
+    /// -221 and -230 mean the value does not exist right now, such as
+    /// present holdover error while locked.  That is an answer, not a
+    /// failure, and a monitor should show it as absent.
+    fn ask_optional(&mut self, id: CommandId) -> Result<Option<String>> {
+        match self.ask(id) {
+            Ok(line) => Ok(Some(line)),
+            Err(Error::Device { code, .. }) if code == -221 || code == -230 => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Which mode the disciplining loop is in.
+    pub fn mode(&mut self) -> Result<SmartClockMode> {
+        let line = self.ask(CommandId::SyncState)?;
+        SmartClockMode::parse(&line).ok_or(Error::Parse {
+            reply: line.clone(),
+            expected: "a SmartClock mode",
+        })
+    }
+
+    /// Time figure of merit.
+    pub fn tfom(&mut self) -> Result<Tfom> {
+        let line = self.ask(CommandId::Tfom)?;
+        to_u8(&line).and_then(Tfom::new).ok_or(Error::Parse {
+            reply: line,
+            expected: "a TFOM in 1..=9",
+        })
+    }
+
+    /// Frequency figure of merit.
+    pub fn ffom(&mut self) -> Result<Ffom> {
+        let line = self.ask(CommandId::Ffom)?;
+        to_u8(&line).and_then(Ffom::new).ok_or(Error::Parse {
+            reply: line,
+            expected: "an FFOM in 0..=9",
+        })
+    }
+
+    /// Interval between the receiver's 1 PPS and the GPS 1 PPS, in
+    /// seconds.
+    pub fn time_interval(&mut self) -> Result<Option<f64>> {
+        self.ask_optional(CommandId::Tinterval)?
+            .map(|l| parse::real(&l))
+            .transpose()
+    }
+
+    /// Oscillator control voltage, as a share of its range.
+    pub fn efc(&mut self) -> Result<EfcPercent> {
+        let line = self.ask(CommandId::Efc)?;
+        parse::efc(&line)
+    }
+
+    /// The hardware condition register.
+    pub fn hardware_condition(&mut self) -> Result<HardwareCondition> {
+        let line = self.ask(CommandId::HardwareCondition)?;
+        let bits = parse::int(&line)?;
+        u16::try_from(bits)
+            .map(HardwareCondition::from_bits)
+            .map_err(|_| Error::Parse {
+                reply: line,
+                expected: "a 16-bit register",
+            })
+    }
+
+    /// Why the receiver has not left holdover.
+    pub fn holdover_waiting(&mut self) -> Result<HoldoverWaitReason> {
+        let line = self.ask(CommandId::HoldoverWaiting)?;
+        HoldoverWaitReason::parse(&line).ok_or(Error::Parse {
+            reply: line.clone(),
+            expected: "a holdover wait reason",
+        })
+    }
+
+    /// How long holdover has lasted, and whether it is current.
+    pub fn holdover_duration(&mut self) -> Result<(f64, bool)> {
+        let line = self.ask(CommandId::HoldoverDuration)?;
+        parse::real_and_flag(&line)
+    }
+
+    /// Predicted time error over a day of holdover, in seconds.
+    pub fn holdover_predicted(&mut self) -> Result<Option<f64>> {
+        Ok(self
+            .ask_optional(CommandId::HoldoverUncPred)?
+            .map(|l| parse::real_and_flag(&l))
+            .transpose()?
+            .map(|(seconds, _)| seconds))
+    }
+
+    /// Time error accumulated so far in holdover, in seconds.  Absent
+    /// unless the receiver is in holdover.
+    pub fn holdover_present(&mut self) -> Result<Option<f64>> {
+        self.ask_optional(CommandId::HoldoverUncNow)?
+            .map(|l| parse::real(&l))
+            .transpose()
+    }
+
+    /// How many satellites are being used.
+    pub fn tracking_count(&mut self) -> Result<i64> {
+        let line = self.ask(CommandId::SatTrackingCount)?;
+        parse::int(&line)
+    }
+
+    /// How many the almanac expects to be visible.
+    pub fn visible_count(&mut self) -> Result<i64> {
+        let line = self.ask(CommandId::SatVisibleCount)?;
+        parse::int(&line)
+    }
+
+    /// The averaged antenna position.
+    pub fn position(&mut self) -> Result<Option<Position>> {
+        let datum = datum_for(&self.identity.model);
+        self.ask_optional(CommandId::PositionAvg)?
+            .map(|l| parse::position(&l, datum))
+            .transpose()
+    }
+
+    /// The receiver's date, checked against `today` for a GPS week
+    /// rollover.
+    pub fn date(&mut self, today: Date) -> Result<ReceiverDate> {
+        let line = self.ask(CommandId::Date)?;
+        Ok(ReceiverDate::checked(parse::ymd(&line)?, today))
+    }
+
+    /// The receiver's time of day.
+    pub fn time(&mut self) -> Result<(u8, u8, u8)> {
+        let line = self.ask(CommandId::Time)?;
+        parse::hms(&line)
+    }
+
+    /// How many diagnostic log entries are held.
+    pub fn log_count(&mut self) -> Result<i64> {
+        let line = self.ask(CommandId::LogCount)?;
+        parse::int(&line)
+    }
+
+    /// The whole status screen, scraped.
+    ///
+    /// This is the only source of per-satellite elevation, azimuth and
+    /// signal strength, and it is the most expensive query the receiver
+    /// offers: roughly 1.8 KB, about a second of wire time at 19200.
+    pub fn screen(&mut self) -> Result<Screen> {
+        let spec = self
+            .dialect
+            .spec(CommandId::StatusScreen)
+            .ok_or(Error::Unsupported {
+                dialect: "this dialect",
+                operation: "the status screen",
+            })?;
+        let reply = self.session.query(spec.scpi)?;
+        Ok(screen::parse(&reply.lines.join("\n")))
+    }
+}
+
+fn to_u8(line: &str) -> Option<u8> {
+    parse::int(line).ok().and_then(|n| u8::try_from(n).ok())
+}
+
+/// Pick a command tree from the model in `*IDN?`.
+fn dialect_for(model: &str) -> Dialect {
+    let model = model.to_ascii_uppercase();
+    if model.starts_with("Z38") {
+        Dialect::Z3801
+    } else {
+        Dialect::Hp58503
+    }
+}
+
+/// Which vertical datum a model's heights use.
+///
+/// The 58503A and 59551A report height above mean sea level; the 58503B
+/// reports it above the GPS ellipsoid.  Getting this wrong misplaces a
+/// position by tens of metres vertically.
+fn datum_for(model: &str) -> Datum {
+    match model.to_ascii_uppercase().as_str() {
+        "58503B" => Datum::Ellipsoid,
+        _ => Datum::MeanSeaLevel,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::datum_for;
+    use super::dialect_for;
+    use crate::command::Dialect;
+    use crate::types::Datum;
+
+    #[test]
+    fn the_model_chooses_the_command_tree() {
+        assert_eq!(dialect_for("58503A"), Dialect::Hp58503);
+        assert_eq!(dialect_for("58503B"), Dialect::Hp58503);
+        assert_eq!(dialect_for("59551A"), Dialect::Hp58503);
+        assert_eq!(dialect_for("Z3801A"), Dialect::Z3801);
+        assert_eq!(dialect_for("z3816a"), Dialect::Z3801);
+        // An unknown model gets the tree we can actually test against.
+        assert_eq!(dialect_for("58540A"), Dialect::Hp58503);
+    }
+
+    #[test]
+    fn the_model_chooses_the_vertical_datum() {
+        assert_eq!(datum_for("58503A"), Datum::MeanSeaLevel);
+        assert_eq!(datum_for("59551A"), Datum::MeanSeaLevel);
+        assert_eq!(datum_for("58503B"), Datum::Ellipsoid);
+    }
+}
