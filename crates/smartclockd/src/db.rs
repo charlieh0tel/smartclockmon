@@ -177,6 +177,42 @@ impl Log {
         Ok(id)
     }
 
+    /// Record a command that was not a scheduled poll.
+    ///
+    /// Kept in the same database as the telemetry on purpose.  "What
+    /// did I do to it, and what did EFC do afterwards" is one query
+    /// when they share a file and a reconciliation when they do not.
+    ///
+    /// Socket permissions are the whole of the authorization here, so
+    /// the daemon cannot tell two clients apart: this records what was
+    /// done, not by whom.
+    pub(crate) fn audit(
+        &mut self,
+        scpi: &str,
+        class: &str,
+        outcome: &str,
+        label: Option<&str>,
+    ) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO audit (at, scpi, class, outcome, label) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                jiff::Timestamp::now().to_string(),
+                scpi,
+                class,
+                outcome,
+                label
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// How many commands have been recorded.
+    pub(crate) fn audit_count(&self) -> Result<i64> {
+        Ok(self
+            .conn
+            .query_row("SELECT COUNT(*) FROM audit", [], |r| r.get(0))?)
+    }
+
     /// How many snapshots are held.
     pub(crate) fn count(&self) -> Result<i64> {
         Ok(self

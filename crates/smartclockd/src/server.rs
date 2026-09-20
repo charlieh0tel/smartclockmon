@@ -24,10 +24,47 @@ use smartclock::command::Class;
 use smartclock::command::Dialect;
 use smartclock::task::Handle;
 
+use crate::audit::Audit;
 use crate::proto::Message;
 use crate::proto::Op;
 use crate::proto::Request;
 use crate::proto::VERSION;
+
+/// What a client is permitted to do.
+///
+/// Set once from the command line and never from the socket.  A daemon
+/// started without a flag cannot be talked into the commands it gates,
+/// which is the point: enabling one is a deliberate act outside the
+/// client, and it survives any amount of fat-fingering at the socket.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct Policy {
+    /// Allow commands the table marks `control`.
+    pub(crate) control: bool,
+    /// Allow commands the table marks `dangerous`.
+    pub(crate) dangerous: bool,
+    /// Allow raw SCPI that the table does not recognise at all.
+    pub(crate) raw: bool,
+}
+
+impl Policy {
+    /// Whether a class of command is permitted.
+    fn allows(self, class: Class) -> bool {
+        match class {
+            Class::Query => true,
+            Class::Control => self.control,
+            Class::Dangerous => self.dangerous,
+        }
+    }
+
+    /// The flag that would permit a class.
+    fn flag(class: Class) -> &'static str {
+        match class {
+            Class::Query => "",
+            Class::Control => "--allow-control",
+            Class::Dangerous => "--allow-dangerous",
+        }
+    }
+}
 
 /// What the daemon tells a client about itself.
 #[derive(Debug, Clone)]
@@ -38,6 +75,10 @@ pub(crate) struct Info {
     pub dialect: Dialect,
     /// Where the snapshot log lives, so a client can open it read-only.
     pub database: String,
+    /// What clients may do.
+    pub policy: Policy,
+    /// Where to record commands that were not scheduled polls.
+    pub audit: Audit,
 }
 
 /// Listen for clients until the process ends.
@@ -88,7 +129,7 @@ fn talk(stream: Stream, handle: &Handle, info: &Info) -> Result<()> {
     // A client gets the current state immediately, so it can render
     // before the next poll rather than showing an empty screen.
     if let Some(snapshot) = handle.latest() {
-        send(&writer, &Message::event(snapshot))?;
+        write_line(&writer, &Message::event(snapshot))?;
     }
 
     let updates = handle.subscribe();
@@ -97,7 +138,7 @@ fn talk(stream: Stream, handle: &Handle, info: &Info) -> Result<()> {
         .name("smartclockd-push".to_owned())
         .spawn(move || {
             for snapshot in updates {
-                if send(&pusher, &Message::event(snapshot)).is_err() {
+                if write_line(&pusher, &Message::event(snapshot)).is_err() {
                     return;
                 }
             }
@@ -113,7 +154,7 @@ fn talk(stream: Stream, handle: &Handle, info: &Info) -> Result<()> {
             Ok(request) => handle_request(request, handle, info),
             Err(e) => Message::err(String::new(), format!("malformed request: {e}")),
         };
-        send(&writer, &reply)?;
+        write_line(&writer, &reply)?;
     }
     Ok(())
 }
@@ -140,41 +181,90 @@ fn handle_request(request: Request, handle: &Handle, info: &Info) -> Message {
                 "identity": info.identity,
                 "dialect": format!("{:?}", info.dialect),
                 "database": info.database,
+                "allow_control": info.policy.control,
+                "allow_dangerous": info.policy.dangerous,
+                "allow_raw": info.policy.raw,
             }),
         ),
-        Op::Query { scpi } => query(id, &scpi, handle, info.dialect),
+        Op::Query { scpi } => send(id, &scpi, handle, info),
     }
 }
 
-/// Run a client's command, refusing anything that is not read-only.
+/// Run a client's command, if the policy permits it.
 ///
 /// The gate is the command table, not a list kept here, so a command
-/// reclassified there is reclassified for clients too.  An unknown
-/// command is refused rather than passed through: phase 3 serves
-/// queries only, and a spelling the table does not know could be
-/// anything.
-fn query(id: String, scpi: &str, handle: &Handle, dialect: Dialect) -> Message {
-    let known = dialect
+/// reclassified there is reclassified for clients too.  A spelling the
+/// table does not know is refused unless raw is allowed, since an
+/// unknown command could be anything.
+fn send(id: String, scpi: &str, handle: &Handle, info: &Info) -> Message {
+    let scpi = scpi.trim();
+    let known = info
+        .dialect
         .specs()
         .iter()
-        .find(|s| s.scpi.eq_ignore_ascii_case(scpi.trim()));
-    match known {
-        Some(spec) if spec.class == Class::Query => match handle.request(spec.scpi) {
-            Ok(reply) => Message::ok(id, serde_json::json!({ "lines": reply.lines })),
-            Err(e) => Message::err(id, e),
-        },
-        Some(spec) => Message::err(
+        .find(|s| s.scpi.eq_ignore_ascii_case(scpi));
+
+    let (class, to_send) = match known {
+        Some(spec) => (spec.class, spec.scpi),
+        None if info.policy.raw => (raw_class(scpi), scpi),
+        None => {
+            return Message::err(
+                id,
+                format!("{scpi} is not a command this dialect knows, and --allow-raw is off"),
+            );
+        }
+    };
+
+    if !info.policy.allows(class) {
+        return Message::err(
             id,
             format!(
-                "{} is {:?}; this daemon serves queries only",
-                spec.scpi, spec.class
+                "{scpi} is {class:?}; this daemon was started without {}",
+                Policy::flag(class)
             ),
-        ),
-        None => Message::err(id, format!("{scpi} is not a command this dialect knows")),
+        );
+    }
+
+    let outcome = handle.request(to_send);
+    let note = match &outcome {
+        Ok(reply) if reply.lines.is_empty() => "ok".to_owned(),
+        Ok(reply) => format!("ok: {}", reply.lines.join(" | ")),
+        Err(e) => format!("failed: {e}"),
+    };
+    info.audit.record(to_send, class, &note);
+
+    // A command that changed something should not wait up to a minute
+    // to show in the snapshots.
+    if class != Class::Query && outcome.is_ok() {
+        handle.refresh();
+    }
+
+    match outcome {
+        Ok(reply) => Message::ok(id, serde_json::json!({ "lines": reply.lines })),
+        Err(e) => Message::err(id, e),
     }
 }
 
-fn send<W: Write>(writer: &Arc<Mutex<W>>, message: &Message) -> Result<()> {
+/// Guess a class for a command the table does not know.
+///
+/// Raw passthrough is off by default and this only applies when it is
+/// on, but even then an unrecognised command is treated as at least
+/// control, and anything resembling the ones that can strand the link
+/// as dangerous.  Guessing generously costs a client one more flag;
+/// guessing kindly could erase the receiver.
+fn raw_class(scpi: &str) -> Class {
+    let upper = scpi.to_ascii_uppercase();
+    const STRANDS: [&str; 4] = ["COMM", "PRES", "ERAS", "LANG"];
+    if STRANDS.iter().any(|needle| upper.contains(needle)) {
+        Class::Dangerous
+    } else if scpi.ends_with('?') {
+        Class::Query
+    } else {
+        Class::Control
+    }
+}
+
+fn write_line<W: Write>(writer: &Arc<Mutex<W>>, message: &Message) -> Result<()> {
     let line = serde_json::to_string(message)?;
     let mut writer = writer
         .lock()

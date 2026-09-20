@@ -5,9 +5,14 @@
 //! watching.  Clients reach it over a local socket for live state, and
 //! by opening the SQLite log read-only for history.
 
+mod audit;
+
 mod db;
 mod proto;
 mod server;
+
+use crate::audit::Audit;
+use crate::server::Policy;
 
 use std::path::Path;
 use std::path::PathBuf;
@@ -23,7 +28,6 @@ use clap::Parser;
 use interprocess::local_socket::GenericFilePath;
 use interprocess::local_socket::ToFsName as _;
 use jiff::Timestamp;
-use smartclock::command::Dialect;
 use smartclock::device::Device;
 use smartclock::session::Config;
 use smartclock::session::Session;
@@ -70,6 +74,23 @@ struct Cli {
     /// Seconds between position and date polls.
     #[arg(long, default_value_t = 60.0)]
     slow: f64,
+
+    /// Permit commands that change receiver state: holdover, survey,
+    /// antenna delay, elevation mask.
+    #[arg(long)]
+    allow_control: bool,
+
+    /// Permit commands that can strand the link or wipe configuration:
+    /// system preset, serial reconfiguration, flash erase, language
+    /// change.  A baud change persists across power cycles.
+    #[arg(long)]
+    allow_dangerous: bool,
+
+    /// Permit raw SCPI the command table does not recognise.  An
+    /// unrecognised command is treated as control, or as dangerous if
+    /// it resembles one that can strand the link.
+    #[arg(long)]
+    allow_raw: bool,
 }
 
 /// How long to wait before reopening a receiver that went away.
@@ -91,10 +112,13 @@ fn main() -> Result<()> {
     }
     let mut log = db::Log::open(&cli.database)?;
     eprintln!(
-        "smartclockd: log at {} holds {} snapshots",
+        "smartclockd: log at {} holds {} snapshots and {} commands",
         cli.database.display(),
-        log.count()?
+        log.count()?,
+        log.audit_count()?
     );
+
+    let (audit_tx, audit_rx) = channel::<crate::audit::Entry>();
 
     let shared = Shared::new();
     let (requests_tx, requests_rx) = channel();
@@ -106,7 +130,15 @@ fn main() -> Result<()> {
     thread::Builder::new()
         .name("smartclockd-log".to_owned())
         .spawn(move || {
-            for snapshot in writes {
+            // Commands are recorded on the same thread as snapshots so
+            // one connection stays one writer.
+            loop {
+                while let Ok(entry) = audit_rx.try_recv() {
+                    if let Err(e) = log.audit(&entry.scpi, &entry.class, &entry.outcome, None) {
+                        eprintln!("smartclockd: could not record a command: {e}");
+                    }
+                }
+                let Ok(snapshot) = writes.recv() else { return };
                 // Only record readings that describe the receiver.  A
                 // disconnected snapshot is the same values again with a
                 // flag, and logging those would pad the history with
@@ -121,7 +153,15 @@ fn main() -> Result<()> {
         })
         .context("spawning the log thread")?;
 
-    supervise(cli, baud, shared, requests_tx, requests_rx, database)
+    supervise(
+        cli,
+        baud,
+        shared,
+        requests_tx,
+        requests_rx,
+        database,
+        Audit::new(audit_tx),
+    )
 }
 
 /// Keep a receiver open, reopening it whenever the link dies.
@@ -137,6 +177,7 @@ fn supervise(
     requests_tx: Sender<Request>,
     requests_rx: Receiver<Request>,
     database: String,
+    audit: Audit,
 ) -> Result<()> {
     let settings = Settings {
         path: cli.device.clone(),
@@ -148,6 +189,18 @@ fn supervise(
         medium: Duration::from_secs_f64(cli.medium),
         slow: Duration::from_secs_f64(cli.slow),
     };
+
+    let policy = Policy {
+        control: cli.allow_control,
+        dangerous: cli.allow_dangerous,
+        raw: cli.allow_raw,
+    };
+    if policy.control || policy.dangerous || policy.raw {
+        eprintln!(
+            "smartclockd: clients may change the receiver (control {}, dangerous {}, raw {})",
+            policy.control, policy.dangerous, policy.raw
+        );
+    }
 
     let mut requests = requests_rx;
     let mut serving = false;
@@ -175,14 +228,18 @@ fn supervise(
         // client never connects to a daemon with nothing to say.  Later
         // reconnects reuse the listener already running.
         if !serving {
-            start_server(
-                &cli.socket,
-                &shared,
-                &requests_tx,
-                &identity,
-                device.dialect(),
-                &database,
-            )?;
+            start_server(Listening {
+                socket: &cli.socket,
+                shared: &shared,
+                requests: &requests_tx,
+                info: server::Info {
+                    identity: identity.clone(),
+                    dialect: device.dialect(),
+                    database: database.clone(),
+                    policy,
+                    audit: audit.clone(),
+                },
+            })?;
             serving = true;
         }
 
@@ -208,14 +265,20 @@ fn open(settings: &Settings) -> Result<Device<SerialTransport>> {
     Device::open(session).context("identifying the receiver")
 }
 
-fn start_server(
-    socket: &Path,
-    shared: &Shared,
-    requests: &Sender<Request>,
-    identity: &str,
-    dialect: Dialect,
-    database: &str,
-) -> Result<()> {
+/// What the socket server needs to start.
+struct Listening<'a> {
+    /// Where to bind.
+    socket: &'a Path,
+    /// State to serve to clients.
+    shared: &'a Shared,
+    /// Where client commands go.
+    requests: &'a Sender<Request>,
+    /// What to tell clients about the receiver and the policy.
+    info: server::Info,
+}
+
+fn start_server(listening: Listening<'_>) -> Result<()> {
+    let socket = listening.socket;
     if let Some(parent) = socket.parent() {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("creating {}", parent.display()))?;
@@ -227,13 +290,9 @@ fn start_server(
         .to_fs_name::<GenericFilePath>()
         .context("naming the socket")?
         .into_owned();
-    let handle = Handle::new(requests.clone(), shared.clone());
-    let info = server::Info {
-        identity: identity.to_owned(),
-        dialect,
-        database: database.to_owned(),
-    };
-    let listening = socket.display().to_string();
+    let handle = Handle::new(listening.requests.clone(), listening.shared.clone());
+    let info = listening.info;
+    let where_to = socket.display().to_string();
     thread::Builder::new()
         .name("smartclockd-socket".to_owned())
         .spawn(move || {
@@ -242,6 +301,6 @@ fn start_server(
             }
         })
         .context("spawning the socket server")?;
-    eprintln!("smartclockd: listening on {listening}");
+    eprintln!("smartclockd: listening on {where_to}");
     Ok(())
 }

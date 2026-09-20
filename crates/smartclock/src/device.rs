@@ -6,6 +6,7 @@
 
 use crate::command::CommandId;
 use crate::command::Dialect;
+use crate::control::Control;
 use crate::error::Error;
 use crate::error::Result;
 use crate::parse;
@@ -77,6 +78,15 @@ impl<T: Transport> Device<T> {
     /// The underlying session, for raw commands.
     pub fn session(&mut self) -> &mut Session<T> {
         &mut self.session
+    }
+
+    /// A handle for changing receiver state.
+    ///
+    /// Separate from the read paths on purpose: reaching a control
+    /// command means naming this, so nothing that only meant to read
+    /// can send one by accident.
+    pub fn control(&mut self) -> Control<'_, T> {
+        Control::new(&mut self.session, self.dialect)
     }
 
     /// Send one logical operation and return its single reply line.

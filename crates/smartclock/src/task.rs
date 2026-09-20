@@ -70,13 +70,21 @@ impl Cadence {
     }
 }
 
-/// A command submitted from outside the task.
+/// Something asked of the task from outside.
 #[derive(Debug)]
-pub struct Request {
-    /// The SCPI string to send.
-    pub scpi: String,
-    /// Where to put the answer.
-    pub answer: SyncSender<Result<Reply>>,
+pub enum Request {
+    /// Send a command and return its reply.
+    Command {
+        /// The SCPI string to send.
+        scpi: String,
+        /// Where to put the answer.
+        answer: SyncSender<Result<Reply>>,
+    },
+    /// Poll every tier at the next opportunity.
+    ///
+    /// Sent after a command that changed something, so the change shows
+    /// in the snapshots at once rather than after up to a minute.
+    Refresh,
 }
 
 /// State that outlives any one connection to the receiver.
@@ -164,6 +172,13 @@ impl Handle {
         self.shared.subscribe()
     }
 
+    /// Ask the task to re-poll everything at once.
+    pub fn refresh(&self) {
+        // A task that has gone is not worth reporting here; the next
+        // command will say so.
+        let _ = self.requests.send(Request::Refresh);
+    }
+
     /// Send one command and wait for its reply.
     ///
     /// The task services requests between scheduled polls, never during
@@ -171,7 +186,7 @@ impl Handle {
     /// about a second when the status screen is being read.
     pub fn request(&self, scpi: impl Into<String>) -> Result<Reply> {
         let (tx, rx) = sync_channel(1);
-        let request = Request {
+        let request = Request::Command {
             scpi: scpi.into(),
             answer: tx,
         };
@@ -326,11 +341,21 @@ impl<T: Transport> DeviceTask<T> {
         None
     }
 
-    /// Run one submitted command.
+    /// Run one submitted request.
     fn serve(&mut self, request: Request) {
-        let outcome = self.device.session().query(&request.scpi);
-        // A caller that gave up before the answer arrived is not an
-        // error worth acting on.
-        let _ = request.answer.send(outcome);
+        match request {
+            Request::Command { scpi, answer } => {
+                let outcome = self.device.session().query(&scpi);
+                // A caller that gave up before the answer arrived is
+                // not an error worth acting on.
+                let _ = answer.send(outcome);
+            }
+            Request::Refresh => {
+                let now = Instant::now();
+                for tier in Tier::ALL {
+                    self.due[tier as usize] = now;
+                }
+            }
+        }
     }
 }

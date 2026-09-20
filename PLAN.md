@@ -173,13 +173,16 @@ scattered conditionals:
 | Class     | Examples                                              | Gate                     |
 | --------- | ----------------------------------------------------- | ------------------------ |
 | Query     | `:GPS:POSition?`, `:SYNC:TINT?`                        | none                     |
-| Control   | holdover initiate and recover, survey, antenna delay, elevation mask | config opt-in |
-| Dangerous | `:SYSTem:PRESet`, `:SYSTem:COMMunicate:SERial1:*`, `:DIAGnostic:ERASe`, `:SYSTem:LANGuage "INSTALL"` | config opt-in and a nonce |
+| Control   | holdover initiate and recover, survey, antenna delay, elevation mask | `--allow-control` |
+| Dangerous | `:SYSTem:PRESet`, `:SYSTem:COMMunicate:SERial1:*`, `:DIAGnostic:ERASe`, `:SYSTem:LANGuage "INSTALL"` | `--allow-dangerous` |
 
 Dangerous commands can strand the link or wipe configuration, since a
-baud change persists across power cycles.  Requiring the client to echo
-a nonce the daemon issued keeps them out of reach of a fat-finger or a
-stray script.
+baud change persists across power cycles.  The gate is a daemon flag
+rather than anything a client can present.  An earlier draft had the
+client echo a nonce the daemon issued; a flag is better ceremony,
+because enabling it is a deliberate act outside the client and it
+survives no amount of fat-fingering at the socket.  A daemon started
+without the flag cannot be talked into the command at all.
 
 Authorization is socket permissions and nothing else.  systemd's
 `RuntimeDirectory` and `RuntimeDirectoryMode`, plus group ownership,
@@ -197,7 +200,7 @@ rather than against people: it stops a fat-finger or a stray script, not
 someone who already has socket access.
 
 The TUI's raw SCPI console deliberately bypasses the dialect table, so
-it is its own capability, `allow_raw`, off by default.  The daemon still
+it is its own flag, `--allow-raw`, off by default.  The daemon still
 classifies the command prefix where it recognizes it, and logs every raw
 command unconditionally.
 
@@ -475,7 +478,7 @@ examined before either the daemon or the TUI exists.
 | 3 | `Device`, `Snapshot`, `DeviceTask` with the tiered scheduler and request queue.  `smartclockd` with the SQLite logger, socket protocol, reconnection handling, and a systemd unit.  Queries only over the socket; control lands in phase 6.  Logging starts here and runs from here on. |
 | 4 | `smartclock-sim`: PTY-backed emulator replaying recorded state, so client work needs no hardware and no daemon contention. |
 | 5 | `smartclockmon`: socket client for live state, read-only SQLite for trends.  Panes for synchronization, acquisition and satellite table, health and EFC trend, position, log, raw SCPI console. |
-| 6 | Control operations behind an explicit `Control` handle, proxied over the socket: holdover initiate and recover, survey, antenna delay, elevation mask, preset.  Command classification in the dialect table, socket-permission authorization, nonce confirmation for dangerous commands, audit rows, and force-refresh after a successful control operation.  `:SYSTem:COMMunicate:*` gated hard -- baud changes persist across power cycles and will strand the link. |
+| 6 | Control operations behind an explicit `Control` handle, proxied over the socket: holdover initiate and recover, survey, antenna delay, elevation mask, preset.  Command classification in the dialect table, socket-permission authorization, daemon flags gating control and dangerous commands, audit rows, and force-refresh after a successful control operation.  `:SYSTem:COMMunicate:*` gated hard -- baud changes persist across power cycles and will strand the link. |
 | 7 | Documentation: per-model command matrix generated from the command table, wire protocol notes, socket protocol, deployment. |
 
 Suggest a commit at each phase boundary.
