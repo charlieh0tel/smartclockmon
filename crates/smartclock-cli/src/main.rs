@@ -12,15 +12,20 @@ use anyhow::Context as _;
 use anyhow::Result;
 use clap::Parser;
 use clap::Subcommand;
+use jiff::Zoned;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
 use smartclock::error::Error;
+use smartclock::parse;
+use smartclock::rollover::ReceiverDate;
 use smartclock::session::Config;
 use smartclock::session::Session;
 use smartclock::transport::Transport;
 use smartclock::transport::serial::SerialTransport;
 use smartclock::transport::serial::Settings;
 use smartclock::transport::tee::TeeTransport;
+use smartclock::types::HardwareCondition;
+use smartclock::types::SmartClockMode;
 
 #[derive(Parser)]
 #[command(about, version)]
@@ -63,6 +68,8 @@ enum Command {
         #[arg(long, default_value = "hp58503")]
         dialect: String,
     },
+    /// Report oscillator and holdover health in one pass.
+    Diagnose,
 }
 
 fn main() -> Result<()> {
@@ -112,7 +119,141 @@ fn run<T: Transport>(session: &mut Session<T>, command: &Command) -> Result<()> 
             Ok(())
         }
         Command::Probe { dialect } => probe(session, dialect),
+        Command::Diagnose => diagnose(session),
     }
+}
+
+/// Ask one query and hand back the single line it produces.
+///
+/// A receiver that declines on state, -221 or -230, is answering
+/// truthfully about a value that does not exist right now, so that is
+/// reported as absent rather than as a failure.
+fn ask<T: Transport>(session: &mut Session<T>, scpi: &str) -> Result<Option<String>> {
+    match session.query(scpi) {
+        Ok(reply) => Ok(reply.lines.first().cloned()),
+        Err(Error::Device { code, .. }) if code == -221 || code == -230 => Ok(None),
+        Err(e) => Err(e).with_context(|| format!("sending {scpi}")),
+    }
+}
+
+/// Print what the receiver says about its oscillator and its lock.
+fn diagnose<T: Transport>(session: &mut Session<T>) -> Result<()> {
+    if let Some(line) = ask(session, "*IDN?")? {
+        let id = parse::identity(&line)?;
+        println!(
+            "{} {}  serial {}  firmware {}",
+            id.manufacturer, id.model, id.serial, id.firmware
+        );
+    }
+
+    println!("\nLock");
+    if let Some(line) = ask(session, ":SYNChronization:STATe?")? {
+        let mode = SmartClockMode::parse(&line)
+            .map_or_else(|| format!("unrecognised ({line})"), |m| format!("{m:?}"));
+        println!("  mode                {mode}");
+    }
+    if let Some(line) = ask(session, ":SYNChronization:HOLDover:WAITing?")? {
+        println!("  waiting to recover  {line}");
+    }
+    for (label, scpi) in [
+        ("TFOM", ":SYNChronization:TFOMerit?"),
+        ("FFOM", ":SYNChronization:FFOMerit?"),
+    ] {
+        if let Some(line) = ask(session, scpi)? {
+            println!("  {label:<18}  {}", parse::int(&line)?);
+        }
+    }
+    if let Some(line) = ask(session, ":SYNChronization:TINTerval?")? {
+        println!("  1 PPS interval      {:+.1} ns", parse::real(&line)? * 1e9);
+    }
+
+    println!("\nOscillator");
+    if let Some(line) = ask(session, ":DIAGnostic:ROSCillator:EFControl:RELative?")? {
+        let efc = parse::efc(&line)?;
+        // The signed percentage is less informative than how much of
+        // the tuning range is gone: an aged OCXO fails by walking to a
+        // rail, whichever one.
+        println!(
+            "  EFC                 {efc}  ({:.0}% of tuning range used)",
+            efc.range_used() * 100.0
+        );
+    }
+    if let Some(line) = ask(session, ":STATus:OPERation:HARDware:CONDition?")? {
+        let bits = u16::try_from(parse::int(&line)?).unwrap_or(0);
+        let condition = HardwareCondition::from_bits(bits);
+        if condition.is_healthy() {
+            println!("  hardware            no faults (register {bits})");
+        } else {
+            println!("  hardware            register {bits}");
+            for fault in condition.faults() {
+                println!("    - {}", fault.describe());
+            }
+        }
+    }
+
+    println!("\nHoldover");
+    if let Some(line) = ask(session, ":SYNChronization:HOLDover:DURation?")? {
+        let (seconds, active) = parse::real_and_flag(&line)?;
+        let state = if active {
+            "in holdover"
+        } else {
+            "not in holdover"
+        };
+        println!("  state               {state}, last duration {seconds:.0} s");
+    }
+    if let Some(line) = ask(session, ":SYNChronization:HOLDover:TUNCertainty:PREDicted?")? {
+        let (seconds, _) = parse::real_and_flag(&line)?;
+        println!("  predicted 24 h      {:.1} us", seconds * 1e6);
+    }
+    match ask(session, ":SYNChronization:HOLDover:TUNCertainty:PRESent?")? {
+        Some(line) => println!("  present error       {:.1} us", parse::real(&line)? * 1e6),
+        None => println!("  present error       not applicable outside holdover"),
+    }
+
+    println!("\nGPS");
+    if let Some(line) = ask(session, ":GPS:SATellite:TRACking:COUNt?")? {
+        let visible = ask(session, ":GPS:SATellite:VISible:PREDicted:COUNt?")?
+            .map(|v| parse::int(&v))
+            .transpose()?;
+        match visible {
+            Some(visible) => println!(
+                "  satellites          {} tracked of {visible} predicted",
+                parse::int(&line)?
+            ),
+            None => println!("  satellites          {} tracked", parse::int(&line)?),
+        }
+    }
+
+    // The date is checked against the host clock because this firmware
+    // predates the 2019 GPS week rollover and reports a date exactly
+    // 1024 weeks in the past.  Its time of day and outputs are sound.
+    if let Some(line) = ask(session, ":PTIMe:DATE?")? {
+        let raw = parse::ymd(&line)?;
+        let today = Zoned::now().date();
+        let seen = ReceiverDate::checked(raw, today);
+        match seen.rollover() {
+            Some(slip) => {
+                println!("  date                {raw}  WRONG");
+                println!(
+                    "                      {} GPS week rollover(s), {} days behind; actual date is {}",
+                    slip.epochs,
+                    slip.days(),
+                    seen.corrected()
+                );
+                println!("                      time of day, 1 PPS and 10 MHz are unaffected");
+            }
+            None => println!("  date                {raw}"),
+        }
+    }
+
+    println!("\nLog");
+    if let Some(line) = ask(session, ":DIAGnostic:LOG:COUNt?")? {
+        println!("  entries             {}", parse::int(&line)?);
+    }
+    if let Some(line) = ask(session, ":DIAGnostic:LOG:READ?")? {
+        println!("  most recent         {}", parse::string(&line)?);
+    }
+    Ok(())
 }
 
 /// Send every query in a dialect and report what came back.

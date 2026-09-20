@@ -4,8 +4,12 @@
 //! See `PLAN.md` at the repository root for architecture and decisions.
 
 pub mod error;
+pub mod parse;
+pub mod rollover;
+pub mod screen;
 pub mod session;
 pub mod transport;
+pub mod types;
 
 pub mod command {
     //! The command table, generated from `commands.toml` by `build.rs`.

@@ -1,0 +1,154 @@
+{"t": 0.250302059, "dir": "tx", "data": "\r\n"}
+{"t": 0.25242409, "dir": "rx", "data": "\r\nscpi >"}
+{"t": 0.256372616, "dir": "tx", "data": "*IDN?\r\n"}
+{"t": 0.25690477, "dir": "rx", "data": " *IDN?\r\nHEWLETT-PACKARD,58503A,3710A01056,3704-C\r\nscpi >"}
+{"t": 0.305288049, "dir": "tx", "data": "*ESE?\r\n"}
+{"t": 0.305747108, "dir": "rx", "data": " *ESE?\r\n+0\r\nscpi >"}
+{"t": 0.31973233, "dir": "tx", "data": "*ESR?\r\n"}
+{"t": 0.320210983, "dir": "rx", "data": " *ESR?\r\n+48\r\nscpi >"}
+{"t": 0.334932915, "dir": "tx", "data": "*SRE?\r\n"}
+{"t": 0.33532526, "dir": "rx", "data": " *SRE?\r\n+136\r\nscpi >"}
+{"t": 0.363766422, "dir": "tx", "data": "*STB?\r\n"}
+{"t": 0.364105299, "dir": "rx", "data": " *STB?\r\n+0\r\nscpi >"}
+{"t": 0.378524998, "dir": "tx", "data": ":GPS:POSition?\r\n"}
+{"t": 0.378905821, "dir": "rx", "data": " :GPS:POSition?\r\nN,+37,+22,+3.02770E+001,W,+122,+5,+3.48160E+001,+4.35100E+001\r\nscpi >"}
+{"t": 0.455454437, "dir": "tx", "data": ":GPS:POSition:ACTual?\r\n"}
+{"t": 0.455938929, "dir": "rx", "data": " :GPS:POSition:ACTual?\r\nN,+37,+22,+3.02770E+001,W,+122,+5,+3.48160E+001,+4.35100E+001\r\nscpi >"}
+{"t": 0.539452608, "dir": "tx", "data": ":GPS:POSition:HOLD:LAST?\r\n"}
+{"t": 0.539699795, "dir": "rx", "data": " :GPS:POSition:HOLD:LAST?\r\nN,+37,+22,+3.02770E+001,W,+122,+5,+3.48160E+001,+4.35100E+001\r\nscpi >"}
+{"t": 0.627728652, "dir": "tx", "data": ":GPS:POSition:HOLD:STATe?\r\n"}
+{"t": 0.62812168, "dir": "rx", "data": " :GPS:POSition:HOLD:STATe?\r\n1\r\nscpi >"}
+{"t": 0.662048667, "dir": "tx", "data": ":GPS:POSition:SURVey:PROGress?\r\n"}
+{"t": 0.66237013, "dir": "rx", "data": " :GPS:POSition:SURVey:PROGress?\r\nE-221>"}
+{"t": 0.701919679, "dir": "tx", "data": ":SYSTem:ERRor?\r\n"}
+{"t": 0.702335312, "dir": "rx", "data": " :SYSTem:ERRor?\r\n-221,\"Settings conflict\"\r\nscpi >"}
+{"t": 0.746309771, "dir": "tx", "data": ":GPS:POSition:SURVey:STATe?\r\n"}
+{"t": 0.746715043, "dir": "rx", "data": " :GPS:POSition:SURVey:STATe?\r\n0\r\nscpi >"}
+{"t": 0.785528292, "dir": "tx", "data": ":GPS:POSition:SURVey:STATe:POWerup?\r\n"}
+{"t": 0.785897985, "dir": "rx", "data": " :GPS:POSition:SURVey:STATe:POWerup?\r\n0\r\nscpi >"}
+{"t": 0.832056892, "dir": "tx", "data": ":GPS:SATellite:TRACking:EMANgle?\r\n"}
+{"t": 0.832563096, "dir": "rx", "data": " :GPS:SATellite:TRACking:EMANgle?\r\n+10\r\nscpi >"}
+{"t": 0.875576489, "dir": "tx", "data": ":GPS:SATellite:TRACking:IGNore?\r\n"}
+{"t": 0.875830233, "dir": "rx", "data": " :GPS:SATellite:TRACking:IGNore?\r\n+0\r\nscpi >"}
+{"t": 0.918033753, "dir": "tx", "data": ":GPS:SATellite:TRACking:IGNore:COUNt?\r\n"}
+{"t": 0.918387047, "dir": "rx", "data": " :GPS:SATellite:TRACking:IGNore:COUNt?\r\n+0\r\nscpi >"}
+{"t": 0.974496719, "dir": "tx", "data": ":GPS:SATellite:TRACking:INCLude?\r\n"}
+{"t": 0.974919408, "dir": "rx", "data": " :GPS:SATellite:TRACking:INCLude?\r\n+1,+2,+3,+4,+5,+6,+7,+8,+9,+10,+11,+12,+13,+14,+15,+16,+17,+18,+19,+20,+21,+22,+23,+24,+25,+26,+27,+28,+29,+30,+31,+32\r\nscpi >"}
+{"t": 1.1567309510000001, "dir": "tx", "data": ":GPS:REFerence:ADELay?\r\n"}
+{"t": 1.157015007, "dir": "rx", "data": " :GPS:REFerence:ADELay?\r\n+0.00000E+000\r\nscpi >"}
+{"t": 1.201073171, "dir": "tx", "data": ":GPS:REFerence:VALid?\r\n"}
+{"t": 1.201453111, "dir": "rx", "data": " :GPS:REFerence:VALid?\r\n1\r\nscpi >"}
+{"t": 1.231305702, "dir": "tx", "data": ":GPS:SATellite:TRACking?\r\n"}
+{"t": 1.231754794, "dir": "rx", "data": " :GPS:SATellite:TRACking?\r\n+3,+4,+16,+26,+28,+31\r\nscpi >"}
+{"t": 1.284536216, "dir": "tx", "data": ":GPS:SATellite:TRACking:COUNt?\r\n"}
+{"t": 1.284855197, "dir": "rx", "data": " :GPS:SATellite:TRACking:COUNt?\r\n+6\r\nscpi >"}
+{"t": 1.3273537260000001, "dir": "tx", "data": ":GPS:SATellite:VISible:PREDicted?\r\n"}
+{"t": 1.327501218, "dir": "rx", "data": " :GPS:SATellite:VISible:PREDicted?\r\n+1,+3,+4,+6,+9,+16,+26,+28,+31\r\nscpi >"}
+{"t": 1.40836015, "dir": "tx", "data": ":GPS:SATellite:VISible:PREDicted:COUNt?\r\n"}
+{"t": 1.4086770259999999, "dir": "rx", "data": " :GPS:SATellite:VISible:PREDicted:COUNt?\r\n+9\r\nscpi >"}
+{"t": 1.459957568, "dir": "tx", "data": ":SYNChronization:STATe?\r\n"}
+{"t": 1.4603146759999999, "dir": "rx", "data": " :SYNChronization:STATe?\r\nLOCK\r\nscpi >"}
+{"t": 1.4949428550000001, "dir": "tx", "data": ":DIAGnostic:ROSCillator:EFControl:RELative?\r\n"}
+{"t": 1.495203998, "dir": "rx", "data": " :DIAGnostic:ROSCillator:EFControl:RELative?\r\n+3.60921E+001\r\nscpi >"}
+{"t": 1.55990496, "dir": "tx", "data": ":LED:GPSLock?\r\n"}
+{"t": 1.5602373859999998, "dir": "rx", "data": " :LED:GPSLock?\r\n1\r\nscpi >"}
+{"t": 1.5836564, "dir": "tx", "data": ":LED:HOLDover?\r\n"}
+{"t": 1.583859707, "dir": "rx", "data": " :LED:HOLDover?\r\n0\r\nscpi >"}
+{"t": 1.6068548200000001, "dir": "tx", "data": ":SYNChronization:FFOMerit?\r\n"}
+{"t": 1.6070935290000001, "dir": "rx", "data": " :SYNChronization:FFOMerit?\r\n+1\r\nscpi >"}
+{"t": 1.64489145, "dir": "tx", "data": ":SYNChronization:TFOMerit?\r\n"}
+{"t": 1.645300971, "dir": "rx", "data": " :SYNChronization:TFOMerit?\r\n+3\r\nscpi >"}
+{"t": 1.6836333479999999, "dir": "tx", "data": ":SYNChronization:TINTerval?\r\n"}
+{"t": 1.6839605930000001, "dir": "rx", "data": " :SYNChronization:TINTerval?\r\n-6.7E-009\r\nscpi >"}
+{"t": 1.727287129, "dir": "tx", "data": ":SYNChronization:HOLDover:TUNCertainty:PREDicted?\r\n"}
+{"t": 1.727648844, "dir": "rx", "data": " :SYNChronization:HOLDover:TUNCertainty:PREDicted?\r\n+4.320E-004,0\r\nscpi >"}
+{"t": 1.800688893, "dir": "tx", "data": ":SYNChronization:HOLDover:TUNCertainty:PRESent?\r\n"}
+{"t": 1.801071737, "dir": "rx", "data": " :SYNChronization:HOLDover:TUNCertainty:PRESent?\r\nE-221>"}
+{"t": 1.858195658, "dir": "tx", "data": ":SYSTem:ERRor?\r\n"}
+{"t": 1.858638573, "dir": "rx", "data": " :SYSTem:ERRor?\r\n-221,\"Settings conflict\"\r\nscpi >"}
+{"t": 1.901404163, "dir": "tx", "data": ":SYNChronization:HOLDover:DURation?\r\n"}
+{"t": 1.901711229, "dir": "rx", "data": " :SYNChronization:HOLDover:DURation?\r\n+0.00000E+000,0\r\nscpi >"}
+{"t": 1.965762309, "dir": "tx", "data": ":SYNChronization:HOLDover:DURation:THReshold?\r\n"}
+{"t": 1.966035703, "dir": "rx", "data": " :SYNChronization:HOLDover:DURation:THReshold?\r\n+86400\r\nscpi >"}
+{"t": 2.040412996, "dir": "tx", "data": ":SYNChronization:HOLDover:DURation:THReshold:EXCeeded?\r\n"}
+{"t": 2.040833285, "dir": "rx", "data": " :SYNChronization:HOLDover:DURation:THReshold:EXCeeded?\r\n0\r\nscpi >"}
+{"t": 2.125864262, "dir": "tx", "data": ":SYNChronization:HOLDover:WAITing?\r\n"}
+{"t": 2.126343223, "dir": "rx", "data": " :SYNChronization:HOLDover:WAITing?\r\nNONE\r\nscpi >"}
+{"t": 2.178697515, "dir": "tx", "data": ":SYSTem:STATus?\r\n"}
+{"t": 2.179057662, "dir": "rx", "data": " :SYSTem:STATus?\r\n------------------------------- Receiver Status -------------------------------\r\nSYNCHRONIZATION ............................ [ Outputs Valid/Reduced Accuracy ]\r\nSmartClock Mode ___________________________   Reference Outputs _______________\r\n>> Locked to GPS: stabilizing frequency       TFOM     3             FFOM     1\r\n   Recovery                                   1PPS TI -4.8 ns relative to GPS\r\n   Holdover                                   HOLD THR 1.000 us\r\n   Power-up                                   Holdover Uncertainty ____________\r\n                                              Predict  432.0 us/initial 24 hrs\r\n                                                \r\nACQUISITION ................................................ [ GPS 1PPS Valid ]\r\nTracking: 6 ____   Not Tracking: 3 ________   Time ____________________________\r\nPRN  El  Az   SS   PRN  El  Az                UTC      20:04:20     04 Feb 2007\r\n  3  88 281  111   * 1  24 204                GPS 1PPS Synchronized to UTC\r\n  4  51 306   86     6  12 319                ANT DLY  0 ns\r\n 16  29 133   57   * 9  Acq ..                Position ________________________\r\n 26  40  91   70                              MODE     Hold\r\n 28  13  46   28                              \r\n 31  41  46  114                              LAT      N  37:22:30.277\r\n                                              LON      W 122:05:34.816\r\n                                              HGT               +43.51 m  (MSL)\r\nELEV MASK 10 deg   *attempting to track       \r\nHEALTH MONITOR ......................................................... [ OK ]\r\nSelf Test: OK    Int Pwr: OK   Oven Pwr: OK   OCXO: OK   EFC: OK   GPS Rcv: OK \r\nscpi >"}
+{"t": 4.316102695, "dir": "tx", "data": ":SYSTem:STATus:LENGth?\r\n"}
+{"t": 4.3165767, "dir": "rx", "data": " :SYSTem:STATus:LENGth?\r\n+23\r\nscpi >"}
+{"t": 4.349373218, "dir": "tx", "data": ":SYSTem:ERRor?\r\n"}
+{"t": 4.349861927, "dir": "rx", "data": " :SYSTem:ERRor?\r\n+0,\"No error\"\r\nscpi >"}
+{"t": 4.394190079, "dir": "tx", "data": ":DIAGnostic:LOG:READ:ALL?\r\n"}
+{"t": 4.394720734, "dir": "rx", "data": " :DIAGnostic:LOG:READ:ALL?\r\nLog status: Full\r\n\r\nLog 001:20050528.00:00:00:  Log cleared\r\nLog 002:20050528.00:00:00:  System preset\r\nLog 003:20050528.00:01:08:  Position hold mode started\r\nLog 004:20050528.00:02:00:  GPS reference valid at 20050529.04:09:25\r\nLog 005:20050528.00:00:00:  Power on\r\nLog 006:20050528.00:00:28:  Position hold mode started\r\nLog 007:20050528.00:01:30:  GPS reference valid at 20050529.04:12:49\r\nLog 008:20050528.00:00:00:  Power on\r\nLog 009:20050528.00:00:37:  Position hold mode started\r\nLog 010:20050528.00:05:24:  GPS reference valid at 20050529.05:07:01\r\nLog 011:20050528.00:00:00:  Power on\r\nLog 012:20050528.00:04:09:  GPS reference valid at 20050529.08:07:37\r\nLog 013:20050528.01:33:45:  Position hold mode started\r\nLog 014:20050528.00:00:00:  Power on\r\nLog 015:20050528.00:01:28:  GPS reference valid at 20050529.17:27:07\r\nLog 016:20050528.00:00:00:  Power on\r\nLog 017:20050528.00:02:37:  GPS reference valid at 20050529.17:35:02\r\nLog 018:20050528.00:04:51:  Position hold mode started\r\nLog 019:20050529.17:44:01:  GPS lock started\r\nLog 020:20050529.00:00:00:  Power on\r\nLog 021:20050529.00:01:31:  Position hold mode started\r\nLog 022:20050529.00:03:46:  GPS reference valid at 20050529.18:15:30\r\nLog 023:20050529.18:18:37:  GPS lock started\r\nLog 024:20050529.18:19:58:  Holdover started, TI limit exceeded\r\nLog 025:20050529.18:25:16:  GPS lock started\r\nLog 026:20050529.19:29:47:  Holdover started, TI limit exceeded\r\nLog 027:20050529.00:00:00:  Power on\r\nLog 028:20050529.00:02:19:  GPS reference valid at 20050529.19:37:25\r\nLog 029:20050529.00:00:00:  Power on\r\nLog 030:20050529.00:03:46:  GPS reference valid at 20050529.20:02:31\r\nLog 031:20050529.20:03:39:  GPS lock started\r\nLog 032:20050529.20:05:20:  Holdover started, TI limit exceeded\r\nLog 033:20050529.00:00:00:  Power on\r\nLog 034:20050529.00:01:59:  GPS reference valid at 20050529.20:14:24\r\nLog 035:20050529.20:17:35:  GPS lock started\r\nLog 036:20050529.00:00:00:  Power on\r\nLog 037:20050529.00:02:33:  GPS reference valid at 20050529.21:58:35\r\nLog 038:20050529.22:01:30:  GPS lock started\r\nLog 039:20050529.00:00:00:  Power on\r\nLog 040:20050529.00:00:00:  Power on\r\nLog 041:20050529.00:00:00:  Power on\r\nLog 042:20050529.00:01:40:  GPS reference valid at 20050530.00:22:06\r\nLog 043:20050530.00:24:27:  GPS lock started\r\nLog 044:20050530.00:00:00:  Power on\r\nLog 045:20050530.00:15:57:  GPS reference valid at 20050530.01:09:32\r\nLog 046:20050530.01:11:55:  GPS lock started\r\nLog 047:20050530.21:42:50:  Holdover started, not tracking GPS\r\nLog 048:20050530.21:45:28:  GPS lock started\r\nLog 049:20050610.01:48:19:  Holdover started, not tracking GPS\r\nLog 050:20050610.01:53:27:  GPS lock started\r\nLog 051:20050610.05:49:52:  Holdover started, not tracking GPS\r\nLog 052:20050610.05:55:20:  GPS lock started\r\nLog 053:20050610.06:41:13:  Holdover started, not tracking GPS\r\nLog 054:20050610.06:45:11:  GPS lock started\r\nLog 055:20050610.06:55:48:  Holdover started, not tracking GPS\r\nLog 056:20050610.06:59:56:  GPS lock started\r\nLog 057:20050610.07:05:57:  Holdover started, not tracking GPS\r\nLog 058:20050610.08:37:55:  GPS lock started\r\nLog 059:20050614.20:56:46:  Holdover started, not tracking GPS\r\nLog 060:20050614.23:08:16:  GPS lock started\r\nLog 061:20050615.06:40:09:  Holdover started, not tracking GPS\r\nLog 062:20050615.06:44:27:  GPS lock started\r\nLog 063:20050616.06:19:20:  Holdover started, not tracking GPS\r\nLog 064:20050616.06:30:48:  GPS lock started\r\nLog 065:20050616.06:54:48:  Holdover started, not tracking GPS\r\nLog 066:20050616.06:57:16:  GPS lock started\r\nLog 067:20050618.03:51:31:  Holdover started, not tracking GPS\r\nLog 068:20050618.03:53:19:  GPS lock started\r\nLog 069:20050618.04:01:16:  Holdover started, not tracking GPS\r\nLog 070:20050618.04:11:14:  GPS lock started\r\nLog 071:20050618.11:57:48:  Holdover started, not tracking GPS\r\nLog 072:20050618.12:42:26:  GPS lock started\r\nLog 073:20050619.17:05:45:  Holdover started, not tracking GPS\r\nLog 074:20050619.18:34:53:  GPS lock started\r\nLog 075:20050619.20:17:33:  Holdover started, not tracking GPS\r\nLog 076:20050619.21:01:11:  GPS lock started\r\nLog 077:20050624.06:05:18:  Holdover started, not tracking GPS\r\nLog 078:20050624.06:26:16:  GPS lock started\r\nLog 079:20050624.08:56:09:  Holdover started, not tracking GPS\r\nLog 080:20050624.09:27:44:  GPS lock started\r\nLog 081:20050624.10:31:54:  Holdover started, not tracking GPS\r\nLog 082:20050624.10:34:22:  GPS lock started\r\nLog 083:20050624.10:50:39:  Holdover started, not tracking GPS\r\nLog 084:20050624.13:46:24:  GPS lock started\r\nLog 085:20050624.13:48:19:  Holdover started, not tracking GPS\r\nLog 086:20050624.14:08:27:  GPS lock started\r\nLog 087:20050624.14:10:31:  Holdover started, not tracking GPS\r\nLog 088:20050624.15:12:40:  GPS lock started\r\nLog 089:20050625.18:44:59:  Holdover started, not tracking GPS\r\nLog 090:20050625.20:47:47:  GPS lock started\r\nLog 091:20050626.05:14:15:  Holdover started, not tracking GPS\r\nLog 092:20050626.05:38:23:  GPS lock started\r\nLog 093:20050627.05:43:30:  Holdover started, not tracking GPS\r\nLog 094:20050627.05:52:38:  GPS lock started\r\nLog 095:20050702.02:52:27:  Holdover started, not tracking GPS\r\nLog 096:20050702.02:54:15:  GPS lock started\r\nLog 097:20050702.08:46:55:  Holdover started, not tracking GPS\r\nLog 098:20050702.11:30:48:  GPS lock started\r\nLog 099:20050704.10:36:59:  Holdover started, not tracking GPS\r\nLog 100:20050704.10:45:47:  GPS lock started\r\nLog 101:20050704.12:25:47:  Holdover started, not tracking GPS\r\nLog 102:20050704.12:57:45:  GPS lock started\r\nLog 103:20050704.15:32:49:  Holdover started, not tracking GPS\r\nLog 104:20050704.15:37:07:  GPS lock started\r\nLog 105:20050704.17:39:39:  Holdover started, not tracking GPS\r\nLog 106:20050704.18:19:37:  GPS lock started\r\nLog 107:20050704.18:34:29:  Holdover started, not tracking GPS\r\nLog 108:20050704.19:48:57:  GPS lock started\r\nLog 109:20050704.20:41:54:  Holdover started, not tracking GPS\r\nLog 110:20050704.20:45:52:  GPS lock started\r\nLog 111:20050705.19:12:23:  Holdover started, not tracking GPS\r\nLog 112:20050705.19:15:01:  GPS lock started\r\nLog 113:20050709.19:55:55:  Holdover started, not tracking GPS\r\nLog 114:20050709.19:58:03:  GPS lock started\r\nLog 115:20050709.20:04:03:  Holdover started, not tracking GPS\r\nLog 116:20050709.20:17:11:  GPS lock started\r\nLog 117:20050712.20:23:32:  Holdover started, not tracking GPS\r\nLog 118:20050712.20:31:40:  GPS lock started\r\nLog 119:20050712.20:44:04:  Holdover started, not tracking GPS\r\nLog 120:20050712.20:47:22:  GPS lock started\r\nLog 121:20050712.21:05:48:  Holdover started, not tracking GPS\r\nLog 122:20050712.21:14:56:  GPS lock started\r\nLog 123:20050712.21:17:35:  Holdover started, not tracking GPS\r\nLog 124:20050712.21:19:23:  GPS lock started\r\nLog 125:20050712.21:22:59:  Holdover started, not tracking GPS\r\nLog 126:20050712.21:31:22:  GPS lock started\r\nLog 127:20050713.02:47:18:  Holdover started, not tracking GPS\r\nLog 128:20050713.03:04:56:  GPS lock started\r\nLog 129:20050713.09:22:23:  Holdover started, not tracking GPS\r\nLog 130:20050713.09:40:11:  GPS lock started\r\nLog 131:20050713.12:35:55:  Holdover started, not tracking GPS\r\nLog 132:20050713.13:43:43:  GPS lock started\r\nLog 133:20050713.13:59:40:  Holdover started, not tracking GPS\r\nLog 134:20050713.18:19:58:  GPS lock started\r\nLog 135:20050713.18:45:58:  Holdover started, not tracking GPS\r\nLog 136:20050713.19:20:46:  GPS lock started\r\nLog 137:20050714.04:53:20:  Holdover started, not tracking GPS\r\nLog 138:20050714.05:07:58:  GPS lock started\r\nLog 139:20050714.05:34:03:  Holdover started, not tracking GPS\r\nLog 140:20050714.05:38:21:  GPS lock started\r\nLog 141:20050714.07:44:35:  Holdover started, not tracking GPS\r\nLog 142:20050714.08:10:23:  GPS lock started\r\nLog 143:20050714.08:24:18:  Holdover started, not tracking GPS\r\nLog 144:20050714.10:03:16:  GPS lock started\r\nLog 145:20050714.10:31:30:  Holdover started, not tracking GPS\r\nLog 146:20050714.10:34:08:  GPS lock started\r\nLog 147:20050715.16:47:41:  Holdover started, not tracking GPS\r\nLog 148:20050715.20:01:39:  GPS lock started\r\nLog 149:20050715.20:04:08:  Holdover started, not tracking GPS\r\nLog 150:20050715.20:12:56:  GPS lock started\r\nLog 151:20050716.04:57:49:  Holdover started, not tracking GPS\r\nLog 152:20050716.05:00:17:  GPS lock started\r\nLog 153:20050716.12:04:15:  Holdover started, not tracking GPS\r\nLog 154:20050716.12:59:13:  GPS lock started\r\nLog 155:20050716.13:07:58:  Holdover started, not tracking GPS\r\nLog 156:20050716.13:30:46:  GPS lock started\r\nLog 157:20050716.13:46:46:  Holdover started, not tracking GPS\r\nLog 158:20050716.16:36:18:  GPS lock started\r\nLog 159:20050716.16:53:05:  Holdover started, not tracking GPS\r\nLog 160:20050716.18:26:45:  GPS lock started\r\nLog 161:20050716.18:34:00:  Holdover started, not tracking GPS\r\nLog 162:20050716.19:17:38:  GPS lock started\r\nLog 163:20050716.19:33:23:  Holdover started, not tracking GPS\r\nLog 164:20050716.20:46:13:  GPS lock started\r\nLog 165:20050717.01:08:20:  Holdover started, not tracking GPS\r\nLog 166:20050717.01:42:28:  GPS lock started\r\nLog 167:20050717.01:46:45:  Holdover started, not tracking GPS\r\nLog 168:20050717.01:56:03:  GPS lock started\r\nLog 169:20050717.05:04:56:  Holdover started, not tracking GPS\r\nLog 170:20050718.21:37:15:  GPS lock started\r\nLog 171:20050718.22:11:15:  Holdover started, not tracking GPS\r\nLog 172:20050718.22:21:33:  GPS lock started\r\nLog 173:20050718.23:25:54:  Holdover started, not tracking GPS\r\nLog 174:20050718.23:28:32:  GPS lock started\r\nLog 175:20050719.02:04:29:  Holdover started, not tracking GPS\r\nLog 176:20050719.03:24:47:  GPS lock started\r\nLog 177:20050719.03:32:26:  Holdover started, not tracking GPS\r\nLog 178:20050719.03:35:34:  GPS lock started\r\nLog 179:20050719.04:37:49:  Holdover started, not tracking GPS\r\nLog 180:20050719.20:18:52:  GPS lock started\r\nLog 181:20050719.21:05:54:  Holdover started, not tracking GPS\r\nLog 182:20050719.21:14:32:  GPS lock started\r\nLog 183:20050720.09:56:49:  Holdover started, not tracking GPS\r\nLog 184:20050720.09:58:47:  GPS lock started\r\nLog 185:20050720.10:00:36:  Holdover started, not tracking GPS\r\nLog 186:20050722.21:43:01:  GPS lock started\r\nLog 187:20050722.21:51:08:  Holdover started, not tracking GPS\r\nLog 188:20050722.21:53:46:  GPS lock started\r\nLog 189:20050722.21:55:46:  Holdover started, not tracking GPS\r\nLog 190:20050722.22:00:51:  GPS lock started\r\nLog 191:20050722.22:47:50:  Holdover started, not tracking GPS\r\nLog 192:20050722.22:53:28:  GPS lock started\r\nLog 193:20050723.02:20:20:  Holdover started, not tracking GPS\r\nLog 194:20050723.00:00:00:  Power on\r\nLog 195:20050723.00:00:00:  Power on\r\nLog 196:20050723.00:37:35:  GPS reference valid at 20050723.03:55:54\r\nLog 197:20050723.03:57:02:  GPS lock started\r\nLog 198:20050723.05:39:33:  Holdover started, not tracking GPS\r\nLog 199:20050723.05:51:11:  GPS lock started\r\nLog 200:20050723.05:57:12:  Holdover started, not tracking GPS\r\nLog 201:20050723.07:43:10:  GPS lock started\r\nLog 202:20050724.02:02:35:  Holdover started, not tracking GPS\r\nLog 203:20050724.06:06:19:  GPS lock started\r\nLog 204:20050724.06:22:08:  Holdover started, not tracking GPS\r\nLog 205:20050724.08:42:56:  GPS lock started\r\nLog 206:20050724.20:09:59:  Holdover started, not tracking GPS\r\nLog 207:20050724.20:59:07:  GPS lock started\r\nLog 208:20050725.01:48:17:  Holdover started, not tracking GPS\r\nLog 209:20050725.01:50:35:  GPS lock started\r\nLog 210:20050725.04:18:50:  Holdover started, not tracking GPS\r\nLog 211:20050725.00:00:00:  Power on\r\nLog 212:20050725.02:47:12:  GPS reference valid at 20050725.07:38:25\r\nLog 213:20050725.07:39:33:  GPS lock started\r\nLog 214:20050725.08:17:38:  Holdover started, not tracking GPS\r\nLog 215:20050725.15:27:28:  GPS lock started\r\nLog 216:20050725.20:28:07:  Holdover started, not tracking GPS\r\nLog 217:20050725.21:07:45:  GPS lock started\r\nLog 218:20050725.21:14:44:  Holdover started, not tracking GPS\r\nLog 219:20050725.21:19:22:  GPS lock started\r\nLog 220:20050725.22:02:43:  Holdover started, not tracking GPS\r\nLog 221:20050725.22:11:21:  GPS lock started\r\nLog 222:20050727.06:17:34:  Holdover started, not tracking GPS\r\n\r\n\r\nscpi >"}
+{"t": 11.560738693, "dir": "tx", "data": ":DIAGnostic:LOG:COUNt?\r\n"}
+{"t": 11.560878792, "dir": "rx", "data": " :DIAGnostic:LOG:COUNt?\r\n+222\r\nscpi >"}
+{"t": 11.596005847, "dir": "tx", "data": ":DIAGnostic:LOG:READ?\r\n"}
+{"t": 11.59648646, "dir": "rx", "data": " :DIAGnostic:LOG:READ?\r\n\"Log 222:20050727.06:17:34: Holdover started, not tracking GPS\"\r\nscpi >"}
+{"t": 11.683415974999999, "dir": "tx", "data": ":LED:ALARm?\r\n"}
+{"t": 11.683795355, "dir": "rx", "data": " :LED:ALARm?\r\n0\r\nscpi >"}
+{"t": 11.703496436, "dir": "tx", "data": ":STATus:OPERation:CONDition?\r\n"}
+{"t": 11.703943573, "dir": "rx", "data": " :STATus:OPERation:CONDition?\r\n+91\r\nscpi >"}
+{"t": 11.745045262, "dir": "tx", "data": ":STATus:OPERation:EVENt?\r\n"}
+{"t": 11.745442896, "dir": "rx", "data": " :STATus:OPERation:EVENt?\r\n+0\r\nscpi >"}
+{"t": 11.781115221, "dir": "tx", "data": ":STATus:OPERation:HARDware:CONDition?\r\n"}
+{"t": 11.781537376, "dir": "rx", "data": " :STATus:OPERation:HARDware:CONDition?\r\n+0\r\nscpi >"}
+{"t": 11.828966689, "dir": "tx", "data": ":STATus:OPERation:HARDware:EVENt?\r\n"}
+{"t": 11.82934637, "dir": "rx", "data": " :STATus:OPERation:HARDware:EVENt?\r\n+0\r\nscpi >"}
+{"t": 11.87257189, "dir": "tx", "data": ":STATus:OPERation:HOLDover:CONDition?\r\n"}
+{"t": 11.872995783, "dir": "rx", "data": " :STATus:OPERation:HOLDover:CONDition?\r\n+0\r\nscpi >"}
+{"t": 11.922473615, "dir": "tx", "data": ":STATus:OPERation:HOLDover:EVENt?\r\n"}
+{"t": 11.92294082, "dir": "rx", "data": " :STATus:OPERation:HOLDover:EVENt?\r\n+0\r\nscpi >"}
+{"t": 11.972153381, "dir": "tx", "data": ":STATus:OPERation:POWerup:CONDition?\r\n"}
+{"t": 11.97258106, "dir": "rx", "data": " :STATus:OPERation:POWerup:CONDition?\r\n+7\r\nscpi >"}
+{"t": 12.030301714, "dir": "tx", "data": ":STATus:QUEStionable:CONDition?\r\n"}
+{"t": 12.030703129, "dir": "rx", "data": " :STATus:QUEStionable:CONDition?\r\n+0\r\nscpi >"}
+{"t": 12.08262084, "dir": "tx", "data": ":STATus:QUEStionable:EVENt?\r\n"}
+{"t": 12.083064838, "dir": "rx", "data": " :STATus:QUEStionable:EVENt?\r\n+0\r\nscpi >"}
+{"t": 12.133633869, "dir": "tx", "data": ":DIAGnostic:LIFetime:COUNt?\r\n"}
+{"t": 12.134018586, "dir": "rx", "data": " :DIAGnostic:LIFetime:COUNt?\r\n+36302\r\nscpi >"}
+{"t": 12.177619832, "dir": "tx", "data": ":DIAGnostic:TEST?\r\n"}
+{"t": 12.178015579, "dir": "rx", "data": " :DIAGnostic:TEST?\r\nE-109>"}
+{"t": 12.204600253, "dir": "tx", "data": ":SYSTem:ERRor?\r\n"}
+{"t": 12.204987322, "dir": "rx", "data": " :SYSTem:ERRor?\r\n-109,\"Missing parameter\"\r\nscpi >"}
+{"t": 12.246868682, "dir": "tx", "data": ":DIAGnostic:TEST:RESult?\r\n"}
+{"t": 12.247238056, "dir": "rx", "data": " :DIAGnostic:TEST:RESult?\r\n+0,ALL\r\nscpi >"}
+{"t": 12.284846353, "dir": "tx", "data": ":DIAGnostic:QUERy:RESPonse?\r\n"}
+{"t": 12.285219299, "dir": "rx", "data": " :DIAGnostic:QUERy:RESPonse?\r\n+0,ALL\r\nscpi >"}
+{"t": 12.32817432, "dir": "tx", "data": ":PTIMe:TCODe?\r\n"}
+{"t": 12.328673506, "dir": "rx", "data": " :PTIMe:TCODe?\r\nT2200702042004323100034\r\nscpi >"}
+{"t": 12.982840093, "dir": "tx", "data": ":PTIMe:TCODe:FORMat?\r\n"}
+{"t": 12.983215944, "dir": "rx", "data": " :PTIMe:TCODe:FORMat?\r\nF2\r\nscpi >"}
+{"t": 13.019861541, "dir": "tx", "data": ":PTIMe:DATE?\r\n"}
+{"t": 13.020339468, "dir": "rx", "data": " :PTIMe:DATE?\r\n+2007,+2,+4\r\nscpi >"}
+{"t": 13.058844763, "dir": "tx", "data": ":PTIMe:TIME?\r\n"}
+{"t": 13.059270589, "dir": "rx", "data": " :PTIMe:TIME?\r\n+20,+4,+31\r\nscpi >"}
+{"t": 13.10132488, "dir": "tx", "data": ":PTIMe:TIME:STRing?\r\n"}
+{"t": 13.101816477, "dir": "rx", "data": " :PTIMe:TIME:STRing?\r\n\"20:04:31\"\r\nscpi >"}
+{"t": 13.148268616, "dir": "tx", "data": ":PTIMe:TZONe?\r\n"}
+{"t": 13.148596423, "dir": "rx", "data": " :PTIMe:TZONe?\r\n+0,+0\r\nscpi >"}
+{"t": 13.173517579, "dir": "tx", "data": ":PTIMe:LEAPsecond:ACCumulated?\r\n"}
+{"t": 13.17397457, "dir": "rx", "data": " :PTIMe:LEAPsecond:ACCumulated?\r\n+18\r\nscpi >"}
+{"t": 13.217641698, "dir": "tx", "data": ":PTIMe:LEAPsecond:DATE?\r\n"}
+{"t": 13.217948785, "dir": "rx", "data": " :PTIMe:LEAPsecond:DATE?\r\nE-230>"}
+{"t": 13.249949256, "dir": "tx", "data": ":SYSTem:ERRor?\r\n"}
+{"t": 13.250324969, "dir": "rx", "data": " :SYSTem:ERRor?\r\n-230,\"Data corrupt or stale\"\r\nscpi >"}
+{"t": 13.296191773, "dir": "tx", "data": ":PTIMe:LEAPsecond:DURation?\r\n"}
+{"t": 13.296621924, "dir": "rx", "data": " :PTIMe:LEAPsecond:DURation?\r\nE-230>"}
+{"t": 13.331768639, "dir": "tx", "data": ":SYSTem:ERRor?\r\n"}
+{"t": 13.332245475, "dir": "rx", "data": " :SYSTem:ERRor?\r\n-230,\"Data corrupt or stale\"\r\nscpi >"}
+{"t": 13.38889267, "dir": "tx", "data": ":PTIMe:LEAPsecond:STATe?\r\n"}
+{"t": 13.389297275, "dir": "rx", "data": " :PTIMe:LEAPsecond:STATe?\r\n0\r\nscpi >"}
+{"t": 13.42395833, "dir": "tx", "data": ":SYSTem:COMMunicate?\r\n"}
+{"t": 13.424359868, "dir": "rx", "data": " :SYSTem:COMMunicate?\r\nSER1\r\nscpi >"}
+{"t": 13.454956307, "dir": "tx", "data": ":SYSTem:COMMunicate:SERial1:BAUD?\r\n"}
+{"t": 13.455360322, "dir": "rx", "data": " :SYSTem:COMMunicate:SERial1:BAUD?\r\n+19200\r\nscpi >"}
+{"t": 13.503808296999999, "dir": "tx", "data": ":SYSTem:COMMunicate:SERial1:PARity?\r\n"}
+{"t": 13.50421769, "dir": "rx", "data": " :SYSTem:COMMunicate:SERial1:PARity?\r\nNONE\r\nscpi >"}
+{"t": 13.552302853, "dir": "tx", "data": ":SYSTem:COMMunicate:SERial1:PACE?\r\n"}
+{"t": 13.552670647, "dir": "rx", "data": " :SYSTem:COMMunicate:SERial1:PACE?\r\nNONE\r\nscpi >"}
+{"t": 13.599800921, "dir": "tx", "data": ":SYSTem:COMMunicate:SERial1:FDUPlex?\r\n"}
+{"t": 13.600163057, "dir": "rx", "data": " :SYSTem:COMMunicate:SERial1:FDUPlex?\r\n1\r\nscpi >"}
+{"t": 13.64616727, "dir": "tx", "data": ":SYSTem:LANGuage?\r\n"}
+{"t": 13.646624705, "dir": "rx", "data": " :SYSTem:LANGuage?\r\n\"PRIMARY\"\r\nscpi >"}

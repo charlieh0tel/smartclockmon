@@ -14,11 +14,20 @@ use crate::transport::transcript::Direction;
 use crate::transport::transcript::Record;
 
 /// Wraps a transport and writes every read and write to a JSONL sink.
+///
+/// Consecutive bytes travelling the same way are coalesced into one
+/// record.  The receiver echoes a character at a time, so recording
+/// each read separately turned a single probe run into 17,500 records
+/// and 700 KB; coalescing brings that to a few hundred lines that can
+/// actually be read.
 #[derive(Debug)]
 pub struct TeeTransport<T: Transport, W: Write> {
     inner: T,
     sink: BufWriter<W>,
     started: Instant,
+    /// Bytes accumulated since the direction last changed, with the
+    /// time the first of them moved.
+    run: Option<(Direction, f64, Vec<u8>)>,
 }
 
 impl<T: Transport, W: Write> TeeTransport<T, W> {
@@ -28,22 +37,40 @@ impl<T: Transport, W: Write> TeeTransport<T, W> {
             inner,
             sink: BufWriter::new(sink),
             started: Instant::now(),
+            run: None,
         }
     }
 
-    /// Flush any buffered transcript lines.
-    pub fn finish(mut self) -> Result<T> {
+    /// Write out any pending run and flush.  Dropping the tee does this
+    /// too; call it explicitly when a write failure should be noticed.
+    pub fn finish(&mut self) -> Result<()> {
+        self.emit();
         self.sink.flush()?;
-        Ok(self.inner)
+        Ok(())
     }
 
     fn record(&mut self, dir: Direction, bytes: &[u8]) {
         if bytes.is_empty() {
             return;
         }
-        let record = Record::new(self.started.elapsed().as_secs_f64(), dir, bytes);
-        // A transcript is diagnostic, so a failure to write one must not
-        // take down the session that is producing it.
+        match &mut self.run {
+            Some((running, _, buf)) if *running == dir => buf.extend_from_slice(bytes),
+            _ => {
+                self.emit();
+                let at = self.started.elapsed().as_secs_f64();
+                self.run = Some((dir, at, bytes.to_vec()));
+            }
+        }
+    }
+
+    /// Write the pending run, if any, as one record.
+    fn emit(&mut self) {
+        let Some((dir, at, bytes)) = self.run.take() else {
+            return;
+        };
+        let record = Record::new(at, dir, &bytes);
+        // A transcript is diagnostic, so failing to write one must not
+        // take down the session producing it.
         if let Ok(line) = serde_json::to_string(&record) {
             let _ = writeln!(self.sink, "{line}");
         }
@@ -55,6 +82,15 @@ impl<T: Transport, W: Write> Read for TeeTransport<T, W> {
         let n = self.inner.read(buf)?;
         self.record(Direction::Rx, &buf[..n]);
         Ok(n)
+    }
+}
+
+impl<T: Transport, W: Write> Drop for TeeTransport<T, W> {
+    fn drop(&mut self) {
+        // finish() consumes self, so a caller that just drops the tee
+        // would otherwise lose the last run.
+        self.emit();
+        let _ = self.sink.flush();
     }
 }
 
