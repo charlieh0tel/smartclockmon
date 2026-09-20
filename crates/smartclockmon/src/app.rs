@@ -10,6 +10,8 @@ use crate::history::History;
 use crate::history::Log;
 use crate::history::Window;
 use crate::source::Attachment;
+use crate::source::Console;
+use crate::source::Policy;
 
 /// How many EFC readings to keep for the trend.
 ///
@@ -54,11 +56,26 @@ pub(crate) struct App {
     pub(crate) history: History,
     /// Why the history is unavailable, if it is.
     pub(crate) history_error: Option<String>,
+    /// Where console commands go.
+    pub(crate) console: Console,
+    /// What the daemon says this client may do.
+    pub(crate) policy: Policy,
+    /// Whether the console is taking keystrokes.
+    pub(crate) console_open: bool,
+    /// What has been typed into it.
+    pub(crate) console_input: String,
+    /// The last answer, or the reason there was none.
+    pub(crate) console_reply: Option<String>,
 }
 
 impl App {
     /// A monitor with nothing received yet.
-    pub(crate) fn new(attachment: Attachment, unicode: bool) -> Self {
+    pub(crate) fn new(
+        attachment: Attachment,
+        unicode: bool,
+        console: Console,
+        policy: Policy,
+    ) -> Self {
         Self {
             snapshot: None,
             efc_trend: VecDeque::with_capacity(TREND_LEN),
@@ -71,7 +88,30 @@ impl App {
             log: None,
             history: History::default(),
             history_error: None,
+            console,
+            policy,
+            console_open: false,
+            console_input: String::new(),
+            console_reply: None,
         }
+    }
+
+    /// Send what has been typed, and clear the line.
+    ///
+    /// The daemon decides what is permitted, so a refusal comes back as
+    /// the reply rather than being second-guessed here; the monitor
+    /// showing its own idea of the policy would only disagree with the
+    /// daemon eventually.
+    pub(crate) fn submit(&mut self) {
+        let scpi = self.console_input.trim().to_owned();
+        self.console_input.clear();
+        if scpi.is_empty() {
+            return;
+        }
+        self.console_reply = match self.console.send(&scpi) {
+            Ok(()) => Some(format!("{scpi}  ...")),
+            Err(e) => Some(format!("{scpi}  {e}")),
+        };
     }
 
     /// Open the daemon's log, if the daemon named one.

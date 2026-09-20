@@ -58,24 +58,29 @@ pub(crate) fn draw(frame: &mut Frame, app: &App) {
 /// whether they move together: EFC following temperature is the room,
 /// EFC moving without it is the oscillator.
 fn history(frame: &mut Frame, app: &App) {
+    let console_rows = if app.console_open { 4 } else { 0 };
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3),
-            Constraint::Percentage(34),
-            Constraint::Percentage(33),
-            Constraint::Percentage(33),
+            Constraint::Fill(1),
+            Constraint::Fill(1),
+            Constraint::Fill(1),
+            Constraint::Length(console_rows),
             Constraint::Length(1),
         ])
         .split(frame.area());
     header(frame, rows[0], app);
+    if app.console_open {
+        console(frame, rows[4], app);
+    }
 
     if let Some(why) = &app.history_error {
         frame.render_widget(
             Paragraph::new(why.clone()).block(block(app, "History")),
             rows[1].union(rows[3]),
         );
-        footer(frame, rows[4], app);
+        footer(frame, rows[5], app);
         return;
     }
 
@@ -104,7 +109,7 @@ fn history(frame: &mut Frame, app: &App) {
         &app.history.time_interval,
         Color::Green,
     );
-    footer(frame, rows[4], app);
+    footer(frame, rows[5], app);
 }
 
 /// One metric against time, drawn as a band between its extremes with
@@ -215,17 +220,22 @@ fn oldest(seconds_ago: f64) -> String {
 
 /// Current state at a glance.
 fn dashboard(frame: &mut Frame, app: &App) {
+    let console_rows = if app.console_open { 4 } else { 0 };
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3),
             Constraint::Length(11),
             Constraint::Min(6),
+            Constraint::Length(console_rows),
             Constraint::Length(1),
         ])
         .split(frame.area());
 
     header(frame, rows[0], app);
+    if app.console_open {
+        console(frame, rows[3], app);
+    }
 
     let middle = Layout::default()
         .direction(Direction::Horizontal)
@@ -241,7 +251,7 @@ fn dashboard(frame: &mut Frame, app: &App) {
     satellites(frame, lower[0], app);
     time_and_place(frame, lower[1], app);
 
-    footer(frame, rows[3], app);
+    footer(frame, rows[4], app);
 }
 
 fn block(app: &App, title: &str) -> Block<'static> {
@@ -729,11 +739,53 @@ fn time_and_place(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
+/// The raw command line, and the last answer.
+///
+/// Shown even when the daemon has not been given --allow-raw.  Hiding
+/// it would leave no way to discover that the console exists or what
+/// would enable it; shown with the reason, the refusal teaches the
+/// flag.
+fn console(frame: &mut Frame, area: Rect, app: &App) {
+    // Say what the daemon permits, so a refusal is not a surprise and
+    // the flag that would lift it is discoverable.
+    let title = if !app.console.is_connected() {
+        "Command  [direct mode has no daemon to ask]".to_owned()
+    } else {
+        let mut allowed = vec!["queries"];
+        if app.policy.control {
+            allowed.push("control");
+        }
+        if app.policy.dangerous {
+            allowed.push("dangerous");
+        }
+        if app.policy.raw {
+            allowed.push("raw");
+        }
+        format!("Command  [this daemon allows: {}]", allowed.join(", "))
+    };
+    let mut lines = vec![Line::from(vec![
+        Span::styled("scpi> ", Style::new().fg(Color::Cyan)),
+        Span::raw(app.console_input.clone()),
+        Span::styled("_", Style::new().add_modifier(Modifier::SLOW_BLINK)),
+    ])];
+    if let Some(reply) = &app.console_reply {
+        let style = if reply.contains("error") {
+            Style::new().fg(Color::Red)
+        } else {
+            Style::new().fg(Color::DarkGray)
+        };
+        lines.push(Line::from(Span::styled(reply.clone(), style)));
+    }
+    frame.render_widget(Paragraph::new(lines).block(block(app, &title)), area);
+}
+
 fn footer(frame: &mut Frame, area: Rect, app: &App) {
-    let mut spans = vec![Span::styled(
-        "q quit  g graphs  w window  u ASCII",
-        Style::new().fg(Color::DarkGray),
-    )];
+    let keys = if app.console_open {
+        "Enter send  Esc close"
+    } else {
+        "q quit  g graphs  w window  c command  u ASCII"
+    };
+    let mut spans = vec![Span::styled(keys, Style::new().fg(Color::DarkGray))];
     if let Some(error) = app.snapshot.as_ref().and_then(|s| s.last_error.as_ref()) {
         spans.push(Span::raw("   "));
         spans.push(Span::styled(error.clone(), Style::new().fg(Color::Red)));

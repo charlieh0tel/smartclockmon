@@ -57,12 +57,12 @@ const HISTORY_REFRESH: Duration = Duration::from_secs(5);
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let (updates, attachment) = match &cli.device {
+    let (updates, attachment, console, policy) = match &cli.device {
         Some(device) => source::from_device(device, cli.baud)?,
         None => source::from_daemon(&cli.socket)?,
     };
 
-    let mut app = App::new(attachment, !cli.ascii);
+    let mut app = App::new(attachment, !cli.ascii, console, policy);
     app.open_log();
 
     let mut terminal = ratatui::init();
@@ -91,6 +91,7 @@ fn run(
         // keypress and to redraw.
         match updates.recv_timeout(TICK) {
             Ok(Update::Reading(snapshot)) => app.accept(*snapshot),
+            Ok(Update::Reply(answer)) => app.console_reply = Some(answer),
             // The daemon restarts under systemd, so losing it is not a
             // reason to quit: say so and keep waiting for it to return.
             Ok(Update::Lost(why)) => app.lost(why),
@@ -106,6 +107,24 @@ fn run(
             if let Event::Key(key) = event::read()?
                 && key.kind == KeyEventKind::Press
             {
+                // While the console has focus every printable key is
+                // input, or there would be no way to type a command
+                // containing q, g or w.
+                if app.console_open {
+                    match key.code {
+                        KeyCode::Esc => {
+                            app.console_open = false;
+                            app.console_input.clear();
+                        }
+                        KeyCode::Enter => app.submit(),
+                        KeyCode::Backspace => {
+                            app.console_input.pop();
+                        }
+                        KeyCode::Char(c) => app.console_input.push(c),
+                        _ => {}
+                    }
+                    continue;
+                }
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => app.quitting = true,
                     KeyCode::Char('u') => app.unicode = !app.unicode,
@@ -120,6 +139,7 @@ fn run(
                         app.window = app.window.next();
                         due = Instant::now();
                     }
+                    KeyCode::Char('c') | KeyCode::Char(':') => app.console_open = true,
                     _ => {}
                 }
             }

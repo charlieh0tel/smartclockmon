@@ -295,3 +295,105 @@ fn write_line<W: Write>(writer: &Arc<Mutex<W>>, message: &Message) -> Result<()>
     writer.flush()?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Policy;
+    use super::classify;
+    use super::raw_class;
+    use smartclock::command::Class;
+    use smartclock::command::Dialect;
+
+    const HP: Dialect = Dialect::Hp58503;
+
+    #[test]
+    fn a_command_with_no_argument_matches_whole() {
+        let (class, sent) = classify(":SYNChronization:TINTerval?", HP).expect("known");
+        assert_eq!(class, Class::Query);
+        assert_eq!(sent, ":SYNChronization:TINTerval?");
+    }
+
+    #[test]
+    fn a_caller_supplied_argument_is_matched_by_header() {
+        // The regression this exists for.  The table holds the header
+        // alone, so comparing whole strings made every command taking an
+        // argument unreachable, and refused it as though it were a typo.
+        let (class, sent) =
+            classify(":GPS:SATellite:TRACking:EMANgle 10", HP).expect("known with argument");
+        assert_eq!(class, Class::Control);
+        assert_eq!(sent, ":GPS:SATellite:TRACking:EMANgle 10");
+    }
+
+    #[test]
+    fn an_entry_carrying_its_own_argument_still_matches() {
+        // :GPS:POSition:SURVey:STATe ONCE is one table entry, argument
+        // and all, so the whole-string attempt has to come first.
+        let (class, sent) = classify(":GPS:POSition:SURVey:STATe ONCE", HP).expect("known");
+        assert_eq!(class, Class::Control);
+        assert_eq!(sent, ":GPS:POSition:SURVey:STATe ONCE");
+    }
+
+    #[test]
+    fn matching_by_header_does_not_let_a_dangerous_command_through() {
+        // The header form must not become a way to smuggle one past the
+        // gate by appending a parameter.
+        let (class, _) =
+            classify(":SYSTem:COMMunicate:SERial1:BAUD 9600", HP).expect("known with argument");
+        assert_eq!(class, Class::Dangerous);
+        assert!(!Policy::default().allows(class));
+    }
+
+    #[test]
+    fn the_table_spelling_is_what_gets_sent() {
+        // A client may use any casing; the receiver gets the canonical
+        // form either way.
+        let (_, sent) = classify(":gps:satellite:tracking:emangle 15", HP).expect("known");
+        assert_eq!(sent, ":GPS:SATellite:TRACking:EMANgle 15");
+    }
+
+    #[test]
+    fn an_unknown_command_is_not_classified() {
+        assert!(classify(":SOME:UNKNOWN:THING?", HP).is_none());
+        assert!(classify(":SOME:UNKNOWN:THING 5", HP).is_none());
+    }
+
+    #[test]
+    fn the_default_policy_permits_only_queries() {
+        let policy = Policy::default();
+        assert!(policy.allows(Class::Query));
+        assert!(!policy.allows(Class::Control));
+        assert!(!policy.allows(Class::Dangerous));
+    }
+
+    #[test]
+    fn each_refusal_names_the_flag_that_would_permit_it() {
+        assert_eq!(Policy::flag(Class::Control), "--allow-control");
+        assert_eq!(Policy::flag(Class::Dangerous), "--allow-dangerous");
+    }
+
+    #[test]
+    fn a_flag_opens_only_what_it_names() {
+        let control = Policy {
+            control: true,
+            ..Policy::default()
+        };
+        assert!(control.allows(Class::Control));
+        assert!(!control.allows(Class::Dangerous));
+    }
+
+    #[test]
+    fn an_unrecognised_raw_command_is_guessed_generously() {
+        // Guessing generously costs a client one more flag; guessing
+        // kindly could erase the receiver.
+        assert_eq!(raw_class(":WHATEVER:THIS:IS?"), Class::Query);
+        assert_eq!(raw_class(":WHATEVER:THIS:IS 5"), Class::Control);
+        for stranding in [
+            ":SYSTem:COMMunicate:SERial9:BAUD 1200",
+            ":SYSTem:PRESet",
+            ":DIAGnostic:ERASe",
+            ":SYSTem:LANGuage \"INSTALL\"",
+        ] {
+            assert_eq!(raw_class(stranding), Class::Dangerous, "{stranding}");
+        }
+    }
+}

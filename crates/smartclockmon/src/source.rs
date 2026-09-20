@@ -8,6 +8,8 @@
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Write;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::channel;
@@ -79,10 +81,60 @@ fn tail(path: &str, keep: usize) -> String {
 pub(crate) enum Update {
     /// A new reading.
     Reading(Box<Snapshot>),
+    /// An answer to something the console sent.
+    Reply(String),
     /// The source went away.  The monitor keeps the last values on
     /// screen but must stop presenting them as current.
     Lost(String),
 }
+
+/// What the daemon says a client may do.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct Policy {
+    /// Whether control commands are permitted.
+    pub(crate) control: bool,
+    /// Whether commands that can strand the link are permitted.
+    pub(crate) dangerous: bool,
+    /// Whether unrecognised SCPI is passed through.
+    pub(crate) raw: bool,
+}
+
+/// Sends commands to the daemon.
+///
+/// The send half has to be kept: dropping it, as an earlier version
+/// did, leaves a monitor that can only listen.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Console {
+    writer: Option<Arc<Mutex<SendHalf>>>,
+}
+
+impl Console {
+    /// Whether there is anywhere to send.
+    pub(crate) fn is_connected(&self) -> bool {
+        self.writer.is_some()
+    }
+
+    /// Send one command.  The answer arrives as an [`Update::Reply`].
+    pub(crate) fn send(&self, scpi: &str) -> Result<()> {
+        let Some(writer) = &self.writer else {
+            return Err(anyhow::anyhow!("direct mode has no daemon to ask"));
+        };
+        let request = serde_json::json!({
+            "v": 1,
+            "id": "console",
+            "op": { "kind": "query", "scpi": scpi },
+        });
+        let mut writer = writer
+            .lock()
+            .map_err(|_| anyhow::anyhow!("poisoned writer"))?;
+        writeln!(writer, "{request}")?;
+        writer.flush()?;
+        Ok(())
+    }
+}
+
+/// The write half of a connection to the daemon.
+type SendHalf = <Stream as interprocess::local_socket::traits::Stream>::SendHalf;
 
 /// How long to wait before trying the daemon again.
 ///
@@ -96,14 +148,17 @@ const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 /// The first connection is made here, so running the monitor with no
 /// daemon says so at once rather than sitting on an empty screen.
 /// Later disconnections are handled by the reader, which keeps trying.
-pub(crate) fn from_daemon(socket: &str) -> Result<(Receiver<Update>, Attachment)> {
+pub(crate) fn from_daemon(socket: &str) -> Result<(Receiver<Update>, Attachment, Console, Policy)> {
     // Ask where the log lives before streaming starts, so the history
     // panes can open it without being told the path separately and
     // without risking a mismatch with the daemon's own.  The reader is
     // handed on rather than rebuilt: it has already buffered whatever
     // snapshots arrived alongside the reply.
-    let (first, database) = connect_and_ask(socket)
+    let (first, send, database, policy) = connect_and_ask(socket)
         .with_context(|| format!("connecting to {socket}; is smartclockd running?"))?;
+    let console = Console {
+        writer: Some(Arc::new(Mutex::new(send))),
+    };
 
     let (tx, rx) = channel();
     let path = socket.to_owned();
@@ -127,7 +182,7 @@ pub(crate) fn from_daemon(socket: &str) -> Result<(Receiver<Update>, Attachment)
                     None => {
                         thread::sleep(RECONNECT_DELAY);
                         match connect_and_ask(&path) {
-                            Ok((open, _)) => stream = Some(open),
+                            Ok((open, ..)) => stream = Some(open),
                             Err(e) => {
                                 if tx.send(Update::Lost(e.to_string())).is_err() {
                                     return;
@@ -146,6 +201,8 @@ pub(crate) fn from_daemon(socket: &str) -> Result<(Receiver<Update>, Attachment)
             socket: socket.to_owned(),
             database,
         },
+        console,
+        policy,
     ))
 }
 
@@ -155,14 +212,15 @@ pub(crate) fn from_daemon(socket: &str) -> Result<(Receiver<Update>, Attachment)
 /// The reply shares the stream with snapshots, so lines that are not it
 /// are forwarded rather than dropped: the reader is returned still
 /// holding them.
-fn connect_and_ask(socket: &str) -> Result<(Reader, Option<String>)> {
+fn connect_and_ask(socket: &str) -> Result<(Reader, SendHalf, Option<String>, Policy)> {
     let mut stream = connect(socket)?;
     writeln!(stream, r#"{{"v":1,"id":"info","op":{{"kind":"info"}}}}"#)?;
     stream.flush()?;
 
-    let (recv, _send) = stream.split();
+    let (recv, send) = stream.split();
     let mut reader = BufReader::new(recv);
     let mut database = None;
+    let mut policy = Policy::default();
     for _ in 0..MAX_LINES_BEFORE_INFO {
         let mut line = String::new();
         if reader.read_line(&mut line)? == 0 {
@@ -176,10 +234,21 @@ fn connect_and_ask(socket: &str) -> Result<(Reader, Option<String>)> {
                 .pointer("/ok/database")
                 .and_then(serde_json::Value::as_str)
                 .map(str::to_owned);
+            let flag = |name: &str| {
+                value
+                    .pointer(&format!("/ok/{name}"))
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false)
+            };
+            policy = Policy {
+                control: flag("allow_control"),
+                dangerous: flag("allow_dangerous"),
+                raw: flag("allow_raw"),
+            };
             break;
         }
     }
-    Ok((reader, database))
+    Ok((reader, send, database, policy))
 }
 
 /// The buffered read half of a connection to the daemon.
@@ -211,6 +280,27 @@ fn forward(reader: Reader, tx: &Sender<Update>) -> Result<(), ()> {
             continue;
         };
         let Some(snapshot) = value.get("snapshot") else {
+            // Not a snapshot, so it is an answer to something the
+            // console asked.
+            if value.get("id").and_then(serde_json::Value::as_str) == Some("console") {
+                let answer = match (value.pointer("/ok/lines"), value.get("err")) {
+                    (Some(lines), _) => lines
+                        .as_array()
+                        .map(|l| {
+                            l.iter()
+                                .filter_map(serde_json::Value::as_str)
+                                .collect::<Vec<_>>()
+                                .join(" | ")
+                        })
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or_else(|| "ok".to_owned()),
+                    (None, Some(err)) => {
+                        format!("error: {}", err.as_str().unwrap_or_default())
+                    }
+                    _ => continue,
+                };
+                tx.send(Update::Reply(answer)).map_err(|_| ())?;
+            }
             continue;
         };
         let Ok(snapshot) = serde_json::from_value::<Snapshot>(snapshot.clone()) else {
@@ -223,7 +313,10 @@ fn forward(reader: Reader, tx: &Sender<Update>) -> Result<(), ()> {
 }
 
 /// Open the receiver directly and poll it in this process.
-pub(crate) fn from_device(device: &str, baud: u32) -> Result<(Receiver<Update>, Attachment)> {
+pub(crate) fn from_device(
+    device: &str,
+    baud: u32,
+) -> Result<(Receiver<Update>, Attachment, Console, Policy)> {
     let baud = BaudRate::new(baud).with_context(|| {
         let supported = BaudRate::ALL.map(|b| b.to_string()).join(", ");
         format!("{baud} is not a rate the receiver supports ({supported})")
@@ -259,10 +352,14 @@ pub(crate) fn from_device(device: &str, baud: u32) -> Result<(Receiver<Update>, 
         })
         .context("spawning the direct reader")?;
 
+    // Direct mode has no daemon to ask, so the console has nowhere to
+    // send and says so rather than appearing to work.
     Ok((
         rx,
         Attachment::Direct {
             device: device.to_owned(),
         },
+        Console::default(),
+        Policy::default(),
     ))
 }
