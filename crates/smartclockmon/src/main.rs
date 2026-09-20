@@ -1,3 +1,99 @@
-fn main() {
-    println!("smartclockmon: not implemented");
+//! Terminal monitor for a SmartClock receiver.
+//!
+//! Normally a client of `smartclockd`, which owns the serial port and
+//! records history.  Direct mode is for before the daemon is installed;
+//! it records nothing, and the header says so.
+
+mod app;
+mod source;
+mod ui;
+
+use std::sync::mpsc::RecvTimeoutError;
+use std::time::Duration;
+
+use anyhow::Result;
+use clap::Parser;
+use crossterm::event;
+use crossterm::event::Event;
+use crossterm::event::KeyCode;
+use crossterm::event::KeyEventKind;
+
+use crate::app::App;
+
+#[derive(Parser)]
+#[command(about, version)]
+struct Cli {
+    /// The daemon's socket.
+    #[arg(long, default_value = "/run/smartclockd/socket")]
+    socket: String,
+
+    /// Talk to the receiver directly instead of to the daemon.  Needs
+    /// the daemon stopped, since it holds the port, and records no
+    /// history.
+    #[arg(long, conflicts_with = "socket")]
+    device: Option<String>,
+
+    /// Bits per second, for direct mode.
+    #[arg(long, default_value_t = 19200)]
+    baud: u32,
+
+    /// Draw with line-drawing characters rather than ASCII.
+    #[arg(long)]
+    unicode: bool,
+}
+
+/// How often to redraw when nothing has arrived, so the clock in the
+/// header does not look frozen.
+const TICK: Duration = Duration::from_millis(500);
+
+fn main() -> Result<()> {
+    let cli = Cli::parse();
+    let (updates, attachment) = match &cli.device {
+        Some(device) => source::from_device(device, cli.baud)?,
+        None => source::from_daemon(&cli.socket)?,
+    };
+
+    let mut terminal = ratatui::init();
+    let outcome = run(&mut terminal, App::new(attachment, cli.unicode), &updates);
+    // Restore the terminal whatever happened, or a failure leaves the
+    // operator with no echo and no cursor.
+    ratatui::restore();
+    outcome
+}
+
+fn run(
+    terminal: &mut ratatui::DefaultTerminal,
+    mut app: App,
+    updates: &std::sync::mpsc::Receiver<smartclock::snapshot::Snapshot>,
+) -> Result<()> {
+    while !app.quitting {
+        terminal.draw(|frame| ui::draw(frame, &app))?;
+
+        // Wait for a snapshot, but wake often enough to notice a
+        // keypress and to redraw.
+        match updates.recv_timeout(TICK) {
+            Ok(snapshot) => app.accept(snapshot),
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => {
+                // The daemon went away, or the device task stopped.
+                // Draw once more so the last state stays visible, then
+                // leave rather than spin on a dead channel.
+                terminal.draw(|frame| ui::draw(frame, &app))?;
+                return Ok(());
+            }
+        }
+
+        while event::poll(Duration::ZERO)? {
+            if let Event::Key(key) = event::read()?
+                && key.kind == KeyEventKind::Press
+            {
+                match key.code {
+                    KeyCode::Char('q') | KeyCode::Esc => app.quitting = true,
+                    KeyCode::Char('u') => app.unicode = !app.unicode,
+                    _ => {}
+                }
+            }
+        }
+    }
+    Ok(())
 }

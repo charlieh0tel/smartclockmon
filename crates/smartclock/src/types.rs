@@ -278,6 +278,16 @@ pub enum Datum {
     MeanSeaLevel,
 }
 
+impl fmt::Display for Datum {
+    /// Prints as the receiver's own status screen labels it.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Ellipsoid => write!(f, "GPS"),
+            Self::MeanSeaLevel => write!(f, "MSL"),
+        }
+    }
+}
+
 /// An antenna position.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Position {

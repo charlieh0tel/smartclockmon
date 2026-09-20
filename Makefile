@@ -1,4 +1,10 @@
 # CI runs these same targets; the workflow only calls "make ci".
+#
+# Every target says --workspace.  default-members points at smartclockd
+# so cargo deb and cargo run resolve without -p, but that also narrows
+# every other cargo command to that one crate: a bare "cargo test" runs
+# zero tests and still exits 0, which once made CI pass while testing
+# nothing.
 
 CARGO ?= cargo
 
@@ -7,7 +13,7 @@ CARGO ?= cargo
 all: build
 
 build:
-	$(CARGO) build --all-targets
+	$(CARGO) build --workspace --all-targets
 
 # What CI runs.  Keep this the whole of it.
 ci: fmt-check clippy test
@@ -19,19 +25,19 @@ fmt-check:
 	$(CARGO) fmt --all -- --check
 
 clippy:
-	$(CARGO) clippy --all-targets --all-features -- -D warnings
+	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
 
 # Everything that runs without a receiver.
 test:
-	$(CARGO) test --all-features
+	$(CARGO) test --workspace --all-features
 
 # Tests needing the attached receiver.  Stop smartclockd first: it holds
 # the serial port open.  Never run in CI.
 test-hw:
-	$(CARGO) test --all-features -- --ignored
+	$(CARGO) test --workspace --all-features -- --ignored
 
 doc:
-	$(CARGO) doc --no-deps --all-features
+	$(CARGO) doc --workspace --no-deps --all-features
 
 clean:
 	$(CARGO) clean
