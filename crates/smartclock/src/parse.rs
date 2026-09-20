@@ -165,6 +165,29 @@ pub fn hms(reply: &str) -> Result<TimeOfDay> {
     }
 }
 
+/// `±dd, ±dd, ±dd, ±dd, ±dd, ±dd`: the GPS engine's time then date.
+///
+/// Undocumented, and in the opposite order to `:PTIMe:DATE?` and
+/// `:PTIMe:TIME?`: hour, minute, second, year, month, day.
+pub fn hms_ymd(reply: &str) -> Result<(TimeOfDay, Date)> {
+    let parts = reply
+        .trim()
+        .split(',')
+        .map(int)
+        .collect::<Result<Vec<_>>>()?;
+    let [h, mi, s, y, mo, d] = parts.as_slice() else {
+        return Err(bad(reply, "hour, minute, second, year, month, day"));
+    };
+    let time = match (u8::try_from(*h), u8::try_from(*mi), u8::try_from(*s)) {
+        (Ok(h), Ok(mi), Ok(s)) => TimeOfDay::new(h, mi, s),
+        _ => None,
+    };
+    match (time, build_date(*y, *mo, *d)) {
+        (Some(time), Some(date)) => Ok((time, date)),
+        _ => Err(bad(reply, "a valid time and date")),
+    }
+}
+
 /// `±dd, ±dd`: a time zone offset in hours and minutes.
 pub fn tzone(reply: &str) -> Result<UtcOffset> {
     let parts = reply

@@ -123,3 +123,53 @@ factory command set.
     WAT1                WAT2                WAT3                WEAL
     WFOU                WLOC                WRITe               WTZO
     XON
+
+## Commands found by sweeping a 58503A
+
+The keyword table gives the vocabulary but not the tree.  Building
+candidate paths from it and sending them to the receiver settles the
+rest: an unknown header returns -113 and changes nothing, so a sweep is
+safe and definitive.  1,530 candidates over the `:DIAGnostic` subtree
+found fifteen commands, none of which appear in any manual here.
+
+| Command | Reading on 3710A01056 |
+| ------- | --------------------- |
+| `:DIAGnostic:TEMPerature?` | `+3.68550E+001`, degrees Celsius |
+| `:DIAGnostic:ROSCillator:CURRent?` | `+1.05882E+002`, oven current |
+| `:DIAGnostic:ROSCillator:TCOefficient?` | `-3.36500E+001`, learned tempco |
+| `:DIAGnostic:ROSCillator:EFControl:ABSolute?` | `+713392`, DAC code |
+| `:DIAGnostic:ROSCillator:EFControl:DATA?` | `+0` |
+| `:DIAGnostic:ROSCillator:EFControl?` | same as `:RELative?` |
+| `:DIAGnostic:IDENtification:GPSystem?` | the GPS engine, also as `:GPS?` |
+| `:DIAGnostic:IDENtification:DEFault?` | `"58503A","CQ"` |
+| `:DIAGnostic:GPSystem:TIME?` | `+21,+41,+53,+2007,+2,+4`, time then date |
+| `:DIAGnostic:GPSystem:UTC?` | `1` |
+| `:DIAGnostic:TOFFset?` | `+0.00000E+000` |
+| `:DIAGnostic:SLOG?` | oldest log entry, against `:LOG?` for the newest |
+
+### The EFC DAC is twenty bits
+
+`ABSolute` and `RELative` are the same quantity in different units:
+
+    relative percent = code / 2^20 * 200 - 100
+
+Code 713392 gives 36.0687, which is exactly what `:RELative?` returned
+at the same moment.  So the DAC is 20 bits and `RELative` spans -100 to
++100 across it.
+
+Measured externally, the control voltage on this unit is about 52 mV
+while `RELative` reads 36.06 percent, which puts full scale near
+plus or minus 144 mV and one code at roughly 0.27 microvolts.
+
+### Why the date is wrong
+
+`:DIAGnostic:IDENtification:GPSystem?` names the GPS engine: a Motorola
+with `SOFTWARE DATE 06 Aug 1996`.  That firmware predates the 1024-week
+rollovers of 1999 and 2019, which is the source of the receiver's
+1024-week date error rather than anything in the 58503A itself.
+
+### Not on the 58503A
+
+The firmware strings include `Double oven`, but that is a Z3801A
+feature.  The 58503A has a single-oven OCXO, so any double-oven field
+belongs to the other model.

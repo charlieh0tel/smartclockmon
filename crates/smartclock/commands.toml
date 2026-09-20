@@ -17,7 +17,10 @@
 # cite:      page in the dialect's manual
 #
 # Sources: hp58503 from 097-59551-02 chapter 5, z3801 from 097-z3801-01
-# table 4-2.
+# table 4-2, plus commands found by sweeping the receiver with candidate
+# paths built from the firmware keyword table.  Those are cited as
+# discovered and are marked for the 58503A only, since no other model
+# has been swept.
 #
 # The 59551A-only PULSe, SENSe:TSTamp and FORMat subsystems are omitted.
 # We have no such hardware, so entries for them could never be verified.
@@ -1583,3 +1586,135 @@ doc = "Erase flash. Firmware download only."
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
   evidence = "manual"
+
+[[command]]
+id = "temperature"
+class = "query"
+doc = "Internal temperature in degrees Celsius."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:TEMPerature?"
+  response = "seconds_or_real"
+  models = ["58503A"]
+  cite = "discovered on 58503A 3710A01056"
+  evidence = "hardware"
+
+[[command]]
+id = "oven_current"
+class = "query"
+doc = "Oscillator oven current. Rises when the oven is heating."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:ROSCillator:CURRent?"
+  response = "real"
+  models = ["58503A"]
+  cite = "discovered on 58503A 3710A01056"
+  evidence = "hardware"
+
+[[command]]
+id = "efc_absolute"
+class = "query"
+doc = "Oscillator EFC as a 20-bit DAC code; relative percent is code / 2^20 * 200 - 100."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:ROSCillator:EFControl:ABSolute?"
+  response = "int"
+  models = ["58503A"]
+  cite = "discovered on 58503A 3710A01056"
+  evidence = "hardware"
+
+[[command]]
+id = "oven_tempco"
+class = "query"
+doc = "Oscillator temperature coefficient as the receiver has learned it."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:ROSCillator:TCOefficient?"
+  response = "real"
+  models = ["58503A"]
+  cite = "discovered on 58503A 3710A01056"
+  evidence = "hardware"
+
+[[command]]
+id = "gps_engine_identity"
+class = "query"
+doc = "Identity of the internal GPS engine."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:IDENtification:GPSystem?"
+  response = "string_list"
+  models = ["58503A"]
+  cite = "discovered on 58503A 3710A01056"
+  evidence = "hardware"
+
+[[command]]
+id = "model_identity"
+class = "query"
+doc = "Receiver model and a two-letter code."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:IDENtification:DEFault?"
+  response = "string_list"
+  models = ["58503A"]
+  cite = "discovered on 58503A 3710A01056"
+  evidence = "hardware"
+
+[[command]]
+id = "gps_engine_time"
+class = "query"
+doc = "Time and date straight from the GPS engine, before the receiver's own handling."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:GPSystem:TIME?"
+  response = "hms_ymd"
+  models = ["58503A"]
+  cite = "discovered on 58503A 3710A01056"
+  evidence = "hardware"
+
+[[command]]
+id = "gps_engine_utc"
+class = "query"
+doc = "Whether the GPS engine is applying the UTC correction."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:GPSystem:UTC?"
+  response = "bool01"
+  models = ["58503A"]
+  cite = "discovered on 58503A 3710A01056"
+  evidence = "hardware"
+
+[[command]]
+id = "time_offset"
+class = "query"
+doc = "Time offset applied to the 1 PPS, in seconds."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:TOFFset?"
+  response = "real"
+  models = ["58503A"]
+  cite = "discovered on 58503A 3710A01056"
+  evidence = "hardware"
+
+[[command]]
+id = "efc_data"
+class = "query"
+doc = "Undocumented EFC data word. Reads 0 on the development unit."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:ROSCillator:EFControl:DATA?"
+  response = "int"
+  models = ["58503A"]
+  cite = "discovered on 58503A 3710A01056"
+  evidence = "hardware"
+
+[[command]]
+id = "log_oldest"
+class = "query"
+doc = "Oldest diagnostic log entry, where :DIAGnostic:LOG:READ? gives the newest."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:SLOG?"
+  response = "string"
+  models = ["58503A"]
+  cite = "discovered on 58503A 3710A01056"
+  evidence = "hardware"

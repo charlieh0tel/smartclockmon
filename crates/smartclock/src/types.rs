@@ -69,7 +69,20 @@ impl EfcPercent {
     pub fn range_used(self) -> f64 {
         self.0.abs() / 100.0
     }
+
+    /// The percentage the receiver would report for a DAC code.
+    ///
+    /// `:DIAGnostic:ROSCillator:EFControl:ABSolute?` returns the raw
+    /// code, and it is 20 bits: 713392 gives 36.0687, which is exactly
+    /// what `:RELative?` returned at the same moment.  Neither value is
+    /// documented anywhere; both were found by sweeping the receiver.
+    pub fn from_dac(code: u32) -> Option<Self> {
+        Self::new(f64::from(code) / f64::from(EFC_DAC_FULL_SCALE) * 200.0 - 100.0)
+    }
 }
+
+/// Codes in the EFC DAC's range.  Twenty bits.
+const EFC_DAC_FULL_SCALE: u32 = 1 << 20;
 
 impl fmt::Display for EfcPercent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

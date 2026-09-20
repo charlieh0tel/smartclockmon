@@ -33,16 +33,36 @@ fn every_spec_names_at_least_one_model() {
 }
 
 #[test]
-fn every_spec_cites_a_manual() {
+fn every_spec_says_where_it_came_from() {
+    // Either a manual and page, or a note that it was found by sweeping
+    // a receiver.  Several commands exist in no manual at all.
     for dialect in DIALECTS {
         for spec in dialect.specs() {
             assert!(
-                spec.cite.starts_with("097-"),
-                "{:?} {:?} cite {:?} is not a document number",
+                spec.cite.starts_with("097-") || spec.cite.starts_with("discovered on "),
+                "{:?} {:?} cite {:?} is neither a document nor a discovery",
                 dialect,
                 spec.id,
                 spec.cite
             );
+        }
+    }
+}
+
+#[test]
+fn an_undocumented_command_must_have_been_seen_on_hardware() {
+    // A discovered entry has no manual behind it, so nothing but the
+    // receiver's own answer justifies it being in the table.
+    for dialect in DIALECTS {
+        for spec in dialect.specs() {
+            if spec.cite.starts_with("discovered on ") {
+                assert_eq!(
+                    spec.evidence,
+                    Evidence::Hardware,
+                    "{:?} is undocumented but not hardware-confirmed",
+                    spec.id
+                );
+            }
         }
     }
 }

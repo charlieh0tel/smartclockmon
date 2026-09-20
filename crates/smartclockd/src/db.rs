@@ -18,7 +18,7 @@ use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Snapshot;
 
 /// Bumped when the tables change shape.
-const SCHEMA: i64 = 1;
+const SCHEMA: i64 = 2;
 
 /// The daemon's write connection.
 #[derive(Debug)]
@@ -61,6 +61,9 @@ impl Log {
                 efc_percent          REAL,
                 hardware_bits        INTEGER,
                 holdover_waiting     TEXT,
+                temperature_c        REAL,
+                oven_current         REAL,
+                efc_dac              INTEGER,
                 holdover_active      INTEGER,
                 holdover_elapsed_s   REAL,
                 holdover_predicted_s REAL,
@@ -115,11 +118,12 @@ impl Log {
         tx.execute(
             "INSERT INTO snapshot (
                 at, freshness, mode, tfom, ffom, time_interval_s, efc_percent,
-                hardware_bits, holdover_waiting, holdover_active, holdover_elapsed_s,
+                hardware_bits, holdover_waiting, temperature_c, oven_current, efc_dac,
+                holdover_active, holdover_elapsed_s,
                 holdover_predicted_s, holdover_present_s, tracking, not_tracking,
                 date_raw, rollover_epochs, log_count, last_error
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                       ?16, ?17, ?18, ?19)",
+                       ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
             params![
                 snapshot.at.to_string(),
                 match snapshot.freshness {
@@ -134,6 +138,9 @@ impl Log {
                 snapshot.efc.map(|v| v.percent()),
                 snapshot.hardware.map(|h| i64::from(h.bits())),
                 snapshot.holdover_waiting.map(|w| format!("{w:?}")),
+                snapshot.temperature,
+                snapshot.oven_current,
+                snapshot.efc_dac,
                 snapshot.holdover_duration.map(|h| h.active),
                 snapshot.holdover_duration.map(|h| h.elapsed.as_secs()),
                 snapshot.holdover_predicted.map(|v| v.as_secs()),

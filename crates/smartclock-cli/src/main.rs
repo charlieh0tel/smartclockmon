@@ -73,6 +73,16 @@ enum Command {
     },
     /// Report oscillator and holdover health in one pass.
     Diagnose,
+    /// Try each command in a file and report which the receiver knows.
+    ///
+    /// For finding commands the manuals do not document.  Only sends
+    /// what is given, so the file must contain queries; an unknown
+    /// header comes back -113 and changes nothing.
+    Sweep {
+        /// One SCPI command per line.  Blank lines and # are skipped.
+        #[arg(long)]
+        from: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -130,7 +140,51 @@ fn run<T: Transport>(session: &mut Session<T>, command: &Command) -> Result<()> 
         }
         Command::Probe { dialect } => probe(session, dialect),
         Command::Diagnose => diagnose(session),
+        Command::Sweep { from } => sweep(session, from),
     }
+}
+
+/// Send each candidate and report what the receiver makes of it.
+fn sweep<T: Transport>(session: &mut Session<T>, from: &PathBuf) -> Result<()> {
+    let text =
+        std::fs::read_to_string(from).with_context(|| format!("reading {}", from.display()))?;
+    let candidates: Vec<&str> = text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .collect();
+
+    let mut known = Vec::new();
+    let (mut unknown, mut refused, mut failed) = (0usize, 0usize, 0usize);
+    for scpi in &candidates {
+        match session.query(scpi) {
+            Ok(reply) => {
+                let value = reply.lines.join(" | ");
+                println!("FOUND    {scpi:<52} {value}");
+                known.push((*scpi, value));
+            }
+            // -113 is the whole point of the sweep: the header does not
+            // exist, so the command is not there.
+            Err(Error::Device { code: -113, .. }) => unknown += 1,
+            Err(Error::Device { code, message }) => {
+                refused += 1;
+                println!("EXISTS   {scpi:<52} {code}: {message}");
+            }
+            Err(e) => {
+                failed += 1;
+                println!("FAILED   {scpi:<52} {e}");
+                session.sync().context("resynchronising after a failure")?;
+            }
+        }
+        std::io::stdout().flush().ok();
+    }
+
+    println!(
+        "\n{} candidates: {} answered, {refused} exist but declined, {unknown} undefined, {failed} failed",
+        candidates.len(),
+        known.len()
+    );
+    Ok(())
 }
 
 /// Ask one query and hand back the single line it produces.

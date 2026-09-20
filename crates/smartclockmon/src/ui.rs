@@ -42,7 +42,7 @@ pub(crate) fn draw(frame: &mut Frame, app: &App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3),
-            Constraint::Length(8),
+            Constraint::Length(11),
             Constraint::Min(6),
             Constraint::Length(1),
         ])
@@ -155,6 +155,19 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
             .map_or_else(|| absent("1 PPS TI"), |v| plain("1 PPS TI", v.to_string())),
         s.holdover_waiting
             .map_or_else(|| absent("waiting"), |w| plain("waiting", format!("{w:?}"))),
+        s.holdover_predicted.map_or_else(
+            || absent("24 h error"),
+            |v| plain("24 h error", v.to_string()),
+        ),
+        match s.holdover_present {
+            Some(v) => field("now off by", v.to_string(), Style::new().fg(Color::Yellow)),
+            // Only meaningful in holdover, so its absence is normal.
+            None => absent("now off by"),
+        },
+        s.screen
+            .as_ref()
+            .and_then(|sc| sc.hold_threshold.clone())
+            .map_or_else(|| absent("hold thr"), |v| plain("hold thr", v)),
         s.holdover_duration.map_or_else(
             || absent("holdover"),
             |h| {
@@ -257,6 +270,21 @@ fn oscillator(frame: &mut Frame, area: Rect, app: &App) {
         ]));
     } else {
         lines.push(absent("trend"));
+    }
+
+    if let Some(snap) = app.snapshot.as_ref() {
+        // Temperature belongs next to EFC: an OCXO's control voltage
+        // moves with it, so a drift reading means little on its own.
+        match (snap.temperature, snap.oven_current) {
+            (Some(t), Some(i)) => {
+                lines.push(plain("temperature", format!("{t:.2} C    oven {i:.1}")));
+            }
+            (Some(t), None) => lines.push(plain("temperature", format!("{t:.2} C"))),
+            _ => {}
+        }
+        if let Some(code) = snap.efc_dac {
+            lines.push(plain("EFC code", format!("{code} of {}", 1u32 << 20)));
+        }
     }
 
     match app.snapshot.as_ref().and_then(|s| s.hardware) {
@@ -471,10 +499,17 @@ fn time_and_place(frame: &mut Frame, area: Rect, app: &App) {
         None => lines.push(absent("position")),
     }
 
-    if let Some(screen) = s.screen.as_ref()
-        && let Some(mode) = &screen.position_mode
-    {
-        lines.push(plain("survey", mode.clone()));
+    if let Some(screen) = s.screen.as_ref() {
+        if let Some(mode) = &screen.position_mode {
+            lines.push(plain("survey", mode.clone()));
+        }
+        if let Some(why) = &screen.survey_suspended {
+            lines.push(field(
+                "suspended",
+                why.clone(),
+                Style::new().fg(Color::Yellow),
+            ));
+        }
     }
 
     frame.render_widget(

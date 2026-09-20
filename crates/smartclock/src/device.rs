@@ -147,6 +147,33 @@ impl<T: Transport> Device<T> {
         parse::efc(&line)
     }
 
+    /// Internal temperature, in degrees Celsius.
+    ///
+    /// Undocumented.  Worth having because an OCXO's control voltage
+    /// moves with temperature, so EFC drift cannot be read as ageing
+    /// without it.
+    pub fn temperature(&mut self) -> Result<Option<f64>> {
+        self.ask_optional(CommandId::Temperature)?
+            .map(|l| parse::real(&l))
+            .transpose()
+    }
+
+    /// Oven current.  Undocumented.
+    pub fn oven_current(&mut self) -> Result<Option<f64>> {
+        self.ask_optional(CommandId::OvenCurrent)?
+            .map(|l| parse::real(&l))
+            .transpose()
+    }
+
+    /// EFC as the raw DAC code.  Undocumented.
+    pub fn efc_dac(&mut self) -> Result<Option<u32>> {
+        let Some(line) = self.ask_optional(CommandId::EfcAbsolute)? else {
+            return Ok(None);
+        };
+        let code = parse::int(&line)?;
+        Ok(u32::try_from(code).ok())
+    }
+
     /// The hardware condition register.
     pub fn hardware_condition(&mut self) -> Result<HardwareCondition> {
         let line = self.ask(CommandId::HardwareCondition)?;
@@ -308,6 +335,12 @@ impl<T: Transport> Device<T> {
     }
 
     fn poll_medium(&mut self, into: &mut Snapshot) -> Result<()> {
+        // Temperature and oven current sit here rather than on the fast
+        // tier: they move slowly, and the fast tier is already close to
+        // its budget.
+        into.temperature = self.temperature()?;
+        into.oven_current = self.oven_current()?;
+        into.efc_dac = self.efc_dac()?;
         into.holdover_duration = Some(self.holdover_duration()?);
         into.holdover_predicted = self.holdover_predicted()?;
         into.holdover_present = self.holdover_present()?;

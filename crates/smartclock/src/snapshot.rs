@@ -83,6 +83,13 @@ pub struct Snapshot {
     /// Why the receiver has not left holdover.
     pub holdover_waiting: Option<HoldoverWaitReason>,
 
+    /// Internal temperature in degrees Celsius.  Undocumented command.
+    pub temperature: Option<f64>,
+    /// Oven current.  Undocumented command.
+    pub oven_current: Option<f64>,
+    /// EFC as the raw 20-bit DAC code.  Undocumented command.
+    pub efc_dac: Option<u32>,
+
     /// Time in holdover, and whether it is running now.
     pub holdover_duration: Option<HoldoverDuration>,
     /// Predicted 24 hour holdover error.
@@ -150,6 +157,9 @@ impl Snapshot {
             efc: None,
             hardware: None,
             holdover_waiting: None,
+            temperature: None,
+            oven_current: None,
+            efc_dac: None,
             holdover_duration: None,
             holdover_predicted: None,
             holdover_present: None,
