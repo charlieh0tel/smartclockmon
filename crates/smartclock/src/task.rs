@@ -228,6 +228,8 @@ pub struct DeviceTask<T: Transport> {
     due: [Instant; 3],
     /// Consecutive failed polls.
     failures: u32,
+    /// Set when a served command left the session mid-reply.
+    resync: bool,
 }
 
 /// Start a task on its own thread and return a handle to it.
@@ -268,6 +270,7 @@ impl<T: Transport> DeviceTask<T> {
             requests,
             due: [now, now, now],
             failures: 0,
+            resync: false,
         }
     }
 
@@ -315,6 +318,15 @@ impl<T: Transport> DeviceTask<T> {
 
     /// Run one tier, returning a reason to stop if the link has died.
     fn run_tier(&mut self, tier: Tier) -> Option<Stopped> {
+        // A command served since the last poll failed and left the
+        // receiver talking; clear the line before reading anything as a
+        // measurement.
+        if self.resync {
+            self.resync = false;
+            if let Err(e) = self.device.session().sync() {
+                return Some(Stopped::LinkFailed(e));
+            }
+        }
         let now = Timestamp::now();
         let mut snapshot = self.shared.latest().unwrap_or_else(|| Snapshot::new(now));
         let outcome = self.device.poll(tier, &mut snapshot, now);
@@ -336,8 +348,14 @@ impl<T: Transport> DeviceTask<T> {
                     return Some(Stopped::LinkFailed(e));
                 }
                 // One bad poll can leave the session mid-reply, so
-                // resynchronise before trying the next.
-                let _ = self.device.session().sync();
+                // resynchronise before trying the next.  A failure here
+                // means the receiver is still talking and nothing after
+                // it can be trusted, so it ends the task rather than
+                // being discarded.
+                if let Err(e) = self.device.session().sync() {
+                    self.shared.publish(snapshot);
+                    return Some(Stopped::LinkFailed(e));
+                }
             }
         }
         self.shared.publish(snapshot);
@@ -349,9 +367,19 @@ impl<T: Transport> DeviceTask<T> {
         match request {
             Request::Command { scpi, answer } => {
                 let outcome = self.device.session().query(&scpi);
+                // A failed command leaves the receiver's reply still
+                // travelling, and the next scheduled poll would read it
+                // as its own answer: a TFOM reported as an FFOM, oven
+                // current reported as temperature, recorded to the log
+                // as a measurement.  run_tier resyncs for exactly this
+                // reason; serving a client command must too.
+                let failed = outcome.is_err();
                 // A caller that gave up before the answer arrived is
                 // not an error worth acting on.
                 let _ = answer.send(outcome);
+                if failed {
+                    self.resync = true;
+                }
             }
             Request::Refresh => {
                 let now = Instant::now();

@@ -148,6 +148,14 @@ impl Log {
     /// second is six hundred thousand rows and a terminal has a couple
     /// of hundred columns.  Thinning happens in SQL so the rows never
     /// cross the process boundary.
+    /// The window is compared as a number, not as text.  `at` is
+    /// written by jiff as `2026-09-20T00:05:00.123456789Z` with a
+    /// `T`, while `datetime('now')` yields `2026-09-20 23:07:40`
+    /// with a space, and `'T'` sorts after `' '`.  A lexical
+    /// comparison therefore passed every row whose date matched, so
+    /// the pane titled "1 hour" could show two days.  Measured
+    /// against the development log: 3133 rows returned for the last
+    /// hour where 2545 was correct.
     pub(crate) fn read(&self, window: Window, columns: usize) -> Result<History> {
         let span = window.seconds();
         let buckets = columns.clamp(16, 1024) as i64;
@@ -162,7 +170,7 @@ impl Log {
                  AVG(temperature_c),     MIN(temperature_c),     MAX(temperature_c),
                  AVG(time_interval_s),   MIN(time_interval_s),   MAX(time_interval_s)
              FROM snapshot
-             WHERE at >= datetime('now', printf('-%d seconds', ?1))
+             WHERE unixepoch(at) >= unixepoch('now') - ?1
                AND freshness = 'live'
              GROUP BY bucket
              ORDER BY ago",

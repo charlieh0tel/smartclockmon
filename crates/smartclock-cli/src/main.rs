@@ -255,7 +255,11 @@ fn diagnose<T: Transport>(session: &mut Session<T>) -> Result<()> {
         );
     }
     if let Some(line) = ask(session, ":STATus:OPERation:HARDware:CONDition?")? {
-        let bits = u16::try_from(parse::int(&line)?).unwrap_or(0);
+        // Not unwrap_or(0): a register that could not be read is not
+        // a register reporting no faults, and this is the field that
+        // says whether the oscillator is at its rail.
+        let bits = u16::try_from(parse::int(&line)?)
+            .with_context(|| format!("{line} is not a 16-bit register value"))?;
         let condition = HardwareCondition::from_bits(bits);
         if condition.is_healthy() {
             println!("  hardware            no faults (register {bits})");

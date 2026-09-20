@@ -120,11 +120,21 @@ impl<T: Transport> Session<T> {
         self.transport.write_all(TERMINATOR.as_bytes())?;
         self.transport.flush()?;
         let (_, prompt) = self.read_to_prompt()?;
+        // Drain again: the prompt just matched may have been the tail
+        // of what was already in flight rather than the answer to the
+        // terminator, and anything left behind belongs to neither.
+        self.drain()?;
         Ok(prompt)
     }
 
     /// Discard everything the receiver is still sending, until the line
     /// has been quiet for [`Config::idle`].
+    ///
+    /// Giving up is a failure, not a success.  Returning `Ok` at the
+    /// deadline with bytes still arriving let [`Session::sync`] match
+    /// the prompt belonging to the abandoned reply and report itself
+    /// fine while one exchange behind -- which is the misattribution
+    /// the whole prompt-framing design exists to prevent.
     pub fn drain(&mut self) -> Result<usize> {
         self.buf.clear();
         let deadline = Instant::now() + self.config.timeout;
@@ -140,7 +150,10 @@ impl<T: Transport> Session<T> {
                 return Ok(discarded);
             }
             if Instant::now() >= deadline {
-                return Ok(discarded);
+                return Err(Error::Timeout {
+                    waited: self.config.timeout,
+                    seen: format!("{discarded} bytes still arriving"),
+                });
             }
         }
     }
