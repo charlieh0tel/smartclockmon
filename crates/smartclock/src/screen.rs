@@ -10,15 +10,20 @@
 //! the signal column `SS` and pads headings with underscores; the
 //! manuals head it `C/N` and pad with spaces, over a narrower screen.
 
+use serde::Deserialize;
+use serde::Serialize;
+
+use crate::types::Degrees;
 use crate::types::Prn;
 use crate::types::SatelliteInfo;
+use crate::types::SignalStrength;
 
 /// What the scraper could recover from a screen.
 ///
 /// Every field is optional: screens differ between firmware revisions
 /// and between receiver states, and a missing field should degrade the
 /// display rather than fail the parse.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Screen {
     /// The bracketed text on the SYNCHRONIZATION line.
     pub synchronization: Option<String>,
@@ -406,16 +411,16 @@ fn satellite(
 
     // "--", "---" and "Acq .." all mean the value is unavailable.  Each
     // still occupies a field, so the slot is consumed either way.
-    let mut values = [None; 3];
+    let mut values: [Option<i16>; 3] = [None; 3];
     for slot in values.iter_mut().take(group.fields.min(3)) {
         let Some(token) = tokens.next() else { break };
         *slot = token.parse().ok();
     }
     Some(SatelliteInfo {
         prn,
-        elevation: values[0],
-        azimuth: values[1],
-        signal: values[2],
+        elevation: values[0].map(Degrees::new),
+        azimuth: values[1].map(Degrees::new),
+        signal: values[2].map(SignalStrength::new),
         tracked: group.tracked,
         acquiring,
     })

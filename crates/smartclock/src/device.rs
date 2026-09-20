@@ -14,16 +14,23 @@ use crate::rollover::ReceiverDate;
 use crate::screen;
 use crate::screen::Screen;
 use crate::session::Session;
+use crate::snapshot::Freshness;
+use crate::snapshot::Snapshot;
+use crate::snapshot::Tier;
 use crate::transport::Transport;
 use crate::types::Datum;
 use crate::types::EfcPercent;
 use crate::types::Ffom;
 use crate::types::HardwareCondition;
+use crate::types::HoldoverDuration;
 use crate::types::HoldoverWaitReason;
 use crate::types::Position;
+use crate::types::Seconds;
 use crate::types::SmartClockMode;
 use crate::types::Tfom;
+use crate::types::TimeOfDay;
 
+use jiff::Timestamp;
 use jiff::civil::Date;
 
 /// One receiver, addressed by logical operation.
@@ -127,11 +134,10 @@ impl<T: Transport> Device<T> {
         })
     }
 
-    /// Interval between the receiver's 1 PPS and the GPS 1 PPS, in
-    /// seconds.
-    pub fn time_interval(&mut self) -> Result<Option<f64>> {
+    /// Interval between the receiver's 1 PPS and the GPS 1 PPS.
+    pub fn time_interval(&mut self) -> Result<Option<Seconds>> {
         self.ask_optional(CommandId::Tinterval)?
-            .map(|l| parse::real(&l))
+            .map(|l| parse::seconds(&l))
             .transpose()
     }
 
@@ -163,25 +169,25 @@ impl<T: Transport> Device<T> {
     }
 
     /// How long holdover has lasted, and whether it is current.
-    pub fn holdover_duration(&mut self) -> Result<(f64, bool)> {
+    pub fn holdover_duration(&mut self) -> Result<HoldoverDuration> {
         let line = self.ask(CommandId::HoldoverDuration)?;
-        parse::real_and_flag(&line)
+        parse::holdover_duration(&line)
     }
 
-    /// Predicted time error over a day of holdover, in seconds.
-    pub fn holdover_predicted(&mut self) -> Result<Option<f64>> {
+    /// Predicted time error over a day of holdover.
+    pub fn holdover_predicted(&mut self) -> Result<Option<Seconds>> {
         Ok(self
             .ask_optional(CommandId::HoldoverUncPred)?
-            .map(|l| parse::real_and_flag(&l))
+            .map(|l| parse::holdover_duration(&l))
             .transpose()?
-            .map(|(seconds, _)| seconds))
+            .map(|d| d.elapsed))
     }
 
-    /// Time error accumulated so far in holdover, in seconds.  Absent
-    /// unless the receiver is in holdover.
-    pub fn holdover_present(&mut self) -> Result<Option<f64>> {
+    /// Time error accumulated so far in holdover.  Absent unless the
+    /// receiver is in holdover.
+    pub fn holdover_present(&mut self) -> Result<Option<Seconds>> {
         self.ask_optional(CommandId::HoldoverUncNow)?
-            .map(|l| parse::real(&l))
+            .map(|l| parse::seconds(&l))
             .transpose()
     }
 
@@ -213,7 +219,7 @@ impl<T: Transport> Device<T> {
     }
 
     /// The receiver's time of day.
-    pub fn time(&mut self) -> Result<(u8, u8, u8)> {
+    pub fn time(&mut self) -> Result<TimeOfDay> {
         let line = self.ask(CommandId::Time)?;
         parse::hms(&line)
     }
@@ -265,6 +271,57 @@ fn datum_for(model: &str) -> Datum {
     match model.to_ascii_uppercase().as_str() {
         "58503B" => Datum::Ellipsoid,
         _ => Datum::MeanSeaLevel,
+    }
+}
+
+/// Polling one tier's worth of fields into a snapshot.
+impl<T: Transport> Device<T> {
+    /// Refresh the fields belonging to `tier`.
+    ///
+    /// A field the receiver declines on state is set to `None` rather
+    /// than left at its previous value, because a stale reading is
+    /// worse than an absent one.  A transport failure aborts the tier
+    /// and propagates, so the caller can mark the snapshot stale rather
+    /// than publishing a half-updated one.
+    pub fn poll(&mut self, tier: Tier, into: &mut Snapshot, now: Timestamp) -> Result<()> {
+        match tier {
+            Tier::Fast => self.poll_fast(into)?,
+            Tier::Medium => self.poll_medium(into)?,
+            Tier::Slow => self.poll_slow(into, now)?,
+        }
+        into.at = now;
+        into.freshness = Freshness::Live;
+        into.last_error = None;
+        into.polled.set(tier, now);
+        Ok(())
+    }
+
+    fn poll_fast(&mut self, into: &mut Snapshot) -> Result<()> {
+        into.mode = Some(self.mode()?);
+        into.tfom = Some(self.tfom()?);
+        into.ffom = Some(self.ffom()?);
+        into.time_interval = self.time_interval()?;
+        into.efc = Some(self.efc()?);
+        into.hardware = Some(self.hardware_condition()?);
+        into.holdover_waiting = Some(self.holdover_waiting()?);
+        Ok(())
+    }
+
+    fn poll_medium(&mut self, into: &mut Snapshot) -> Result<()> {
+        into.holdover_duration = Some(self.holdover_duration()?);
+        into.holdover_predicted = self.holdover_predicted()?;
+        into.holdover_present = self.holdover_present()?;
+        into.screen = Some(self.screen()?);
+        Ok(())
+    }
+
+    fn poll_slow(&mut self, into: &mut Snapshot, now: Timestamp) -> Result<()> {
+        into.position = self.position()?;
+        let today = now.to_zoned(jiff::tz::TimeZone::UTC).date();
+        let date = self.date(today)?;
+        into.date = Some(date);
+        into.log_count = Some(self.log_count()?);
+        Ok(())
     }
 }
 

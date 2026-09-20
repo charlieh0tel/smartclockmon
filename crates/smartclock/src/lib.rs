@@ -9,6 +9,8 @@ pub mod parse;
 pub mod rollover;
 pub mod screen;
 pub mod session;
+pub mod snapshot;
+pub mod task;
 pub mod transport;
 pub mod types;
 

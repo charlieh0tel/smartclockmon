@@ -18,12 +18,14 @@
 //! a reader comparing against the front panel will see.
 
 use jiff::civil::Date;
+use serde::Deserialize;
+use serde::Serialize;
 
 /// Days in one GPS week-number epoch: 1024 weeks.
 const EPOCH_DAYS: i32 = 1024 * 7;
 
 /// How far a receiver's calendar has slipped.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rollover {
     /// How many 1024-week epochs the receiver is behind.  Zero means its
     /// date agrees with the reference.
@@ -38,7 +40,7 @@ impl Rollover {
 }
 
 /// A date as the receiver reported it, with any rollover detected.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReceiverDate {
     /// Exactly what the receiver said.
     raw: Date,

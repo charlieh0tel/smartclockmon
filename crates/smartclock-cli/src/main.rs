@@ -24,6 +24,7 @@ use smartclock::transport::Transport;
 use smartclock::transport::serial::SerialTransport;
 use smartclock::transport::serial::Settings;
 use smartclock::transport::tee::TeeTransport;
+use smartclock::types::BaudRate;
 use smartclock::types::HardwareCondition;
 use smartclock::types::SmartClockMode;
 
@@ -36,7 +37,9 @@ struct Cli {
     device: String,
 
     /// Bits per second.  The receiver stores this setting, so it is not
-    /// necessarily the 9600 factory default.
+    /// necessarily the 9600 factory default.  Checked against the four
+    /// rates the receiver accepts: an unsupported rate does not fail on
+    /// open, it produces garbage that looks like a dead receiver.
     #[arg(long, default_value_t = 19200, global = true)]
     baud: u32,
 
@@ -74,9 +77,16 @@ enum Command {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    let baud = BaudRate::new(cli.baud).with_context(|| {
+        let supported = BaudRate::ALL.map(|b| b.to_string()).join(", ");
+        format!(
+            "{} is not a rate the receiver supports ({supported})",
+            cli.baud
+        )
+    })?;
     let settings = Settings {
         path: cli.device.clone(),
-        baud: cli.baud,
+        baud,
         read_timeout: Duration::from_millis(250),
     };
     let config = Config {
@@ -164,7 +174,7 @@ fn diagnose<T: Transport>(session: &mut Session<T>) -> Result<()> {
         }
     }
     if let Some(line) = ask(session, ":SYNChronization:TINTerval?")? {
-        println!("  1 PPS interval      {:+.1} ns", parse::real(&line)? * 1e9);
+        println!("  1 PPS interval      {}", parse::seconds(&line)?);
     }
 
     println!("\nOscillator");
@@ -193,20 +203,25 @@ fn diagnose<T: Transport>(session: &mut Session<T>) -> Result<()> {
 
     println!("\nHoldover");
     if let Some(line) = ask(session, ":SYNChronization:HOLDover:DURation?")? {
-        let (seconds, active) = parse::real_and_flag(&line)?;
-        let state = if active {
+        let holdover = parse::holdover_duration(&line)?;
+        let state = if holdover.active {
             "in holdover"
         } else {
             "not in holdover"
         };
-        println!("  state               {state}, last duration {seconds:.0} s");
+        println!(
+            "  state               {state}, last duration {}",
+            holdover.elapsed
+        );
     }
     if let Some(line) = ask(session, ":SYNChronization:HOLDover:TUNCertainty:PREDicted?")? {
-        let (seconds, _) = parse::real_and_flag(&line)?;
-        println!("  predicted 24 h      {:.1} us", seconds * 1e6);
+        println!(
+            "  predicted 24 h      {}",
+            parse::holdover_duration(&line)?.elapsed
+        );
     }
     match ask(session, ":SYNChronization:HOLDover:TUNCertainty:PRESent?")? {
-        Some(line) => println!("  present error       {:.1} us", parse::real(&line)? * 1e6),
+        Some(line) => println!("  present error       {}", parse::seconds(&line)?),
         None => println!("  present error       not applicable outside holdover"),
     }
 

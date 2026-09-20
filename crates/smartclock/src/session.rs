@@ -181,9 +181,10 @@ impl<T: Transport> Session<T> {
         // command from inheriting a stale error prompt.
         let detail = self.send_raw(":SYSTem:ERRor?")?;
         match detail.lines.first().map(|l| parse_error(l)) {
-            Some(Some((0, _))) | None => Err(Error::UnexplainedError { prompt }),
-            Some(Some((code, message))) => Err(Error::Device { code, message }),
-            Some(None) => Err(Error::UnexplainedError { prompt }),
+            Some(Some((code, message))) if code != 0 => Err(Error::Device { code, message }),
+            // Either the queue was empty or it did not parse; both mean
+            // the receiver and its queue have drifted out of step.
+            _ => Err(Error::UnexplainedError { prompt }),
         }
     }
 

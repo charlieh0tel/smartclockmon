@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use crate::error::Result;
 use crate::transport::Transport;
+use crate::types::BaudRate;
 
 /// Serial line settings.  The receiver stores its own settings in
 /// non-volatile memory, so these must match whatever it was last told,
@@ -15,8 +16,9 @@ pub struct Settings {
     /// Device path, such as `/dev/ttyUSB0`.  Prefer a
     /// `/dev/serial/by-id/...` path, which survives re-enumeration.
     pub path: String,
-    /// Bits per second.  The receiver supports 1200, 2400, 9600, 19200.
-    pub baud: u32,
+    /// Line rate.  The receiver stores its own, so this is not
+    /// necessarily the factory default.
+    pub baud: BaudRate,
     /// How long a single read waits before returning empty.
     pub read_timeout: Duration,
 }
@@ -25,7 +27,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             path: "/dev/ttyUSB0".to_owned(),
-            baud: 19200,
+            baud: BaudRate::B19200,
             read_timeout: Duration::from_millis(250),
         }
     }
@@ -42,7 +44,7 @@ impl SerialTransport {
     /// Open the port.  8N1 with no flow control, which is the only
     /// combination the 58503A offers when parity is none.
     pub fn open(settings: &Settings) -> Result<Self> {
-        let port = serialport::new(&settings.path, settings.baud)
+        let port = serialport::new(&settings.path, settings.baud.get())
             .data_bits(serialport::DataBits::Eight)
             .parity(serialport::Parity::None)
             .stop_bits(serialport::StopBits::One)

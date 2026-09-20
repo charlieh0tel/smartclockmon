@@ -97,9 +97,9 @@ fn signal_strength_is_read_from_the_ss_column() {
         .iter()
         .find(|x| x.prn.get() == 3)
         .expect("PRN 3");
-    assert_eq!(prn3.elevation, Some(88));
-    assert_eq!(prn3.azimuth, Some(281));
-    assert_eq!(prn3.signal, Some(111));
+    assert_eq!(prn3.elevation.expect("elevation").get(), 88);
+    assert_eq!(prn3.azimuth.expect("azimuth").get(), 281);
+    assert_eq!(prn3.signal.expect("signal").raw(), 111);
 
     // Not-tracked satellites have no signal column at all.
     let prn1 = s
@@ -107,8 +107,8 @@ fn signal_strength_is_read_from_the_ss_column() {
         .iter()
         .find(|x| x.prn.get() == 1)
         .expect("PRN 1");
-    assert_eq!(prn1.elevation, Some(24));
-    assert_eq!(prn1.azimuth, Some(204));
+    assert_eq!(prn1.elevation.expect("elevation").get(), 24);
+    assert_eq!(prn1.azimuth.expect("azimuth").get(), 204);
     assert_eq!(prn1.signal, None);
 }
 

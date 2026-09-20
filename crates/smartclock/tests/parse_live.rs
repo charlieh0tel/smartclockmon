@@ -66,23 +66,43 @@ fn the_full_include_list_is_all_thirty_two() {
 
 #[test]
 fn holdover_duration_carries_a_flag() {
-    let (seconds, in_holdover) = parse::real_and_flag("+0.00000E+000,0").expect("pair");
-    assert_eq!(seconds, 0.0);
-    assert!(!in_holdover);
-    let (predicted, _) = parse::real_and_flag("+4.320E-004,0").expect("pair");
-    assert!((predicted - 432e-6).abs() < 1e-12);
+    let idle = parse::holdover_duration("+0.00000E+000,0").expect("pair");
+    assert_eq!(idle.elapsed.as_secs(), 0.0);
+    assert!(!idle.active);
+    let predicted = parse::holdover_duration("+4.320E-004,0").expect("pair");
+    assert!((predicted.elapsed.as_micros() - 432.0).abs() < 1e-6);
+}
+
+#[test]
+fn a_time_quantity_prints_in_a_readable_scale() {
+    // The same field is natural in three scales depending on what it
+    // is, which is why callers should not hand-multiply.
+    assert_eq!(
+        parse::seconds("-4.1E-009").expect("s").to_string(),
+        "-4.1 ns"
+    );
+    assert_eq!(
+        parse::seconds("+4.320E-004").expect("s").to_string(),
+        "432.0 us"
+    );
+    assert_eq!(
+        parse::seconds("+8.64E+004").expect("s").to_string(),
+        "86400.0 s"
+    );
 }
 
 #[test]
 fn the_error_queue_entry_splits_into_code_and_text() {
-    assert_eq!(
-        parse::error_entry("+0,\"No error\"").expect("entry"),
-        (0, "No error".to_owned())
-    );
-    assert_eq!(
-        parse::error_entry("-221,\"Settings conflict\"").expect("entry"),
-        (-221, "Settings conflict".to_owned())
-    );
+    let none = parse::error_entry("+0,\"No error\"").expect("entry");
+    assert!(none.is_empty());
+    assert_eq!(none.message, "No error");
+
+    // -221 means the header parsed and the receiver declined on state,
+    // which is an answer rather than a bad command.
+    let conflict = parse::error_entry("-221,\"Settings conflict\"").expect("entry");
+    assert_eq!(conflict.code, -221);
+    assert!(conflict.is_state_refusal());
+    assert!(!conflict.is_empty());
 }
 
 #[test]
@@ -97,13 +117,18 @@ fn the_identity_string_splits_into_four_fields() {
 #[test]
 fn the_reported_date_and_time_parse() {
     assert_eq!(parse::ymd("+2007,+2,+4").expect("date"), date(2007, 2, 4));
-    assert_eq!(parse::hms("+20,+4,+31").expect("time"), (20, 4, 31));
-    assert_eq!(parse::hour_minute("+0,+0").expect("offset"), (0, 0));
+    assert_eq!(
+        parse::hms("+20,+4,+31").expect("time").to_string(),
+        "20:04:31"
+    );
+    assert!(parse::tzone("+0,+0").expect("offset").is_utc());
 }
 
 #[test]
 fn a_leap_second_is_an_allowed_sixtieth_second() {
-    assert_eq!(parse::hms("+23,+59,+60").expect("time"), (23, 59, 60));
+    let leap = parse::hms("+23,+59,+60").expect("time");
+    assert!(leap.is_leap_second());
+    assert_eq!(leap.to_string(), "23:59:60");
     assert!(parse::hms("+24,+0,+0").is_err());
 }
 
@@ -133,7 +158,7 @@ fn the_live_timecode_parses_and_its_checksum_verifies() {
     // and :SYNC:FFOMerit? = +1 taken moments earlier.
     let code = parse::timecode("T2200702042004323100034").expect("timecode");
     assert_eq!(code.date, Some(date(2007, 2, 4)));
-    assert_eq!(code.time, Some((20, 4, 32)));
+    assert_eq!(code.time.expect("time").to_string(), "20:04:32");
     assert_eq!(code.tfom.get(), 3);
     assert_eq!(code.ffom.get(), 1);
     assert_eq!(code.leap, LeapPending::None);

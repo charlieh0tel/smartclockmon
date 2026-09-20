@@ -12,11 +12,16 @@ use crate::error::Error;
 use crate::error::Result;
 use crate::types::Datum;
 use crate::types::EfcPercent;
+use crate::types::ErrorEntry;
 use crate::types::Ffom;
+use crate::types::HoldoverDuration;
 use crate::types::LeapPending;
 use crate::types::Position;
 use crate::types::Prn;
+use crate::types::Seconds;
 use crate::types::Tfom;
+use crate::types::TimeOfDay;
+use crate::types::UtcOffset;
 
 fn bad(reply: &str, expected: &'static str) -> Error {
     Error::Parse {
@@ -96,23 +101,32 @@ pub fn prn_list(reply: &str) -> Result<Vec<Prn>> {
         .collect()
 }
 
-/// `±d.dEe, 0 or 1`: a real paired with a flag, as holdover duration
-/// and predicted uncertainty both return.
-pub fn real_and_flag(reply: &str) -> Result<(f64, bool)> {
+/// `±d.dEe, 0 or 1`: a duration paired with a flag, as holdover
+/// duration and predicted uncertainty both return.
+pub fn holdover_duration(reply: &str) -> Result<HoldoverDuration> {
     let (value, flag) = reply
         .trim()
         .split_once(',')
-        .ok_or_else(|| bad(reply, "a real and a flag"))?;
-    Ok((real(value)?, bool01(flag)?))
+        .ok_or_else(|| bad(reply, "a duration and a flag"))?;
+    Ok(HoldoverDuration::new(seconds(value)?, bool01(flag)?))
+}
+
+/// A `±d.dEe` reply that is a time quantity.
+pub fn seconds(reply: &str) -> Result<Seconds> {
+    Ok(Seconds::new(real(reply)?))
 }
 
 /// `±dd, "XYZ"`: an error queue entry.
-pub fn error_entry(reply: &str) -> Result<(i64, String)> {
+pub fn error_entry(reply: &str) -> Result<ErrorEntry> {
     let (code, message) = reply
         .trim()
         .split_once(',')
         .ok_or_else(|| bad(reply, "a code and a message"))?;
-    Ok((int(code)?, string(message)?.to_owned()))
+    let code = i32::try_from(int(code)?).map_err(|_| bad(reply, "an error code"))?;
+    Ok(ErrorEntry {
+        code,
+        message: string(message)?.to_owned(),
+    })
 }
 
 /// `±dd, ±dd, ±dd` as a calendar date.
@@ -135,9 +149,8 @@ fn build_date(year: i64, month: i64, day: i64) -> Option<Date> {
     Date::new(year, month, day).ok()
 }
 
-/// `±dd, ±dd, ±dd` as a time of day, returned as its parts because the
-/// receiver can report a leap second as `:60`.
-pub fn hms(reply: &str) -> Result<(u8, u8, u8)> {
+/// `±dd, ±dd, ±dd` as a time of day.
+pub fn hms(reply: &str) -> Result<TimeOfDay> {
     let parts = reply
         .trim()
         .split(',')
@@ -147,13 +160,13 @@ pub fn hms(reply: &str) -> Result<(u8, u8, u8)> {
         return Err(bad(reply, "hour, minute, second"));
     };
     match (u8::try_from(*h), u8::try_from(*m), u8::try_from(*s)) {
-        (Ok(h), Ok(m), Ok(s)) if h < 24 && m < 60 && s <= 60 => Ok((h, m, s)),
+        (Ok(h), Ok(m), Ok(s)) => TimeOfDay::new(h, m, s).ok_or_else(|| bad(reply, "a valid time")),
         _ => Err(bad(reply, "a valid time")),
     }
 }
 
 /// `±dd, ±dd`: a time zone offset in hours and minutes.
-pub fn hour_minute(reply: &str) -> Result<(i8, i8)> {
+pub fn tzone(reply: &str) -> Result<UtcOffset> {
     let parts = reply
         .trim()
         .split(',')
@@ -163,7 +176,7 @@ pub fn hour_minute(reply: &str) -> Result<(i8, i8)> {
         return Err(bad(reply, "hours and minutes"));
     };
     match (i8::try_from(*h), i8::try_from(*m)) {
-        (Ok(h), Ok(m)) => Ok((h, m)),
+        (Ok(h), Ok(m)) => Ok(UtcOffset::new(h, m)),
         _ => Err(bad(reply, "an offset in range")),
     }
 }
@@ -240,7 +253,7 @@ pub struct TimeCode {
     /// since the GPS epoch instead.
     pub date: Option<Date>,
     /// Time of the next 1 PPS, in T2 format only.
-    pub time: Option<(u8, u8, u8)>,
+    pub time: Option<TimeOfDay>,
     /// Seconds since 1980-01-06, in T1 format only.
     pub gps_seconds: Option<u32>,
     /// Time figure of merit.
@@ -333,7 +346,8 @@ pub fn timecode(reply: &str) -> Result<TimeCode> {
             let (Some(h), Some(mi), Some(s)) = time else {
                 return Err(bad(reply, "a valid T2 time"));
             };
-            code.time = Some((h, mi, s));
+            code.time =
+                Some(TimeOfDay::new(h, mi, s).ok_or_else(|| bad(reply, "a valid T2 time"))?);
         }
         Some("T1") => {
             let rest = header
