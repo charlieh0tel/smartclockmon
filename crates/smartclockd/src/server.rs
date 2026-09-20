@@ -198,15 +198,9 @@ fn handle_request(request: Request, handle: &Handle, info: &Info) -> Message {
 /// unknown command could be anything.
 fn send(id: String, scpi: &str, handle: &Handle, info: &Info) -> Message {
     let scpi = scpi.trim();
-    let known = info
-        .dialect
-        .specs()
-        .iter()
-        .find(|s| s.scpi.eq_ignore_ascii_case(scpi));
-
-    let (class, to_send) = match known {
-        Some(spec) => (spec.class, spec.scpi),
-        None if info.policy.raw => (raw_class(scpi), scpi),
+    let (class, to_send) = match classify(scpi, info.dialect) {
+        Some(found) => found,
+        None if info.policy.raw => (raw_class(scpi), scpi.to_owned()),
         None => {
             return Message::err(
                 id,
@@ -214,6 +208,7 @@ fn send(id: String, scpi: &str, handle: &Handle, info: &Info) -> Message {
             );
         }
     };
+    let to_send = to_send.as_str();
 
     if !info.policy.allows(class) {
         return Message::err(
@@ -243,6 +238,32 @@ fn send(id: String, scpi: &str, handle: &Handle, info: &Info) -> Message {
         Ok(reply) => Message::ok(id, serde_json::json!({ "lines": reply.lines })),
         Err(e) => Message::err(id, e),
     }
+}
+
+/// Find a command in the table and return its class and the string to
+/// send.
+///
+/// Matching cannot be on the whole string.  Some entries carry their
+/// argument, such as `:GPS:POSition:SURVey:STATe ONCE`, while others
+/// take one the caller supplies, and an exact comparison made every
+/// command with an argument unreachable: the table holds
+/// `:GPS:SATellite:TRACking:EMANgle` while a client sends it followed
+/// by a number.
+///
+/// So the whole string is tried first, then the part before the first
+/// space as a header with the rest as its argument.  The table's
+/// spelling is what gets sent, so a client may use any casing.
+fn classify(scpi: &str, dialect: Dialect) -> Option<(Class, String)> {
+    let specs = dialect.specs();
+    if let Some(spec) = specs.iter().find(|s| s.scpi.eq_ignore_ascii_case(scpi)) {
+        return Some((spec.class, spec.scpi.to_owned()));
+    }
+    let (header, argument) = scpi.split_once(char::is_whitespace)?;
+    let argument = argument.trim();
+    let spec = specs
+        .iter()
+        .find(|s| s.scpi.eq_ignore_ascii_case(header.trim()))?;
+    Some((spec.class, format!("{} {argument}", spec.scpi)))
 }
 
 /// Guess a class for a command the table does not know.
