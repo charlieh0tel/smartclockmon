@@ -17,12 +17,20 @@ and a TUI client.  A GUI is possible later but is not planned.
 | 6 | Control commands, audit trail, raw console | done |
 | 7 | Generated command matrix | done; protocol and deployment notes not written |
 
-106 tests, none needing hardware.  `make ci` is what CI runs; `make
+119 tests, none needing hardware.  `make ci` is what CI runs; `make
 test-hw` is the hardware-only set and CI never runs it.
 
 Running against the development unit, logging to a database given on the
 command line.  Not yet installed as a service, though `make deb` builds
 the package and the unit file is written.
+
+An adversarial review in September 2026 -- four Claude reviewers and
+one Codex run over the whole tree -- found about forty defects, five of
+them serious enough to fix at once.  What they had in common is worth
+recording: every one produced a **wrong value presented confidently**
+rather than an error, and all 106 tests passed throughout, because the
+fixtures only covered the layouts that happened to work.  They are
+written up under "What the review found" below.
 
 The simulator closes what used to be the largest hole.  `SimTransport`
 puts a receiver behind the transport trait in process, so the device,
@@ -249,6 +257,21 @@ because enabling it is a deliberate act outside the client and it
 survives no amount of fat-fingering at the socket.  A daemon started
 without the flag cannot be talked into the command at all.
 
+Commands are refused before classification if they could carry a second
+one: a `;`, a control character or any non-ASCII.  SCPI chains program
+message units with `;` and the transport appends only a terminator, so
+without that check a permitted header smuggled anything after it --
+`:SYSTem:STATus? ;:SYSTem:COMMunicate:SERial1:BAUD 1200` classified as
+a query and ran on a daemon with no flags at all.  Arguments are
+whitelisted rather than filtered, since every value this receiver takes
+is a number, a word, a list or a quoted string.
+
+Argument *ranges* belong in the command table beside the class, so the
+string path validates what the typed `Control` handle already does.
+`Control` stays as the library's typed API for embedders; it is not the
+safety boundary, and its documentation should not claim to be.  The
+boundary is the table, which is where the gate lives.
+
 Authorization is socket permissions and nothing else.  systemd's
 `RuntimeDirectory` and `RuntimeDirectoryMode`, plus group ownership,
 decide who can open the socket; anyone who can open it may issue
@@ -293,9 +316,13 @@ Two consequences worth building in:
 
 USB serial adapters drop, and the receiver may be power-cycled.  The
 daemon reconnects rather than exiting, and records the gap.  `Snapshot`
-carries an explicit freshness state so a client shows "disconnected"
-rather than freezing on stale values.  For a monitoring tool aimed at a
-suspect unit, silently displaying old numbers is the worst failure mode.
+carries freshness **per tier**, not per snapshot: when each group of
+fields was last read and what went wrong with it.  One flag for the
+whole reading was not enough, because a snapshot is built up a tier at
+a time and the fastest one kept relabelling the others as current.  For
+a monitoring tool aimed at a suspect unit, silently displaying old
+numbers is the worst failure mode, and a single timestamp made that the
+default behaviour rather than an edge case.
 
 Use a `/dev/serial/by-id/...` path rather than `/dev/ttyUSB0`, which is
 not stable across re-enumeration.
@@ -534,6 +561,67 @@ GPS or antenna fault immediately.
 This moves `smartclock-cli diagnose` up to phase 2, so the unit can be
 examined before either the daemon or the TUI exists.
 
+## What the review found
+
+Five defects fixed on the day, all of the same kind: the software
+reported something wrong rather than reporting nothing.
+
+**The scraper invented satellites.**  A blank signal cell let the next
+satellite's asterisk be eaten as this one's reading, so that satellite
+vanished and one was assembled from the leftovers -- `PRN 24` at an
+elevation of 204 degrees, written to the log and drawn as a real
+object.  A short tracked column made the first group claim the second
+group's rows, reporting untracked satellites as in use.  An asterisk
+now ends the preceding cell, and groups carry their heading column so a
+blank cell can be told from a missing one.
+
+**The tracked count was the untracked one.**  Every plain search for
+`Tracking:` finds it inside `Not Tracking:` first, and the earlier fix
+for this used `split_once`, which has the same flaw.  It passed because
+every fixture prints the tracked count first.
+
+**The screen now checks itself.**  It states how many satellites are
+tracked and how many are not, so the table can be compared against
+them.  All three faults above broke that invariant.  A disagreeing
+table is still shown -- a partial sky beats none -- with the pane
+saying the counts disagree.
+
+**Freshness was per snapshot, not per tier.**  The one-second tier
+succeeding re-stamped the whole snapshot `Live` and cleared the error,
+while the status screen underneath went minutes stale; after a link
+drop the first fast poll relabelled an hour-old sky as current.  That
+is this document's own principle broken by the scheduler.  Each tier
+now carries when it last succeeded and its own error, over the wire and
+into the log, and each pane shows the age of what it displays.
+
+**A failed command could be answered by the next poll.**  A client
+command that errored left the reply in flight, and the next scheduled
+poll read it as its own: TFOM reported as FFOM, oven current as
+temperature, recorded as measurements.  Compounding it, `drain`
+returned success when it gave up, so `sync` matched the abandoned
+reply's prompt and called itself fine one exchange behind.
+
+**The authorization gate did not hold.**  Covered under "Commands go
+through the daemon too" above; a query header carried a baud change
+past a daemon started with no flags.
+
+**The history window compared timestamps as text.**  `T` sorts after a
+space, so `datetime('now')` never excluded anything: measured against
+the development log, the pane titled "1 hour" returned the whole
+database.
+
+### What that says about the tests
+
+Every one of these passed CI.  The pattern is that the fixtures were
+drawn from screens the scraper already handled, and the parsers were
+tested against replies the receiver had actually sent -- so the tests
+confirmed the code against the cases it was written from.  What was
+missing was the adversarial direction: a malformed screen, a tier that
+fails while another succeeds, a command that fails mid-exchange.  The
+invariant check on the satellite table is the most valuable single
+change here, because it turns a class of misreadings into a visible
+failure without anyone having to predict the shape of the next one.
+
 ## Phases
 
 Done, and what each turned out to involve:
@@ -566,4 +654,23 @@ Suggest a commit at each phase boundary.
    or a sliver of it.  See `docs/efc.md`: one paired reading is
    recorded, and a second once the count has moved settles it.
 3. Whether to install the daemon as a service.  The package builds and
-   the unit is written, but neither has been installed or tested.
+   the unit is written, but neither has been installed or tested, which
+   is also what phase 7's deployment notes wait on.
+
+## Known defects
+
+From the September 2026 review, not yet fixed, roughly by severity.
+
+| Where | What |
+| ----- | ---- |
+| `task.rs` | Any error counts toward the reconnect threshold, including parse and device errors that reopening cannot fix.  One unexpected reply shape and the daemon reopens the port every five seconds forever while the hardware is fine. |
+| `transport/tcp.rs` | A closed peer returns `Ok(0)` exactly as a read timeout does, and the read loop has no sleep, so EOF spins a core for the whole command timeout. |
+| `smartclockmon/src/source.rs` | Reconnecting keeps the new reader and discards the new writer, so the console is dead after any daemon restart. |
+| `task.rs` | Subscriber channels are unbounded and a stalled client is never dropped, contrary to what the doc comment says.  A suspended client grows daemon memory without limit. |
+| `server.rs` | A failed thread spawn ends the accept loop permanently, and the bind happens after `start_server` has already reported success. |
+| `smartclockd/src/main.rs` | `Info`, including the dialect, is frozen at the first connection, so after a reconnect to a different model the gate classifies against the wrong table. |
+| `commands.toml` | Argument ranges are not validated on the string path; `Control` validates, the daemon does not. |
+| `task.rs` | Polls take absolute priority over the request queue, so a tier as slow as its period starves client commands indefinitely.  Cadence also drifts, since the next deadline is measured from the end of a poll. |
+| `smartclock-cli` | `diagnose` hardcodes 58503A spellings instead of going through `Device`, so it sends the wrong tree on a Z3801A. |
+| `screen.rs` | `panel_column` mixes byte and character offsets; label scrapers are not clipped to the left panel. |
+| various | Smaller items: `Error::Replay` used for task-lifecycle failures, duplicated dialect-name matches, the `-221`/`-230` rule written three times, the EFC full-scale constant in three places, `Duration::from_secs_f64` panicking on a negative flag. |

@@ -5,9 +5,9 @@ time and frequency reference receivers, spoken to over RS-232.
 
 ## Status
 
-Working against the development receiver.  The library, the daemon and
-the monitor all run; a PTY simulator and the generated documentation are
-not written yet.  See `PLAN.md` for what is done and what is not.
+Working against the development receiver.  The library, the daemon, the
+monitor and a simulator all run.  See `PLAN.md` for what is done, what
+is not, and the defects a review has found but nobody has fixed yet.
 
 ## Parts
 
