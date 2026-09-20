@@ -199,6 +199,11 @@ fn handle_request(request: Request, handle: &Handle, info: &Info) -> Message {
 /// unknown command could be anything.
 fn send(id: String, scpi: &str, handle: &Handle, info: &Info) -> Message {
     let scpi = scpi.trim();
+    // Before anything else, because the class is read from the header
+    // and everything after it is passed through untouched.
+    if let Err(why) = well_formed(scpi) {
+        return Message::err(id, why);
+    }
     let (class, to_send) = match classify(scpi, info.dialect) {
         Some(found) => found,
         None if info.policy.raw => (raw_class(scpi), scpi.to_owned()),
@@ -241,6 +246,61 @@ fn send(id: String, scpi: &str, handle: &Handle, info: &Info) -> Message {
     }
 }
 
+/// Refuse anything that could carry a second command.
+///
+/// The class of a command with an argument comes from its header, and
+/// the argument is concatenated in and written to the receiver
+/// verbatim.  SCPI chains program message units with `;`, and the
+/// transport appends only a terminator, so without this check a
+/// permitted header smuggles anything after it:
+/// `:SYSTem:STATus? ;:SYSTem:COMMunicate:SERial1:BAUD 1200` classified
+/// as a query and ran on a daemon started with no flags at all,
+/// stranding the link across power cycles.  An embedded newline does
+/// the same on firmware that does not chain, and desynchronises the
+/// session besides, since the reply to the second command is left in
+/// the buffer for whatever asks next.
+///
+/// So arguments are whitelisted rather than filtered.  Everything this
+/// receiver takes is a number, a bare word, a comma-separated list or a
+/// quoted string; a colon or a semicolon in an argument is not a
+/// legitimate value, it is a second command.
+fn well_formed(scpi: &str) -> Result<(), String> {
+    if scpi.is_empty() {
+        return Err("an empty command".to_owned());
+    }
+    if !scpi.is_ascii() {
+        return Err(format!("{scpi} is not ASCII"));
+    }
+    if let Some(bad) = scpi.chars().find(|c| c.is_control()) {
+        return Err(format!(
+            "{scpi:?} contains a control character ({:#04x}); \
+             a command is one line",
+            bad as u32
+        ));
+    }
+    if scpi.contains(';') {
+        return Err(format!(
+            "{scpi} chains commands with ';', which would carry a second \
+             command past the class check"
+        ));
+    }
+    // The header may hold anything the table spells; only the argument
+    // is restricted, and only to what a value can look like.
+    if let Some((_, argument)) = scpi.split_once(char::is_whitespace) {
+        const ALLOWED: [char; 7] = [' ', ',', '.', '+', '-', '"', '_'];
+        if let Some(bad) = argument
+            .chars()
+            .find(|c| !c.is_ascii_alphanumeric() && !ALLOWED.contains(c))
+        {
+            return Err(format!(
+                "{bad:?} is not allowed in an argument; values are numbers, \
+                 words, lists and quoted strings"
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Find a command in the table and return its class and the string to
 /// send.
 ///
@@ -276,10 +336,26 @@ fn classify(scpi: &str, dialect: Dialect) -> Option<(Class, String)> {
 /// guessing kindly could erase the receiver.
 fn raw_class(scpi: &str) -> Class {
     let upper = scpi.to_ascii_uppercase();
-    const STRANDS: [&str; 4] = ["COMM", "PRES", "ERAS", "LANG"];
+    // Short forms cannot evade these: SCPI's mandatory abbreviations are
+    // COMMunicate, PRESet, ERASe and LANGuage, so every legal spelling
+    // still contains its needle.  The rest are from the receiver's own
+    // keyword table in docs/z3801-keywords.md: resets, anything that
+    // writes non-volatile memory, and any other route to the UART,
+    // since the gate's safety must not rest on COMMunicate being the
+    // only one.  Turning the prompt off would strand the link as surely
+    // as a baud change, because the session frames on it.
+    const STRANDS: [&str; 12] = [
+        "COMM", "PRES", "ERAS", "LANG", "RST", "EEPR", "WRIT", "SAVE", "BAUD", "UART", "PROM",
+        "MEM",
+    ];
     if STRANDS.iter().any(|needle| upper.contains(needle)) {
-        Class::Dangerous
-    } else if scpi.ends_with('?') {
+        return Class::Dangerous;
+    }
+    // A trailing '?' means a query only when there is nothing else in
+    // the string: it is the last character of the whole command, so on
+    // its own it would call anything ending in one a read.
+    let is_bare_query = scpi.ends_with('?') && !scpi.contains(char::is_whitespace);
+    if is_bare_query {
         Class::Query
     } else {
         Class::Control
@@ -302,6 +378,7 @@ mod tests {
     use super::Policy;
     use super::classify;
     use super::raw_class;
+    use super::well_formed;
     use smartclock::command::Class;
     use smartclock::command::Dialect;
 
@@ -332,6 +409,91 @@ mod tests {
         let (class, sent) = classify(":GPS:POSition:SURVey:STATe ONCE", HP).expect("known");
         assert_eq!(class, Class::Control);
         assert_eq!(sent, ":GPS:POSition:SURVey:STATe ONCE");
+    }
+
+    #[test]
+    fn a_permitted_header_cannot_carry_a_second_command() {
+        // The hole this check exists for.  The class comes from the
+        // header and the argument is passed through verbatim, so
+        // without well_formed a query header smuggled a baud change
+        // onto a daemon started with no flags at all.
+        for smuggled in [
+            "*IDN? ;:SYSTem:PRESet",
+            ":SYSTem:STATus? ;:SYSTem:COMMunicate:SERial1:BAUD 1200",
+            ":GPS:SATellite:TRACking:EMANgle 10;:DIAGnostic:ERASe",
+            "*IDN?\t;:SYSTem:PRESet",
+        ] {
+            assert!(
+                well_formed(smuggled).is_err(),
+                "{smuggled:?} was not rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn a_command_is_one_line() {
+        // An embedded newline reaches the receiver as a second command
+        // even on firmware that does not chain with ';', and leaves the
+        // reply to it in the buffer for whatever asks next.
+        for split in [
+            "*IDN? x\n:SYSTem:PRESet",
+            "*IDN? x\r:SYSTem:PRESet",
+            ":PTIMe:TZONe 0,0\n",
+        ] {
+            assert!(well_formed(split).is_err(), "{split:?} was not rejected");
+        }
+    }
+
+    #[test]
+    fn real_arguments_are_still_accepted() {
+        // The check must not refuse the values the receiver actually
+        // takes: numbers, words, lists, quoted strings, exponents.
+        for good in [
+            ":GPS:SATellite:TRACking:EMANgle 10",
+            ":GPS:POSition:SURVey:STATe ONCE",
+            ":GPS:REFerence:ADELay +1.20000E-007",
+            ":PTIMe:TZONe -8,0",
+            ":SYSTem:LANGuage \"PRIMARY\"",
+            ":GPS:POSition N,+37,+22,+30.2,W,+122,+5,+34.8,+43.5",
+            "*IDN?",
+            ":SYSTem:STATus?",
+        ] {
+            assert!(well_formed(good).is_ok(), "{good:?} was wrongly rejected");
+        }
+    }
+
+    #[test]
+    fn non_ascii_is_refused_rather_than_guessed_at() {
+        // Cyrillic lookalikes would miss the substring checks in
+        // raw_class; the receiver would reject them anyway, but the
+        // gate should not be the thing relying on that.
+        assert!(well_formed(":SYST\u{435}m:PRES\u{435}t").is_err());
+    }
+
+    #[test]
+    fn a_trailing_question_mark_alone_does_not_make_a_command_a_query() {
+        // raw_class saw the last character of the whole string, so
+        // anything suffixed with a query read as one.
+        assert_eq!(raw_class("*RST;*IDN?"), Class::Dangerous);
+        assert_eq!(raw_class(":WHATEVER:THIS:IS 5;:OTHER?"), Class::Control);
+        assert_eq!(raw_class(":WHATEVER:THIS:IS?"), Class::Query);
+    }
+
+    #[test]
+    fn the_stranding_list_covers_the_receivers_own_vocabulary() {
+        // Beyond the four documented families: resets, non-volatile
+        // writes, and any other route to the UART or the prompt, since
+        // the session frames on the prompt.
+        for dangerous in [
+            "*RST",
+            ":DIAGnostic:EEPRom:WRITe 0,0",
+            ":SYSTem:SAVE",
+            ":DIAGnostic:UART:BAUD 1200",
+            ":SYSTem:PROMpt OFF",
+            ":DIAGnostic:MEMory:WRITe 0",
+        ] {
+            assert_eq!(raw_class(dangerous), Class::Dangerous, "{dangerous}");
+        }
     }
 
     #[test]
