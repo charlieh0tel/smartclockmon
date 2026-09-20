@@ -15,9 +15,8 @@ use clap::Subcommand;
 use jiff::Zoned;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
+use smartclock::device::Device;
 use smartclock::error::Error;
-use smartclock::parse;
-use smartclock::rollover::ReceiverDate;
 use smartclock::session::Config;
 use smartclock::session::Session;
 use smartclock::transport::Transport;
@@ -25,8 +24,7 @@ use smartclock::transport::serial::SerialTransport;
 use smartclock::transport::serial::Settings;
 use smartclock::transport::tee::TeeTransport;
 use smartclock::types::BaudRate;
-use smartclock::types::HardwareCondition;
-use smartclock::types::SmartClockMode;
+use smartclock::types::Seconds;
 
 #[derive(Parser)]
 #[command(about, version)]
@@ -122,19 +120,26 @@ fn main() -> Result<()> {
         Some(path) => {
             let sink = File::create(path)
                 .with_context(|| format!("creating transcript {}", path.display()))?;
-            let mut session = Session::new(TeeTransport::new(port, sink), config);
-            let result = run(&mut session, &cli.command);
+            let session = Session::new(TeeTransport::new(port, sink), config);
+            let result = run(session, &cli.command);
             eprintln!("transcript written to {}", path.display());
             result
         }
-        None => run(&mut Session::new(port, config), &cli.command),
+        None => run(Session::new(port, config), &cli.command),
     }
 }
 
-fn run<T: Transport>(session: &mut Session<T>, command: &Command) -> Result<()> {
+fn run<T: Transport>(mut session: Session<T>, command: &Command) -> Result<()> {
     session
         .sync()
         .with_context(|| format!("no prompt from {}", session.describe()))?;
+
+    // diagnose builds a Device, which takes the session, so it is
+    // handled before the borrowing arms below.
+    if matches!(command, Command::Diagnose) {
+        return diagnose(session);
+    }
+    let session = &mut session;
 
     match command {
         Command::Query { commands } => {
@@ -149,7 +154,7 @@ fn run<T: Transport>(session: &mut Session<T>, command: &Command) -> Result<()> 
             Ok(())
         }
         Command::Probe { dialect } => probe(session, dialect),
-        Command::Diagnose => diagnose(session),
+        Command::Diagnose => unreachable!("handled above, since it takes the session"),
         Command::Sweep { from } => sweep(session, from),
         // Handled before the port is opened.
         Command::Commands => Ok(()),
@@ -199,152 +204,163 @@ fn sweep<T: Transport>(session: &mut Session<T>, from: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-/// Ask one query and hand back the single line it produces.
-///
-/// A receiver that declines on state, -221 or -230, is answering
-/// truthfully about a value that does not exist right now, so that is
-/// reported as absent rather than as a failure.
-fn ask<T: Transport>(session: &mut Session<T>, scpi: &str) -> Result<Option<String>> {
-    match session.query(scpi) {
-        Ok(reply) => Ok(reply.lines.first().cloned()),
-        Err(Error::Device { code, .. }) if code == -221 || code == -230 => Ok(None),
-        Err(e) => Err(e).with_context(|| format!("sending {scpi}")),
-    }
-}
-
 /// Print what the receiver says about its oscillator and its lock.
-fn diagnose<T: Transport>(session: &mut Session<T>) -> Result<()> {
-    if let Some(line) = ask(session, "*IDN?")? {
-        let id = parse::identity(&line)?;
-        println!(
-            "{} {}  serial {}  firmware {}",
-            id.manufacturer, id.model, id.serial, id.firmware
-        );
-    }
+///
+/// Built on `Device` rather than on literal SCPI.  It used to send
+/// eighteen 58503A spellings directly, so the tool most likely to be
+/// pointed at an unfamiliar receiver was the one that ignored the
+/// command table and asked a Z3801A in the wrong dialect.
+fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
+    let mut device = Device::open(session).context("identifying the receiver")?;
+    let id = device.identity().clone();
+    println!(
+        "{} {}  serial {}  firmware {}",
+        id.manufacturer, id.model, id.serial, id.firmware
+    );
+    println!("  dialect            {:?}", device.dialect());
 
     println!("\nLock");
-    if let Some(line) = ask(session, ":SYNChronization:STATe?")? {
-        let mode = SmartClockMode::parse(&line)
-            .map_or_else(|| format!("unrecognised ({line})"), |m| format!("{m:?}"));
-        println!("  mode                {mode}");
-    }
-    if let Some(line) = ask(session, ":SYNChronization:HOLDover:WAITing?")? {
-        println!("  waiting to recover  {line}");
-    }
-    for (label, scpi) in [
-        ("TFOM", ":SYNChronization:TFOMerit?"),
-        ("FFOM", ":SYNChronization:FFOMerit?"),
-    ] {
-        if let Some(line) = ask(session, scpi)? {
-            println!("  {label:<18}  {}", parse::int(&line)?);
-        }
-    }
-    if let Some(line) = ask(session, ":SYNChronization:TINTerval?")? {
-        println!("  1 PPS interval      {}", parse::seconds(&line)?);
-    }
+    show("mode", device.mode().map(|m| format!("{m:?}")))?;
+    show(
+        "waiting to recover",
+        device.holdover_waiting().map(|w| format!("{w:?}")),
+    )?;
+    show("TFOM", device.tfom().map(|v| v.to_string()))?;
+    show("FFOM", device.ffom().map(|v| v.to_string()))?;
+    show(
+        "1 PPS interval",
+        device
+            .time_interval()
+            .map(absent_or(|v: Seconds| v.to_string())),
+    )?;
 
     println!("\nOscillator");
-    if let Some(line) = ask(session, ":DIAGnostic:ROSCillator:EFControl:RELative?")? {
-        let efc = parse::efc(&line)?;
-        // The signed percentage is less informative than how much of
-        // the tuning range is gone: an aged OCXO fails by walking to a
-        // rail, whichever one.
-        println!(
-            "  EFC                 {efc}  ({:.0}% of tuning range used)",
+    match device.efc() {
+        Ok(efc) => println!(
+            "  {:<18} {efc}  ({:.0}% of tuning range used)",
+            "EFC",
             efc.range_used() * 100.0
-        );
+        ),
+        Err(e) => println!("  {:<18} unavailable: {e}", "EFC"),
     }
-    if let Some(line) = ask(session, ":STATus:OPERation:HARDware:CONDition?")? {
-        // Not unwrap_or(0): a register that could not be read is not
-        // a register reporting no faults, and this is the field that
-        // says whether the oscillator is at its rail.
-        let bits = u16::try_from(parse::int(&line)?)
-            .with_context(|| format!("{line} is not a 16-bit register value"))?;
-        let condition = HardwareCondition::from_bits(bits);
-        if condition.is_healthy() {
-            println!("  hardware            no faults (register {bits})");
-        } else {
-            println!("  hardware            register {bits}");
+    show(
+        "temperature",
+        device
+            .temperature()
+            .map(absent_or(|v: f64| format!("{v:.2} C"))),
+    )?;
+    show(
+        "oven current",
+        device
+            .oven_current()
+            .map(absent_or(|v: f64| format!("{v:.1}"))),
+    )?;
+    show(
+        "EFC raw",
+        device.efc_dac().map(absent_or(|v: u32| v.to_string())),
+    )?;
+    match device.hardware_condition() {
+        Ok(condition) if condition.is_healthy() => {
+            println!(
+                "  {:<18} no faults (register {})",
+                "hardware",
+                condition.bits()
+            );
+        }
+        Ok(condition) => {
+            println!("  {:<18} register {}", "hardware", condition.bits());
             for fault in condition.faults() {
                 println!("    - {}", fault.describe());
             }
         }
+        Err(e) => println!("  {:<18} unavailable: {e}", "hardware"),
     }
 
     println!("\nHoldover");
-    if let Some(line) = ask(session, ":SYNChronization:HOLDover:DURation?")? {
-        let holdover = parse::holdover_duration(&line)?;
-        let state = if holdover.active {
-            "in holdover"
-        } else {
-            "not in holdover"
-        };
-        println!(
-            "  state               {state}, last duration {}",
-            holdover.elapsed
-        );
+    match device.holdover_duration() {
+        Ok(holdover) => {
+            let state = if holdover.active {
+                "in holdover"
+            } else {
+                "not in holdover"
+            };
+            println!("  {:<18} {state}, last {}", "state", holdover.elapsed);
+        }
+        Err(e) => println!("  {:<18} unavailable: {e}", "state"),
     }
-    if let Some(line) = ask(session, ":SYNChronization:HOLDover:TUNCertainty:PREDicted?")? {
-        println!(
-            "  predicted 24 h      {}",
-            parse::holdover_duration(&line)?.elapsed
-        );
-    }
-    match ask(session, ":SYNChronization:HOLDover:TUNCertainty:PRESent?")? {
-        Some(line) => println!("  present error       {}", parse::seconds(&line)?),
-        None => println!("  present error       not applicable outside holdover"),
-    }
+    show(
+        "predicted 24 h",
+        device
+            .holdover_predicted()
+            .map(absent_or(|v: Seconds| v.to_string())),
+    )?;
+    show(
+        "present error",
+        device
+            .holdover_present()
+            .map(absent_or(|v: Seconds| v.to_string())),
+    )?;
 
     println!("\nGPS");
-    if let Some(line) = ask(session, ":GPS:SATellite:TRACking:COUNt?")? {
-        let visible = ask(session, ":GPS:SATellite:VISible:PREDicted:COUNt?")?
-            .map(|v| parse::int(&v))
-            .transpose()?;
-        match visible {
-            Some(visible) => println!(
-                "  satellites          {} tracked of {visible} predicted",
-                parse::int(&line)?
-            ),
-            None => println!("  satellites          {} tracked", parse::int(&line)?),
+    match (device.tracking_count(), device.visible_count()) {
+        (Ok(tracked), Ok(visible)) => {
+            println!(
+                "  {:<18} {tracked} tracked of {visible} predicted",
+                "satellites"
+            );
         }
+        (Ok(tracked), Err(_)) => println!("  {:<18} {tracked} tracked", "satellites"),
+        (Err(e), _) => println!("  {:<18} unavailable: {e}", "satellites"),
     }
 
-    // The date is checked against the host clock because this firmware
-    // predates the 2019 GPS week rollover and reports a date exactly
-    // 1024 weeks in the past.  Its time of day and outputs are sound.
-    if let Some(line) = ask(session, ":PTIMe:DATE?")? {
-        let raw = parse::ymd(&line)?;
-        let today = Zoned::now().date();
-        let seen = ReceiverDate::checked(raw, today);
-        match seen.rollover() {
+    // Checked against the host clock because firmware predating the
+    // 2019 GPS week rollover reports a date exactly 1024 weeks in the
+    // past.  Its time of day and outputs are sound.
+    let today = Zoned::now().date();
+    match device.date(today) {
+        Ok(date) => match date.rollover() {
             Some(slip) => {
-                println!("  date                {raw}  WRONG");
+                println!("  {:<18} {}  WRONG", "date", date.raw());
                 println!(
-                    "                      {} GPS week rollover(s), {} days behind; actual date is {}",
+                    "  {:<18} {} after {} GPS week rollover(s), {} days",
+                    "",
+                    date.corrected(),
                     slip.epochs,
-                    slip.days(),
-                    seen.corrected()
+                    slip.days()
                 );
-                println!("                      time of day, 1 PPS and 10 MHz are unaffected");
+                println!("  {:<18} time of day, 1 PPS and 10 MHz are unaffected", "");
             }
-            None => println!("  date                {raw}"),
-        }
+            None => println!("  {:<18} {}", "date", date.raw()),
+        },
+        Err(e) => println!("  {:<18} unavailable: {e}", "date"),
     }
 
     println!("\nLog");
-    if let Some(line) = ask(session, ":DIAGnostic:LOG:COUNt?")? {
-        println!("  entries             {}", parse::int(&line)?);
-    }
-    if let Some(line) = ask(session, ":DIAGnostic:LOG:READ?")? {
-        println!("  most recent         {}", parse::string(&line)?);
+    show("entries", device.log_count().map(|n| n.to_string()))?;
+    Ok(())
+}
+
+/// Print one field, or why it could not be read.
+///
+/// A value that could not be read is said to be unavailable, never
+/// shown as a default: this is the tool someone points at a receiver
+/// they suspect.
+fn show(label: &str, value: smartclock::error::Result<String>) -> Result<()> {
+    match value {
+        Ok(text) => println!("  {label:<18} {text}"),
+        Err(e) => println!("  {label:<18} unavailable: {e}"),
     }
     Ok(())
 }
 
-/// Send every query in a dialect and report what came back.
-///
-/// Only queries: probing must never change the receiver's state, and
-/// the table already records which commands would.
+/// Render an optional reading, saying so when the receiver declined it.
+fn absent_or<T>(render: impl Fn(T) -> String) -> impl Fn(Option<T>) -> String {
+    move |value| match value {
+        Some(value) => render(value),
+        None => "not applicable in this state".to_owned(),
+    }
+}
+
 fn probe<T: Transport>(session: &mut Session<T>, dialect: &str) -> Result<()> {
     let dialect = match dialect {
         "hp58503" => Dialect::Hp58503,

@@ -16,6 +16,8 @@ use crate::server::Policy;
 
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::channel;
@@ -28,6 +30,7 @@ use clap::Parser;
 use interprocess::local_socket::GenericFilePath;
 use interprocess::local_socket::ToFsName as _;
 use jiff::Timestamp;
+use smartclock::command::Dialect;
 use smartclock::device::Device;
 use smartclock::session::Config;
 use smartclock::session::Session;
@@ -207,6 +210,14 @@ fn supervise(
         );
     }
 
+    let info: server::SharedInfo = Arc::new(Mutex::new(server::Info {
+        identity: String::new(),
+        dialect: Dialect::Hp58503,
+        database: database.clone(),
+        policy,
+        audit,
+    }));
+
     let mut requests = requests_rx;
     let mut serving = false;
     loop {
@@ -229,6 +240,21 @@ fn supervise(
         );
         eprintln!("smartclockd: attached to {identity} on {}", cli.device);
 
+        // Refreshed on every open, so clients are told about the
+        // receiver that is actually attached and their commands are
+        // gated against its command table.
+        match info.lock() {
+            Ok(mut current) => {
+                current.identity = identity.clone();
+                current.dialect = device.dialect();
+            }
+            Err(poisoned) => {
+                let mut current = poisoned.into_inner();
+                current.identity = identity.clone();
+                current.dialect = device.dialect();
+            }
+        }
+
         // The socket opens only once a receiver has answered, so a
         // client never connects to a daemon with nothing to say.  Later
         // reconnects reuse the listener already running.
@@ -237,13 +263,7 @@ fn supervise(
                 socket: &cli.socket,
                 shared: &shared,
                 requests: &requests_tx,
-                info: server::Info {
-                    identity: identity.clone(),
-                    dialect: device.dialect(),
-                    database: database.clone(),
-                    policy,
-                    audit: audit.clone(),
-                },
+                info: Arc::clone(&info),
             })?;
             serving = true;
         }
@@ -301,7 +321,7 @@ struct Listening<'a> {
     /// Where client commands go.
     requests: &'a Sender<Request>,
     /// What to tell clients about the receiver and the policy.
-    info: server::Info,
+    info: server::SharedInfo,
 }
 
 fn start_server(listening: Listening<'_>) -> Result<()> {

@@ -69,6 +69,17 @@ impl Policy {
     }
 }
 
+/// What the daemon tells a client about itself, shared so a reconnect
+/// can replace it.
+///
+/// Frozen at the first connection, this went stale in the way that
+/// matters: the task polls the newly opened device with its own
+/// dialect while the socket kept classifying client commands against
+/// the first one.  Repoint a ser2net endpoint, or swap a 58503A for a
+/// Z3801A on the same by-id path, and the gate reads the wrong command
+/// table.
+pub(crate) type SharedInfo = Arc<Mutex<Info>>;
+
 /// What the daemon tells a client about itself.
 #[derive(Debug, Clone)]
 pub(crate) struct Info {
@@ -98,7 +109,7 @@ pub(crate) fn bind(name: interprocess::local_socket::Name<'static>) -> Result<Li
 }
 
 /// Listen for clients until the process ends.
-pub(crate) fn serve(listener: Listener, handle: Handle, info: Info) -> Result<()> {
+pub(crate) fn serve(listener: Listener, handle: Handle, info: SharedInfo) -> Result<()> {
     for incoming in listener.incoming() {
         let stream = match incoming {
             Ok(stream) => stream,
@@ -110,7 +121,7 @@ pub(crate) fn serve(listener: Listener, handle: Handle, info: Info) -> Result<()
             }
         };
         let handle = handle.clone();
-        let info = info.clone();
+        let info = Arc::clone(&info);
         // A spawn failure must not end the accept loop.  It used to
         // propagate, so one transient EAGAIN under thread pressure left
         // the daemon polling and logging, looking healthy, while no
@@ -135,7 +146,7 @@ pub(crate) fn serve(listener: Listener, handle: Handle, info: Info) -> Result<()
 /// cannot hold up its own requests.  Both threads write to the same
 /// half behind a mutex; the messages are single short lines, so holding
 /// it is brief and it keeps them from interleaving mid-line.
-fn talk(stream: Stream, handle: &Handle, info: &Info) -> Result<()> {
+fn talk(stream: Stream, handle: &Handle, info: &SharedInfo) -> Result<()> {
     let (recv, send_half) = stream.split();
     let writer = Arc::new(Mutex::new(send_half));
 
@@ -163,8 +174,14 @@ fn talk(stream: Stream, handle: &Handle, info: &Info) -> Result<()> {
         if line.trim().is_empty() {
             continue;
         }
+        // Read per request, so a reconnect to a different receiver
+        // takes effect for the next command rather than at restart.
+        let current = match info.lock() {
+            Ok(guard) => guard.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        };
         let reply = match serde_json::from_str::<Request>(&line) {
-            Ok(request) => handle_request(request, handle, info),
+            Ok(request) => handle_request(request, handle, &current),
             Err(e) => Message::err(String::new(), format!("malformed request: {e}")),
         };
         write_line(&writer, &reply)?;

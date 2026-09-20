@@ -371,3 +371,48 @@ fn two_column(header: &str, counts: &str, rows: &[&str]) -> String {
     out.push_str("Self Test: OK   GPS Rcv: OK\n");
     out
 }
+
+#[test]
+fn a_bracket_earlier_on_the_line_does_not_become_the_summary() {
+    // These summaries sit at the right-hand end after a run of dots, so
+    // anything else bracketed on the row comes earlier.  The line spans
+    // the full width, so clipping it to the left panel is not an option.
+    let mut screen = two_column(
+        "PRN  El  Az   SS",
+        "Tracking: 1       Not Tracking: 0",
+        &["  3  88 281  111"],
+    );
+    screen = screen.replace(
+        "SYNCHRONIZATION ..................... [ Outputs Valid ]",
+        "SYNCHRONIZATION [?] ................. [ Outputs Valid ]",
+    );
+    let parsed = screen::parse(&screen);
+    assert_eq!(parsed.synchronization.as_deref(), Some("Outputs Valid"));
+}
+
+#[test]
+fn a_clock_on_the_health_row_does_not_become_a_health_check() {
+    // Splitting the row on ':' produced pairs like ("12", "34") beside
+    // the real ones, on the line that says whether the unit is well.
+    let mut screen = two_column(
+        "PRN  El  Az   SS",
+        "Tracking: 1       Not Tracking: 0",
+        &["  3  88 281  111"],
+    );
+    screen = screen.replace(
+        "Self Test: OK   GPS Rcv: OK",
+        "Self Test: OK   GPS Rcv: OK          12:34:56",
+    );
+    let parsed = screen::parse(&screen);
+    let labels: Vec<&str> = parsed
+        .health_items
+        .iter()
+        .map(|(label, _)| label.as_str())
+        .collect();
+    assert_eq!(labels, vec!["Self Test", "GPS Rcv"]);
+    assert!(
+        parsed.health_items.iter().all(|(_, v)| v == "OK"),
+        "a clock was read as a health verdict: {:?}",
+        parsed.health_items
+    );
+}

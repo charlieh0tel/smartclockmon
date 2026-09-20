@@ -99,14 +99,13 @@ pub fn parse(screen: &str) -> Screen {
         .collect();
     let lines: Vec<&str> = flattened.iter().map(String::as_str).collect();
 
+    let boundary = panel_column(&lines);
     let mut out = Screen {
         synchronization: bracketed(&lines, "SYNCHRONIZATION"),
         acquisition: bracketed(&lines, "ACQUISITION"),
         health: bracketed(&lines, "HEALTH MONITOR"),
         ..Screen::default()
     };
-
-    let boundary = panel_column(&lines);
     for line in &lines {
         if let Some(rest) = clip(line, boundary).trim_start().strip_prefix(">>") {
             out.mode = Some(collapse(rest));
@@ -230,11 +229,15 @@ fn parse_time_line(panel: &str, out: &mut Screen, absent: impl Fn(&str) -> bool)
 /// The `LAT` line, whose label says what kind of position it is.
 fn parse_position_line(panel: &str, out: &mut Screen) {
     let trimmed = panel.trim_start();
-    for label in ["AVG LAT", "INIT LAT", "LAT"] {
+    // Anchored on a following space so a line beginning "LATER" or
+    // "LAT" as part of a longer word is not read as a position.
+    for label in ["AVG LAT ", "INIT LAT ", "LAT "] {
         if trimmed.starts_with(label) {
             out.position_label = Some(
                 label
-                    .strip_suffix(" LAT")
+                    .trim_end()
+                    .strip_suffix("LAT")
+                    .map(str::trim)
                     .filter(|l| !l.is_empty())
                     .unwrap_or("HOLD")
                     .to_owned(),
@@ -263,9 +266,16 @@ fn agrees_with_counts(screen: &Screen) -> bool {
 }
 
 /// The text inside `[ ... ]` on the line carrying `label`.
+///
+/// The *last* bracket on the line, not the first.  These summaries sit
+/// at the right-hand end after a run of dots, so anything else
+/// bracketed on the same row -- a `[?]` beside a clock, a `[TI ...]` --
+/// comes earlier and would otherwise win.  The line cannot simply be
+/// clipped to the left panel: it spans the full width, which is what
+/// distinguishes a section heading from a field.
 fn bracketed(lines: &[&str], label: &str) -> Option<String> {
     let line = lines.iter().find(|l| l.contains(label))?;
-    let start = line.find('[')?;
+    let start = line.rfind('[')?;
     let end = line[start..].find(']')? + start;
     Some(collapse(&line[start + 1..end]))
 }
@@ -336,9 +346,17 @@ fn panel_column(lines: &[&str]) -> usize {
         "Position",
         "MODE",
     ];
+    // A character index, not a byte offset.  `find` returns bytes while
+    // `clip` counts characters, and serial noise decoded lossily brings
+    // three-byte replacement characters, so the two disagreed exactly
+    // when the line was already damaged.
     lines
         .iter()
-        .flat_map(|line| PANEL_HEADINGS.iter().filter_map(move |h| line.find(h)))
+        .flat_map(|line| {
+            PANEL_HEADINGS
+                .iter()
+                .filter_map(move |h| line.find(h).map(|at| line[..at].chars().count()))
+        })
         .min()
         .unwrap_or(usize::MAX)
 }
@@ -516,6 +534,7 @@ fn health_items(lines: &[&str]) -> Vec<(String, String)> {
     let Some(line) = lines.iter().find(|l| l.contains("Self Test:")) else {
         return Vec::new();
     };
+
     let mut items = Vec::new();
     let parts: Vec<&str> = line.split(':').collect();
     for n in 0..parts.len().saturating_sub(1) {
@@ -527,6 +546,14 @@ fn health_items(lines: &[&str]) -> Vec<(String, String)> {
         let Some(value) = parts[n + 1].split_whitespace().next() else {
             continue;
         };
+        // A health verdict is a word.  Splitting the whole line on ':'
+        // turned a clock sharing the row into pairs like ("12", "34"),
+        // on the line an operator reads to decide the unit is well.
+        // The line spans the full width, so it cannot be clipped to the
+        // left panel instead.
+        if !value.chars().all(|c| c.is_ascii_alphabetic()) {
+            continue;
+        }
         items.push((label, value.to_owned()));
     }
     items

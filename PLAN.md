@@ -663,7 +663,4 @@ From the September 2026 review, not yet fixed, roughly by severity.
 
 | Where | What |
 | ----- | ---- |
-| `smartclockd/src/main.rs` | `Info`, including the dialect, is frozen at the first connection, so after a reconnect to a different model the gate classifies against the wrong table. |
-| `smartclock-cli` | `diagnose` hardcodes 58503A spellings instead of going through `Device`, so it sends the wrong tree on a Z3801A. |
-| `screen.rs` | `panel_column` mixes byte and character offsets; label scrapers are not clipped to the left panel. |
 | various | Smaller items: duplicated dialect-name matches, the `-221`/`-230` rule written three times, the EFC full-scale constant in three places, `Duration::from_secs_f64` panicking on a negative flag. |
