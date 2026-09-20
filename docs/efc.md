@@ -21,24 +21,9 @@ second-order filter.  "20-bit DAC" would be wrong.
 
 ## The oscillator
 
-The development unit carries an **HP 10811-60159**, which
-`10811-90027-1` section 12 defines as a `-60158` with shock mount studs,
-otherwise a 10811D/E.  Its frequency adjustment:
-
-| Parameter | Specification |
-| --------- | ------------- |
-| Coarse tuning range | > +/- 5x10^-7 (+/- 5 Hz) |
-| **Electronic frequency control** | **> +/- 2.0x10^-7 (+/- 2.5 Hz) over -5 V to +5 V** |
-| Aging | < 2.5x10^-10 / day; < 1x10^-7 / year, typically 1x10^-8 / year after the first year |
-
-The 10811A/B manual says the same of the base part: "The EFC allows the
-oscillator to be tuned over a 1 Hz range (1 x 10-7) by applying -5 to +5
-volts".  So the control input is a +/- 5 V span on every variant here.
-
-Corroborated independently at
-<http://etoysbox.jp/Memo/3_Test_Equipments/HP_10811_OCXO/HP_10811_OCXO_Spec.html>,
-which gives the `-60159` the same coarse tuning range and the same
-EFC figure over the same -5 V to +5 V input.
+An HP 10811-60159, whose electronic frequency control spans
+**+/- 2.0x10^-7 over a -5 V to +5 V input**.  See `OCXO.md` for the full
+specification and its sources.
 
 ## Where the unit stands
 

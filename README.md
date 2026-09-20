@@ -32,7 +32,8 @@ serial port is DB-25; the 58503B uses DB-9.  It answers `*IDN?` with
 
     HEWLETT-PACKARD,58503A,3710A01056,3704-C
 
-Its oscillator is an HP 10811-60159, and its GPS engine is a Motorola
+Its oscillator is an HP 10811-60159 (see `docs/OCXO.md`), and its GPS
+engine is a Motorola
 reporting `SOFTWARE DATE 06 Aug 1996`.  That engine is why the receiver
 reports a date 1024 weeks in the past: its firmware predates the GPS
 week rollovers of 1999 and 2019.  Time of day, 1 PPS and 10 MHz are
@@ -81,8 +82,17 @@ Vendor manuals in `third_party/`:
 | `097-z3801-01`     | Z3801A User's Guide; documents the Z3801A tree      |
 | `58503a-01`        | Oscillator bracket service note                     |
 
+`10811-variants-90027-1.pdf` and `HP-10811AB-Manual.pdf` specify the
+oscillator.
+
 `the keyword table` and `the keyword table` are 512 KB firmware, kept as
 a reference for resolving command trees that the manuals do not cover.
+
+Notes derived from all of these are in `docs/`: `OCXO.md` for the
+oscillator, `efc.md` for how the receiver reports its control voltage,
+`z3801-keywords.md` for the SCPI vocabulary and the undocumented
+commands found by sweeping, and `screen-format-strings.md` for the
+status screen's layout.
 
 ## Licence
 
