@@ -1,10 +1,10 @@
 # CI runs these same targets; the workflow only calls "make ci".
 #
-# Every target says --workspace.  default-members points at smartclockd
-# so cargo deb and cargo run resolve without -p, but that also narrows
-# every other cargo command to that one crate: a bare "cargo test" runs
-# zero tests and still exits 0, which once made CI pass while testing
-# nothing.
+# Every target says --workspace.  This is a virtual workspace, so that
+# is already the default; saying it keeps the targets honest if a
+# default-members is ever added.  One was, briefly, and it narrowed
+# "cargo test" to a single crate: zero tests, exit 0, CI green while
+# testing nothing.
 
 CARGO ?= cargo
 
@@ -49,7 +49,7 @@ clean:
 # point, --no-build means they are already there.
 deb:
 	$(CARGO) build --release --workspace
-	$(CARGO) deb --no-build
+	$(CARGO) deb -p smartclockd --no-build
 
 install-service:
 	install -m 0644 packaging/systemd/smartclockd.service /etc/systemd/system/

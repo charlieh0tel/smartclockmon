@@ -27,7 +27,8 @@ pub(crate) struct App {
     pub(crate) attachment: Attachment,
     /// Set when the operator has asked to leave.
     pub(crate) quitting: bool,
-    /// Whether to draw with line-drawing characters.
+    /// Whether to draw with box drawing and block elements.  An ASCII
+    /// fallback exists for terminals that cannot render them.
     pub(crate) unicode: bool,
 }
 
@@ -40,6 +41,15 @@ impl App {
             attachment,
             quitting: false,
             unicode,
+        }
+    }
+
+    /// Note that the source went away, keeping the last values on
+    /// screen but no longer presenting them as current.
+    pub(crate) fn lost(&mut self, why: String) {
+        if let Some(snapshot) = self.snapshot.as_mut() {
+            snapshot.freshness = Freshness::Disconnected;
+            snapshot.last_error = Some(why);
         }
     }
 

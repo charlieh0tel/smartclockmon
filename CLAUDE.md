@@ -55,6 +55,10 @@ holdover and may have a failing OCXO.
 
 - Prefer ASCII in all code and user-facing strings (logs, CLI output,
   error messages).  Ask before using Unicode.
+- The TUI is the exception: box drawing, block elements and other
+  Unicode are fine there.  It keeps an ASCII mode for terminals that
+  cannot render them, so anything drawn with Unicode needs an ASCII
+  fallback.
 - Prefer consistency above most other concerns.
 - Do not add trivial, obvious or redundant comments.
 - Be DRY.

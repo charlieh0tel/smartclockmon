@@ -19,6 +19,7 @@ use crossterm::event::KeyCode;
 use crossterm::event::KeyEventKind;
 
 use crate::app::App;
+use crate::source::Update;
 
 #[derive(Parser)]
 #[command(about, version)]
@@ -37,9 +38,10 @@ struct Cli {
     #[arg(long, default_value_t = 19200)]
     baud: u32,
 
-    /// Draw with line-drawing characters rather than ASCII.
+    /// Draw with ASCII only, for a terminal that cannot render box
+    /// drawing or block elements.
     #[arg(long)]
-    unicode: bool,
+    ascii: bool,
 }
 
 /// How often to redraw when nothing has arrived, so the clock in the
@@ -54,7 +56,7 @@ fn main() -> Result<()> {
     };
 
     let mut terminal = ratatui::init();
-    let outcome = run(&mut terminal, App::new(attachment, cli.unicode), &updates);
+    let outcome = run(&mut terminal, App::new(attachment, !cli.ascii), &updates);
     // Restore the terminal whatever happened, or a failure leaves the
     // operator with no echo and no cursor.
     ratatui::restore();
@@ -64,7 +66,7 @@ fn main() -> Result<()> {
 fn run(
     terminal: &mut ratatui::DefaultTerminal,
     mut app: App,
-    updates: &std::sync::mpsc::Receiver<smartclock::snapshot::Snapshot>,
+    updates: &std::sync::mpsc::Receiver<crate::source::Update>,
 ) -> Result<()> {
     while !app.quitting {
         terminal.draw(|frame| ui::draw(frame, &app))?;
@@ -72,12 +74,13 @@ fn run(
         // Wait for a snapshot, but wake often enough to notice a
         // keypress and to redraw.
         match updates.recv_timeout(TICK) {
-            Ok(snapshot) => app.accept(snapshot),
+            Ok(Update::Reading(snapshot)) => app.accept(*snapshot),
+            // The daemon restarts under systemd, so losing it is not a
+            // reason to quit: say so and keep waiting for it to return.
+            Ok(Update::Lost(why)) => app.lost(why),
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
-                // The daemon went away, or the device task stopped.
-                // Draw once more so the last state stays visible, then
-                // leave rather than spin on a dead channel.
+                app.lost("the source thread stopped".to_owned());
                 terminal.draw(|frame| ui::draw(frame, &app))?;
                 return Ok(());
             }

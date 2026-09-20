@@ -25,8 +25,13 @@ use smartclock::types::SmartClockMode;
 
 use crate::app::App;
 
-/// Characters for an ASCII trend, lightest first.
-const TREND_RAMP: [char; 8] = [' ', '.', ':', '-', '=', '+', '*', '#'];
+/// Block elements for the trend, lightest first.
+const TREND_BLOCKS: [char; 8] = [
+    '\u{2581}', '\u{2582}', '\u{2583}', '\u{2584}', '\u{2585}', '\u{2586}', '\u{2587}', '\u{2588}',
+];
+
+/// The same ramp for a terminal that cannot draw blocks.
+const TREND_ASCII: [char; 8] = [' ', '.', ':', '-', '=', '+', '*', '#'];
 
 /// Width of the label column, so values line up across panes.
 const LABEL_WIDTH: usize = 12;
@@ -64,10 +69,9 @@ pub(crate) fn draw(frame: &mut Frame, app: &App) {
 
 fn block(app: &App, title: &str) -> Block<'static> {
     let set = if app.unicode {
-        border::PLAIN
+        border::ROUNDED
     } else {
-        // CLAUDE.md prefers ASCII in anything a person reads, and a
-        // serial console may not render box drawing at all.
+        // A serial console on the bench may not render box drawing.
         border::Set {
             top_left: "+",
             top_right: "+",
@@ -202,7 +206,7 @@ fn oscillator(frame: &mut Frame, area: Rect, app: &App) {
             lines.push(field("EFC", efc.to_string(), style));
             lines.push(field(
                 "range used",
-                format!("{:.0}%  {}", used * 100.0, gauge(used, 18)),
+                format!("{:.0}%  {}", used * 100.0, gauge(used, 18, app.unicode)),
                 style,
             ));
         }
@@ -270,25 +274,35 @@ fn oscillator(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// A horizontal bar showing how much of the tuning range is used.
-fn gauge(fraction: f64, width: usize) -> String {
+fn gauge(fraction: f64, width: usize, unicode: bool) -> String {
     let filled = ((fraction.clamp(0.0, 1.0)) * width as f64).round() as usize;
+    let (full, empty) = if unicode {
+        ('\u{2588}', '\u{2591}')
+    } else {
+        ('#', '.')
+    };
     let mut bar = String::with_capacity(width + 2);
     bar.push('[');
     for n in 0..width {
-        bar.push(if n < filled { '#' } else { '.' });
+        bar.push(if n < filled { full } else { empty });
     }
     bar.push(']');
     bar
 }
 
-/// An ASCII trend of recent EFC, scaled to its own span.
+/// A sparkline of recent EFC, scaled to its own span.
 ///
 /// Scaled to the window rather than to the full -100..100 range: the
-/// interesting movement is fractions of a percent, which would be
-/// invisible against the whole range.
+/// movement worth seeing is thousandths of a percent, which would be a
+/// flat line against the whole range.
 fn trend(app: &App, width: usize) -> String {
     let Some((lo, hi)) = app.efc_range() else {
         return String::new();
+    };
+    let ramp = if app.unicode {
+        TREND_BLOCKS
+    } else {
+        TREND_ASCII
     };
     let span = (hi - lo).max(f64::EPSILON);
     app.efc_trend
@@ -299,8 +313,8 @@ fn trend(app: &App, width: usize) -> String {
         .into_iter()
         .rev()
         .map(|efc| {
-            let level = ((efc.percent() - lo) / span * (TREND_RAMP.len() - 1) as f64).round();
-            TREND_RAMP[(level as usize).min(TREND_RAMP.len() - 1)]
+            let level = ((efc.percent() - lo) / span * (ramp.len() - 1) as f64).round();
+            ramp[(level as usize).min(ramp.len() - 1)]
         })
         .collect()
 }
@@ -438,7 +452,7 @@ fn time_and_place(frame: &mut Frame, area: Rect, app: &App) {
 
 fn footer(frame: &mut Frame, area: Rect, app: &App) {
     let mut spans = vec![Span::styled(
-        "q quit  u toggle line drawing",
+        "q quit  u toggle ASCII mode",
         Style::new().fg(Color::DarkGray),
     )];
     if let Some(error) = app.snapshot.as_ref().and_then(|s| s.last_error.as_ref()) {
