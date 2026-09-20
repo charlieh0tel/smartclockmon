@@ -645,9 +645,22 @@ fn satellites(frame: &mut Frame, area: Rect, app: &App) {
         })
         .collect();
 
-    let title = match (screen.tracking, screen.not_tracking) {
+    let mut title = match (screen.tracking, screen.not_tracking) {
         (Some(t), Some(n)) => format!("Satellites  {t} tracked, {n} not"),
         _ => "Satellites".to_owned(),
+    };
+    // The screen states its own counts, so a table that disagrees with
+    // them has been misread.  Say so rather than letting a wrong sky
+    // look like a right one.
+    if screen.satellites_suspect {
+        title.push_str("  [table disagrees with these counts]");
+    }
+    let header_style = if screen.satellites_suspect {
+        Style::new().fg(Color::Red).add_modifier(Modifier::BOLD)
+    } else {
+        Style::new()
+            .fg(Color::DarkGray)
+            .add_modifier(Modifier::BOLD)
     };
     let table = Table::new(
         rows,
@@ -659,13 +672,7 @@ fn satellites(frame: &mut Frame, area: Rect, app: &App) {
             Constraint::Min(9),
         ],
     )
-    .header(
-        Row::new(vec!["PRN", "El", "Az", "SS", "state"]).style(
-            Style::new()
-                .fg(Color::DarkGray)
-                .add_modifier(Modifier::BOLD),
-        ),
-    )
+    .header(Row::new(vec!["PRN", "El", "Az", "SS", "state"]).style(header_style))
     .block(block(app, &title));
     frame.render_widget(table, area);
 }

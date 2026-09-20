@@ -41,6 +41,17 @@ pub struct Screen {
     pub not_tracking: Option<u32>,
     /// Every satellite in the table, tracked and not.
     pub satellites: Vec<SatelliteInfo>,
+    /// Set when the parsed table disagrees with the counts printed
+    /// above it.
+    ///
+    /// The screen states how many satellites are tracked and how many
+    /// are not, so the table can be checked against itself.  When they
+    /// disagree the rows are still reported -- a partial sky beats
+    /// none -- but nothing should present them as certain.  Every way
+    /// the scraper has been wrong so far, inventing a satellite from a
+    /// blank cell or reading an untracked one as tracked, broke this
+    /// invariant and would have been caught by it.
+    pub satellites_suspect: bool,
     /// The bracketed text on the HEALTH MONITOR line.
     pub health: Option<String>,
     /// Each `Label: value` pair from the health line, in order.
@@ -118,21 +129,10 @@ pub fn parse(screen: &str) -> Screen {
                 collapse(rest)
             })
         });
-        out.tracking = out
-            .tracking
-            .or_else(|| after_label(line, "Tracking:").and_then(|v| v.parse().ok()));
         out.not_tracking = out
             .not_tracking
             .or_else(|| after_label(line, "Not Tracking:").and_then(|v| v.parse().ok()));
-    }
-
-    // "Tracking:" also matches inside "Not Tracking:", so a line
-    // carrying both would set the wrong field.  Re-read it explicitly.
-    if let Some(line) = lines.iter().find(|l| l.contains("Not Tracking:")) {
-        out.tracking = line
-            .split_once("Tracking:")
-            .and_then(|(_, r)| r.split_whitespace().next())
-            .and_then(|v| v.parse().ok());
+        out.tracking = out.tracking.or_else(|| tracked_count(line));
     }
 
     if let Some(mode) = &out.position_mode {
@@ -148,6 +148,7 @@ pub fn parse(screen: &str) -> Screen {
         .map(|(_, r)| collapse(r));
 
     out.satellites = satellites(&lines);
+    out.satellites_suspect = !agrees_with_counts(&out);
     out.health_items = health_items(&lines);
     panel_fields(&lines, boundary, &mut out);
     out
@@ -251,12 +252,47 @@ fn panel_of(line: &str, boundary: usize) -> &str {
     }
 }
 
+/// Whether the parsed table matches the counts printed above it.
+///
+/// True when a count is missing: an unstated count cannot disagree.
+fn agrees_with_counts(screen: &Screen) -> bool {
+    let tracked = screen.satellites.iter().filter(|s| s.tracked).count();
+    let untracked = screen.satellites.len() - tracked;
+    let matches = |stated: Option<u32>, parsed: usize| stated.is_none_or(|n| n as usize == parsed);
+    matches(screen.tracking, tracked) && matches(screen.not_tracking, untracked)
+}
+
 /// The text inside `[ ... ]` on the line carrying `label`.
 fn bracketed(lines: &[&str], label: &str) -> Option<String> {
     let line = lines.iter().find(|l| l.contains(label))?;
     let start = line.find('[')?;
     let end = line[start..].find(']')? + start;
     Some(collapse(&line[start + 1..end]))
+}
+
+/// The count after `Tracking:`, which is not the one after
+/// `Not Tracking:`.
+///
+/// Every plain search for `Tracking:` finds the substring inside
+/// `Not Tracking:` first.  An earlier attempt at this re-read the line
+/// with `split_once("Tracking:")`, which has the same flaw; it passed
+/// only because every fixture happens to print the tracked count first.
+/// With the counts in the other order, or on separate lines, the
+/// tracked count silently became the untracked one.
+fn tracked_count(line: &str) -> Option<u32> {
+    let mut from = 0;
+    while let Some(at) = line[from..].find("Tracking:") {
+        let at = from + at;
+        let preceded_by_not = line[..at].trim_end().ends_with("Not");
+        if !preceded_by_not {
+            return line[at + "Tracking:".len()..]
+                .split_whitespace()
+                .next()
+                .and_then(|v| v.parse().ok());
+        }
+        from = at + "Tracking:".len();
+    }
+    None
 }
 
 /// The whitespace-delimited token following `label` on this line.
@@ -313,6 +349,12 @@ struct Group {
     fields: usize,
     /// Whether this group lists satellites the receiver is using.
     tracked: bool,
+    /// Where the group's `PRN` heading starts.
+    ///
+    /// Not used to slice values -- the manuals' own ASCII does not line
+    /// data up with its header -- only to tell an empty cell from a
+    /// missing one, which token order cannot express.
+    column: usize,
 }
 
 /// Read the header row into column groups.
@@ -329,11 +371,12 @@ struct Group {
 /// group when only one is.
 fn groups(header: &str) -> Vec<Group> {
     let mut found: Vec<Group> = Vec::new();
-    for token in header.split_whitespace() {
+    for (column, token) in word_positions(header) {
         if token.eq_ignore_ascii_case("PRN") {
             found.push(Group {
                 fields: 0,
                 tracked: false,
+                column,
             });
         } else if let Some(group) = found.last_mut() {
             group.fields += 1;
@@ -370,16 +413,51 @@ fn satellites(lines: &[&str]) -> Vec<SatelliteInfo> {
             // side is normal; keep reading until a section heading.
             continue;
         }
+        let first_column = word_positions(left).first().map_or(usize::MAX, |(c, _)| *c);
         let mut tokens = tokenize(left).into_iter().peekable();
-        for group in &groups {
+        for (n, group) in groups.iter().enumerate() {
             if tokens.peek().is_none() {
                 break;
             }
+            // A row whose first token starts at or beyond the next
+            // group's heading has nothing in this one.  Token order
+            // alone cannot see that, and sliding the next group's
+            // values into the gap is what invented satellites: a blank
+            // signal column produced a PRN 24 at an elevation of 204
+            // degrees, and a short tracked column reported untracked
+            // satellites as tracked.
+            let next_column = groups.get(n + 1).map_or(usize::MAX, |g| g.column);
+            if first_column + COLUMN_SLACK >= next_column {
+                continue;
+            }
             found.push(satellite(&mut tokens, group));
         }
-        found.retain(|s: &Option<SatelliteInfo>| s.is_some());
     }
     found.into_iter().flatten().collect()
+}
+
+/// How far a row's data may sit from its heading and still belong to
+/// it.  The manuals' own ASCII is off by as much as four columns.
+const COLUMN_SLACK: usize = 4;
+
+/// Each whitespace-delimited word with the column it starts at.
+fn word_positions(line: &str) -> Vec<(usize, &str)> {
+    let mut out = Vec::new();
+    let mut start = None;
+    for (column, c) in line.char_indices() {
+        match (c.is_whitespace(), start) {
+            (false, None) => start = Some(column),
+            (true, Some(from)) => {
+                out.push((from, &line[from..column]));
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    if let Some(from) = start {
+        out.push((from, &line[from..]));
+    }
+    out
 }
 
 /// Split a row into tokens, reattaching a detached acquiring marker.
@@ -413,6 +491,13 @@ fn satellite(
     // still occupies a field, so the slot is consumed either way.
     let mut values: [Option<i16>; 3] = [None; 3];
     for slot in values.iter_mut().take(group.fields.min(3)) {
+        // An asterisk only ever begins a satellite cell, so it ends
+        // this one.  Without that, a blank column let the next
+        // satellite's marker be eaten as this one's signal reading and
+        // the satellite itself disappeared.
+        if tokens.peek().is_some_and(|t| t.starts_with('*')) {
+            break;
+        }
         let Some(token) = tokens.next() else { break };
         *slot = token.parse().ok();
     }

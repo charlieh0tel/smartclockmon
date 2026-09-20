@@ -258,3 +258,116 @@ fn a_survey_in_progress_reports_its_percentage() {
     assert_eq!(s.survey_percent, Some(1.2));
     assert_eq!(s.position_label.as_deref(), Some("AVG"));
 }
+
+#[test]
+fn a_blank_cell_does_not_invent_a_satellite() {
+    // A missing signal reading used to let the next satellite's marker
+    // be eaten as this one's value, so that satellite vanished and one
+    // was assembled from the leftovers at an elevation of 204 degrees.
+    let screen = screen::parse(&two_column(
+        "PRN El Az C/N  PRN El Az",
+        "Tracking: 1       Not Tracking: 1",
+        &["  3  88 281        * 1  24 204"],
+    ));
+    let seen: Vec<(u8, bool)> = screen
+        .satellites
+        .iter()
+        .map(|s| (s.prn.get(), s.tracked))
+        .collect();
+    assert_eq!(seen, vec![(3, true), (1, false)]);
+    let acquiring = screen.satellites.iter().find(|s| s.prn.get() == 1);
+    assert_eq!(
+        acquiring.expect("PRN 1").elevation.map(|d| d.get()),
+        Some(24)
+    );
+    assert!(!screen.satellites_suspect);
+}
+
+#[test]
+fn a_short_tracked_column_does_not_promote_untracked_satellites() {
+    // Rows past the end of the tracked column have nothing in the left
+    // group; the first group used to claim their tokens anyway.
+    let screen = screen::parse(&two_column(
+        "PRN El Az C/N  PRN El Az",
+        "Tracking: 1       Not Tracking: 3",
+        &[
+            "  2  70 301   40    16 13 258",
+            "                    19 40 102",
+            "                    22 71  60",
+        ],
+    ));
+    let tracked: Vec<u8> = screen
+        .satellites
+        .iter()
+        .filter(|s| s.tracked)
+        .map(|s| s.prn.get())
+        .collect();
+    assert_eq!(tracked, vec![2]);
+    assert_eq!(screen.satellites.len(), 4);
+    assert!(!screen.satellites_suspect);
+}
+
+#[test]
+fn the_tracked_count_is_not_the_untracked_one() {
+    // Every plain search for "Tracking:" finds it inside "Not
+    // Tracking:" first.  Fixtures all print the tracked count first, so
+    // this only shows up with the order reversed or on two lines.
+    for counts in [
+        "Not Tracking: 3   Tracking: 6",
+        "Tracking: 6       Not Tracking: 3",
+    ] {
+        let screen = screen::parse(&two_column(
+            "PRN  El  Az   SS",
+            counts,
+            &["  3  88 281  111"],
+        ));
+        assert_eq!(screen.tracking, Some(6), "with counts as {counts:?}");
+        assert_eq!(screen.not_tracking, Some(3), "with counts as {counts:?}");
+    }
+}
+
+#[test]
+fn a_table_that_disagrees_with_its_counts_is_marked_suspect() {
+    // The screen states how many satellites it is tracking, so the
+    // table can be checked against itself.  Reporting a partial sky is
+    // fine; presenting it as certain is not.
+    let screen = screen::parse(&two_column(
+        "PRN  El  Az   SS",
+        "Tracking: 6       Not Tracking: 3",
+        &["  3  88 281  111"],
+    ));
+    assert_eq!(screen.satellites.len(), 1);
+    assert!(screen.satellites_suspect);
+}
+
+#[test]
+fn every_recorded_screen_agrees_with_its_own_counts() {
+    for (name, text) in all_fixtures() {
+        let screen = screen::parse(&text);
+        assert!(
+            !screen.satellites_suspect,
+            "{name}: the table disagrees with the counts printed above it"
+        );
+    }
+}
+
+/// A screen with the given table header, counts line and rows.
+///
+/// The right-hand panel starts at column 46, as it does on the
+/// receiver; anything closer would be clipped by the scraper.
+fn two_column(header: &str, counts: &str, rows: &[&str]) -> String {
+    let pad = |left: &str, right: &str| format!("{left:<46}{right}\n");
+    let mut out = String::from("---- Receiver Status ----\n");
+    out.push_str("SYNCHRONIZATION ..................... [ Outputs Valid ]\n");
+    out.push_str(&pad("SmartClock Mode", "Reference Outputs"));
+    out.push_str(&pad(">> Locked to GPS", "TFOM     3            FFOM     1"));
+    out.push_str("ACQUISITION ......................... [ GPS 1PPS Valid ]\n");
+    out.push_str(&pad(counts, "Time"));
+    out.push_str(&pad(header, "UTC      20:04:20     04 Feb 2007"));
+    for row in rows {
+        out.push_str(&pad(row, ""));
+    }
+    out.push_str("HEALTH MONITOR ...................... [ OK ]\n");
+    out.push_str("Self Test: OK   GPS Rcv: OK\n");
+    out
+}
