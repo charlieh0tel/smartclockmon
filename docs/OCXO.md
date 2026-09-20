@@ -77,14 +77,16 @@ reports its position on that span as a percentage, and across the 2^20
 counts of its internal value that works out to about **3.8x10^-13 per
 count**, assuming it drives the whole range.
 
-At the 36.06 percent observed, the oscillator is using **7.2x10^-8** of
-its **±2.0x10^-7**, leaving roughly 1.3x10^-7 in the direction it has
-been moving.  Against a typical 1x10^-8 per year of aging after the
-first year, that is on the order of a decade of headroom.  The
-receiver's hardware condition register agrees: neither the
-near-full-scale nor the full-scale EFC bit is set.
+That is the specification.  What the receiver actually applies is not
+settled: the pin measures about 50 mV at 36.06 percent where the
+specification mapping predicts 1.80 V.  How much frequency headroom
+remains therefore depends on which mapping holds, by more than an order
+of magnitude.  See `efc.md` for both readings and for the measurement
+that distinguishes them.
 
-See `efc.md` for how the receiver reports and scales that value.
+Independent of that, the receiver's own hardware condition register has
+neither the near-full-scale nor the full-scale EFC bit set, and its
+health monitor reports EFC OK.
 
 ## The Z3801A's oscillator is a different part
 

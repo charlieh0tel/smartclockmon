@@ -25,37 +25,70 @@ An HP 10811-60159, whose electronic frequency control spans
 **+/- 2.0x10^-7 over a -5 V to +5 V input**.  See `OCXO.md` for the full
 specification and its sources.
 
-## Where the unit stands
+## The voltage and the specification do not agree
 
-At the observed 36.06 percent the oscillator is using about
-**7.2x10^-8** of its **+/- 2.0x10^-7** electronic range, leaving roughly
-1.3x10^-7 in the direction it has been moving.  Against a typical
-1x10^-8 per year of aging after the first year, that is on the order of
-a decade of headroom.  The receiver's own hardware register agrees:
-neither the near-full-scale nor the full-scale EFC bit is set.
+About 50 mV was measured from the EFC pin to ground **at the
+oscillator** while `RELative` read 36.06 percent and `ABSolute?` read
+713352.
 
-## The measured voltage does not fit
+If the reported percentage spans the oscillator's -5 V to +5 V input,
+that point should read **+1.80 V**.  It reads 50 mV, some 36 times
+less.  The first reading was taken at the coax and might have been the
+wrong SMB, since the 10811 brings out 10 MHz and EFC on identical
+connectors; this one was taken at the pin, so that explanation is gone.
 
-About 52 mV was measured across the EFC coax, centre to shield, while
-`RELative` read 36.06 percent.  If the reported percentage spans the
-oscillator's -5 V to +5 V input, that point should read **+1.803 V**.
-The measurement is smaller by a factor of about 35.
+Taking the 50 mV at face value gives a receiver that drives only a
+sliver of the input:
 
-Three explanations, in the order worth checking:
+| Mapping | Full scale at the pin | Pull available | Per count |
+| ------- | --------------------- | -------------- | --------- |
+| Bipolar, 0 V at 0 percent | +/- 139 mV | +/- 5.6x10^-9 | 1.1x10^-14 |
+| Unipolar, 0 V at -100 percent | 73 mV | +/- 1.5x10^-9 | 2.8x10^-15 |
 
-1. **The wrong coax.**  The 10811 has two SMB snap-on connectors, one
-   for the 10 MHz output and one for EFC.  A meter on the output would
-   read near zero.
-2. **A gain stage.**  If the DAC swings a few hundred millivolts and an
-   amplifier scales it to +/- 5 V, then 52 mV is the DAC side and the
-   oscillator sees roughly 35 times more.
-3. **A restricted window.**  If the receiver only drives a fraction of
-   the +/- 5 V span, its pull would be a fraction of 2x10^-7 -- but with
-   aging up to 1x10^-7 per year it would then rail within a year or two,
-   which a product meant to run unattended would not do.
+Which creates a problem.  The oscillator ages at up to 2.5x10^-10 per
+day, around 9x10^-8 a year, and typically 1x10^-8 a year once settled.
+A pull range of 5.6x10^-9 would be used up within a year even at the
+typical rate, and the 10811's only coarse adjustment is an 18-turn
+mechanical control that no receiver can reach.  A product meant to run
+unattended for years cannot be built that way.
 
-The prediction is testable with the meter already in hand: at 36.06
-percent, the oscillator's EFC pin should sit near +1.80 V DC.
+So one of three things is true, and nothing here settles which: the
+receiver drives the full span and the 50 mV has some explanation not yet
+found; the receiver drives a sliver and the unit needs periodic manual
+retrimming; or the percentage means something other than position on the
+EFC input.
+
+### The measurement that would settle it
+
+The EFC count drifts on its own, about 70 counts over a few minutes of
+probing.  Over a day it should move thousands.  The two candidate
+mappings predict very different voltages for that movement:
+
+| If the receiver drives | Volts per count | 1000 counts |
+| ---------------------- | --------------- | ----------- |
+| The full -5 V to +5 V | 9.5 uV | 9.5 mV, easily seen |
+| Only +/- 139 mV | 0.13 uV | 0.13 mV, invisible |
+
+A factor of seventy apart.  So: note the EFC pin voltage and the raw
+count together, leave the daemon logging, and read both again a day
+later.  The daemon already records the count, so this needs two meter
+readings and nothing else.
+
+## Where the unit stands, conditionally
+
+Under the specification mapping, 36.06 percent of +/- 2.0x10^-7 is
+7.2x10^-8 used with about 1.3x10^-7 left, on the order of a decade of
+headroom at typical aging.
+
+Under the measured mapping there is far less: single-digit nanohertz
+per hertz of range, most of a year at best.
+
+These differ by more than an order of magnitude, so the earlier claim of
+a decade of headroom should not be relied on until the measurement above
+is done.  What does hold regardless is the receiver's own judgement: the
+hardware condition register has neither the near-full-scale nor the
+full-scale EFC bit set, and its health monitor reports EFC OK.  The
+receiver does not think the oscillator is near its limit.
 
 ## What is still unmeasured
 
