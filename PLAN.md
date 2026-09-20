@@ -20,6 +20,17 @@ and a TUI client.  A GUI is possible later but is not planned.
   trail with no notion of who, and a daemon that serves one device
   rather than a fleet.  Revisit these together if it ever stops being
   true.
+- **Bringup targets the 58503A only.**  Other variants get table entries
+  from their manuals, but nothing is verified against hardware until the
+  58503A works end to end.
+
+  A sick oscillator does not block this.  The SCPI interface works
+  regardless of whether the OCXO is healthy, and a railed EFC with a
+  stuck holdover is a better exercise of the alarm and error paths than
+  a well behaved unit would be.  What would block bringup is a unit that
+  does not answer on serial at all; in that case the simulator moves
+  ahead of phase 3 and the fixtures carry development until another unit
+  is available.
 
 ## Decisions
 
@@ -279,6 +290,44 @@ port, systemd is the only Linux-specific piece left in the daemon;
 Porting therefore means writing a launchd plist or a Windows service
 wrapper and replacing `Type=notify`, not touching the protocol.
 
+### The command table is data
+
+Commands live in a TOML file, not in Rust source, and `build.rs`
+generates the dialect code from it.  Each entry carries a stable logical
+id, its classification, a citation, and one block per dialect:
+
+```toml
+[[command]]
+id    = "holdover_waiting"
+class = "query"
+cite  = "097-59551-02 5-36"
+
+  [command.dialect.hp58503]
+  scpi     = ":SYNChronization:HOLDover:WAITing?"
+  response = "enum:HoldoverWaitReason"
+  models   = ["58503A", "58503B", "59551A"]
+
+  [command.dialect.z3801]
+  scpi     = ":ROSCillator:HOLDover:WAITing?"
+  response = "enum:HoldoverWaitReason"
+  models   = ["Z3801A", "Z3816A"]
+```
+
+The point is reviewability: the divergence between trees, the per-model
+availability flags and the manual citations all sit in one table that
+can be diffed against the documents, rather than being scattered through
+code.
+
+Codegen rather than runtime parsing, so the logical id set is an enum
+and a typo is a compile error instead of a failed lookup.  `response`
+names a parser; the parsers stay hand-written in `parse`, so the table
+remains declarative and the awkward parsing stays real Rust.
+
+Two things fall out of having it: a test that every command reachable on
+the active dialect has both a parser and a fixture, and the phase 7
+per-model command matrix generated from the same source rather than
+maintained by hand.
+
 ### Dialects
 
 Two branches, not four.  `097-59551-02` shows the 58503A tree is
@@ -297,6 +346,11 @@ error rather than reaching the device.
 Response formats differ across dialects too, so the table carries them.
 `:DIAG:ROSC:EFC:REL?` returns `+-d.dEe` on the 58503A but is documented
 as a plain integer on the Z3801A.
+
+Z3801A entries go into the table as the manual describes them, but stay
+unverified until hardware is available.  The table marks them as such,
+so an unverified command is a known risk rather than a silent
+assumption.
 
 If a variant's tree cannot be pinned down from the manuals, the fallback
 is the firmware in `third_party/`, or reading the
@@ -352,14 +406,14 @@ examined before either the daemon or the TUI exists.
 
 | # | Deliverable |
 | - | ----------- |
-| 0 | Workspace scaffold.  Rewrite `CLAUDE.md`, which still says "asl-dmr-bridge".  Transcribe chapter 5 of `097-59551-02` into a machine-checkable command table: name, arguments, response format, per-model availability.  Extract sample status screens into `tests/fixtures/`.  CI: fmt, clippy, test. |
+| 0 | Workspace scaffold.  Rewrite `CLAUDE.md`, which still says "asl-dmr-bridge".  Transcribe chapter 5 of `097-59551-02` into the TOML command table -- id, class, citation, per-dialect command string, response parser, per-model availability -- and write the `build.rs` codegen for it.  Extract sample status screens into `tests/fixtures/`.  CI: fmt, clippy, test. |
 | 1 | `transport` + `session` + `smartclock-cli capture`, direct to device.  Confirm the documented tree against the live unit and record transcripts.  Verification, not discovery. |
 | 2 | `dialect`, `types`, `parse`, status screen scraper, driven by the fixtures.  `smartclock-cli diagnose`: holdover reason, hardware condition bits, EFC, holdover duration and present uncertainty, tracked count, full log. |
 | 3 | `Device`, `Snapshot`, `DeviceTask` with the tiered scheduler and request queue.  `smartclockd` with the SQLite logger, socket protocol, reconnection handling, and a systemd unit.  Queries only over the socket; control lands in phase 6.  Logging starts here and runs from here on. |
 | 4 | `smartclock-sim`: PTY-backed emulator replaying recorded state, so client work needs no hardware and no daemon contention. |
 | 5 | `smartclockmon`: socket client for live state, read-only SQLite for trends.  Panes for synchronization, acquisition and satellite table, health and EFC trend, position, log, raw SCPI console. |
 | 6 | Control operations behind an explicit `Control` handle, proxied over the socket: holdover initiate and recover, survey, antenna delay, elevation mask, preset.  Command classification in the dialect table, socket-permission authorization, nonce confirmation for dangerous commands, audit rows, and force-refresh after a successful control operation.  `:SYSTem:COMMunicate:*` gated hard -- baud changes persist across power cycles and will strand the link. |
-| 7 | Documentation: per-model command matrix, wire protocol notes, socket protocol, deployment. |
+| 7 | Documentation: per-model command matrix generated from the command table, wire protocol notes, socket protocol, deployment. |
 
 Suggest a commit at each phase boundary.
 
