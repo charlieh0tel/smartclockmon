@@ -125,6 +125,29 @@ corruption.
                   +------------------------------------+
 ```
 
+### The protocol stays JSON
+
+Considered protobuf and gRPC and decided against both.
+
+gRPC in Rust means `tonic`, which does not do named pipes, so it would
+land on loopback TCP -- and that reopens the authentication question
+that socket permissions answer for free.  On a single-operator machine
+that is a straight regression.
+
+Protobuf without gRPC, over the same socket, avoids that.  It buys a
+schema and compactness, and costs a codegen step and the ability to
+watch the socket with `socat`, for a message sent once a second between
+two ends we control.  Not worth it yet.
+
+Revisit if a client appears that is not written in Rust.
+
+There is a real problem underneath that protobuf would not have fixed
+and a wire type does: `Snapshot` was serialised straight from the
+internal struct, so renaming a field silently changed the wire format.
+The socket now carries its own type, converted from the internal one, so
+the two can move independently and a rename is a compile error rather
+than a client's problem.
+
 ### Two channels to the daemon
 
 - **Local socket, via the `interprocess` crate** for the live snapshot

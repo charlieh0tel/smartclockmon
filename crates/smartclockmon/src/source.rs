@@ -25,12 +25,12 @@ use interprocess::local_socket::traits::Stream as _;
 use smartclock::device::Device;
 use smartclock::session::Config;
 use smartclock::session::Session;
-use smartclock::snapshot::Snapshot;
 use smartclock::task;
 use smartclock::task::Cadence;
 use smartclock::transport::serial::SerialTransport;
 use smartclock::transport::serial::Settings;
 use smartclock::types::BaudRate;
+use smartclock::wire::Reading;
 
 /// How the monitor is attached.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,7 +80,7 @@ fn tail(path: &str, keep: usize) -> String {
 #[derive(Debug)]
 pub(crate) enum Update {
     /// A new reading.
-    Reading(Box<Snapshot>),
+    Reading(Box<Reading>),
     /// An answer to something the console sent.
     Reply(String),
     /// The source went away.  The monitor keeps the last values on
@@ -303,7 +303,7 @@ fn forward(reader: Reader, tx: &Sender<Update>) -> Result<(), ()> {
             }
             continue;
         };
-        let Ok(snapshot) = serde_json::from_value::<Snapshot>(snapshot.clone()) else {
+        let Ok(snapshot) = serde_json::from_value::<Reading>(snapshot.clone()) else {
             continue;
         };
         tx.send(Update::Reading(Box::new(snapshot)))
@@ -344,7 +344,10 @@ pub(crate) fn from_device(
         .name("smartclockmon-direct".to_owned())
         .spawn(move || {
             for snapshot in readings {
-                if tx.send(Update::Reading(Box::new(snapshot))).is_err() {
+                // Direct mode polls the receiver itself, so it holds a
+                // Snapshot; converting keeps one shape on screen.
+                let reading = Reading::from(&snapshot);
+                if tx.send(Update::Reading(Box::new(reading))).is_err() {
                     return;
                 }
             }

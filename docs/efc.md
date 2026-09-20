@@ -58,6 +58,20 @@ found; the receiver drives a sliver and the unit needs periodic manual
 retrimming; or the percentage means something other than position on the
 EFC input.
 
+### Paired readings
+
+Each line is an external measurement at the oscillator's EFC pin,
+recorded with the raw value the receiver reported at the same moment.
+Two readings far enough apart in count give the slope.
+
+| When (UTC) | EFC pin | Raw | Relative | Temperature |
+| ---------- | ------- | --- | -------- | ----------- |
+| 2026-09-20 22:41 | 50.77 mV | 713587 | +36.1061 % | 37.40 C |
+
+Earlier, less precisely: about 52 mV at the coax and about 50 mV at the
+pin, both near raw 713352 to 713426.  Those are consistent with the row
+above and add nothing to the slope, since the count has barely moved.
+
 ### The measurement that would settle it
 
 The EFC count drifts on its own, about 70 counts over a few minutes of

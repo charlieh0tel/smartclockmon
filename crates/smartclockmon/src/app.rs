@@ -3,8 +3,8 @@
 use std::collections::VecDeque;
 
 use smartclock::snapshot::Freshness;
-use smartclock::snapshot::Snapshot;
 use smartclock::types::EfcPercent;
+use smartclock::wire::Reading;
 
 use crate::history::History;
 use crate::history::Log;
@@ -34,7 +34,7 @@ pub(crate) enum View {
 #[derive(Debug)]
 pub(crate) struct App {
     /// The most recent reading, if any has arrived.
-    pub(crate) snapshot: Option<Snapshot>,
+    pub(crate) snapshot: Option<Reading>,
     /// Recent EFC readings, oldest first.
     pub(crate) efc_trend: VecDeque<EfcPercent>,
     /// How the monitor is attached.
@@ -161,7 +161,7 @@ impl App {
     }
 
     /// Take a new reading.
-    pub(crate) fn accept(&mut self, snapshot: Snapshot) {
+    pub(crate) fn accept(&mut self, snapshot: Reading) {
         // Only record EFC from a reading that describes the receiver.
         // A stale or disconnected snapshot repeats the last value, and
         // flattening the trend with repeats would hide a real change.
@@ -178,12 +178,12 @@ impl App {
         // more than any single reading: hunting, sawtooth and residual
         // frequency error all show there and nowhere else.
         if snapshot.freshness == Freshness::Live
-            && let Some(interval) = snapshot.time_interval
+            && let Some(interval) = snapshot.time_interval_ns
         {
             if self.ti_trend.len() == TREND_LEN {
                 self.ti_trend.pop_front();
             }
-            self.ti_trend.push_back(interval.as_nanos());
+            self.ti_trend.push_back(interval);
         }
         self.snapshot = Some(snapshot);
     }

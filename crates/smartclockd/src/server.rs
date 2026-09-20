@@ -29,6 +29,7 @@ use crate::proto::Message;
 use crate::proto::Op;
 use crate::proto::Request;
 use crate::proto::VERSION;
+use smartclock::wire::Reading;
 
 /// What a client is permitted to do.
 ///
@@ -129,7 +130,7 @@ fn talk(stream: Stream, handle: &Handle, info: &Info) -> Result<()> {
     // A client gets the current state immediately, so it can render
     // before the next poll rather than showing an empty screen.
     if let Some(snapshot) = handle.latest() {
-        write_line(&writer, &Message::event(snapshot))?;
+        write_line(&writer, &Message::event(&snapshot))?;
     }
 
     let updates = handle.subscribe();
@@ -138,7 +139,7 @@ fn talk(stream: Stream, handle: &Handle, info: &Info) -> Result<()> {
         .name("smartclockd-push".to_owned())
         .spawn(move || {
             for snapshot in updates {
-                if write_line(&pusher, &Message::event(snapshot)).is_err() {
+                if write_line(&pusher, &Message::event(&snapshot)).is_err() {
                     return;
                 }
             }
@@ -169,7 +170,7 @@ fn handle_request(request: Request, handle: &Handle, info: &Info) -> Message {
     let id = request.id;
     match request.op {
         Op::Latest => match handle.latest() {
-            Some(snapshot) => match serde_json::to_value(snapshot) {
+            Some(snapshot) => match serde_json::to_value(Reading::from(&snapshot)) {
                 Ok(value) => Message::ok(id, value),
                 Err(e) => Message::err(id, e),
             },

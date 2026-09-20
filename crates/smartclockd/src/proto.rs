@@ -7,6 +7,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use smartclock::snapshot::Snapshot;
+use smartclock::wire::Reading;
 
 /// Bumped when the message shapes change.  Daemon and clients are
 /// upgraded separately, so both ends check it.
@@ -43,14 +44,14 @@ pub(crate) enum Op {
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub(crate) enum Message {
-    /// An unsolicited snapshot.
+    /// An unsolicited reading.
     Event {
         /// Protocol version.
         v: u32,
         /// Always `snapshot`.
         event: &'static str,
         /// The reading.
-        snapshot: Box<Snapshot>,
+        snapshot: Box<Reading>,
     },
     /// A reply to a request.
     Reply {
@@ -68,12 +69,12 @@ pub(crate) enum Message {
 }
 
 impl Message {
-    /// Wrap a snapshot for broadcast.
-    pub(crate) fn event(snapshot: Snapshot) -> Self {
+    /// Wrap a reading for broadcast.
+    pub(crate) fn event(snapshot: &Snapshot) -> Self {
         Self::Event {
             v: VERSION,
             event: "snapshot",
-            snapshot: Box::new(snapshot),
+            snapshot: Box::new(Reading::from(snapshot)),
         }
     }
 

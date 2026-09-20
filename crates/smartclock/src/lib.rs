@@ -14,6 +14,7 @@ pub mod snapshot;
 pub mod task;
 pub mod transport;
 pub mod types;
+pub mod wire;
 
 pub mod command {
     //! The command table, generated from `commands.toml` by `build.rs`.

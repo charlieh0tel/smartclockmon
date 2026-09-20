@@ -25,8 +25,9 @@ use ratatui::widgets::Paragraph;
 use ratatui::widgets::Row;
 use ratatui::widgets::Table;
 use smartclock::snapshot::Freshness;
-use smartclock::snapshot::Snapshot;
+use smartclock::types::Seconds;
 use smartclock::types::SmartClockMode;
+use smartclock::wire::Reading;
 
 use crate::app::App;
 use crate::app::View;
@@ -338,8 +339,10 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
             .map_or_else(|| absent("TFOM"), |v| plain("TFOM", v.to_string())),
         s.ffom
             .map_or_else(|| absent("FFOM"), |v| plain("FFOM", v.to_string())),
-        s.time_interval
-            .map_or_else(|| absent("1 PPS TI"), |v| plain("1 PPS TI", v.to_string())),
+        s.time_interval_ns.map_or_else(
+            || absent("1 PPS TI"),
+            |v| plain("1 PPS TI", format!("{v:+.1} ns")),
+        ),
         s.holdover_waiting
             .map_or_else(|| absent("waiting"), |w| plain("waiting", format!("{w:?}"))),
         Line::from(vec![
@@ -349,12 +352,16 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
             ),
             Span::styled(ti_trend(app, 30), Style::new().fg(Color::Green)),
         ]),
-        s.holdover_predicted.map_or_else(
+        s.holdover_predicted_s.map_or_else(
             || absent("24 h error"),
-            |v| plain("24 h error", v.to_string()),
+            |v| plain("24 h error", Seconds::new(v).to_string()),
         ),
-        match s.holdover_present {
-            Some(v) => field("now off by", v.to_string(), Style::new().fg(Color::Yellow)),
+        match s.holdover_present_s {
+            Some(v) => field(
+                "now off by",
+                Seconds::new(v).to_string(),
+                Style::new().fg(Color::Yellow),
+            ),
             // Only meaningful in holdover, so its absence is normal.
             None => absent("now off by"),
         },
@@ -362,25 +369,23 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
             .as_ref()
             .and_then(|sc| sc.hold_threshold.clone())
             .map_or_else(|| absent("hold thr"), |v| plain("hold thr", v)),
-        s.holdover_duration.map_or_else(
-            || absent("holdover"),
-            |h| {
-                let text = if h.active {
-                    format!("active, {}", h.elapsed)
+        match (s.holdover_active, s.holdover_seconds) {
+            (Some(active), Some(seconds)) => {
+                let elapsed = Seconds::new(seconds);
+                let text = if active {
+                    format!("active, {elapsed}")
                 } else {
-                    format!("last {}", h.elapsed)
+                    format!("last {elapsed}")
                 };
-                field(
-                    "holdover",
-                    text,
-                    if h.active {
-                        Style::new().fg(Color::Yellow)
-                    } else {
-                        Style::new()
-                    },
-                )
-            },
-        ),
+                let style = if active {
+                    Style::new().fg(Color::Yellow)
+                } else {
+                    Style::new()
+                };
+                field("holdover", text, style)
+            }
+            _ => absent("holdover"),
+        },
     ];
     frame.render_widget(Paragraph::new(lines).block(block(app, "Lock")), area);
 }
@@ -397,7 +402,7 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
 /// screen still agrees about the base state.  Otherwise a transition
 /// would show the fresh state carrying ten seconds of stale
 /// explanation, which is worse than no explanation.
-fn mode_line(snapshot: &Snapshot) -> (String, Style) {
+fn mode_line(snapshot: &Reading) -> (String, Style) {
     let Some(mode) = snapshot.mode else {
         return ("--".to_owned(), Style::new().fg(Color::DarkGray));
     };
@@ -469,14 +474,14 @@ fn oscillator(frame: &mut Frame, area: Rect, app: &App) {
     if let Some(snap) = app.snapshot.as_ref() {
         // Temperature belongs next to EFC: an OCXO's control voltage
         // moves with it, so a drift reading means little on its own.
-        match (snap.temperature, snap.oven_current) {
+        match (snap.temperature_c, snap.oven_current) {
             (Some(t), Some(i)) => {
                 lines.push(plain("temperature", format!("{t:.2} C    oven {i:.1}")));
             }
             (Some(t), None) => lines.push(plain("temperature", format!("{t:.2} C"))),
             _ => {}
         }
-        if let Some(code) = snap.efc_dac {
+        if let Some(code) = snap.efc_raw {
             lines.push(plain("EFC raw", format!("{code} of {}", 1u32 << 20)));
         }
     }
@@ -798,7 +803,7 @@ fn footer(frame: &mut Frame, area: Rect, app: &App) {
 /// The full line runs to about seventy characters, which will not fit a
 /// half-width pane, and reading six "OK"s to find the one that is not
 /// is worse than being told directly.  `None` means nothing to report.
-fn health_faults(snapshot: &Snapshot) -> Option<Vec<String>> {
+fn health_faults(snapshot: &Reading) -> Option<Vec<String>> {
     let items = &snapshot.screen.as_ref()?.health_items;
     if items.is_empty() {
         return None;
@@ -819,12 +824,13 @@ mod tests {
     use smartclock::screen;
     use smartclock::snapshot::Snapshot;
     use smartclock::types::SmartClockMode;
+    use smartclock::wire::Reading;
 
-    fn snapshot(mode: Option<SmartClockMode>, screen_text: Option<&str>) -> Snapshot {
+    fn snapshot(mode: Option<SmartClockMode>, screen_text: Option<&str>) -> Reading {
         let mut s = Snapshot::new(Timestamp::now());
         s.mode = mode;
         s.screen = screen_text.map(screen::parse);
-        s
+        Reading::from(&s)
     }
 
     /// A screen whose mode line says `text`.
