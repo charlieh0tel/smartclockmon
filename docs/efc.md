@@ -35,6 +35,11 @@ The 10811A/B manual says the same of the base part: "The EFC allows the
 oscillator to be tuned over a 1 Hz range (1 x 10-7) by applying -5 to +5
 volts".  So the control input is a +/- 5 V span on every variant here.
 
+Corroborated independently at
+<http://etoysbox.jp/Memo/3_Test_Equipments/HP_10811_OCXO/HP_10811_OCXO_Spec.html>,
+which gives the `-60159` the same coarse tuning range and the same
+EFC figure over the same -5 V to +5 V input.
+
 ## Where the unit stands
 
 At the observed 36.06 percent the oscillator is using about
@@ -79,7 +84,8 @@ across 2^20 counts gives about **3.8x10^-13 per count** if the receiver
 drives the whole range.  That is a working number, not a measurement.
 
 It does settle the earlier question of whether the Z3801A's EFC range is
-wider.  It is, by about a third:
+wider.  It is, by about a third -- though only one side of the
+comparison has a specification behind it:
 
 | | Per count | Implied span |
 | - | --------- | ------------ |
@@ -88,9 +94,14 @@ wider.  It is, by about a third:
 
 Two figures reached independently, from a datasheet and from a counter,
 landing a third apart on parts that differ by one dash number.  That is
-about the agreement such a comparison deserves, and it is a long way
-from the twenty-fold difference guessed at earlier from an EFC
-sensitivity that was never checked.
+about the agreement such a comparison deserves, and a long way from the
+twenty-fold difference guessed at earlier from an EFC sensitivity that
+was never checked.
+
+The `-60161` remains undocumented in anything to hand: it is absent from
+the 27 variants in `10811-90027-1` and from the six on the page above.
+Its row in the table is inferred from a measurement of one oscillator,
+so treat it as indicative rather than as a specification.
 
 Measuring this unit properly still means logging `EFC:ABSolute?` against
 a counter while the receiver corrects itself out of a long holdover.
