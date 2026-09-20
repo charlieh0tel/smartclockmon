@@ -328,6 +328,35 @@ the active dialect has both a parser and a fixture, and the phase 7
 per-model command matrix generated from the same source rather than
 maintained by hand.
 
+### CI is a Makefile
+
+The Makefile holds the real targets; GitHub Actions only calls `make
+ci`.  Local and CI then run the same thing by construction rather than
+by two definitions kept in sync by hand.
+
+```
+make            build
+make ci         fmt-check clippy test
+make fmt        cargo fmt
+make clippy     cargo clippy --all-targets -- -D warnings
+make test       cargo test
+make test-hw    cargo test -- --ignored
+```
+
+A `rust-toolchain.toml` pins the toolchain so a clippy lint that fires
+in CI fires locally too.  The workflow is checkout,
+`dtolnay/rust-toolchain` pinned to a commit sha, `Swatinem/rust-cache`,
+then `make ci` -- no installer piped from a URL.
+
+The one wrinkle is that some tests need the receiver.  Those are
+`#[ignore]`d and reachable only through `make test-hw`, which CI never
+runs, because they need hardware CI does not have and a daemon that must
+be stopped first.  Everything else -- parsers, the status screen
+scraper, session framing against `ReplayTransport` -- runs anywhere.
+Once the phase 4 simulator exists, integration tests move back into
+`make test` by talking to a PTY instead of a receiver, which is most of
+the reason the simulator is worth building.
+
 ### Dialects
 
 Two branches, not four.  `097-59551-02` shows the 58503A tree is
@@ -406,7 +435,7 @@ examined before either the daemon or the TUI exists.
 
 | # | Deliverable |
 | - | ----------- |
-| 0 | Workspace scaffold.  Rewrite `CLAUDE.md`, which still says "asl-dmr-bridge".  Transcribe chapter 5 of `097-59551-02` into the TOML command table -- id, class, citation, per-dialect command string, response parser, per-model availability -- and write the `build.rs` codegen for it.  Extract sample status screens into `tests/fixtures/`.  CI: fmt, clippy, test. |
+| 0 | Workspace scaffold.  Rewrite `CLAUDE.md`, which still says "asl-dmr-bridge".  Transcribe chapter 5 of `097-59551-02` into the TOML command table -- id, class, citation, per-dialect command string, response parser, per-model availability -- and write the `build.rs` codegen for it.  Extract sample status screens into `tests/fixtures/`.  Makefile with a `ci` target, a pinned `rust-toolchain.toml`, and a GitHub Actions workflow that calls it. |
 | 1 | `transport` + `session` + `smartclock-cli capture`, direct to device.  Confirm the documented tree against the live unit and record transcripts.  Verification, not discovery. |
 | 2 | `dialect`, `types`, `parse`, status screen scraper, driven by the fixtures.  `smartclock-cli diagnose`: holdover reason, hardware condition bits, EFC, holdover duration and present uncertainty, tracked count, full log. |
 | 3 | `Device`, `Snapshot`, `DeviceTask` with the tiered scheduler and request queue.  `smartclockd` with the SQLite logger, socket protocol, reconnection handling, and a systemd unit.  Queries only over the socket; control lands in phase 6.  Logging starts here and runs from here on. |
