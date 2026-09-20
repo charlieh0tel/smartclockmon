@@ -17,7 +17,7 @@ and a TUI client.  A GUI is possible later but is not planned.
 | 6 | Control commands, audit trail, raw console | done |
 | 7 | Generated command matrix | done; protocol and deployment notes not written |
 
-119 tests, none needing hardware.  `make ci` is what CI runs; `make
+128 tests, none needing hardware.  `make ci` is what CI runs; `make
 test-hw` is the hardware-only set and CI never runs it.
 
 Running against the development unit, logging to a database given on the
