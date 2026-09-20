@@ -122,6 +122,10 @@ fn graph(frame: &mut Frame, area: Rect, app: &App, title: &str, trace: &Trace, c
         );
         return;
     };
+    // Say what the three lines are.  A column holds every reading that
+    // fell in it, so the outer pair is the spread within that column
+    // and collapses onto the mean wherever the readings agreed.
+    let titled = format!("{title}  [mean, min..max]");
     // Braille packs four times the horizontal resolution of a cell, so
     // an hour of readings fits a terminal width.  ASCII mode has no
     // equivalent and falls back to dots.
@@ -138,6 +142,9 @@ fn graph(frame: &mut Frame, area: Rect, app: &App, title: &str, trace: &Trace, c
         GraphType::Line
     };
     let edge = Style::new().fg(colour).add_modifier(Modifier::DIM);
+    // Named so the band explains itself.  Three unlabelled lines invite
+    // the question of what they are, and dim against bright is not a
+    // distinction every terminal renders.
     let datasets = vec![
         Dataset::default()
             .marker(marker)
@@ -158,7 +165,12 @@ fn graph(frame: &mut Frame, area: Rect, app: &App, title: &str, trace: &Trace, c
     let x = trace.span();
     let axis = Style::new().fg(Color::DarkGray);
     let chart = Chart::new(datasets)
-        .block(block(app, title))
+        .block(block(app, &titled))
+        // No floating legend: three entries do not fit a pane this
+        // short, and where they do they sit on top of the trace.  The
+        // title carries the key instead, where it always shows and
+        // costs no chart area.
+        .legend_position(None)
         .x_axis(
             Axis::default()
                 .style(axis)
