@@ -147,69 +147,7 @@ found fifteen commands, none of which appear in any manual here.
 | `:DIAGnostic:TOFFset?` | `+0.00000E+000` |
 | `:DIAGnostic:SLOG?` | oldest log entry, against `:LOG?` for the newest |
 
-### The EFC value is twenty bits
-
-`ABSolute` and `RELative` are the same quantity in different units:
-
-    relative percent = code / 2^20 * 200 - 100
-
-Code 713392 gives 36.0687, which is exactly what `:RELative?` returned
-at the same moment, so the value spans twenty bits and `RELative` runs
--100 to +100 across it.
-
-Tom Van Baak reached the same conclusion for the Z3801A by other means,
-and went further into the hardware:
-<http://www.leapsecond.com/pages/z3801a-efc/>.  The value is a 20-bit
-integer, but the converter is a 16-bit AD569 updated at 102.4 Hz whose
-low-order bits are dithered to interpolate the remaining four, with a
-second-order low-pass filter smoothing the result.  So "20-bit DAC"
-would be wrong: 20-bit value, 16-bit DAC, 4 bits of dither.
-
-### How much frequency one EFC unit buys is unknown here
-
-That page measures 5.2e-13 of output frequency per EFC unit on a
-Z3801A, putting its full span near 5.5e-7.
-
-Whether the 58503A matches is open, and the two are not quite the same
-oscillator.  Both are HP 10811s, but different assemblies: the
-development unit carries a **10811-60159**, while the Z3801A is
-reported to use a **10811-60161**.  Different dash numbers can mean
-different tuning range or a different selection grade, so a span that
-differs between the two models is plausible rather than surprising.
-Neither figure is measured here.
-
-The one datum on this unit is about 52 mV measured across the EFC coax,
-centre to shield, while `RELative` read 36.06 percent and `ABSolute?`
-read 713352.
-
-That is an absolute voltage, so it fixes one point on the line from
-percentage to volts but not its slope.  Two readings are needed and the
-second is hard to get: EFC moved only about 70 counts, some 0.007
-percent, over several minutes of probing, which no meter will resolve,
-and there is no command to drive it.
-
-Either reading of the line gives a small range:
-
-| Mapping | Implied full scale |
-| ------- | ------------------ |
-| Unipolar, 0 V at -100 percent | 76 mV |
-| Bipolar, 0 V at 0 percent | plus or minus 144 mV |
-
-Tens of millivolts across the whole range is not unreasonable for a
-part chosen for a disciplined oscillator, where a narrow EFC range buys
-immunity to noise on the control line, but it is also what an offset or
-gain stage between the DAC and the oscillator would look like.  Nothing
-here distinguishes them.
-
-The holdover recovery sweep settles all of it at once: coming out of a
-long holdover the receiver walks the EFC across a wide span, giving many
-points of voltage, count and frequency together.
-
-Settling it needs the same experiment Van Baak ran, on this unit: log
-`EFC:ABSolute?` against a counter while the receiver corrects itself out
-of a long holdover.  Until then the library reports the raw value and
-the percentage the receiver itself gives, and claims nothing about
-frequency.
+See `efc.md` for what the EFC commands mean in volts and in frequency.
 
 ### Why the date is wrong
 
