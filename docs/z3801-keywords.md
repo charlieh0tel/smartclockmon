@@ -178,12 +178,32 @@ different tuning range or a different selection grade, so a span that
 differs between the two models is plausible rather than surprising.
 Neither figure is measured here.
 
-The one datum on this unit is an external reading of about 52 mV on the
-control voltage while `RELative` read 36.06 percent.  Taken as a
-deviation from centre that puts full scale near plus or minus 144 mV.
-Whether 52 mV was measured from centre or to ground is not recorded, and
-the -60159's EFC sensitivity is not to hand, so no frequency figure
-follows from it yet.
+The one datum on this unit is about 52 mV measured across the EFC coax,
+centre to shield, while `RELative` read 36.06 percent and `ABSolute?`
+read 713352.
+
+That is an absolute voltage, so it fixes one point on the line from
+percentage to volts but not its slope.  Two readings are needed and the
+second is hard to get: EFC moved only about 70 counts, some 0.007
+percent, over several minutes of probing, which no meter will resolve,
+and there is no command to drive it.
+
+Either reading of the line gives a small range:
+
+| Mapping | Implied full scale |
+| ------- | ------------------ |
+| Unipolar, 0 V at -100 percent | 76 mV |
+| Bipolar, 0 V at 0 percent | plus or minus 144 mV |
+
+Tens of millivolts across the whole range is not unreasonable for a
+part chosen for a disciplined oscillator, where a narrow EFC range buys
+immunity to noise on the control line, but it is also what an offset or
+gain stage between the DAC and the oscillator would look like.  Nothing
+here distinguishes them.
+
+The holdover recovery sweep settles all of it at once: coming out of a
+long holdover the receiver walks the EFC across a wide span, giving many
+points of voltage, count and frequency together.
 
 Settling it needs the same experiment Van Baak ran, on this unit: log
 `EFC:ABSolute?` against a counter while the receiver corrects itself out
