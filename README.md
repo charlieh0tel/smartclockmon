@@ -17,6 +17,7 @@ not written yet.  See `PLAN.md` for what is done and what is not.
 | `smartclockd` | holds the serial port, logs to SQLite, serves clients over a local socket |
 | `smartclockmon` | terminal monitor: a dashboard and history graphs |
 | `smartclock-cli` | one-shot queries, `diagnose`, transcript capture, and sweeping for undocumented commands |
+| `smartclock-sim` | a simulated receiver, in process for tests and over TCP for driving the real daemon |
 
 ## Running it
 
@@ -35,6 +36,14 @@ opens a command line, `u` falls back to ASCII, `q` quits.
 
 `smartclockmon --device ...` talks to the receiver directly, which needs
 the daemon stopped and records no history; the header says so.
+
+With no receiver to hand, the simulator answers in its place:
+
+    smartclock-sim 127.0.0.1:5025
+    smartclockd --device tcp://127.0.0.1:5025 ...
+
+`--faulty` gives one with its oscillator control near the rail, for the
+paths that only run when something is wrong.
 
 The daemon refuses anything that changes the receiver unless started
 with `--allow-control`, refuses what can strand the link without

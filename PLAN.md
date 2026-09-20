@@ -12,23 +12,23 @@ and a TUI client.  A GUI is possible later but is not planned.
 | 1 | Transport, session framing, CLI | done |
 | 2 | Types, parsers, screen scraper, `diagnose` | done |
 | 3 | `Device`, `Snapshot`, `DeviceTask`, `smartclockd` | done |
-| 4 | PTY simulator | **not started** |
+| 4 | Simulated receiver | done |
 | 5 | The monitor, with history graphs | done |
 | 6 | Control commands, audit trail, raw console | done |
 | 7 | Generated command matrix, protocol and deployment notes | **not started** |
 
-96 tests, none needing hardware.  `make ci` is what CI runs; `make
+105 tests, none needing hardware.  `make ci` is what CI runs; `make
 test-hw` is the hardware-only set and CI never runs it.
 
 Running against the development unit, logging to a database given on the
 command line.  Not yet installed as a service, though `make deb` builds
 the package and the unit file is written.
 
-The gap worth naming: nothing tests the daemon or the socket without a
-receiver.  Every test that exists is of a pure function or a parser
-driven by a fixture, which is why the argument-matching bug in the
-socket's command classifier survived until a command was actually sent.
-That is what phase 4 is for.
+The simulator closes what used to be the largest hole.  `SimTransport`
+puts a receiver behind the transport trait in process, so the device,
+the polling task and the control handle are all exercised without
+hardware; the same receiver listens on TCP so the real daemon and the
+real monitor can be driven against it end to end.
 
 ## Goals
 
@@ -150,6 +150,22 @@ corruption.
                   | smartclockmon (TUI) / smartclock-cli|
                   +------------------------------------+
 ```
+
+### The simulator is not PTY-backed
+
+The plan called for a PTY.  That would have made the simulator
+Unix-only, which undoes the reason `interprocess` was chosen over raw
+AF_UNIX: systemd is meant to be the one Linux-specific piece.
+
+Two things were wanted from it, and they separate cleanly.  Tests need a
+receiver the library can talk to, which is an in-process `Transport`
+implementation -- pure Rust, no operating system involved, portable
+everywhere.  Driving the real daemon binary needs something reachable by
+a device path, and a TCP listener does that on any platform.
+
+The second half also pays for itself: it is the same `TcpTransport` the
+plan already wanted for ser2net, so a network-attached serial adapter
+works as a consequence rather than as extra work.
 
 ### The protocol stays JSON
 
@@ -441,8 +457,8 @@ runs, because they need hardware CI does not have and a daemon that must
 be stopped first.  Everything else -- parsers, the status screen
 scraper, session framing against `ReplayTransport` -- runs anywhere.
 Once the phase 4 simulator exists, integration tests move back into
-`make test` by talking to a PTY instead of a receiver, which is most of
-the reason the simulator is worth building.
+`make test` by talking to a simulated receiver instead of a real one,
+which is most of the reason it is worth building.
 
 ### Dialects
 
@@ -530,12 +546,12 @@ Done, and what each turned out to involve:
 | 3 | `Device`, `Snapshot`, `DeviceTask`, `smartclockd`, systemd unit, deb | reconnection meant handing the request channel back out of the task |
 | 5 | `smartclockmon`, dashboard and history graphs | columns carry min and max as well as mean, or quantization steps vanish into a ramp |
 | 6 | `Control` handle, daemon flags, audit trail, raw console | flags replaced the nonce; the classifier could not match a caller-supplied argument |
+| 4 | `smartclock-sim`, in process and over TCP | TCP rather than a pseudo-terminal, which would have been Unix-only |
 
 Still to do:
 
 | # | Deliverable |
 | - | ----------- |
-| 4 | `smartclock-sim`: a PTY-backed emulator replaying recorded transcripts, so the daemon and the socket can be tested without a receiver.  The largest hole in the tests. |
 | 7 | Documentation: a per-model command matrix generated from the command table, and notes on the socket protocol and deployment. |
 
 Suggest a commit at each phase boundary.

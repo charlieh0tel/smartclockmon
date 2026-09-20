@@ -2,6 +2,7 @@
 members = [
     "crates/smartclock",
     "crates/smartclock-cli",
+    "crates/smartclock-sim",
     "crates/smartclockd",
     "crates/smartclockmon",
 ]

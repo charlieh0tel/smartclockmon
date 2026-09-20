@@ -6,6 +6,7 @@
 
 pub mod replay;
 pub mod serial;
+pub mod tcp;
 pub mod tee;
 pub mod transcript;
 
@@ -21,4 +22,14 @@ pub trait Transport: Read + Write {
     /// A short description used in error messages and logs, such as the
     /// device path.
     fn describe(&self) -> String;
+}
+
+/// So a caller that picks a transport at run time can hold one.
+///
+/// The daemon does: a device path may name a serial port or a receiver
+/// on the network, and which is known only once the path is read.
+impl<T: Transport + ?Sized> Transport for Box<T> {
+    fn describe(&self) -> String {
+        (**self).describe()
+    }
 }

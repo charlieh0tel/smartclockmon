@@ -38,15 +38,18 @@ use smartclock::task::Handle;
 use smartclock::task::Request;
 use smartclock::task::Shared;
 use smartclock::task::Stopped;
+use smartclock::transport::Transport;
 use smartclock::transport::serial::SerialTransport;
 use smartclock::transport::serial::Settings;
+use smartclock::transport::tcp::TcpTransport;
 use smartclock::types::BaudRate;
 
 #[derive(Parser)]
 #[command(about, version)]
 struct Cli {
-    /// Serial device.  Prefer a /dev/serial/by-id/... path, which
-    /// survives USB re-enumeration; /dev/ttyUSB0 does not.
+    /// Serial device, or `tcp://host:port` for a receiver on the
+    /// network or the simulator.  Prefer a /dev/serial/by-id/... path
+    /// for a local one; /dev/ttyUSB0 does not survive re-enumeration.
     #[arg(long, default_value = "/dev/ttyUSB0")]
     device: String,
 
@@ -258,9 +261,23 @@ fn supervise(
     }
 }
 
-fn open(settings: &Settings) -> Result<Device<SerialTransport>> {
-    let port = SerialTransport::open(settings)
-        .with_context(|| format!("opening {} at {}", settings.path, settings.baud))?;
+/// Open whatever the device path names.
+///
+/// A `tcp://host:port` path reaches a receiver over the network, which
+/// covers both a serial adapter behind ser2net and the simulator.  The
+/// simulator listens on TCP rather than offering a pseudo-terminal,
+/// since a PTY would confine it to Unix.
+fn open(settings: &Settings) -> Result<Device<Box<dyn Transport + Send>>> {
+    let port: Box<dyn Transport + Send> = match settings.path.strip_prefix("tcp://") {
+        Some(address) => Box::new(
+            TcpTransport::connect(address, settings.read_timeout)
+                .with_context(|| format!("connecting to {address}"))?,
+        ),
+        None => Box::new(
+            SerialTransport::open(settings)
+                .with_context(|| format!("opening {} at {}", settings.path, settings.baud))?,
+        ),
+    };
     let session = Session::new(port, Config::default());
     Device::open(session).context("identifying the receiver")
 }

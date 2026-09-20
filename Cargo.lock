@@ -1664,6 +1664,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "smartclock-sim"
+version = "0.1.0"
+dependencies = [
+ "jiff",
+ "smartclock",
+]
+
+[[package]]
 name = "smartclockd"
 version = "0.1.0"
 dependencies = [
