@@ -2,7 +2,7 @@
 
 CARGO ?= cargo
 
-.PHONY: all build ci fmt fmt-check clippy test test-hw doc clean
+.PHONY: all build ci fmt fmt-check clippy test test-hw doc clean deb install-service
 
 all: build
 
@@ -35,3 +35,15 @@ doc:
 
 clean:
 	$(CARGO) clean
+
+# Requires cargo-deb: cargo install cargo-deb
+# The deb carries all three binaries, so build them before packaging and
+# tell cargo-deb not to rebuild just the daemon.
+deb: 
+	$(CARGO) build --release
+	$(CARGO) deb -p smartclockd --no-build
+
+install-service:
+	install -m 0644 packaging/systemd/smartclockd.service /etc/systemd/system/
+	install -m 0644 -b packaging/systemd/smartclockd.default /etc/default/smartclockd
+	systemctl daemon-reload

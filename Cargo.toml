@@ -22,3 +22,4 @@ unsafe_code = "forbid"
 doc_markdown = "warn"
 enum_glob_use = "deny"
 todo = "warn"
+

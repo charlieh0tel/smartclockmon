@@ -1,0 +1,46 @@
+[Unit]
+Description=SmartClock GPS receiver logging daemon
+Documentation=https://github.com/ch/smartclockmon
+# Tie the daemon to the adapter.  A USB serial device that re-enumerates
+# comes back as a new device unit, and BindsTo restarts us against it
+# rather than leaving us holding a file descriptor to nothing.
+BindsTo=dev-serial-by\x2did-usb\x2dProlific_Technology_Inc._USB\x2dSerial_Controller_D\x2dif00\x2dport0.device
+After=dev-serial-by\x2did-usb\x2dProlific_Technology_Inc._USB\x2dSerial_Controller_D\x2dif00\x2dport0.device
+
+[Service]
+Type=exec
+EnvironmentFile=-/etc/default/smartclockd
+ExecStart=/usr/bin/smartclockd \
+    --device ${SMARTCLOCKD_DEVICE} \
+    --baud ${SMARTCLOCKD_BAUD} \
+    --database /var/lib/smartclockd/snapshots.sqlite \
+    --socket /run/smartclockd/socket
+Restart=always
+RestartSec=5
+
+User=smartclockd
+Group=smartclockd
+# The receiver's port is owned by the dialout group.
+SupplementaryGroups=dialout
+
+# /var/lib/smartclockd for the log, /run/smartclockd for the socket.
+StateDirectory=smartclockd
+StateDirectoryMode=0750
+RuntimeDirectory=smartclockd
+# Group-readable so the operator can run the TUI unprivileged.  This is
+# the whole of the authorization model: anyone who can open the socket
+# may issue whatever the daemon allows.
+RuntimeDirectoryMode=0750
+
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

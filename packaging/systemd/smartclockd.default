@@ -1,0 +1,8 @@
+# Settings for smartclockd, read by its systemd unit.
+
+# Prefer a by-id path: /dev/ttyUSB0 is not stable across re-enumeration.
+SMARTCLOCKD_DEVICE=/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0
+
+# The receiver stores its own rate, so this is not necessarily the 9600
+# factory default.  Only 1200, 2400, 9600 and 19200 are accepted.
+SMARTCLOCKD_BAUD=19200

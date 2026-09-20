@@ -54,7 +54,7 @@ fn the_task_publishes_snapshots_to_subscribers() {
         snapshot.freshness,
         Freshness::Live | Freshness::Stale
     ));
-    assert_eq!(handle.latest().at, snapshot.at);
+    assert_eq!(handle.latest().expect("a stored snapshot").at, snapshot.at);
 
     drop(updates);
     drop(handle);
@@ -75,6 +75,20 @@ fn a_failed_poll_marks_the_snapshot_stale_and_says_why() {
     // Opening fails outright with nothing to replay, which is itself
     // the right behaviour: no identity means no dialect.
     assert!(Device::open(session).is_err());
+}
+
+#[test]
+fn nothing_is_published_before_the_first_poll() {
+    // latest() is None rather than an empty snapshot, so a client can
+    // tell "not polled yet" from "polled and everything was absent".
+    let (handle, joiner) = task::spawn(device(), Cadence::default());
+    let fresh = handle.latest();
+    drop(handle);
+    joiner.join().expect("the device thread");
+    // Either nothing yet, or a real reading; never a fabricated blank.
+    if let Some(snapshot) = fresh {
+        assert!(snapshot.mode.is_some() || snapshot.last_error.is_some());
+    }
 }
 
 #[test]

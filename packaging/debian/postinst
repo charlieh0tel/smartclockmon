@@ -1,0 +1,22 @@
+#!/bin/sh
+# Creates the service account the unit runs as.
+set -e
+
+case "$1" in
+configure)
+    if ! getent passwd smartclockd >/dev/null; then
+        adduser --system --group --no-create-home \
+            --home /var/lib/smartclockd \
+            --gecos "SmartClock logging daemon" \
+            smartclockd
+    fi
+    # The receiver's serial port is owned by the dialout group.
+    if getent group dialout >/dev/null; then
+        adduser smartclockd dialout || true
+    fi
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

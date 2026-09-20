@@ -79,17 +79,25 @@ pub struct Request {
     pub answer: SyncSender<Result<Reply>>,
 }
 
-/// What a caller holds onto once the task is running.
-#[derive(Debug, Clone)]
-pub struct Handle {
-    requests: Sender<Request>,
-    latest: Arc<Mutex<Snapshot>>,
+/// State that outlives any one connection to the receiver.
+///
+/// Subscribers and the last known snapshot survive a reconnect, so a
+/// client watching the daemon does not have to re-attach when the link
+/// drops and comes back.
+#[derive(Debug, Clone, Default)]
+pub struct Shared {
+    latest: Arc<Mutex<Option<Snapshot>>>,
     subscribers: Arc<Mutex<Vec<Sender<Snapshot>>>>,
 }
 
-impl Handle {
-    /// The most recent snapshot, without waiting for the next one.
-    pub fn latest(&self) -> Snapshot {
+impl Shared {
+    /// Fresh state, before anything has been polled.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The most recent snapshot, if there has been one.
+    pub fn latest(&self) -> Option<Snapshot> {
         self.latest.lock().expect("snapshot mutex").clone()
     }
 
@@ -102,6 +110,58 @@ impl Handle {
         let (tx, rx) = channel();
         self.subscribers.lock().expect("subscriber mutex").push(tx);
         rx
+    }
+
+    /// Store a snapshot and hand it to every live subscriber.
+    pub fn publish(&self, snapshot: Snapshot) {
+        *self.latest.lock().expect("snapshot mutex") = Some(snapshot.clone());
+        self.subscribers
+            .lock()
+            .expect("subscriber mutex")
+            .retain(|tx| tx.send(snapshot.clone()).is_ok());
+    }
+
+    /// Mark the last snapshot as no longer describing the receiver.
+    ///
+    /// Called when the link drops.  The values stay so a client can
+    /// still show what was last true, but nothing may present them as
+    /// current.
+    pub fn mark_disconnected(&self, at: Timestamp, why: &str) {
+        let mut snapshot = self.latest().unwrap_or_else(|| Snapshot::new(at));
+        snapshot.at = at;
+        snapshot.freshness = Freshness::Disconnected;
+        snapshot.last_error = Some(why.to_owned());
+        self.publish(snapshot);
+    }
+}
+
+/// What a caller holds onto once the task is running.
+#[derive(Debug, Clone)]
+pub struct Handle {
+    requests: Sender<Request>,
+    shared: Shared,
+}
+
+impl Handle {
+    /// Build a handle over an existing request channel and shared
+    /// state, for a supervisor that outlives any one task.
+    pub fn new(requests: Sender<Request>, shared: Shared) -> Self {
+        Self { requests, shared }
+    }
+
+    /// The state shared with any client.
+    pub fn shared(&self) -> &Shared {
+        &self.shared
+    }
+
+    /// The most recent snapshot, without waiting for the next one.
+    pub fn latest(&self) -> Option<Snapshot> {
+        self.shared.latest()
+    }
+
+    /// Receive every snapshot published from now on.
+    pub fn subscribe(&self) -> Receiver<Snapshot> {
+        self.shared.subscribe()
     }
 
     /// Send one command and wait for its reply.
@@ -124,16 +184,33 @@ impl Handle {
     }
 }
 
+/// Why a task stopped.
+#[derive(Debug)]
+pub enum Stopped {
+    /// Every handle was dropped; nothing will ask again.
+    HandlesDropped,
+    /// The link failed repeatedly and the device should be reopened.
+    LinkFailed(crate::error::Error),
+}
+
+/// How many polls in a row may fail before the link is called dead.
+///
+/// One failure is ordinary: a timeout, or a value the receiver declined
+/// for a reason the parser did not expect.  A run of them means the
+/// port is gone, and reopening is the only way back.
+const FAILURES_BEFORE_RECONNECT: u32 = 3;
+
 /// Runs the poll schedule and serves the request queue.
 #[derive(Debug)]
 pub struct DeviceTask<T: Transport> {
     device: Device<T>,
     cadence: Cadence,
-    latest: Arc<Mutex<Snapshot>>,
-    subscribers: Arc<Mutex<Vec<Sender<Snapshot>>>>,
+    shared: Shared,
     requests: Receiver<Request>,
     /// When each tier is next due.
     due: [Instant; 3],
+    /// Consecutive failed polls.
+    failures: u32,
 }
 
 /// Start a task on its own thread and return a handle to it.
@@ -142,22 +219,12 @@ pub fn spawn<T: Transport + Send + 'static>(
     cadence: Cadence,
 ) -> (Handle, thread::JoinHandle<Device<T>>) {
     let (tx, rx) = channel();
-    let latest = Arc::new(Mutex::new(Snapshot::new(Timestamp::now())));
-    let subscribers = Arc::new(Mutex::new(Vec::new()));
+    let shared = Shared::new();
     let handle = Handle {
         requests: tx,
-        latest: Arc::clone(&latest),
-        subscribers: Arc::clone(&subscribers),
+        shared: shared.clone(),
     };
-    let now = Instant::now();
-    let mut task = DeviceTask {
-        device,
-        cadence,
-        latest,
-        subscribers,
-        requests: rx,
-        due: [now, now, now],
-    };
+    let mut task = DeviceTask::new(device, cadence, shared, rx);
     let joiner = thread::Builder::new()
         .name("smartclock-device".to_owned())
         .spawn(move || {
@@ -169,14 +236,43 @@ pub fn spawn<T: Transport + Send + 'static>(
 }
 
 impl<T: Transport> DeviceTask<T> {
-    /// Poll and serve requests until every handle is dropped.
-    pub fn run(&mut self) {
+    /// Build a task over state that may outlive it.
+    pub fn new(
+        device: Device<T>,
+        cadence: Cadence,
+        shared: Shared,
+        requests: Receiver<Request>,
+    ) -> Self {
+        let now = Instant::now();
+        Self {
+            device,
+            cadence,
+            shared,
+            requests,
+            due: [now, now, now],
+            failures: 0,
+        }
+    }
+
+    /// Take the request channel back, so the next task can serve it.
+    ///
+    /// A reconnect builds a new task around a freshly opened receiver
+    /// but must keep the same queue, or every client holding a handle
+    /// would be writing to a channel nobody reads.
+    pub fn into_requests(self) -> Receiver<Request> {
+        self.requests
+    }
+
+    /// Poll and serve requests until the handles go or the link dies.
+    pub fn run(&mut self) -> Stopped {
         loop {
             let now = Instant::now();
             let (tier, due) = self.next_due();
 
             if due <= now {
-                self.run_tier(tier);
+                if let Some(stopped) = self.run_tier(tier) {
+                    return stopped;
+                }
                 continue;
             }
 
@@ -186,8 +282,7 @@ impl<T: Transport> DeviceTask<T> {
             match self.requests.recv_timeout(due - now) {
                 Ok(request) => self.serve(request),
                 Err(RecvTimeoutError::Timeout) => {}
-                // Every handle has gone; nothing will ask again.
-                Err(RecvTimeoutError::Disconnected) => return,
+                Err(RecvTimeoutError::Disconnected) => return Stopped::HandlesDropped,
             }
         }
     }
@@ -201,27 +296,34 @@ impl<T: Transport> DeviceTask<T> {
             .expect("at least one tier")
     }
 
-    fn run_tier(&mut self, tier: Tier) {
-        let mut snapshot = self.latest.lock().expect("snapshot mutex").clone();
-        let outcome = self.device.poll(tier, &mut snapshot, Timestamp::now());
-        if let Err(e) = outcome {
-            // Keep the values but say they are no longer current.  A
-            // monitor that goes on showing the last good numbers as
-            // though they were fresh is worse than one showing nothing.
-            snapshot.freshness = Freshness::Stale;
-            snapshot.last_error = Some(e.to_string());
-        }
+    /// Run one tier, returning a reason to stop if the link has died.
+    fn run_tier(&mut self, tier: Tier) -> Option<Stopped> {
+        let now = Timestamp::now();
+        let mut snapshot = self.shared.latest().unwrap_or_else(|| Snapshot::new(now));
+        let outcome = self.device.poll(tier, &mut snapshot, now);
         self.due[tier as usize] = Instant::now() + self.cadence.of(tier);
-        self.publish(snapshot);
-    }
 
-    /// Store a snapshot and hand it to every live subscriber.
-    fn publish(&self, snapshot: Snapshot) {
-        *self.latest.lock().expect("snapshot mutex") = snapshot.clone();
-        self.subscribers
-            .lock()
-            .expect("subscriber mutex")
-            .retain(|tx| tx.send(snapshot.clone()).is_ok());
+        match outcome {
+            Ok(()) => self.failures = 0,
+            Err(e) => {
+                self.failures += 1;
+                // Keep the values but say they are no longer current.  A
+                // monitor that goes on showing the last good numbers as
+                // though they were fresh is worse than one showing
+                // nothing.
+                snapshot.freshness = Freshness::Stale;
+                snapshot.last_error = Some(e.to_string());
+                if self.failures >= FAILURES_BEFORE_RECONNECT {
+                    self.shared.publish(snapshot);
+                    return Some(Stopped::LinkFailed(e));
+                }
+                // One bad poll can leave the session mid-reply, so
+                // resynchronise before trying the next.
+                let _ = self.device.session().sync();
+            }
+        }
+        self.shared.publish(snapshot);
+        None
     }
 
     /// Run one submitted command.

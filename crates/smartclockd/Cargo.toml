@@ -10,4 +10,42 @@ authors.workspace = true
 workspace = true
 
 [dependencies]
+anyhow = "1.0.104"
+clap = { version = "4.6.7", features = ["derive"] }
+interprocess = "2.4.4"
+jiff = "0.2.37"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
 smartclock = { path = "../smartclock" }
+
+# Packaging lives on this crate because cargo-deb wants a single
+# package, and the daemon is what the deb exists to install.  The other
+# two binaries ride along as assets, so "make deb" builds the workspace
+# first and then packages without rebuilding.
+[package.metadata.deb]
+name = "smartclockmon"
+maintainer = "Christopher Hoover <ch@murgatroid.com>"
+copyright = "2026, Christopher Hoover"
+license-file = ["../../LICENSE", "0"]
+extended-description = """\
+Library, logging daemon and terminal monitor for HP / Symmetricom \
+SmartClock GPS time and frequency reference receivers, spoken to over \
+RS-232.  The daemon holds the serial port open and records oscillator \
+and holdover history so it accumulates whether or not anyone is \
+watching."""
+section = "utils"
+priority = "optional"
+depends = "$auto, adduser"
+assets = [
+    ["../../target/release/smartclockd", "usr/bin/", "755"],
+    ["../../target/release/smartclock-cli", "usr/bin/", "755"],
+    ["../../target/release/smartclockmon", "usr/bin/", "755"],
+    ["../../packaging/systemd/smartclockd.default", "etc/default/smartclockd", "644"],
+    ["../../README.md", "usr/share/doc/smartclockmon/README.md", "644"],
+    ["../../docs/screen-format-strings.md", "usr/share/doc/smartclockmon/screen-format-strings.md", "644"],
+    ["../../docs/z3801-keywords.md", "usr/share/doc/smartclockmon/z3801-keywords.md", "644"],
+]
+conf-files = ["/etc/default/smartclockd"]
+maintainer-scripts = "../../packaging/debian/"
+systemd-units = { unit-name = "smartclockd", unit-scripts = "../../packaging/systemd", enable = false, start = false }
