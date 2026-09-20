@@ -1,0 +1,4 @@
+# Pinned so a lint that fires in CI fires locally too.
+[toolchain]
+channel = "1.89.0"
+components = ["clippy", "rustfmt"]

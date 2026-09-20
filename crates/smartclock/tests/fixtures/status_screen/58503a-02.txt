@@ -1,0 +1,23 @@
+---------------------------- Receiver Status ----------------------------
+SYNCHRONIZATION ............................[ Outputs Valid/Reduced Accuracy ]
+SmartClock Mode                             Reference Outputs
+>> Locked to GPS: stabilizing frequency     TFOM      4            FFOM     1
+   Recovery                                 1PPS TI +20 ns relative to GPS
+   Holdover                                 HOLD THR 1.000 us
+   Power-up                                 Holdrover Uncertainty
+                                            Predict 432.0 us/initial 24 hrs
+
+ACQUISITION ............................................... [GPS 1PPS Valid]
+Tracking: 6       Not Tracking: 1
+PRN El Az C/N PRN El Az                     Time
+  2  70 301   40   16 13 258                UTC      18:47:07    31 Jan 1996
+  7  35 186   38                            GPS 1PPS Synchronized to UTC
+ 19  40 102   38                            ANT DLY 0 ns
+ 22  71 60    39                            Position
+ 26  19 317   36                            MODE     Survey: 5.4%     complete
+ 31  16 41    35
+                                            AVG LAT N 37:19:34.937
+                                            AVG LON W 121:59:50.457
+ELEV MASK 10 deg                            AVG HGT            +67.94 m (GPS)
+HEALTH MONITOR ...................................................... [ OK ]
+Self Test: OK Int Pwr: OK   Oven Pwr: OK    OCXO: OK   EFC: OK   GPS Rcv: OK

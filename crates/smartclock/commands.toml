@@ -1,0 +1,1580 @@
+# SmartClock command table.
+#
+# Generated into Rust by build.rs.  Do not add commands to Rust source;
+# add them here so the two dialects stay diffable against the manuals.
+#
+# class:     query      read-only, always permitted
+#            control    changes receiver state, requires config opt-in
+#            dangerous  can strand the link or wipe configuration
+# response:  parser name; see crates/smartclock/src/parse
+# models:    which receivers expose this command
+# verified:  confirmed against hardware.  Nothing is, yet.
+# cite:      page in the dialect's manual
+#
+# Sources: hp58503 from 097-59551-02 chapter 5, z3801 from 097-z3801-01
+# table 4-2.
+#
+# The 59551A-only PULSe, SENSe:TSTamp and FORMat subsystems are omitted.
+# We have no such hardware, so entries for them could never be verified.
+
+schema = 1
+
+[[command]]
+id = "idn"
+class = "query"
+doc = "Receiver identification string."
+
+  [command.dialect.hp58503]
+  scpi = "*IDN?"
+  response = "idn"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-113"
+  verified = false
+  [command.dialect.z3801]
+  scpi = "*IDN?"
+  response = "idn"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "cls"
+class = "control"
+doc = "Clear event status registers and error queue."
+
+  [command.dialect.hp58503]
+  scpi = "*CLS"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-45"
+  verified = false
+  [command.dialect.z3801]
+  scpi = "*CLS"
+  response = "none"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "selftest"
+class = "control"
+doc = "Run internal selftest; 0 passed."
+
+  [command.dialect.hp58503]
+  scpi = "*TST?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-70"
+  verified = false
+  [command.dialect.z3801]
+  scpi = "*TST?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "ese_set"
+class = "control"
+doc = "Set standard event status enable register."
+
+  [command.dialect.hp58503]
+  scpi = "*ESE"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-62"
+  verified = false
+
+[[command]]
+id = "ese"
+class = "query"
+doc = "Standard event status enable register."
+
+  [command.dialect.hp58503]
+  scpi = "*ESE?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-62"
+  verified = false
+  [command.dialect.z3801]
+  scpi = "*ESE?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "esr"
+class = "query"
+doc = "Read and clear standard event status register."
+
+  [command.dialect.hp58503]
+  scpi = "*ESR?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-64"
+  verified = false
+  [command.dialect.z3801]
+  scpi = "*ESR?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "sre_set"
+class = "control"
+doc = "Set service request enable register."
+
+  [command.dialect.hp58503]
+  scpi = "*SRE"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-47"
+  verified = false
+
+[[command]]
+id = "sre"
+class = "query"
+doc = "Service request enable register."
+
+  [command.dialect.hp58503]
+  scpi = "*SRE?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-47"
+  verified = false
+  [command.dialect.z3801]
+  scpi = "*SRE?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "stb"
+class = "query"
+doc = "Status byte register."
+
+  [command.dialect.hp58503]
+  scpi = "*STB?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  verified = false
+  [command.dialect.z3801]
+  scpi = "*STB?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "position_avg"
+class = "query"
+doc = "Averaged antenna position."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:POSition?"
+  response = "position"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-9"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:POSition?"
+  response = "position"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "position_actual"
+class = "query"
+doc = "Instantaneous antenna position."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:POSition:ACTual?"
+  response = "position"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-11"
+  verified = false
+
+[[command]]
+id = "position_set"
+class = "control"
+doc = "Place receiver in position hold at a given location."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:POSition"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-9"
+  verified = false
+
+[[command]]
+id = "position_hold_last"
+class = "query"
+doc = "Last position-hold location."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:POSition:HOLD:LAST?"
+  response = "position"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-13"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:POSition:HOLD:LAST?"
+  response = "position"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "position_hold_state"
+class = "query"
+doc = "Whether the receiver is in position hold."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:POSition:HOLD:STATe?"
+  response = "bool01"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-14"
+  verified = false
+
+[[command]]
+id = "survey_progress"
+class = "query"
+doc = "Survey completion, percent."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:POSition:SURVey:PROGress?"
+  response = "real"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-16"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:POSition:SURVey:PROGress?"
+  response = "real"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "survey_state"
+class = "query"
+doc = "Survey state; 0 once position hold is attained."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:POSition:SURVey:STATe?"
+  response = "word"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-17"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:POSition:SURVey:STATe?"
+  response = "word"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "survey_once"
+class = "control"
+doc = "Begin a position survey."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:POSition:SURVey:STATe ONCE"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-17"
+  verified = false
+
+[[command]]
+id = "survey_powerup"
+class = "query"
+doc = "Whether a survey runs at power-up."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:POSition:SURVey:STATe:POWerup?"
+  response = "bool01"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-19"
+  verified = false
+
+[[command]]
+id = "survey_powerup_set"
+class = "control"
+doc = "Enable or disable survey at power-up."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:POSition:SURVey:STATe:POWerup"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-19"
+  verified = false
+
+[[command]]
+id = "elevation_mask"
+class = "query"
+doc = "Elevation mask angle, degrees."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:SATellite:TRACking:EMANgle?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-21"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:EMANgle?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "elevation_mask_set"
+class = "control"
+doc = "Set elevation mask angle, degrees."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:SATellite:TRACking:EMANgle"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-21"
+  verified = false
+
+[[command]]
+id = "sat_ignore"
+class = "query"
+doc = "Satellites excluded from tracking."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:SATellite:TRACking:IGNore?"
+  response = "int_list"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-23"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:SATellite:TRACking:IGNore?"
+  response = "int_list"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "sat_ignore_set"
+class = "control"
+doc = "Exclude satellites from tracking."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:SATellite:TRACking:IGNore"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-23"
+  verified = false
+
+[[command]]
+id = "sat_ignore_count"
+class = "query"
+doc = "Count of ignored satellites."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:SATellite:TRACking:IGNore:COUNt?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-24"
+  verified = false
+
+[[command]]
+id = "sat_include"
+class = "query"
+doc = "Satellites considered for tracking."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:SATellite:TRACking:INCLude?"
+  response = "int_list"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-23"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:SATellite:TRACking:INCLude?"
+  response = "int_list"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "sat_include_set"
+class = "control"
+doc = "Include satellites for tracking."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:SATellite:TRACking:INCLude"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-23"
+  verified = false
+
+[[command]]
+id = "antenna_delay"
+class = "query"
+doc = "Antenna cable delay, seconds."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:REFerence:ADELay?"
+  response = "real"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-25"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:ADELay?"
+  response = "real"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "antenna_delay_set"
+class = "control"
+doc = "Set antenna cable delay, seconds."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:REFerence:ADELay"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-25"
+  verified = false
+
+[[command]]
+id = "time_valid"
+class = "query"
+doc = "Whether date and time are valid."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:REFerence:VALid?"
+  response = "bool01"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-26"
+  verified = false
+
+[[command]]
+id = "sat_tracking"
+class = "query"
+doc = "PRNs currently tracked; 0 means none."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:SATellite:TRACking?"
+  response = "int_list"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-22"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:SATellite:TRACking?"
+  response = "int_list"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "sat_tracking_count"
+class = "query"
+doc = "Number of satellites tracked."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:SATellite:TRACking:COUNt?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-22"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:SATellite:TRACking:COUNt?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "sat_visible"
+class = "query"
+doc = "PRNs the almanac predicts are visible."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:SATellite:VISible:PREDicted?"
+  response = "int_list"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-24"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:SATellite:VISible:PREDicted?"
+  response = "int_list"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "sat_visible_count"
+class = "query"
+doc = "Count of predicted-visible satellites."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:SATellite:VISible:PREDicted:COUNt?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-24"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:SATellite:VISible:PREDicted:COUNt?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "initial_date_set"
+class = "control"
+doc = "Seed date to speed first acquisition."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:INITial:DATE"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-7"
+  verified = false
+
+[[command]]
+id = "initial_time_set"
+class = "control"
+doc = "Seed time to speed first acquisition."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:INITial:TIME"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-8"
+  verified = false
+
+[[command]]
+id = "initial_pos_set"
+class = "control"
+doc = "Seed position to speed first acquisition."
+
+  [command.dialect.hp58503]
+  scpi = ":GPS:INITial:POSition"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-7"
+  verified = false
+
+[[command]]
+id = "sync_state"
+class = "query"
+doc = "SmartClock mode."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:STATe?"
+  response = "enum:SmartClockMode"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-27"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":ROSCillator:STATe?"
+  response = "enum:SmartClockMode"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "efc"
+class = "query"
+doc = "Oscillator EFC output, percent, -100 to +100."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:ROSCillator:EFControl:RELative?"
+  response = "real"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-28"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:ROSCillator:EFControl:RELative?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "led_gpslock"
+class = "query"
+doc = "GPS Lock LED state."
+
+  [command.dialect.hp58503]
+  scpi = ":LED:GPSLock?"
+  response = "bool01"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-29"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":LED:GPSLock?"
+  response = "bool01"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "led_holdover"
+class = "query"
+doc = "Holdover LED state."
+
+  [command.dialect.hp58503]
+  scpi = ":LED:HOLDover?"
+  response = "bool01"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-29"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":LED:HOLDover?"
+  response = "bool01"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "ffom"
+class = "query"
+doc = "Frequency figure of merit."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:FFOMerit?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-30"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:FFOMerit?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "tfom"
+class = "query"
+doc = "Time figure of merit."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:TFOMerit?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-33"
+  verified = false
+
+[[command]]
+id = "tinterval"
+class = "query"
+doc = "1 PPS to GPS 1 PPS interval, seconds."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:TINTerval?"
+  response = "real"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-34"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:TINTerval?"
+  response = "real"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "holdover_unc_pred"
+class = "query"
+doc = "Predicted one-day holdover time error, seconds."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:HOLDover:TUNCertainty:PREDicted?"
+  response = "real_bool"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-31"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":ROSCillator:HOLDover:TUNCertainty:PREDicted?"
+  response = "real_bool"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "holdover_unc_now"
+class = "query"
+doc = "Present holdover time error, seconds."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:HOLDover:TUNCertainty:PRESent?"
+  response = "real"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-32"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":ROSCillator:HOLDover:TUNCertainty:PRESent?"
+  response = "real"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "holdover_duration"
+class = "query"
+doc = "Holdover duration, seconds, and whether in holdover."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:HOLDover:DURation?"
+  response = "real_bool"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-35"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":ROSCillator:HOLDover:DURation?"
+  response = "real_bool"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "holdover_thresh"
+class = "query"
+doc = "Holdover duration threshold, seconds."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:HOLDover:DURation:THReshold?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-35"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":ROSCillator:HOLDover:DURation:THReshold?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "holdover_thresh_set"
+class = "control"
+doc = "Set holdover duration threshold, seconds."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:HOLDover:DURation:THReshold"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-35"
+  verified = false
+
+[[command]]
+id = "holdover_exceeded"
+class = "query"
+doc = "Whether holdover exceeded its threshold."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:HOLDover:DURation:THReshold:EXCeeded?"
+  response = "bool01"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-35"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":ROSCillator:HOLDover:DURation:THReshold:EXCeeded?"
+  response = "bool01"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "holdover_waiting"
+class = "query"
+doc = "Why the receiver is waiting to recover."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:HOLDover:WAITing?"
+  response = "enum:HoldoverWaitReason"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-36"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":ROSCillator:HOLDover:WAITing?"
+  response = "enum:HoldoverWaitReason"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "holdover_initiate"
+class = "control"
+doc = "Force manual holdover."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:HOLDover:INITiate"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-36"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":ROSCillator:HOLDover:INITiate"
+  response = "none"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "holdover_recover"
+class = "control"
+doc = "Recover from manual holdover."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:HOLDover:RECovery:INITiate"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-37"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":ROSCillator:HOLDover:RECovery:INITiate"
+  response = "none"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "holdover_limit_ignore"
+class = "control"
+doc = "Force recovery despite the TI limit."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:HOLDover:RECovery:LIMit:IGNore"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-37"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":ROSCillator:HOLDover:RECovery:LIMit:IGNore"
+  response = "none"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "sync_immediate"
+class = "control"
+doc = "Realign output 1 PPS to GPS 1 PPS."
+
+  [command.dialect.hp58503]
+  scpi = ":SYNChronization:IMMediate"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-38"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:SYNChronization:IMMediate"
+  response = "none"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "status_screen"
+class = "query"
+doc = "Formatted receiver status screen."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:STATus?"
+  response = "status_screen"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-30"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":SYSTem:STATus?"
+  response = "status_screen"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "status_screen_lines"
+class = "query"
+doc = "Line count of the status screen."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:STATus:LENGth?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-31"
+  verified = false
+
+[[command]]
+id = "error"
+class = "query"
+doc = "Oldest error in the queue; removes it."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:ERRor?"
+  response = "error"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-31"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":SYSTem:ERRor?"
+  response = "error"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "log_read_all"
+class = "query"
+doc = "All diagnostic log entries."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:LOG:READ:ALL?"
+  response = "string_list"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-32"
+  verified = false
+
+[[command]]
+id = "log_count"
+class = "query"
+doc = "Number of diagnostic log entries."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:LOG:COUNt?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-33"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:LOG:COUNt?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "log_read"
+class = "query"
+doc = "One diagnostic log entry."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:LOG:READ?"
+  response = "string"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-33"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:LOG:READ?"
+  response = "string"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "log_clear"
+class = "control"
+doc = "Clear the diagnostic log."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:LOG:CLEar"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-32"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:LOG:CLEar"
+  response = "none"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "led_alarm"
+class = "query"
+doc = "Front-panel Alarm LED state."
+
+  [command.dialect.hp58503]
+  scpi = ":LED:ALARm?"
+  response = "bool01"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-46"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":LED:ALARm?"
+  response = "bool01"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "status_preset_alarm"
+class = "control"
+doc = "Restore factory alarm reporting conditions."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:PRESet:ALARm"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-45"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":STATus:PRESet:ALARm"
+  response = "none"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "oper_condition"
+class = "query"
+doc = "Operation condition register."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:CONDition?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-50"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":STATus:OPERation:CONDition?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "oper_event"
+class = "query"
+doc = "Operation event register."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:EVENt?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-50"
+  verified = false
+
+[[command]]
+id = "hardware_condition"
+class = "query"
+doc = "Hardware condition register; EFC full-scale is bits 6 and 7."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:HARDware:CONDition?"
+  response = "bits:HardwareCondition"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-52"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":STATus:OPERation:HARDware:CONDition?"
+  response = "bits:HardwareCondition"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "hardware_event"
+class = "query"
+doc = "Hardware event register."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:HARDware:EVENt?"
+  response = "bits:HardwareCondition"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-52"
+  verified = false
+
+[[command]]
+id = "holdover_condition"
+class = "query"
+doc = "Holdover condition register."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:HOLDover:CONDition?"
+  response = "bits:HoldoverCondition"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-54"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":STATus:OPERation:HOLDover:CONDition?"
+  response = "bits:HoldoverCondition"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "holdover_event"
+class = "query"
+doc = "Holdover event register."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:HOLDover:EVENt?"
+  response = "bits:HoldoverCondition"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-54"
+  verified = false
+
+[[command]]
+id = "powerup_condition"
+class = "query"
+doc = "Power-up condition register."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:POWerup:CONDition?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-56"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":STATus:OPERation:POWerup:CONDition?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "quest_condition"
+class = "query"
+doc = "Questionable condition register."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:QUEStionable:CONDition?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-58"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":STATus:QUEStionable:CONDition?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "quest_event"
+class = "query"
+doc = "Questionable event register."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:QUEStionable:EVENt?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-58"
+  verified = false
+
+[[command]]
+id = "lifetime_count"
+class = "query"
+doc = "Total powered-on time."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:LIFetime:COUNt?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-71"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:LIFetime:COUNt?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "diag_test"
+class = "query"
+doc = "Run a subsystem selftest."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:TEST?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-71"
+  verified = false
+
+[[command]]
+id = "diag_test_result"
+class = "query"
+doc = "Result of the last subsystem selftest."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:TEST:RESult?"
+  response = "int_string"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-72"
+  verified = false
+
+[[command]]
+id = "query_response"
+class = "query"
+doc = "Repeat the last response after a transmission error."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:QUERy:RESPonse?"
+  response = "raw"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-108"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:QUERy:RESPonse?"
+  response = "raw"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "timecode"
+class = "query"
+doc = "Time code message for the next 1 PPS."
+
+  [command.dialect.hp58503]
+  scpi = ":PTIMe:TCODe?"
+  response = "timecode"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-73"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:TCODe?"
+  response = "timecode"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "timecode_format"
+class = "query"
+doc = "Time code format, F1 or F2."
+
+  [command.dialect.hp58503]
+  scpi = ":PTIMe:TCODe:FORMat?"
+  response = "word"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-73"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:TCODe:FORMat?"
+  response = "word"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "timecode_format_set"
+class = "control"
+doc = "Select time code format."
+
+  [command.dialect.hp58503]
+  scpi = ":PTIMe:TCODe:FORMat"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-73"
+  verified = false
+
+[[command]]
+id = "date"
+class = "query"
+doc = "Current date."
+
+  [command.dialect.hp58503]
+  scpi = ":PTIMe:DATE?"
+  response = "ymd"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-76"
+  verified = false
+
+[[command]]
+id = "time"
+class = "query"
+doc = "Current time."
+
+  [command.dialect.hp58503]
+  scpi = ":PTIMe:TIME?"
+  response = "hms"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-77"
+  verified = false
+
+[[command]]
+id = "time_string"
+class = "query"
+doc = "Current time as a string."
+
+  [command.dialect.hp58503]
+  scpi = ":PTIMe:TIME:STRing?"
+  response = "string"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-78"
+  verified = false
+
+[[command]]
+id = "tzone"
+class = "query"
+doc = "Local time zone offset from UTC."
+
+  [command.dialect.hp58503]
+  scpi = ":PTIMe:TZONe?"
+  response = "hm"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-79"
+  verified = false
+
+[[command]]
+id = "tzone_set"
+class = "control"
+doc = "Set local time zone offset from UTC."
+
+  [command.dialect.hp58503]
+  scpi = ":PTIMe:TZONe"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-79"
+  verified = false
+
+[[command]]
+id = "leap_accumulated"
+class = "query"
+doc = "GPS minus UTC, seconds."
+
+  [command.dialect.hp58503]
+  scpi = ":PTIMe:LEAPsecond:ACCumulated?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-80"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":PTIMe:LEAPsecond:ACCumulated?"
+  response = "int"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "leap_date"
+class = "query"
+doc = "Date of the pending leap second."
+
+  [command.dialect.hp58503]
+  scpi = ":PTIMe:LEAPsecond:DATE?"
+  response = "ymd"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-81"
+  verified = false
+
+[[command]]
+id = "leap_duration"
+class = "query"
+doc = "Sign and size of the pending leap second."
+
+  [command.dialect.hp58503]
+  scpi = ":PTIMe:LEAPsecond:DURation?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-81"
+  verified = false
+
+[[command]]
+id = "leap_state"
+class = "query"
+doc = "Whether a leap second is pending."
+
+  [command.dialect.hp58503]
+  scpi = ":PTIMe:LEAPsecond:STATe?"
+  response = "bool01"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-82"
+  verified = false
+
+[[command]]
+id = "comm_settings"
+class = "query"
+doc = "Current serial port settings."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:COMMunicate?"
+  response = "word"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-100"
+  verified = false
+
+[[command]]
+id = "comm_baud"
+class = "query"
+doc = "Port 1 baud rate."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:COMMunicate:SERial1:BAUD?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-101"
+  verified = false
+
+[[command]]
+id = "comm_baud_set"
+class = "dangerous"
+doc = "Set port 1 baud rate. Persists across power cycles."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:COMMunicate:SERial1:BAUD"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-101"
+  verified = false
+
+[[command]]
+id = "comm_parity"
+class = "query"
+doc = "Port 1 parity."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:COMMunicate:SERial1:PARity?"
+  response = "word"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-104"
+  verified = false
+
+[[command]]
+id = "comm_parity_set"
+class = "dangerous"
+doc = "Set port 1 parity. Persists across power cycles."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:COMMunicate:SERial1:PARity"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-104"
+  verified = false
+
+[[command]]
+id = "comm_pace"
+class = "query"
+doc = "Port 1 software pacing."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:COMMunicate:SERial1:PACE?"
+  response = "word"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-103"
+  verified = false
+
+[[command]]
+id = "comm_pace_set"
+class = "dangerous"
+doc = "Set port 1 software pacing. Persists across power cycles."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:COMMunicate:SERial1:PACE"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-103"
+  verified = false
+
+[[command]]
+id = "comm_fduplex"
+class = "query"
+doc = "Port 1 full duplex setting."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:COMMunicate:SERial1:FDUPlex?"
+  response = "bool01"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-102"
+  verified = false
+
+[[command]]
+id = "comm_fduplex_set"
+class = "dangerous"
+doc = "Set port 1 full duplex. Persists across power cycles."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:COMMunicate:SERial1:FDUPlex"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-102"
+  verified = false
+
+[[command]]
+id = "comm_preset"
+class = "dangerous"
+doc = "Restore port 1 to factory serial settings."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:COMMunicate:SERial1:PRESet"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-109"
+  verified = false
+
+[[command]]
+id = "system_preset"
+class = "dangerous"
+doc = "Restore all receiver settings to factory values."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:PRESet"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-111"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":SYSTem:PRESet"
+  response = "none"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "language"
+class = "query"
+doc = "Command language, PRIMARY or INSTALL."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:LANGuage?"
+  response = "string"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-116"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":SYSTem:LANGuage?"
+  response = "string"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "language_set"
+class = "dangerous"
+doc = "Switch command language. INSTALL disables normal operation."
+
+  [command.dialect.hp58503]
+  scpi = ":SYSTem:LANGuage"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-116"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":SYSTem:LANGuage"
+  response = "none"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false
+
+[[command]]
+id = "flash_erase"
+class = "dangerous"
+doc = "Erase flash. Firmware download only."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:ERASe"
+  response = "none"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-115"
+  verified = false
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:ERASe"
+  response = "none"
+  models = ["Z3801A", "Z3816A"]
+  cite = "097-z3801-01 4-2"
+  verified = false

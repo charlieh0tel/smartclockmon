@@ -1,0 +1,13 @@
+[package]
+name = "smartclockmon"
+description = "Terminal monitor for a SmartClock receiver"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+smartclock = { path = "../smartclock" }

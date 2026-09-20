@@ -1,0 +1,9 @@
+//! Library for HP / Symmetricom SmartClock GPS time and frequency receivers.
+//!
+//! See `PLAN.md` at the repository root for architecture and decisions.
+
+pub mod command {
+    //! The command table, generated from `commands.toml` by `build.rs`.
+
+    include!(concat!(env!("OUT_DIR"), "/commands.rs"));
+}
