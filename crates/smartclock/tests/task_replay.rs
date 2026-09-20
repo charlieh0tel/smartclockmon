@@ -87,7 +87,7 @@ fn nothing_is_published_before_the_first_poll() {
     joiner.join().expect("the device thread");
     // Either nothing yet, or a real reading; never a fabricated blank.
     if let Some(snapshot) = fresh {
-        assert!(snapshot.mode.is_some() || snapshot.last_error.is_some());
+        assert!(snapshot.mode.is_some() || snapshot.polled.any_error().is_some());
     }
 }
 

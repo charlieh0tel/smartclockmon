@@ -318,8 +318,12 @@ impl<T: Transport> Device<T> {
     /// A field the receiver declines on state is set to `None` rather
     /// than left at its previous value, because a stale reading is
     /// worse than an absent one.  A transport failure aborts the tier
-    /// and propagates, so the caller can mark the snapshot stale rather
-    /// than publishing a half-updated one.
+    /// and propagates.
+    ///
+    /// Only this tier's success is recorded.  The others keep the time
+    /// of their own last success, so a caller can tell how old each
+    /// group of fields is rather than reading one timestamp that the
+    /// fastest tier keeps refreshing on everyone's behalf.
     pub fn poll(&mut self, tier: Tier, into: &mut Snapshot, now: Timestamp) -> Result<()> {
         match tier {
             Tier::Fast => self.poll_fast(into)?,
@@ -328,8 +332,7 @@ impl<T: Transport> Device<T> {
         }
         into.at = now;
         into.freshness = Freshness::Live;
-        into.last_error = None;
-        into.polled.set(tier, now);
+        into.polled.succeeded(tier, now);
         Ok(())
     }
 

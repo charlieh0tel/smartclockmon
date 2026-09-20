@@ -141,9 +141,9 @@ fn the_task_polls_and_publishes_without_hardware() {
     }
     let snapshot = complete.expect("a snapshot from every tier");
     assert_eq!(snapshot.freshness, Freshness::Live);
-    assert!(snapshot.polled.fast.is_some());
-    assert!(snapshot.polled.medium.is_some());
-    assert!(snapshot.polled.slow.is_some());
+    assert!(snapshot.polled.fast.at.is_some());
+    assert!(snapshot.polled.medium.at.is_some());
+    assert!(snapshot.polled.slow.at.is_some());
 
     drop(updates);
     drop(handle);
@@ -176,4 +176,58 @@ fn the_values_move_between_polls() {
         seen.insert(ns);
     }
     assert!(seen.len() > 1, "the interval never changed: {seen:?}");
+}
+
+#[test]
+fn a_working_tier_does_not_relabel_a_failing_one_as_current() {
+    // The bug this replaces: one timestamp and one freshness flag for
+    // the whole snapshot meant the one-second tier, succeeding, kept
+    // re-stamping a status screen that had not been read in minutes.
+    let mut device = device(Receiver::default());
+    let mut snapshot = Snapshot::new(jiff::Timestamp::now());
+
+    let early = jiff::Timestamp::now();
+    device
+        .poll(Tier::Medium, &mut snapshot, early)
+        .expect("the medium tier");
+    assert_eq!(snapshot.polled.medium.at, Some(early));
+
+    // A later fast poll must not move the medium tier's clock.
+    std::thread::sleep(Duration::from_millis(20));
+    let later = jiff::Timestamp::now();
+    device
+        .poll(Tier::Fast, &mut snapshot, later)
+        .expect("the fast tier");
+    assert_eq!(snapshot.polled.fast.at, Some(later));
+    assert_eq!(
+        snapshot.polled.medium.at,
+        Some(early),
+        "a fast poll relabelled the medium tier's fields as current"
+    );
+    let age = snapshot
+        .polled
+        .age(Tier::Medium, later)
+        .expect("an age for the medium tier");
+    assert!(age > 0.0, "the medium tier reported itself as just read");
+}
+
+#[test]
+fn a_tier_that_works_does_not_clear_another_tiers_error() {
+    let mut snapshot = Snapshot::new(jiff::Timestamp::now());
+    snapshot
+        .polled
+        .failed(Tier::Medium, "the screen timed out".to_owned());
+
+    let mut device = device(Receiver::default());
+    device
+        .poll(Tier::Fast, &mut snapshot, jiff::Timestamp::now())
+        .expect("the fast tier");
+
+    assert!(snapshot.polled.fast.error.is_none());
+    assert_eq!(
+        snapshot.polled.medium.error.as_deref(),
+        Some("the screen timed out"),
+        "a successful fast poll hid the medium tier's failure"
+    );
+    assert!(snapshot.polled.any_error().is_some());
 }

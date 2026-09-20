@@ -18,7 +18,7 @@ use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Snapshot;
 
 /// Bumped when the tables change shape.
-const SCHEMA: i64 = 2;
+const SCHEMA: i64 = 3;
 
 /// The daemon's write connection.
 #[derive(Debug)]
@@ -73,7 +73,14 @@ impl Log {
                 date_raw             TEXT,
                 rollover_epochs      INTEGER,
                 log_count            INTEGER,
-                last_error           TEXT
+                last_error           TEXT,
+                -- When each group of fields was last read.  Without
+                -- these a fast row restates the ten- and sixty-second
+                -- values under a fresh timestamp, and a later query
+                -- cannot tell a measurement from a repeat.
+                fast_at              TEXT,
+                medium_at            TEXT,
+                slow_at              TEXT
             );
             CREATE INDEX IF NOT EXISTS snapshot_at ON snapshot(at);
 
@@ -104,11 +111,27 @@ impl Log {
             CREATE INDEX IF NOT EXISTS audit_at ON audit(at);
             "#,
         )?;
+        // Databases written before the per-tier columns existed keep
+        // their rows; the new columns read NULL there, which says
+        // honestly that the age of those fields was not recorded.
+        for column in ["fast_at", "medium_at", "slow_at"] {
+            if !self.has_column("snapshot", column)? {
+                self.conn
+                    .execute_batch(&format!("ALTER TABLE snapshot ADD COLUMN {column} TEXT"))?;
+            }
+        }
         self.conn.execute(
-            "INSERT OR IGNORE INTO meta (key, value) VALUES ('schema', ?1)",
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema', ?1)",
             params![SCHEMA.to_string()],
         )?;
         Ok(())
+    }
+
+    /// Whether a table already has a column, for migrating in place.
+    fn has_column(&self, table: &str, column: &str) -> Result<bool> {
+        let mut statement = self.conn.prepare(&format!("PRAGMA table_info({table})"))?;
+        let mut names = statement.query_map([], |row| row.get::<_, String>(1))?;
+        Ok(names.any(|name| name.is_ok_and(|n| n == column)))
     }
 
     /// Append a snapshot and its satellite table.
@@ -121,9 +144,10 @@ impl Log {
                 hardware_bits, holdover_waiting, temperature_c, oven_current, efc_dac,
                 holdover_active, holdover_elapsed_s,
                 holdover_predicted_s, holdover_present_s, tracking, not_tracking,
-                date_raw, rollover_epochs, log_count, last_error
+                date_raw, rollover_epochs, log_count, last_error,
+                fast_at, medium_at, slow_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                       ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
+                       ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)",
             params![
                 snapshot.at.to_string(),
                 match snapshot.freshness {
@@ -150,7 +174,10 @@ impl Log {
                 snapshot.date.map(|d| d.raw().to_string()),
                 snapshot.date.and_then(|d| d.rollover()).map(|r| r.epochs),
                 snapshot.log_count,
-                snapshot.last_error.as_deref(),
+                snapshot.polled.any_error(),
+                snapshot.polled.fast.at.map(|t| t.to_string()),
+                snapshot.polled.medium.at.map(|t| t.to_string()),
+                snapshot.polled.slow.at.map(|t| t.to_string()),
             ],
         )?;
         let id = tx.last_insert_rowid();

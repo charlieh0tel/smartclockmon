@@ -138,7 +138,9 @@ impl Shared {
         let mut snapshot = self.latest().unwrap_or_else(|| Snapshot::new(at));
         snapshot.at = at;
         snapshot.freshness = Freshness::Disconnected;
-        snapshot.last_error = Some(why.to_owned());
+        for tier in Tier::ALL {
+            snapshot.polled.failed(tier, why.to_owned());
+        }
         self.publish(snapshot);
     }
 }
@@ -325,9 +327,10 @@ impl<T: Transport> DeviceTask<T> {
                 // Keep the values but say they are no longer current.  A
                 // monitor that goes on showing the last good numbers as
                 // though they were fresh is worse than one showing
-                // nothing.
+                // nothing.  The failure is recorded against this tier
+                // alone: another tier succeeding must not clear it.
                 snapshot.freshness = Freshness::Stale;
-                snapshot.last_error = Some(e.to_string());
+                snapshot.polled.failed(tier, e.to_string());
                 if self.failures >= FAILURES_BEFORE_RECONNECT {
                     self.shared.publish(snapshot);
                     return Some(Stopped::LinkFailed(e));

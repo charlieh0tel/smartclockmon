@@ -156,7 +156,9 @@ impl App {
     pub(crate) fn lost(&mut self, why: String) {
         if let Some(snapshot) = self.snapshot.as_mut() {
             snapshot.freshness = Freshness::Disconnected;
-            snapshot.last_error = Some(why);
+            for tier in smartclock::snapshot::Tier::ALL {
+                snapshot.polled.failed(tier, why.clone());
+            }
         }
     }
 

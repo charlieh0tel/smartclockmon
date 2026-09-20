@@ -107,39 +107,79 @@ pub struct Snapshot {
     pub date: Option<ReceiverDate>,
     /// Diagnostic log entry count.
     pub log_count: Option<i64>,
-
-    /// What went wrong on the last failed poll, if anything.
-    pub last_error: Option<String>,
 }
 
-/// When each tier last succeeded.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// How one tier is faring.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TierState {
+    /// When it last succeeded.  `None` before its first poll.
+    pub at: Option<Timestamp>,
+    /// What went wrong the last time it ran, if it did.
+    pub error: Option<String>,
+}
+
+/// How each tier is faring, kept per tier rather than per snapshot.
+///
+/// A snapshot is built up one tier at a time, so a single timestamp and
+/// a single freshness flag describe it badly.  The fast tier succeeding
+/// every second re-stamped the whole snapshot `Live` while the status
+/// screen underneath it went minutes stale, and after a link drop the
+/// first successful fast poll relabelled an hour-old sky as current.
+/// Anything that shows or records a field has to be able to ask how old
+/// that particular field is.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Polled {
-    /// Last successful fast tier.
-    pub fast: Option<Timestamp>,
-    /// Last successful medium tier.
-    pub medium: Option<Timestamp>,
-    /// Last successful slow tier.
-    pub slow: Option<Timestamp>,
+    /// The short scalar queries.
+    pub fast: TierState,
+    /// The status screen and the holdover detail.
+    pub medium: TierState,
+    /// Position, date and counters.
+    pub slow: TierState,
 }
 
 impl Polled {
-    /// When `tier` last succeeded.
-    pub fn get(&self, tier: Tier) -> Option<Timestamp> {
+    /// How `tier` is faring.
+    pub fn get(&self, tier: Tier) -> &TierState {
         match tier {
-            Tier::Fast => self.fast,
-            Tier::Medium => self.medium,
-            Tier::Slow => self.slow,
+            Tier::Fast => &self.fast,
+            Tier::Medium => &self.medium,
+            Tier::Slow => &self.slow,
         }
     }
 
-    /// Record that `tier` has just succeeded.
-    pub fn set(&mut self, tier: Tier, at: Timestamp) {
+    fn get_mut(&mut self, tier: Tier) -> &mut TierState {
         match tier {
-            Tier::Fast => self.fast = Some(at),
-            Tier::Medium => self.medium = Some(at),
-            Tier::Slow => self.slow = Some(at),
+            Tier::Fast => &mut self.fast,
+            Tier::Medium => &mut self.medium,
+            Tier::Slow => &mut self.slow,
         }
+    }
+
+    /// Record that `tier` has just succeeded, clearing only its own
+    /// error: a tier that works says nothing about one that does not.
+    pub fn succeeded(&mut self, tier: Tier, at: Timestamp) {
+        let state = self.get_mut(tier);
+        state.at = Some(at);
+        state.error = None;
+    }
+
+    /// Record that `tier` has just failed, leaving the time of its last
+    /// success alone, since the values it wrote are still that old.
+    pub fn failed(&mut self, tier: Tier, why: String) {
+        self.get_mut(tier).error = Some(why);
+    }
+
+    /// How long ago `tier` last succeeded, in seconds.
+    pub fn age(&self, tier: Tier, now: Timestamp) -> Option<f64> {
+        let at = self.get(tier).at?;
+        Some((now - at).total(jiff::Unit::Second).unwrap_or(0.0))
+    }
+
+    /// Whatever went wrong most recently, across every tier.
+    pub fn any_error(&self) -> Option<&str> {
+        Tier::ALL
+            .into_iter()
+            .find_map(|tier| self.get(tier).error.as_deref())
     }
 }
 
@@ -167,7 +207,6 @@ impl Snapshot {
             position: None,
             date: None,
             log_count: None,
-            last_error: None,
         }
     }
 

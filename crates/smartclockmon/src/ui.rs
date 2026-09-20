@@ -25,6 +25,7 @@ use ratatui::widgets::Paragraph;
 use ratatui::widgets::Row;
 use ratatui::widgets::Table;
 use smartclock::snapshot::Freshness;
+use smartclock::snapshot::Tier;
 use smartclock::types::Seconds;
 use smartclock::types::SmartClockMode;
 use smartclock::wire::Reading;
@@ -297,6 +298,22 @@ fn header(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
+/// How many times its own cadence a tier may lag before its pane is
+/// called stale.  Two misses is a blip; four is a tier that has stopped.
+const STALE_AFTER: f64 = 4.0;
+
+/// A note for a pane heading when the tier behind it has gone quiet.
+///
+/// The whole snapshot used to carry one timestamp, so the one-second
+/// tier succeeding kept relabelling a minutes-old status screen as
+/// current.  Each pane now says the age of the fields it is actually
+/// showing.
+fn staleness(app: &App, tier: Tier, cadence: f64) -> Option<String> {
+    let snapshot = app.snapshot.as_ref()?;
+    let age = snapshot.polled.age(tier, jiff::Timestamp::now())?;
+    (age > cadence * STALE_AFTER).then(|| format!("  [{age:.0}s old]"))
+}
+
 /// Pair a label with a value, padded so the columns line up.
 fn field<'a>(label: &'a str, value: String, style: Style) -> Line<'a> {
     Line::from(vec![
@@ -530,7 +547,12 @@ fn oscillator(frame: &mut Frame, area: Rect, app: &App) {
         }
     }
 
-    frame.render_widget(Paragraph::new(lines).block(block(app, "Oscillator")), area);
+    let mut title = "Oscillator".to_owned();
+    // EFC is fast-tier but temperature and the raw value are not.
+    if let Some(age) = staleness(app, Tier::Medium, 10.0) {
+        title.push_str(&age);
+    }
+    frame.render_widget(Paragraph::new(lines).block(block(app, &title)), area);
 }
 
 /// A horizontal bar showing how much of the tuning range is used.
@@ -745,10 +767,12 @@ fn time_and_place(frame: &mut Frame, area: Rect, app: &App) {
         }
     }
 
-    frame.render_widget(
-        Paragraph::new(lines).block(block(app, "Time and position")),
-        area,
-    );
+    // Position and date are on the sixty-second tier.
+    let mut title = "Time and position".to_owned();
+    if let Some(age) = staleness(app, Tier::Slow, 60.0) {
+        title.push_str(&age);
+    }
+    frame.render_widget(Paragraph::new(lines).block(block(app, &title)), area);
 }
 
 /// The raw command line, and the last answer.
@@ -798,9 +822,9 @@ fn footer(frame: &mut Frame, area: Rect, app: &App) {
         "q quit  g graphs  w window  c command  u ASCII"
     };
     let mut spans = vec![Span::styled(keys, Style::new().fg(Color::DarkGray))];
-    if let Some(error) = app.snapshot.as_ref().and_then(|s| s.last_error.as_ref()) {
+    if let Some(error) = app.snapshot.as_ref().and_then(|s| s.polled.any_error()) {
         spans.push(Span::raw("   "));
-        spans.push(Span::styled(error.clone(), Style::new().fg(Color::Red)));
+        spans.push(Span::styled(error.to_owned(), Style::new().fg(Color::Red)));
     }
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }

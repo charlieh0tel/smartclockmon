@@ -17,6 +17,7 @@ use serde::Serialize;
 use crate::rollover::ReceiverDate;
 use crate::screen::Screen;
 use crate::snapshot::Freshness;
+use crate::snapshot::Polled;
 use crate::snapshot::Snapshot;
 use crate::types::EfcPercent;
 use crate::types::Ffom;
@@ -72,8 +73,14 @@ pub struct Reading {
     /// The scraped status screen, the only source of per-satellite
     /// elevation, azimuth and signal strength.
     pub screen: Option<Screen>,
-    /// What went wrong on the last failed poll.
-    pub last_error: Option<String>,
+
+    /// How old each group of fields is, and what went wrong with it.
+    ///
+    /// Carried over the wire because a client cannot otherwise tell a
+    /// reading taken a second ago from one taken before the last
+    /// outage: they arrive in the same message under the same
+    /// timestamp.
+    pub polled: Polled,
 }
 
 impl From<&Snapshot> for Reading {
@@ -99,7 +106,7 @@ impl From<&Snapshot> for Reading {
             date: s.date,
             log_count: s.log_count,
             screen: s.screen.clone(),
-            last_error: s.last_error.clone(),
+            polled: s.polled.clone(),
         }
     }
 }
