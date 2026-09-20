@@ -21,6 +21,7 @@ use interprocess::local_socket::Listener;
 use interprocess::local_socket::ListenerOptions;
 use interprocess::local_socket::Stream;
 use interprocess::local_socket::prelude::*;
+use smartclock::command::Argument;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
 use smartclock::task::Handle;
@@ -227,6 +228,9 @@ fn send(id: String, scpi: &str, handle: &Handle, info: &Info) -> Message {
     };
     let to_send = to_send.as_str();
 
+    if let Err(why) = check_argument(scpi, info.dialect) {
+        return Message::err(id, why);
+    }
     if !info.policy.allows(class) {
         return Message::err(
             id,
@@ -338,6 +342,53 @@ fn classify(scpi: &str, dialect: Dialect) -> Option<(Class, String)> {
     Some((spec.class, format!("{} {argument}", spec.scpi)))
 }
 
+/// Check a command's argument against what the table permits.
+///
+/// The receiver would refuse an out-of-range value itself, so this is
+/// defence in depth rather than a safety requirement.  What it buys is
+/// a message naming the command and the bound, and an exchange that
+/// never happened rather than one recorded in the audit trail as a
+/// command that was sent and refused.
+fn check_argument(scpi: &str, dialect: Dialect) -> Result<(), String> {
+    let (header, argument) = match scpi.split_once(char::is_whitespace) {
+        Some((header, argument)) => (header.trim(), argument.trim()),
+        None => (scpi, ""),
+    };
+    let Some(spec) = dialect
+        .specs()
+        .iter()
+        .find(|s| s.scpi.eq_ignore_ascii_case(scpi) || s.scpi.eq_ignore_ascii_case(header))
+    else {
+        return Ok(());
+    };
+    // An entry that carries its own argument, such as
+    // ":GPS:POSition:SURVey:STATe ONCE", is already complete.
+    if spec.scpi.eq_ignore_ascii_case(scpi) {
+        return Ok(());
+    }
+
+    match spec.argument {
+        Argument::Free => Ok(()),
+        Argument::None if argument.is_empty() => Ok(()),
+        Argument::None => Err(format!("{} takes no argument", spec.scpi)),
+        Argument::Integer { min, max } => match argument.parse::<i64>() {
+            Ok(value) if (min..=max).contains(&value) => Ok(()),
+            Ok(value) => Err(format!(
+                "{value} is outside {min} to {max} for {}",
+                spec.scpi
+            )),
+            Err(_) => Err(format!("{} takes a whole number", spec.scpi)),
+        },
+        Argument::Word(allowed) => {
+            if allowed.iter().any(|w| w.eq_ignore_ascii_case(argument)) {
+                Ok(())
+            } else {
+                Err(format!("{} takes one of {}", spec.scpi, allowed.join(", ")))
+            }
+        }
+    }
+}
+
 /// Guess a class for a command the table does not know.
 ///
 /// Raw passthrough is off by default and this only applies when it is
@@ -387,6 +438,7 @@ fn write_line<W: Write>(writer: &Arc<Mutex<W>>, message: &Message) -> Result<()>
 #[cfg(test)]
 mod tests {
     use super::Policy;
+    use super::check_argument;
     use super::classify;
     use super::raw_class;
     use super::well_formed;
@@ -420,6 +472,41 @@ mod tests {
         let (class, sent) = classify(":GPS:POSition:SURVey:STATe ONCE", HP).expect("known");
         assert_eq!(class, Class::Control);
         assert_eq!(sent, ":GPS:POSition:SURVey:STATe ONCE");
+    }
+
+    #[test]
+    fn an_argument_outside_its_range_is_refused_here_not_by_the_receiver() {
+        // The receiver would answer -222, but refusing it here names the
+        // command and the bound, and keeps a command that was never
+        // going to work out of the audit trail.
+        assert!(check_argument(":GPS:SATellite:TRACking:EMANgle 91", HP).is_err());
+        assert!(check_argument(":GPS:SATellite:TRACking:EMANgle -1", HP).is_err());
+        assert!(check_argument(":GPS:SATellite:TRACking:EMANgle abc", HP).is_err());
+        assert!(check_argument(":GPS:SATellite:TRACking:EMANgle 90", HP).is_ok());
+        assert!(check_argument(":GPS:SATellite:TRACking:EMANgle 0", HP).is_ok());
+    }
+
+    #[test]
+    fn a_word_argument_must_be_one_of_the_documented_ones() {
+        assert!(check_argument(":SYSTem:COMMunicate:SERial1:BAUD 38400", HP).is_err());
+        assert!(check_argument(":SYSTem:COMMunicate:SERial1:BAUD 9600", HP).is_ok());
+        // Case is the receiver's business, not the caller's.
+        assert!(check_argument(":PTIMe:TCODe:FORMat f2", HP).is_ok());
+        assert!(check_argument(":PTIMe:TCODe:FORMat F3", HP).is_err());
+    }
+
+    #[test]
+    fn a_command_taking_no_argument_is_refused_one() {
+        assert!(check_argument(":SYNChronization:HOLDover:INITiate now", HP).is_err());
+        assert!(check_argument(":SYNChronization:HOLDover:INITiate", HP).is_ok());
+        // An entry that carries its own argument is already complete.
+        assert!(check_argument(":GPS:POSition:SURVey:STATe ONCE", HP).is_ok());
+    }
+
+    #[test]
+    fn an_unconstrained_command_still_accepts_its_value() {
+        assert!(check_argument(":GPS:REFerence:ADELay +1.20000E-007", HP).is_ok());
+        assert!(check_argument(":PTIMe:TZONe -8,0", HP).is_ok());
     }
 
     #[test]

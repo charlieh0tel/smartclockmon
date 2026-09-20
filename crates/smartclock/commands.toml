@@ -14,6 +14,11 @@
 #                       keyword table, so the spelling is right even
 #                       though no such receiver has been on the line
 #            "hardware" the receiver answered it
+# argument:  what the command's argument may be, when it takes one.
+#            Absent means a query takes none and a setter takes anything
+#            the character whitelist allows.  Given, it is checked before
+#            the command reaches the receiver, so the string path
+#            validates what the typed Control handle already does.
 # cite:      page in the dialect's manual
 #
 # Sources: hp58503 from 097-59551-02 chapter 5, z3801 from 097-z3801-01
@@ -25,7 +30,7 @@
 # The 59551A-only PULSe, SENSe:TSTamp and FORMat subsystems are omitted.
 # We have no such hardware, so entries for them could never be verified.
 
-schema = 2
+schema = 3
 
 [[command]]
 id = "idn"
@@ -290,6 +295,9 @@ id = "survey_once"
 class = "control"
 doc = "Begin a position survey."
 
+  [command.argument]
+  kind = "none"
+
   [command.dialect.hp58503]
   scpi = ":GPS:POSition:SURVey:STATe ONCE"
   response = "none"
@@ -313,6 +321,10 @@ doc = "Whether a survey runs at power-up."
 id = "survey_powerup_set"
 class = "control"
 doc = "Enable or disable survey at power-up."
+
+  [command.argument]
+  kind = "word"
+  allowed = ["ON", "OFF"]
 
   [command.dialect.hp58503]
   scpi = ":GPS:POSition:SURVey:STATe:POWerup"
@@ -343,6 +355,11 @@ doc = "Elevation mask angle, degrees."
 id = "elevation_mask_set"
 class = "control"
 doc = "Set elevation mask angle, degrees."
+
+  [command.argument]
+  kind = "integer"
+  min = 0
+  max = 90
 
   [command.dialect.hp58503]
   scpi = ":GPS:SATellite:TRACking:EMANgle"
@@ -770,6 +787,11 @@ id = "holdover_thresh_set"
 class = "control"
 doc = "Set holdover duration threshold, seconds."
 
+  [command.argument]
+  kind = "integer"
+  min = 0
+  max = 31536000
+
   [command.dialect.hp58503]
   scpi = ":SYNChronization:HOLDover:DURation:THReshold"
   response = "none"
@@ -818,6 +840,9 @@ id = "holdover_initiate"
 class = "control"
 doc = "Force manual holdover."
 
+  [command.argument]
+  kind = "none"
+
   [command.dialect.hp58503]
   scpi = ":SYNChronization:HOLDover:INITiate"
   response = "none"
@@ -835,6 +860,9 @@ doc = "Force manual holdover."
 id = "holdover_recover"
 class = "control"
 doc = "Recover from manual holdover."
+
+  [command.argument]
+  kind = "none"
 
   [command.dialect.hp58503]
   scpi = ":SYNChronization:HOLDover:RECovery:INITiate"
@@ -871,6 +899,9 @@ doc = "Force recovery despite the TI limit."
 id = "sync_immediate"
 class = "control"
 doc = "Realign output 1 PPS to GPS 1 PPS."
+
+  [command.argument]
+  kind = "none"
 
   [command.dialect.hp58503]
   scpi = ":SYNChronization:IMMediate"
@@ -1274,6 +1305,10 @@ id = "timecode_format_set"
 class = "control"
 doc = "Select time code format."
 
+  [command.argument]
+  kind = "word"
+  allowed = ["F1", "F2"]
+
   [command.dialect.hp58503]
   scpi = ":PTIMe:TCODe:FORMat"
   response = "none"
@@ -1424,6 +1459,10 @@ id = "comm_baud_set"
 class = "dangerous"
 doc = "Set port 1 baud rate. Persists across power cycles."
 
+  [command.argument]
+  kind = "word"
+  allowed = ["1200", "2400", "9600", "19200"]
+
   [command.dialect.hp58503]
   scpi = ":SYSTem:COMMunicate:SERial1:BAUD"
   response = "none"
@@ -1448,6 +1487,10 @@ id = "comm_parity_set"
 class = "dangerous"
 doc = "Set port 1 parity. Persists across power cycles."
 
+  [command.argument]
+  kind = "word"
+  allowed = ["EVEN", "ODD", "NONE"]
+
   [command.dialect.hp58503]
   scpi = ":SYSTem:COMMunicate:SERial1:PARity"
   response = "none"
@@ -1471,6 +1514,10 @@ doc = "Port 1 software pacing."
 id = "comm_pace_set"
 class = "dangerous"
 doc = "Set port 1 software pacing. Persists across power cycles."
+
+  [command.argument]
+  kind = "word"
+  allowed = ["XON", "NONE"]
 
   [command.dialect.hp58503]
   scpi = ":SYSTem:COMMunicate:SERial1:PACE"
@@ -1519,6 +1566,9 @@ doc = "Restore port 1 to factory serial settings."
 id = "system_preset"
 class = "dangerous"
 doc = "Restore all receiver settings to factory values."
+
+  [command.argument]
+  kind = "none"
 
   [command.dialect.hp58503]
   scpi = ":SYSTem:PRESet"

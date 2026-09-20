@@ -25,6 +25,21 @@ struct Command {
     doc: String,
     /// Per-dialect spellings, keyed by dialect name.
     dialect: BTreeMap<String, Dialect>,
+    /// What the argument may be, when the command takes one.
+    argument: Option<Argument>,
+}
+
+/// A constraint on a command's argument, as written in the table.
+#[derive(Deserialize)]
+struct Argument {
+    /// `none`, `integer` or `word`.
+    kind: String,
+    /// Smallest permitted value, for `integer`.
+    min: Option<i64>,
+    /// Largest permitted value, for `integer`.
+    max: Option<i64>,
+    /// The permitted words, for `word`.
+    allowed: Option<Vec<String>>,
 }
 
 /// How one dialect spells a command.
@@ -51,7 +66,7 @@ struct Table {
 }
 
 /// The schema version this build script understands.
-const SCHEMA: u32 = 2;
+const SCHEMA: u32 = 3;
 
 fn variant(id: &str) -> String {
     id.split('_')
@@ -118,6 +133,31 @@ fn main() {
     out.push_str("    /// The receiver answered it.\n    Hardware,\n");
     out.push_str("}\n\n");
 
+    out.push_str("/// What a command's argument may be.\n");
+    out.push_str("///\n");
+    out.push_str(
+        "/// Checked before the command reaches the receiver, so a client\n\
+         /// sending a string gets the same validation the typed Control\n\
+         /// handle performs.  The receiver would refuse an out-of-range\n\
+         /// value itself, but refusing it here says which command and\n\
+         /// which bound, and keeps the exchange out of the audit trail as\n\
+         /// something that happened.\n",
+    );
+    out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
+    out.push_str("pub enum Argument {\n");
+    out.push_str("    /// Anything the caller likes.\n    Free,\n");
+    out.push_str("    /// The command takes no argument.\n    None,\n");
+    out.push_str(
+        "    /// A whole number within these bounds, inclusive.\n\
+         \x20   Integer {\n\
+         \x20       /// Smallest permitted value.\n        min: i64,\n\
+         \x20       /// Largest permitted value.\n        max: i64,\n\
+         \x20   },\n",
+    );
+    out.push_str("    /// One of these words, compared without case.\n");
+    out.push_str("    Word(&'static [&'static str]),\n");
+    out.push_str("}\n\n");
+
     out.push_str("/// How one dialect spells one command.\n");
     out.push_str("#[derive(Debug, Clone, Copy)]\n");
     out.push_str("pub struct Spec {\n");
@@ -132,6 +172,7 @@ fn main() {
     );
     out.push_str("    /// Manual and page the entry came from.\n    pub cite: &'static str,\n");
     out.push_str("    /// How far the entry has been confirmed.\n    pub evidence: Evidence,\n");
+    out.push_str("    /// What the argument may be.\n    pub argument: Argument,\n");
     out.push_str("}\n\n");
 
     for d in &dialects {
@@ -165,10 +206,36 @@ fn main() {
                 "hardware" => "Hardware",
                 other => panic!("unknown evidence {other:?} on command {:?}", c.id),
             };
+            let argument = match &c.argument {
+                None => "Argument::Free".to_owned(),
+                Some(a) => match a.kind.as_str() {
+                    "none" => "Argument::None".to_owned(),
+                    "integer" => format!(
+                        "Argument::Integer {{ min: {}, max: {} }}",
+                        a.min.unwrap_or(i64::MIN),
+                        a.max.unwrap_or(i64::MAX)
+                    ),
+                    "word" => {
+                        let words = a
+                            .allowed
+                            .as_ref()
+                            .map(|w| {
+                                w.iter()
+                                    .map(|s| format!("{s:?}"))
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            })
+                            .unwrap_or_default();
+                        format!("Argument::Word(&[{words}])")
+                    }
+                    other => panic!("unknown argument kind {other:?} on {:?}", c.id),
+                },
+            };
             let _ = writeln!(
                 out,
                 "    Spec {{ id: CommandId::{}, class: Class::{class}, scpi: {:?}, \
-                 response: {:?}, models: &[{models}], cite: {:?}, evidence: Evidence::{evidence} }},",
+                 response: {:?}, models: &[{models}], cite: {:?}, evidence: Evidence::{evidence}, \
+                 argument: {argument} }},",
                 variant(&c.id),
                 spec.scpi,
                 spec.response,
