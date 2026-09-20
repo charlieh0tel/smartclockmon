@@ -96,7 +96,7 @@ pub enum Request {
 #[derive(Debug, Clone, Default)]
 pub struct Shared {
     latest: Arc<Mutex<Option<Snapshot>>>,
-    subscribers: Arc<Mutex<Vec<Sender<Snapshot>>>>,
+    subscribers: Arc<Mutex<Vec<SyncSender<Snapshot>>>>,
 }
 
 impl Shared {
@@ -110,24 +110,33 @@ impl Shared {
         self.latest.lock().expect("snapshot mutex").clone()
     }
 
-    /// Receive every snapshot published from now on.
+    /// Receive the snapshots published from now on.
     ///
-    /// A subscriber that stops reading is dropped at the next publish
-    /// rather than blocking the task: the receiver must never stall
-    /// because a client went away.
+    /// The queue is bounded, and a subscriber that lets it fill is
+    /// dropped rather than being allowed to grow it.  An unbounded
+    /// channel only fails when the receiver has been *dropped*, so a
+    /// client that merely stopped reading -- suspended, or written to
+    /// only ever write -- queued a full snapshot per second in daemon
+    /// memory for as long as it held the connection.  Falling behind
+    /// costs a subscriber its subscription; it must not cost the daemon
+    /// its memory.
     pub fn subscribe(&self) -> Receiver<Snapshot> {
-        let (tx, rx) = channel();
+        let (tx, rx) = sync_channel(SUBSCRIBER_BACKLOG);
         self.subscribers.lock().expect("subscriber mutex").push(tx);
         rx
     }
 
     /// Store a snapshot and hand it to every live subscriber.
+    ///
+    /// `try_send` rather than `send`: a full queue means that
+    /// subscriber has stopped reading, and blocking here would stop the
+    /// receiver being polled at all.
     pub fn publish(&self, snapshot: Snapshot) {
         *self.latest.lock().expect("snapshot mutex") = Some(snapshot.clone());
         self.subscribers
             .lock()
             .expect("subscriber mutex")
-            .retain(|tx| tx.send(snapshot.clone()).is_ok());
+            .retain(|tx| tx.try_send(snapshot.clone()).is_ok());
     }
 
     /// Mark the last snapshot as no longer describing the receiver.
@@ -209,6 +218,13 @@ pub enum Stopped {
     /// The link failed repeatedly and the device should be reopened.
     LinkFailed(Error),
 }
+
+/// How many snapshots a subscriber may fall behind before it is
+/// dropped.
+///
+/// Enough to ride out a client pausing for a few seconds at the fast
+/// cadence, small enough that a stalled one cannot hold much.
+const SUBSCRIBER_BACKLOG: usize = 16;
 
 /// How many link failures in a row before the link is called dead.
 ///

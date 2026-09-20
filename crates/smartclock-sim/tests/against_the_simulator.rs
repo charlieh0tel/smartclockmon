@@ -260,3 +260,42 @@ fn a_failed_command_does_not_misattribute_the_next_polls_answer() {
     drop(handle);
     joiner.join().expect("the device thread");
 }
+
+#[test]
+fn a_subscriber_that_stops_reading_is_dropped_not_indulged() {
+    // An unbounded channel only fails once the receiver is dropped, so
+    // a client that merely stopped reading queued a full snapshot per
+    // second in daemon memory for as long as it held the connection.
+    // Falling behind should cost the subscriber its subscription.
+    let (handle, joiner) = task::spawn(
+        device(Receiver::default()),
+        Cadence {
+            fast: Duration::from_millis(5),
+            medium: Duration::from_secs(60),
+            slow: Duration::from_secs(60),
+        },
+    );
+    let stalled = handle.subscribe();
+    let reading = handle.subscribe();
+
+    // Let the stalled subscriber overflow while the other keeps up.
+    let mut seen = 0;
+    for _ in 0..60 {
+        if reading.recv_timeout(Duration::from_secs(2)).is_ok() {
+            seen += 1;
+        }
+    }
+    assert!(seen > 20, "the attentive subscriber only saw {seen}");
+
+    // The stalled one holds at most its backlog, not one per poll.
+    let queued = stalled.try_iter().count();
+    assert!(
+        queued <= 16,
+        "a subscriber that never read accumulated {queued} snapshots"
+    );
+
+    drop(reading);
+    drop(stalled);
+    drop(handle);
+    joiner.join().expect("the device thread");
+}

@@ -307,13 +307,16 @@ fn start_server(listening: Listening<'_>) -> Result<()> {
         .to_fs_name::<GenericFilePath>()
         .context("naming the socket")?
         .into_owned();
+    // Bound here, not in the serving thread, so a failure is reported
+    // to whoever started the daemon rather than to a dying thread.
+    let listener = server::bind(name)?;
     let handle = Handle::new(listening.requests.clone(), listening.shared.clone());
     let info = listening.info;
     let where_to = socket.display().to_string();
     thread::Builder::new()
         .name("smartclockd-socket".to_owned())
         .spawn(move || {
-            if let Err(e) = server::serve(name, handle, info) {
+            if let Err(e) = server::serve(listener, handle, info) {
                 eprintln!("smartclockd: socket server stopped: {e}");
             }
         })

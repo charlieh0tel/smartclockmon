@@ -17,6 +17,7 @@ use std::thread;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use interprocess::local_socket::Listener;
 use interprocess::local_socket::ListenerOptions;
 use interprocess::local_socket::Stream;
 use interprocess::local_socket::prelude::*;
@@ -82,17 +83,21 @@ pub(crate) struct Info {
     pub audit: Audit,
 }
 
-/// Listen for clients until the process ends.
-pub(crate) fn serve(
-    name: interprocess::local_socket::Name<'static>,
-    handle: Handle,
-    info: Info,
-) -> Result<()> {
-    let listener = ListenerOptions::new()
+/// Bind the socket.
+///
+/// Separate from [`serve`] so a bind failure reaches the caller.  When
+/// the bind happened inside the serving thread, a daemon that could not
+/// bind printed one line from a dying thread and then ran forever
+/// claiming to listen.
+pub(crate) fn bind(name: interprocess::local_socket::Name<'static>) -> Result<Listener> {
+    ListenerOptions::new()
         .name(name)
         .create_sync()
-        .context("binding the local socket")?;
+        .context("binding the local socket")
+}
 
+/// Listen for clients until the process ends.
+pub(crate) fn serve(listener: Listener, handle: Handle, info: Info) -> Result<()> {
     for incoming in listener.incoming() {
         let stream = match incoming {
             Ok(stream) => stream,
@@ -105,14 +110,20 @@ pub(crate) fn serve(
         };
         let handle = handle.clone();
         let info = info.clone();
-        thread::Builder::new()
+        // A spawn failure must not end the accept loop.  It used to
+        // propagate, so one transient EAGAIN under thread pressure left
+        // the daemon polling and logging, looking healthy, while no
+        // client could ever connect again.
+        let spawned = thread::Builder::new()
             .name("smartclockd-client".to_owned())
             .spawn(move || {
                 if let Err(e) = talk(stream, &handle, &info) {
                     eprintln!("smartclockd: client ended: {e}");
                 }
-            })
-            .context("spawning a client thread")?;
+            });
+        if let Err(e) = spawned {
+            eprintln!("smartclockd: could not serve a client: {e}");
+        }
     }
     Ok(())
 }

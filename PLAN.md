@@ -663,8 +663,6 @@ From the September 2026 review, not yet fixed, roughly by severity.
 
 | Where | What |
 | ----- | ---- |
-| `task.rs` | Subscriber channels are unbounded and a stalled client is never dropped, contrary to what the doc comment says.  A suspended client grows daemon memory without limit. |
-| `server.rs` | A failed thread spawn ends the accept loop permanently, and the bind happens after `start_server` has already reported success. |
 | `smartclockd/src/main.rs` | `Info`, including the dialect, is frozen at the first connection, so after a reconnect to a different model the gate classifies against the wrong table. |
 | `commands.toml` | Argument ranges are not validated on the string path; `Control` validates, the daemon does not. |
 | `task.rs` | Polls take absolute priority over the request queue, so a tier as slow as its period starves client commands indefinitely.  Cadence also drifts, since the next deadline is measured from the end of a poll. |
