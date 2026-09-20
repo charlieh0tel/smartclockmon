@@ -660,14 +660,16 @@ Suggest a commit at each phase boundary.
 ## Known defects
 
 From the September 2026 review.  Everything of consequence is fixed;
-what remains is listed so it is somewhere other than a chat log.
+what remains is recorded here so it is somewhere other than a chat log.
 
 | Where | What |
 | ----- | ---- |
-|  | A client thread has no idle timeout and there is no cap on concurrent connections, so any local process able to open the socket can spawn daemon threads.  Socket permissions are the only limit, by design. |
-|  | A request line is read without a length cap, so a client that never sends a newline grows one string in the daemon. |
-|  | The same, in the simulator:  grows without bound, and the error queue with it. |
-|  | Audit entries are written when the next snapshot publishes rather than at once, and anything still queued at shutdown is lost. |
-|  | Commands queued while the link is down are executed on reconnect, however long that took, and  waits for them without a timeout. |
-|  | A deserialised epoch count large enough to overflow jiff panics in .  Unreachable from , reachable from a hostile reading. |
-|  | The socket''s mode is never set explicitly; it inherits the umask, which is the whole authorization boundary. |
+| `server.rs` | A client thread has no idle timeout and there is no cap on concurrent connections, so any local process able to open the socket can spawn daemon threads.  Socket permissions are the only limit, by design. |
+| `server.rs` | A request line is read without a length cap, so a client that never sends a newline grows one string in the daemon. |
+| `smartclock-sim` | The same in the simulator: the partial-command buffer grows without bound, and the error queue with it. |
+| `smartclockd/src/main.rs` | Audit entries are written when the next snapshot publishes rather than at once, and anything still queued at shutdown is lost. |
+| `task.rs` | Commands queued while the link is down are run on reconnect, however long that took, and `Handle::request` waits for them without a timeout. |
+| `rollover.rs` | A deserialised epoch count large enough to overflow jiff panics in `corrected()`.  Unreachable from `checked()`, reachable from a hostile reading. |
+| `smartclockd` | The socket's mode is never set explicitly; it inherits the umask, and socket permissions are the whole authorization boundary. |
+| `transport/replay.rs` | Strict replay accepts extra unrecorded writes, so a test can pass while sending commands absent from the capture. |
+| `transport/tee.rs` | A coalesced run has no size cap and no idle flush, so a long one-directional stream stays buffered. |
