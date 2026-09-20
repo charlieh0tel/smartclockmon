@@ -207,3 +207,54 @@ fn every_fixture_yields_the_core_fields() {
         );
     }
 }
+
+#[test]
+fn the_panel_fields_read_from_the_live_screen() {
+    let s = screen::parse(&fixture("58503a-live-01.txt"));
+    assert_eq!(s.time_interval.as_deref(), Some("-4.8 ns"));
+    assert_eq!(s.hold_threshold.as_deref(), Some("1.000 us"));
+    assert_eq!(
+        s.holdover_predict.as_deref(),
+        Some("432.0 us/initial 24 hrs")
+    );
+    assert_eq!(s.time_scale.as_deref(), Some("UTC"));
+    assert_eq!(s.time.as_deref(), Some("20:04:20"));
+    assert_eq!(s.date.as_deref(), Some("04 Feb 2007"));
+    assert!(!s.time_suspect);
+    assert_eq!(s.sync_status.as_deref(), Some("Synchronized to UTC"));
+    // In hold, the position carries no AVG or INIT prefix.
+    assert_eq!(s.position_label.as_deref(), Some("HOLD"));
+    assert_eq!(s.survey_percent, None);
+}
+
+#[test]
+fn a_placeholder_reads_as_absent_rather_than_as_text() {
+    // 58503a-03 prints "1PPS TI --" and "Predict 432.0 us/initial..."
+    // while in holdover.  A "--" must not become the string "--".
+    let s = screen::parse(&fixture("58503a-03.txt"));
+    assert_eq!(s.time_interval, None);
+    assert_eq!(s.hold_threshold.as_deref(), Some("1.000 us"));
+    assert_eq!(s.sync_status.as_deref(), Some("Inaccurate: not tracking"));
+}
+
+#[test]
+fn a_suspect_time_is_flagged_and_not_folded_into_the_clock() {
+    // 58503b-01 prints "UTC 12:00:00[?] 01 Jan 1996" at power-up.
+    let s = screen::parse(&fixture("58503b-01.txt"));
+    assert!(s.time_suspect, "the [?] marker was missed");
+    assert_eq!(s.time.as_deref(), Some("12:00:00"));
+    assert_eq!(s.date.as_deref(), Some("01 Jan 1996"));
+    // Seeded position, not yet surveyed.
+    assert_eq!(s.position_label.as_deref(), Some("INIT"));
+    assert_eq!(s.survey_percent, Some(0.0));
+    assert_eq!(s.survey_suspended.as_deref(), Some("track <4 sats"));
+}
+
+#[test]
+fn a_survey_in_progress_reports_its_percentage() {
+    // 58503a-01 prints "MODE  Survey: 1.2%    complete" with AVG
+    // position labels.
+    let s = screen::parse(&fixture("58503a-01.txt"));
+    assert_eq!(s.survey_percent, Some(1.2));
+    assert_eq!(s.position_label.as_deref(), Some("AVG"));
+}

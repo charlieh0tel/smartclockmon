@@ -1,11 +1,9 @@
 # Status screen format strings
 
-Extracted from `the keyword table` with `strings`.  The Z3801A and
-the 58503A are not the same firmware and their wording differs -- the
-58503A says `stabilizing frequency`, which does not appear here -- but
-the layout, the field widths and the set of variant strings are shared,
-and this enumerates them exactly rather than leaving them to be guessed
-from the handful of screens in the manuals.
+Extracted from `the keyword table` with `strings`.  The Z3801A and the 58503A are not the same firmware, but the layout, the
+field widths and the set of variant strings are shared, and this
+enumerates them exactly rather than leaving them to be guessed from the
+handful of screens in the manuals.
 
 Regenerate with:
 
@@ -54,6 +52,9 @@ tracked group from the untracked one.  Cell contents:
 Appended to the mode marked `>>`.  Long and short forms are chosen by
 available width:
 
+    : stabilizing frequency
+    : manually initiated
+    : GPS 1PPS CLK invalid
     : OCXO warm-up
     : GPS acquisition
     : coarse freq adj            : coarse frequency adjustment
@@ -66,6 +67,7 @@ available width:
     Synchronized to UTC
     Synchronized to GPS Time
     Assessing stability          plus '.', '..', '...' frames
+    [?]                          appended to a time that is suspect
     Invalid: not tracking
     Invalid: GPS rcvr err
     Invalid: inacc position
@@ -76,7 +78,8 @@ available width:
 
     MODE
     Navigation
-    Survey:              with '    0', ' <0.1' and '% complete'
+    Hold
+    Survey:              with '    0', ' <0.1', '>99.9', '%5.1f', '% complete'
     %9sSuspended: %13.13s
     no track data
     track <4 sats
@@ -92,6 +95,7 @@ available width:
     %02d %s %04d
     -- --- ----
     LOCL GPS             which scale the displayed time is on
+    LOCAL
 
 ## Other
 

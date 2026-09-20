@@ -8,7 +8,12 @@
 #            dangerous  can strand the link or wipe configuration
 # response:  parser name; see crates/smartclock/src/parse
 # models:    which receivers expose this command
-# verified:  confirmed against hardware.  Nothing is, yet.
+# evidence:  how far the entry has been confirmed --
+#            "manual"   transcribed from the document only
+#            "firmware" every keyword found in the firmware's own
+#                       keyword table, so the spelling is right even
+#                       though no such receiver has been on the line
+#            "hardware" the receiver answered it
 # cite:      page in the dialect's manual
 #
 # Sources: hp58503 from 097-59551-02 chapter 5, z3801 from 097-z3801-01
@@ -17,7 +22,7 @@
 # The 59551A-only PULSe, SENSe:TSTamp and FORMat subsystems are omitted.
 # We have no such hardware, so entries for them could never be verified.
 
-schema = 1
+schema = 2
 
 [[command]]
 id = "idn"
@@ -29,13 +34,13 @@ doc = "Receiver identification string."
   response = "idn"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-113"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = "*IDN?"
   response = "idn"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "cls"
@@ -47,13 +52,13 @@ doc = "Clear event status registers and error queue."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-45"
-  verified = false
+  evidence = "manual"
   [command.dialect.z3801]
   scpi = "*CLS"
   response = "none"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "selftest"
@@ -65,13 +70,13 @@ doc = "Run internal selftest; 0 passed."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-70"
-  verified = false
+  evidence = "manual"
   [command.dialect.z3801]
   scpi = "*TST?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "ese_set"
@@ -83,7 +88,7 @@ doc = "Set standard event status enable register."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-62"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "ese"
@@ -95,13 +100,13 @@ doc = "Standard event status enable register."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-62"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = "*ESE?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "esr"
@@ -113,13 +118,13 @@ doc = "Read and clear standard event status register."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-64"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = "*ESR?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "sre_set"
@@ -131,7 +136,7 @@ doc = "Set service request enable register."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-47"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "sre"
@@ -143,13 +148,13 @@ doc = "Service request enable register."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-47"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = "*SRE?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "stb"
@@ -161,13 +166,13 @@ doc = "Status byte register."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-48"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = "*STB?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "position_avg"
@@ -179,13 +184,13 @@ doc = "Averaged antenna position."
   response = "position"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-9"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:GPSystem:POSition?"
   response = "position"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "position_actual"
@@ -197,7 +202,7 @@ doc = "Instantaneous antenna position."
   response = "position"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-11"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "position_set"
@@ -209,7 +214,7 @@ doc = "Place receiver in position hold at a given location."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-9"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "position_hold_last"
@@ -221,13 +226,13 @@ doc = "Last position-hold location."
   response = "position"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-13"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:GPSystem:POSition:HOLD:LAST?"
   response = "position"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "position_hold_state"
@@ -239,7 +244,7 @@ doc = "Whether the receiver is in position hold."
   response = "bool01"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-14"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "survey_progress"
@@ -251,13 +256,13 @@ doc = "Survey completion, percent."
   response = "real"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-16"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:GPSystem:POSition:SURVey:PROGress?"
   response = "real"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "survey_state"
@@ -269,13 +274,13 @@ doc = "Survey state; 0 once position hold is attained."
   response = "word"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-17"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:GPSystem:POSition:SURVey:STATe?"
   response = "word"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "survey_once"
@@ -287,7 +292,7 @@ doc = "Begin a position survey."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-17"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "survey_powerup"
@@ -299,7 +304,7 @@ doc = "Whether a survey runs at power-up."
   response = "bool01"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-19"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "survey_powerup_set"
@@ -311,7 +316,7 @@ doc = "Enable or disable survey at power-up."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-19"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "elevation_mask"
@@ -323,13 +328,13 @@ doc = "Elevation mask angle, degrees."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-21"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:GPSystem:EMANgle?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "elevation_mask_set"
@@ -341,7 +346,7 @@ doc = "Set elevation mask angle, degrees."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-21"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "sat_ignore"
@@ -353,13 +358,13 @@ doc = "Satellites excluded from tracking."
   response = "int_list"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-23"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:GPSystem:SATellite:TRACking:IGNore?"
   response = "int_list"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "sat_ignore_set"
@@ -371,7 +376,7 @@ doc = "Exclude satellites from tracking."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-23"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "sat_ignore_count"
@@ -383,7 +388,7 @@ doc = "Count of ignored satellites."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-24"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "sat_include"
@@ -395,13 +400,13 @@ doc = "Satellites considered for tracking."
   response = "int_list"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-23"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:GPSystem:SATellite:TRACking:INCLude?"
   response = "int_list"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "sat_include_set"
@@ -413,7 +418,7 @@ doc = "Include satellites for tracking."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-23"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "antenna_delay"
@@ -425,13 +430,13 @@ doc = "Antenna cable delay, seconds."
   response = "real"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-25"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:GPSystem:ADELay?"
   response = "real"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "antenna_delay_set"
@@ -443,7 +448,7 @@ doc = "Set antenna cable delay, seconds."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-25"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "time_valid"
@@ -455,7 +460,7 @@ doc = "Whether date and time are valid."
   response = "bool01"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-26"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "sat_tracking"
@@ -467,13 +472,13 @@ doc = "PRNs currently tracked; 0 means none."
   response = "int_list"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-22"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:GPSystem:SATellite:TRACking?"
   response = "int_list"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "sat_tracking_count"
@@ -485,13 +490,13 @@ doc = "Number of satellites tracked."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-22"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:GPSystem:SATellite:TRACking:COUNt?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "sat_visible"
@@ -503,13 +508,13 @@ doc = "PRNs the almanac predicts are visible."
   response = "int_list"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-24"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:GPSystem:SATellite:VISible:PREDicted?"
   response = "int_list"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "sat_visible_count"
@@ -521,13 +526,13 @@ doc = "Count of predicted-visible satellites."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-24"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:GPSystem:SATellite:VISible:PREDicted:COUNt?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "initial_date_set"
@@ -539,7 +544,7 @@ doc = "Seed date to speed first acquisition."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-7"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "initial_time_set"
@@ -551,7 +556,7 @@ doc = "Seed time to speed first acquisition."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-8"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "initial_pos_set"
@@ -563,7 +568,7 @@ doc = "Seed position to speed first acquisition."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-7"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "sync_state"
@@ -575,13 +580,13 @@ doc = "SmartClock mode."
   response = "enum:SmartClockMode"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-27"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":ROSCillator:STATe?"
   response = "enum:SmartClockMode"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "efc"
@@ -593,13 +598,13 @@ doc = "Oscillator EFC output, percent, -100 to +100."
   response = "real"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-28"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":DIAGnostic:ROSCillator:EFControl:RELative?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "led_gpslock"
@@ -611,13 +616,13 @@ doc = "GPS Lock LED state."
   response = "bool01"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-29"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":LED:GPSLock?"
   response = "bool01"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "led_holdover"
@@ -629,13 +634,13 @@ doc = "Holdover LED state."
   response = "bool01"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-29"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":LED:HOLDover?"
   response = "bool01"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "ffom"
@@ -647,13 +652,13 @@ doc = "Frequency figure of merit."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-30"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:FFOMerit?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "tfom"
@@ -665,7 +670,7 @@ doc = "Time figure of merit."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-33"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "tinterval"
@@ -677,13 +682,13 @@ doc = "1 PPS to GPS 1 PPS interval, seconds."
   response = "real"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-34"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:TINTerval?"
   response = "real"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "holdover_unc_pred"
@@ -695,13 +700,13 @@ doc = "Predicted one-day holdover time error, seconds."
   response = "real_bool"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-31"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":ROSCillator:HOLDover:TUNCertainty:PREDicted?"
   response = "real_bool"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "holdover_unc_now"
@@ -713,13 +718,13 @@ doc = "Present holdover time error, seconds."
   response = "real"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-32"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":ROSCillator:HOLDover:TUNCertainty:PRESent?"
   response = "real"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "holdover_duration"
@@ -731,13 +736,13 @@ doc = "Holdover duration, seconds, and whether in holdover."
   response = "real_bool"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-35"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":ROSCillator:HOLDover:DURation?"
   response = "real_bool"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "holdover_thresh"
@@ -749,13 +754,13 @@ doc = "Holdover duration threshold, seconds."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-35"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":ROSCillator:HOLDover:DURation:THReshold?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "holdover_thresh_set"
@@ -767,7 +772,7 @@ doc = "Set holdover duration threshold, seconds."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-35"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "holdover_exceeded"
@@ -779,13 +784,13 @@ doc = "Whether holdover exceeded its threshold."
   response = "bool01"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-35"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":ROSCillator:HOLDover:DURation:THReshold:EXCeeded?"
   response = "bool01"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "holdover_waiting"
@@ -797,13 +802,13 @@ doc = "Why the receiver is waiting to recover."
   response = "enum:HoldoverWaitReason"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-36"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":ROSCillator:HOLDover:WAITing?"
   response = "enum:HoldoverWaitReason"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "holdover_initiate"
@@ -815,13 +820,13 @@ doc = "Force manual holdover."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-36"
-  verified = false
+  evidence = "manual"
   [command.dialect.z3801]
   scpi = ":ROSCillator:HOLDover:INITiate"
   response = "none"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "holdover_recover"
@@ -833,13 +838,13 @@ doc = "Recover from manual holdover."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-37"
-  verified = false
+  evidence = "manual"
   [command.dialect.z3801]
   scpi = ":ROSCillator:HOLDover:RECovery:INITiate"
   response = "none"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "holdover_limit_ignore"
@@ -851,13 +856,13 @@ doc = "Force recovery despite the TI limit."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-37"
-  verified = false
+  evidence = "manual"
   [command.dialect.z3801]
   scpi = ":ROSCillator:HOLDover:RECovery:LIMit:IGNore"
   response = "none"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "sync_immediate"
@@ -869,13 +874,13 @@ doc = "Realign output 1 PPS to GPS 1 PPS."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-38"
-  verified = false
+  evidence = "manual"
   [command.dialect.z3801]
   scpi = ":PTIMe:SYNChronization:IMMediate"
   response = "none"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "status_screen"
@@ -887,13 +892,13 @@ doc = "Formatted receiver status screen."
   response = "status_screen"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-30"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":SYSTem:STATus?"
   response = "status_screen"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "status_screen_lines"
@@ -905,7 +910,7 @@ doc = "Line count of the status screen."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-31"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "error"
@@ -917,13 +922,13 @@ doc = "Oldest error in the queue; removes it."
   response = "error"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-31"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":SYSTem:ERRor?"
   response = "error"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "log_read_all"
@@ -935,7 +940,7 @@ doc = "All diagnostic log entries."
   response = "string_list"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-32"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "log_count"
@@ -947,13 +952,13 @@ doc = "Number of diagnostic log entries."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-33"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":DIAGnostic:LOG:COUNt?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "log_read"
@@ -965,13 +970,13 @@ doc = "One diagnostic log entry."
   response = "string"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-33"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":DIAGnostic:LOG:READ?"
   response = "string"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "log_clear"
@@ -983,13 +988,13 @@ doc = "Clear the diagnostic log."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-32"
-  verified = false
+  evidence = "manual"
   [command.dialect.z3801]
   scpi = ":DIAGnostic:LOG:CLEar"
   response = "none"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "led_alarm"
@@ -1001,13 +1006,13 @@ doc = "Front-panel Alarm LED state."
   response = "bool01"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-46"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":LED:ALARm?"
   response = "bool01"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "status_preset_alarm"
@@ -1019,13 +1024,13 @@ doc = "Restore factory alarm reporting conditions."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-45"
-  verified = false
+  evidence = "manual"
   [command.dialect.z3801]
   scpi = ":STATus:PRESet:ALARm"
   response = "none"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "oper_condition"
@@ -1037,13 +1042,13 @@ doc = "Operation condition register."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-50"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":STATus:OPERation:CONDition?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "oper_event"
@@ -1055,7 +1060,7 @@ doc = "Operation event register."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-50"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "hardware_condition"
@@ -1067,13 +1072,13 @@ doc = "Hardware condition register; EFC full-scale is bits 6 and 7."
   response = "bits:HardwareCondition"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-52"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":STATus:OPERation:HARDware:CONDition?"
   response = "bits:HardwareCondition"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "hardware_event"
@@ -1085,7 +1090,7 @@ doc = "Hardware event register."
   response = "bits:HardwareCondition"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-52"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "holdover_condition"
@@ -1097,13 +1102,13 @@ doc = "Holdover condition register."
   response = "bits:HoldoverCondition"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-54"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":STATus:OPERation:HOLDover:CONDition?"
   response = "bits:HoldoverCondition"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "holdover_event"
@@ -1115,7 +1120,7 @@ doc = "Holdover event register."
   response = "bits:HoldoverCondition"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-54"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "powerup_condition"
@@ -1127,13 +1132,13 @@ doc = "Power-up condition register."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-56"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":STATus:OPERation:POWerup:CONDition?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "quest_condition"
@@ -1145,13 +1150,13 @@ doc = "Questionable condition register."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-58"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":STATus:QUEStionable:CONDition?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "quest_event"
@@ -1163,7 +1168,7 @@ doc = "Questionable event register."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-58"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "lifetime_count"
@@ -1175,13 +1180,13 @@ doc = "Total powered-on time."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-71"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":DIAGnostic:LIFetime:COUNt?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "diag_test"
@@ -1193,7 +1198,7 @@ doc = "Run a subsystem selftest. Requires a subsystem parameter; a bare send is 
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-71"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "diag_test_result"
@@ -1205,7 +1210,7 @@ doc = "Result of the last subsystem selftest."
   response = "int_string"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-72"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "query_response"
@@ -1217,13 +1222,13 @@ doc = "Repeat the last response after a transmission error."
   response = "raw"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-108"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":DIAGnostic:QUERy:RESPonse?"
   response = "raw"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "timecode"
@@ -1235,13 +1240,13 @@ doc = "Time code message for the next 1 PPS."
   response = "timecode"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-73"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:TCODe?"
   response = "timecode"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "timecode_format"
@@ -1253,13 +1258,13 @@ doc = "Time code format, F1 or F2."
   response = "word"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-73"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:TCODe:FORMat?"
   response = "word"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "timecode_format_set"
@@ -1271,7 +1276,7 @@ doc = "Select time code format."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-73"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "date"
@@ -1283,7 +1288,7 @@ doc = "Current date."
   response = "ymd"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-76"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "time"
@@ -1295,7 +1300,7 @@ doc = "Current time."
   response = "hms"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-77"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "time_string"
@@ -1307,7 +1312,7 @@ doc = "Current time as a string."
   response = "string"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-78"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "tzone"
@@ -1319,7 +1324,7 @@ doc = "Local time zone offset from UTC."
   response = "hm"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-79"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "tzone_set"
@@ -1331,7 +1336,7 @@ doc = "Set local time zone offset from UTC."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-79"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "leap_accumulated"
@@ -1343,13 +1348,13 @@ doc = "GPS minus UTC, seconds."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-80"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":PTIMe:LEAPsecond:ACCumulated?"
   response = "int"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "leap_date"
@@ -1361,7 +1366,7 @@ doc = "Date of the pending leap second."
   response = "ymd"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-81"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "leap_duration"
@@ -1373,7 +1378,7 @@ doc = "Sign and size of the pending leap second."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-81"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "leap_state"
@@ -1385,7 +1390,7 @@ doc = "Whether a leap second is pending."
   response = "bool01"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-82"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "comm_settings"
@@ -1397,7 +1402,7 @@ doc = "Current serial port settings."
   response = "word"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-100"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "comm_baud"
@@ -1409,7 +1414,7 @@ doc = "Port 1 baud rate."
   response = "int"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-101"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "comm_baud_set"
@@ -1421,7 +1426,7 @@ doc = "Set port 1 baud rate. Persists across power cycles."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-101"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "comm_parity"
@@ -1433,7 +1438,7 @@ doc = "Port 1 parity."
   response = "word"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-104"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "comm_parity_set"
@@ -1445,7 +1450,7 @@ doc = "Set port 1 parity. Persists across power cycles."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-104"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "comm_pace"
@@ -1457,7 +1462,7 @@ doc = "Port 1 software pacing."
   response = "word"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-103"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "comm_pace_set"
@@ -1469,7 +1474,7 @@ doc = "Set port 1 software pacing. Persists across power cycles."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-103"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "comm_fduplex"
@@ -1481,7 +1486,7 @@ doc = "Port 1 full duplex setting."
   response = "bool01"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-102"
-  verified = true
+  evidence = "hardware"
 
 [[command]]
 id = "comm_fduplex_set"
@@ -1493,7 +1498,7 @@ doc = "Set port 1 full duplex. Persists across power cycles."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-102"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "comm_preset"
@@ -1505,7 +1510,7 @@ doc = "Restore port 1 to factory serial settings."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-109"
-  verified = false
+  evidence = "manual"
 
 [[command]]
 id = "system_preset"
@@ -1517,13 +1522,13 @@ doc = "Restore all receiver settings to factory values."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-111"
-  verified = false
+  evidence = "manual"
   [command.dialect.z3801]
   scpi = ":SYSTem:PRESet"
   response = "none"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "language"
@@ -1535,13 +1540,13 @@ doc = "Command language, PRIMARY or INSTALL."
   response = "string"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-116"
-  verified = true
+  evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":SYSTem:LANGuage?"
   response = "string"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "language_set"
@@ -1553,13 +1558,13 @@ doc = "Switch command language. INSTALL disables normal operation."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-116"
-  verified = false
+  evidence = "manual"
   [command.dialect.z3801]
   scpi = ":SYSTem:LANGuage"
   response = "none"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "firmware"
 
 [[command]]
 id = "flash_erase"
@@ -1571,10 +1576,10 @@ doc = "Erase flash. Firmware download only."
   response = "none"
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-115"
-  verified = false
+  evidence = "manual"
   [command.dialect.z3801]
   scpi = ":DIAGnostic:ERASe"
   response = "none"
   models = ["Z3801A", "Z3816A"]
   cite = "097-z3801-01 4-2"
-  verified = false
+  evidence = "manual"

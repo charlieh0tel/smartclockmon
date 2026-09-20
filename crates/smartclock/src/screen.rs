@@ -44,8 +44,33 @@ pub struct Screen {
     pub elevation_mask: Option<i16>,
     /// Antenna delay in nanoseconds.
     pub antenna_delay_ns: Option<i64>,
-    /// The position MODE field, such as `Hold` or `Survey: 71.1%`.
+    /// The position MODE field, such as `Hold`, `Navigation` or
+    /// `Survey: 71.1% complete`.
     pub position_mode: Option<String>,
+    /// Survey completion, when surveying.
+    pub survey_percent: Option<f64>,
+    /// Why a survey is suspended, such as `track <4 sats`.
+    pub survey_suspended: Option<String>,
+    /// `1PPS TI` as printed, or absent when the screen shows `--`.
+    pub time_interval: Option<String>,
+    /// `HOLD THR` as printed, or absent when the screen shows `Off`.
+    pub hold_threshold: Option<String>,
+    /// The predicted 24 hour holdover uncertainty as printed.
+    pub holdover_predict: Option<String>,
+    /// Time of day as printed.
+    pub time: Option<String>,
+    /// Date as printed.
+    pub date: Option<String>,
+    /// Whether the screen marked the time suspect with `[?]`.
+    pub time_suspect: bool,
+    /// Which scale the displayed time is on: `UTC`, `GPS` or `LOCL`.
+    pub time_scale: Option<String>,
+    /// The 1 PPS synchronization line, such as `Synchronized to UTC` or
+    /// `Invalid: not tracking`.
+    pub sync_status: Option<String>,
+    /// Whether position is labelled `AVG`, `INIT` or plain, which says
+    /// whether the receiver is surveying, seeded, or in hold.
+    pub position_label: Option<String>,
 }
 
 /// Parse a status screen.
@@ -105,9 +130,120 @@ pub fn parse(screen: &str) -> Screen {
             .and_then(|v| v.parse().ok());
     }
 
+    if let Some(mode) = &out.position_mode {
+        out.survey_percent = mode
+            .split_once("Survey:")
+            .and_then(|(_, r)| r.split('%').next())
+            .map(str::trim)
+            .and_then(|v| v.trim_start_matches(['<', '>']).parse().ok());
+    }
+    out.survey_suspended = lines
+        .iter()
+        .find_map(|l| l.split_once("Suspended:"))
+        .map(|(_, r)| collapse(r));
+
     out.satellites = satellites(&lines);
     out.health_items = health_items(&lines);
+    panel_fields(&lines, boundary, &mut out);
     out
+}
+
+/// Values printed in the right-hand panel.
+///
+/// The firmware's format strings, recovered in
+/// `docs/screen-format-strings.md`, enumerate what each of these can
+/// hold.  Several print a placeholder instead of a value: `1PPS TI --`,
+/// `HOLD THR  Off`, `Predict --`, `--:--:--` and `-- --- ----`.  Those
+/// become absent rather than being carried around as strings that look
+/// like data.
+fn panel_fields(lines: &[&str], boundary: usize, out: &mut Screen) {
+    /// Placeholders the firmware prints when a value is unavailable.
+    const ABSENT: [&str; 5] = ["--", "---", "Off", "--:--:--", "-- --- ----"];
+    let absent = |v: &str| v.is_empty() || ABSENT.contains(&v);
+
+    for line in lines {
+        let panel = panel_of(line, boundary);
+        if panel.is_empty() {
+            continue;
+        }
+        if let Some(rest) = panel.trim_start().strip_prefix("1PPS TI") {
+            // The suffix varies with width: "relative to GPS", "rel to
+            // GPS" or "rel GPS".  Only the value before it is wanted.
+            let value = collapse(rest.split(" rel").next().unwrap_or(rest));
+            out.time_interval = (!absent(&value)).then_some(value);
+        }
+        if let Some(rest) = panel.trim_start().strip_prefix("HOLD THR") {
+            let value = collapse(rest);
+            out.hold_threshold = (!absent(&value)).then_some(value);
+        }
+        if let Some(rest) = panel.trim_start().strip_prefix("Predict") {
+            let value = collapse(rest);
+            out.holdover_predict = (!absent(&value)).then_some(value);
+        }
+        parse_time_line(panel, &mut *out, absent);
+        parse_position_line(panel, out);
+        if panel.contains("Synchronized to") || panel.starts_with("GPS 1PPS") {
+            let text = collapse(panel.trim_start().trim_start_matches("GPS 1PPS"));
+            if !text.is_empty() {
+                out.sync_status = Some(text);
+            }
+        }
+    }
+}
+
+/// The `UTC hh:mm:ss dd Mon yyyy` line, whose scale label varies.
+fn parse_time_line(panel: &str, out: &mut Screen, absent: impl Fn(&str) -> bool) {
+    let trimmed = panel.trim_start();
+    let Some(scale) = ["UTC", "GPS", "LOCL", "LOCAL"]
+        .into_iter()
+        .find(|s| trimmed.starts_with(s))
+    else {
+        return;
+    };
+    // "GPS 1PPS ..." also starts with GPS but is the status line.
+    let rest = trimmed[scale.len()..].trim_start();
+    if rest.starts_with("1PPS") {
+        return;
+    }
+    let mut fields = rest.split_whitespace();
+    let Some(clock) = fields.next() else { return };
+    // A questionable time is marked "[?]", sometimes joined to the
+    // clock and sometimes standing alone.
+    let suspect = rest.contains("[?]");
+    let clock = clock.trim_end_matches("[?]");
+    out.time_scale = Some(scale.to_owned());
+    out.time_suspect = suspect;
+    out.time = (!absent(clock)).then(|| clock.to_owned());
+    let date = collapse(&rest[rest.find(clock).map_or(0, |i| i + clock.len())..])
+        .replace("[?]", "")
+        .trim()
+        .to_owned();
+    out.date = (!absent(&date)).then_some(date);
+}
+
+/// The `LAT` line, whose label says what kind of position it is.
+fn parse_position_line(panel: &str, out: &mut Screen) {
+    let trimmed = panel.trim_start();
+    for label in ["AVG LAT", "INIT LAT", "LAT"] {
+        if trimmed.starts_with(label) {
+            out.position_label = Some(
+                label
+                    .strip_suffix(" LAT")
+                    .filter(|l| !l.is_empty())
+                    .unwrap_or("HOLD")
+                    .to_owned(),
+            );
+            return;
+        }
+    }
+}
+
+/// The part of a line right of the satellite table.
+fn panel_of(line: &str, boundary: usize) -> &str {
+    match line.char_indices().nth(boundary) {
+        Some((at, _)) => &line[at..],
+        None => "",
+    }
 }
 
 /// The text inside `[ ... ]` on the line carrying `label`.

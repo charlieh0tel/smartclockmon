@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use smartclock::command::Class;
 use smartclock::command::Dialect;
+use smartclock::command::Evidence;
 
 const DIALECTS: [Dialect; 2] = [Dialect::Hp58503, Dialect::Z3801];
 
@@ -92,16 +93,33 @@ fn the_z3801_tree_is_a_subset_of_the_primary_one() {
 }
 
 #[test]
-fn the_z3801_tree_is_still_unverified() {
-    // No Z3801A hardware.  Those entries came from 097-z3801-01 and
-    // nothing has confirmed them, so none may claim otherwise.
+fn no_z3801_entry_claims_hardware() {
+    // No Z3801A has ever been on the line.  Those entries are confirmed
+    // against the firmware's keyword table at best.
     for spec in Dialect::Z3801.specs() {
-        assert!(
-            !spec.verified,
-            "{:?} claims verification, but no Z3801A has been on the line",
+        assert_ne!(
+            spec.evidence,
+            Evidence::Hardware,
+            "{:?} claims hardware, but no Z3801A has been on the line",
             spec.id
         );
     }
+}
+
+#[test]
+fn most_of_the_z3801_tree_is_firmware_confirmed() {
+    // The keyword table extracted from the keyword table covers all but
+    // :DIAGnostic:ERASe, which belongs to the INSTALL language and so
+    // is not in the PRIMARY image.
+    let firmware = Dialect::Z3801
+        .specs()
+        .iter()
+        .filter(|s| s.evidence == Evidence::Firmware)
+        .count();
+    assert!(
+        firmware >= 55,
+        "only {firmware} entries are firmware-confirmed"
+    );
 }
 
 #[test]
@@ -112,7 +130,7 @@ fn the_primary_tree_has_been_probed() {
     let verified = Dialect::Hp58503
         .specs()
         .iter()
-        .filter(|s| s.verified)
+        .filter(|s| s.evidence == Evidence::Hardware)
         .count();
     assert!(
         verified >= 60,
@@ -122,15 +140,18 @@ fn the_primary_tree_has_been_probed() {
 
 #[test]
 fn no_control_or_dangerous_command_claims_verification() {
-    // Probing only ever sends queries.  A verified flag on anything else
+    // Probing only ever sends queries.  Hardware evidence on anything else
     // means something sent a state-changing command to the receiver.
     for dialect in DIALECTS {
         for spec in dialect.specs() {
             if spec.class != Class::Query {
-                assert!(
-                    !spec.verified,
-                    "{:?} {:?} is {:?} but claims verification",
-                    dialect, spec.id, spec.class
+                assert_ne!(
+                    spec.evidence,
+                    Evidence::Hardware,
+                    "{:?} {:?} is {:?} but claims hardware",
+                    dialect,
+                    spec.id,
+                    spec.class
                 );
             }
         }

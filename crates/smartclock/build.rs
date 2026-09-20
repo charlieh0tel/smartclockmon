@@ -38,8 +38,9 @@ struct Dialect {
     models: Vec<String>,
     /// Manual and page the entry was taken from.
     cite: String,
-    /// Whether the entry has been confirmed against hardware.
-    verified: bool,
+    /// How far the entry has been confirmed: `manual`, `firmware` or
+    /// `hardware`.
+    evidence: String,
 }
 
 /// Top level of `commands.toml`.
@@ -50,7 +51,7 @@ struct Table {
 }
 
 /// The schema version this build script understands.
-const SCHEMA: u32 = 1;
+const SCHEMA: u32 = 2;
 
 fn variant(id: &str) -> String {
     id.split('_')
@@ -105,6 +106,18 @@ fn main() {
     }
     out.push_str("}\n\n");
 
+    out.push_str("/// How far a table entry has been confirmed.\n");
+    out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]\n");
+    out.push_str("pub enum Evidence {\n");
+    out.push_str("    /// Transcribed from the manual, nothing more.\n    Manual,\n");
+    out.push_str(
+        "    /// Every keyword found in the firmware's own keyword table,\n\
+         \x20   /// so the spelling is right even though no such receiver has\n\
+         \x20   /// been on the line.\n    Firmware,\n",
+    );
+    out.push_str("    /// The receiver answered it.\n    Hardware,\n");
+    out.push_str("}\n\n");
+
     out.push_str("/// How one dialect spells one command.\n");
     out.push_str("#[derive(Debug, Clone, Copy)]\n");
     out.push_str("pub struct Spec {\n");
@@ -118,9 +131,7 @@ fn main() {
         "    /// Receivers exposing this command.\n    pub models: &'static [&'static str],\n",
     );
     out.push_str("    /// Manual and page the entry came from.\n    pub cite: &'static str,\n");
-    out.push_str(
-        "    /// Whether it has been confirmed against hardware.\n    pub verified: bool,\n",
-    );
+    out.push_str("    /// How far the entry has been confirmed.\n    pub evidence: Evidence,\n");
     out.push_str("}\n\n");
 
     for d in &dialects {
@@ -148,15 +159,20 @@ fn main() {
                 .map(|m| format!("{m:?}"))
                 .collect::<Vec<_>>()
                 .join(", ");
+            let evidence = match spec.evidence.as_str() {
+                "manual" => "Manual",
+                "firmware" => "Firmware",
+                "hardware" => "Hardware",
+                other => panic!("unknown evidence {other:?} on command {:?}", c.id),
+            };
             let _ = writeln!(
                 out,
                 "    Spec {{ id: CommandId::{}, class: Class::{class}, scpi: {:?}, \
-                 response: {:?}, models: &[{models}], cite: {:?}, verified: {} }},",
+                 response: {:?}, models: &[{models}], cite: {:?}, evidence: Evidence::{evidence} }},",
                 variant(&c.id),
                 spec.scpi,
                 spec.response,
                 spec.cite,
-                spec.verified
             );
         }
         out.push_str("];\n\n");
