@@ -92,16 +92,47 @@ fn the_z3801_tree_is_a_subset_of_the_primary_one() {
 }
 
 #[test]
-fn nothing_is_marked_verified_yet() {
-    // Bringup has not confirmed any entry against hardware.  Delete this
-    // test when it starts failing for the right reason.
+fn the_z3801_tree_is_still_unverified() {
+    // No Z3801A hardware.  Those entries came from 097-z3801-01 and
+    // nothing has confirmed them, so none may claim otherwise.
+    for spec in Dialect::Z3801.specs() {
+        assert!(
+            !spec.verified,
+            "{:?} claims verification, but no Z3801A has been on the line",
+            spec.id
+        );
+    }
+}
+
+#[test]
+fn the_primary_tree_has_been_probed() {
+    // Phase 1 probed a 58503A (3710A01056, firmware 3704-C).  If this
+    // drops to zero the table has been regenerated and lost its
+    // provenance.
+    let verified = Dialect::Hp58503
+        .specs()
+        .iter()
+        .filter(|s| s.verified)
+        .count();
+    assert!(
+        verified >= 60,
+        "only {verified} entries survive from the probe"
+    );
+}
+
+#[test]
+fn no_control_or_dangerous_command_claims_verification() {
+    // Probing only ever sends queries.  A verified flag on anything else
+    // means something sent a state-changing command to the receiver.
     for dialect in DIALECTS {
         for spec in dialect.specs() {
-            assert!(
-                !spec.verified,
-                "{:?} {:?} claims hardware verification, but bringup has not run",
-                dialect, spec.id
-            );
+            if spec.class != Class::Query {
+                assert!(
+                    !spec.verified,
+                    "{:?} {:?} is {:?} but claims verification",
+                    dialect, spec.id, spec.class
+                );
+            }
         }
     }
 }

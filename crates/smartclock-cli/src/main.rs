@@ -102,7 +102,9 @@ fn run<T: Transport>(session: &mut Session<T>, command: &Command) -> Result<()> 
     match command {
         Command::Query { commands } => {
             for one in commands {
-                let reply = session.query(one).with_context(|| format!("sending {one}"))?;
+                let reply = session
+                    .query(one)
+                    .with_context(|| format!("sending {one}"))?;
                 for line in &reply.lines {
                     println!("{line}");
                 }
@@ -144,8 +146,9 @@ fn probe<T: Transport>(session: &mut Session<T>, dialect: &str) -> Result<()> {
             Err(e) => {
                 failed += 1;
                 println!("FAILED   {:<52} {e}", spec.scpi);
-                // A timeout leaves framing uncertain, so resynchronise
-                // before the next command rather than compounding it.
+                // A timeout leaves the receiver still sending.  sync()
+                // drains before provoking a prompt, so the next command
+                // is not read one reply behind.
                 session.sync().context("resynchronising after a failure")?;
             }
         }

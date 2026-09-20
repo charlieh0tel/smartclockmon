@@ -23,8 +23,14 @@ and 1 PPS, and report state over a serial port using SCPI.
 | Z3816A | `:PTIME:GPSYSTEM:`, `:ROSC:` | Assumed as Z3801A; unverified          |
 
 The development unit is a 58503A with Option 001 (front-panel
-display/keypad), on `/dev/ttyUSB0` at 19200 8N1.  Its rear serial port
-is DB-25; the 58503B uses DB-9.
+display/keypad), at 19200 8N1 on
+
+    /dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0
+
+which is stable across re-enumeration, unlike `/dev/ttyUSB0`.  Its rear
+serial port is DB-25; the 58503B uses DB-9.  It answers `*IDN?` with
+
+    HEWLETT-PACKARD,58503A,3710A01056,3704-C
 
 Factory default for all models is 9600 8N1, no pacing, full duplex.
 Serial settings are stored in the receiver and survive a power cycle, so
@@ -36,9 +42,16 @@ restores them.
 SCPI over RS-232, but not a VISA-style instrument.  The receiver behaves
 as an interactive terminal:
 
-- It echoes received characters.
-- It prompts with `scpi> `, or `E-nnn> ` when the previous command
-  raised an error.
+- It echoes received characters, one at a time as they arrive.
+- It prompts with `scpi > `, or `E-nnn > ` when the previous command
+  raised an error.  Note the space before the angle bracket: the manuals
+  render the prompt `scpi>`, but the wire carries `scpi > `.
+- The prompt's trailing space often arrives after the rest of the
+  prompt, so it turns up at the head of the next reply.
+- Abandoning a reply part-read leaves the receiver still sending.  The
+  next prompt seen then belongs to the abandoned reply, and every
+  exchange after it reads one reply behind, so a session must drain
+  before resynchronising.
 - `:SYSTem:STATus?` returns a multi-line formatted ASCII status screen
   rather than a SCPI response.  `:SYSTem:STATus:LENGth?` gives that
   screen's line count.

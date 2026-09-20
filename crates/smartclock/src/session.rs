@@ -63,6 +63,10 @@ pub struct Config {
     /// Whether the receiver echoes.  It does by default; the setting
     /// exists because full duplex can be turned off.
     pub echo: bool,
+    /// How long the line must be quiet before [`Session::drain`] calls
+    /// it drained.  One character at 19200 takes about half a
+    /// millisecond, so this only has to clear the receiver's own gaps.
+    pub idle: Duration,
 }
 
 impl Default for Config {
@@ -70,6 +74,7 @@ impl Default for Config {
         Self {
             timeout: Duration::from_secs(5),
             echo: true,
+            idle: Duration::from_millis(150),
         }
     }
 }
@@ -102,15 +107,42 @@ impl<T: Transport> Session<T> {
         self.transport.describe()
     }
 
-    /// Bring the session to a known state by provoking a prompt and
-    /// discarding whatever precedes it.  Needed on connect, because the
-    /// receiver may be mid-reply from a previous user.
+    /// Bring the session to a known state.
+    ///
+    /// Draining first is what makes this reliable.  A command abandoned
+    /// mid-reply, such as a timed-out log dump, leaves kilobytes still
+    /// arriving; provoking a prompt without draining would match the
+    /// prompt that ends the *abandoned* reply, and every exchange after
+    /// that reads one reply behind.  Observed on a 58503A, where a
+    /// 222-entry log dump desynchronised the rest of a probe run.
     pub fn sync(&mut self) -> Result<Prompt> {
-        self.buf.clear();
+        self.drain()?;
         self.transport.write_all(TERMINATOR.as_bytes())?;
         self.transport.flush()?;
         let (_, prompt) = self.read_to_prompt()?;
         Ok(prompt)
+    }
+
+    /// Discard everything the receiver is still sending, until the line
+    /// has been quiet for [`Config::idle`].
+    pub fn drain(&mut self) -> Result<usize> {
+        self.buf.clear();
+        let deadline = Instant::now() + self.config.timeout;
+        let mut chunk = [0u8; 512];
+        let mut discarded = 0usize;
+        let mut quiet_since = Instant::now();
+        loop {
+            let n = self.transport.read(&mut chunk)?;
+            if n > 0 {
+                discarded += n;
+                quiet_since = Instant::now();
+            } else if quiet_since.elapsed() >= self.config.idle {
+                return Ok(discarded);
+            }
+            if Instant::now() >= deadline {
+                return Ok(discarded);
+            }
+        }
     }
 
     /// Send a command and read its reply, without interpreting an error
@@ -181,9 +213,15 @@ impl<T: Transport> Session<T> {
 }
 
 /// Remove the receiver's echo of the command it was sent.
+///
+/// Leading whitespace is trimmed first because the prompt's trailing
+/// space often arrives after the prompt has already been recognised,
+/// and so turns up at the head of the next reply.
 fn strip_echo<'a>(body: &'a str, command: &str) -> &'a str {
-    let trimmed = body.trim_start_matches(['\r', '\n']);
+    let trimmed = body.trim_start();
     match trimmed.strip_prefix(command) {
+        // Keep leading spaces after the echo: status screen columns
+        // depend on them.
         Some(rest) => rest.trim_start_matches(['\r', '\n']),
         None => trimmed,
     }
@@ -198,7 +236,9 @@ fn split_prompt(buf: &str) -> Option<(&str, Prompt)> {
         Some(i) => buf.split_at(i + 1),
         None => ("", buf),
     };
-    let token = tail.strip_suffix(' ').unwrap_or(tail).strip_suffix('>')?;
+    // The manuals render the prompt "scpi>", but the wire carries
+    // "scpi > ", with a space on both sides of the angle bracket.
+    let token = tail.trim_end().strip_suffix('>')?.trim_end();
     let prompt = if token.eq_ignore_ascii_case("scpi") {
         Prompt::Ready
     } else if token.starts_with('E') || token.starts_with('e') {
@@ -236,8 +276,8 @@ mod tests {
 
     #[test]
     fn an_error_prompt_is_recognised_and_kept() {
-        let (_, prompt) = split_prompt("bogus\r\nE-113> ").expect("prompt");
-        assert_eq!(prompt, Prompt::Error("E-113>".to_owned()));
+        let (_, prompt) = split_prompt("bogus\r\nE-113 > ").expect("prompt");
+        assert_eq!(prompt, Prompt::Error("E-113 >".to_owned()));
     }
 
     #[test]
@@ -248,16 +288,46 @@ mod tests {
     }
 
     #[test]
-    fn a_prompt_without_its_trailing_space_still_counts() {
-        let (_, prompt) = split_prompt("scpi>").expect("prompt");
-        assert_eq!(prompt, Prompt::Ready);
+    fn the_prompt_is_recognised_however_it_is_spaced() {
+        // The wire carries "scpi > "; the manuals print "scpi>".  Accept
+        // both, and the form with no trailing space too.
+        for form in ["scpi > ", "scpi >", "scpi> ", "scpi>"] {
+            assert_eq!(
+                split_prompt(form).map(|(_, p)| p),
+                Some(Prompt::Ready),
+                "did not recognise {form:?}"
+            );
+        }
     }
 
     #[test]
     fn echo_is_removed_only_when_it_matches() {
-        assert_eq!(strip_echo("\r\n:GPS:POS?\r\n+37\r\n", ":GPS:POS?"), "+37\r\n");
+        assert_eq!(
+            strip_echo("\r\n:GPS:POS?\r\n+37\r\n", ":GPS:POS?"),
+            "+37\r\n"
+        );
         // Echo off, or a receiver that did not echo: leave the body be.
         assert_eq!(strip_echo("+37\r\n", ":GPS:POS?"), "+37\r\n");
+    }
+
+    #[test]
+    fn the_prompts_orphaned_trailing_space_does_not_defeat_echo_removal() {
+        // Observed on a 58503A: the prompt is "scpi > ", but the final
+        // space lands after the prompt has been recognised, so it heads
+        // the next reply.
+        assert_eq!(
+            strip_echo(" *IDN?\r\nHEWLETT-PACKARD\r\n", "*IDN?"),
+            "HEWLETT-PACKARD\r\n"
+        );
+    }
+
+    #[test]
+    fn leading_spaces_inside_a_reply_are_kept() {
+        // Status screen columns are significant.
+        assert_eq!(
+            strip_echo(" :SYST:STAT?\r\n   PRN El Az\r\n", ":SYST:STAT?"),
+            "   PRN El Az\r\n"
+        );
     }
 
     #[test]
@@ -272,6 +342,9 @@ mod tests {
             parse_error("-113,\u{201c}Undefined header\u{201d}"),
             Some((-113, "Undefined header".to_owned()))
         );
-        assert_eq!(parse_error("0,\"No error\""), Some((0, "No error".to_owned())));
+        assert_eq!(
+            parse_error("0,\"No error\""),
+            Some((0, "No error".to_owned()))
+        );
     }
 }

@@ -79,7 +79,10 @@ fn an_error_prompt_becomes_a_device_error_from_the_queue() {
         ("tx", ":BOGUS?\r\n"),
         ("rx", ":BOGUS?\r\nE-113> "),
         ("tx", ":SYSTem:ERRor?\r\n"),
-        ("rx", ":SYSTem:ERRor?\r\n-113,\"Undefined header\"\r\nscpi> "),
+        (
+            "rx",
+            ":SYSTem:ERRor?\r\n-113,\"Undefined header\"\r\nscpi> ",
+        ),
     ]);
     match s.query(":BOGUS?") {
         Err(Error::Device { code, message }) => {
@@ -111,7 +114,9 @@ fn a_command_with_no_reply_yields_no_lines() {
         ("tx", ":SYNChronization:HOLDover:INITiate\r\n"),
         ("rx", ":SYNChronization:HOLDover:INITiate\r\nscpi> "),
     ]);
-    let reply = s.query(":SYNChronization:HOLDover:INITiate").expect("query");
+    let reply = s
+        .query(":SYNChronization:HOLDover:INITiate")
+        .expect("query");
     assert!(reply.lines.is_empty());
 }
 
@@ -124,7 +129,10 @@ fn silence_times_out_and_reports_what_did_arrive() {
         ..Config::default()
     };
     let mut s = session_with(
-        &[("tx", ":GPS:POSition?\r\n"), ("rx", ":GPS:POSition?\r\npart")],
+        &[
+            ("tx", ":GPS:POSition?\r\n"),
+            ("rx", ":GPS:POSition?\r\npart"),
+        ],
         config,
     );
     match s.query(":GPS:POSition?") {
@@ -137,7 +145,10 @@ fn silence_times_out_and_reports_what_did_arrive() {
 fn sync_discards_whatever_preceded_the_prompt() {
     // Connecting mid-reply from a previous user must not poison the
     // first real command.
-    let mut s = session(&[("tx", "\r\n"), ("rx", "leftovers from someone else\r\nscpi> ")]);
+    let mut s = session(&[
+        ("tx", "\r\n"),
+        ("rx", "leftovers from someone else\r\nscpi> "),
+    ]);
     assert_eq!(s.sync().expect("sync"), Prompt::Ready);
 }
 
