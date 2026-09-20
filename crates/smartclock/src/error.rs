@@ -50,6 +50,10 @@ pub enum Error {
         expected: &'static str,
     },
 
+    /// The device task was asked for something after it stopped.
+    #[error("the device task has stopped: {0}")]
+    TaskStopped(&'static str),
+
     /// This dialect has no spelling for the operation.  Held as a typed
     /// error so a caller learns of it without a command reaching the
     /// receiver.
@@ -65,6 +69,24 @@ pub enum Error {
     /// caller sent.
     #[error("replay: {0}")]
     Replay(String),
+}
+
+impl Error {
+    /// Whether reopening the port could plausibly fix this.
+    ///
+    /// The distinction decides when the daemon gives up on a link.  A
+    /// timeout or an I/O error means the port; a parse error or a
+    /// refusal from the receiver means the command or the reply, and
+    /// reconnecting repeats it forever.  Counting every error toward
+    /// the reconnect threshold put the daemon in a five-second loop,
+    /// logging nothing, on a receiver whose only fault was one reply
+    /// the parser did not expect.
+    pub fn is_link_failure(&self) -> bool {
+        matches!(
+            self,
+            Self::Io(_) | Self::Serial(_) | Self::Timeout { .. } | Self::UnexplainedError { .. }
+        )
+    }
 }
 
 /// Result alias for this crate.

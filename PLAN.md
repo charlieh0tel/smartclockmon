@@ -663,9 +663,6 @@ From the September 2026 review, not yet fixed, roughly by severity.
 
 | Where | What |
 | ----- | ---- |
-| `task.rs` | Any error counts toward the reconnect threshold, including parse and device errors that reopening cannot fix.  One unexpected reply shape and the daemon reopens the port every five seconds forever while the hardware is fine. |
-| `transport/tcp.rs` | A closed peer returns `Ok(0)` exactly as a read timeout does, and the read loop has no sleep, so EOF spins a core for the whole command timeout. |
-| `smartclockmon/src/source.rs` | Reconnecting keeps the new reader and discards the new writer, so the console is dead after any daemon restart. |
 | `task.rs` | Subscriber channels are unbounded and a stalled client is never dropped, contrary to what the doc comment says.  A suspended client grows daemon memory without limit. |
 | `server.rs` | A failed thread spawn ends the accept loop permanently, and the bind happens after `start_server` has already reported success. |
 | `smartclockd/src/main.rs` | `Info`, including the dialect, is frozen at the first connection, so after a reconnect to a different model the gate classifies against the wrong table. |
@@ -673,4 +670,4 @@ From the September 2026 review, not yet fixed, roughly by severity.
 | `task.rs` | Polls take absolute priority over the request queue, so a tier as slow as its period starves client commands indefinitely.  Cadence also drifts, since the next deadline is measured from the end of a poll. |
 | `smartclock-cli` | `diagnose` hardcodes 58503A spellings instead of going through `Device`, so it sends the wrong tree on a Z3801A. |
 | `screen.rs` | `panel_column` mixes byte and character offsets; label scrapers are not clipped to the left panel. |
-| various | Smaller items: `Error::Replay` used for task-lifecycle failures, duplicated dialect-name matches, the `-221`/`-230` rule written three times, the EFC full-scale constant in three places, `Duration::from_secs_f64` panicking on a negative flag. |
+| various | Smaller items: duplicated dialect-name matches, the `-221`/`-230` rule written three times, the EFC full-scale constant in three places, `Duration::from_secs_f64` panicking on a negative flag. |

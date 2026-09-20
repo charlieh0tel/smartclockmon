@@ -48,8 +48,21 @@ impl TcpTransport {
 }
 
 impl Read for TcpTransport {
+    /// `Ok(0)` means "nothing yet", never "the peer has gone".
+    ///
+    /// A closed socket returns `Ok(0)` from `TcpStream::read`, exactly
+    /// as a timeout does here, and the session's read loop has no
+    /// blocking element of its own: with a live port the read timeout
+    /// paces it, but against a closed peer it spun a core for the whole
+    /// command timeout, three times over, on every reconnect attempt.
+    /// So EOF is reported as an error and the caller treats it as the
+    /// link failure it is.
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         match self.stream.read(buf) {
+            Ok(0) if !buf.is_empty() => Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                format!("{} closed the connection", self.address),
+            )),
             // A read timeout means no bytes yet, not a failure, which
             // is the same contract the serial transport keeps.
             Err(e)

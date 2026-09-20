@@ -82,6 +82,12 @@ impl Default for Config {
 /// Bytes sent after every command.
 const TERMINATOR: &str = "\r\n";
 
+/// How long to wait before asking a quiet transport again.
+///
+/// Short next to any command's round trip, long enough that a transport
+/// returning immediately cannot spin a core.
+const IDLE_POLL: Duration = Duration::from_millis(2);
+
 /// A framed command channel to one receiver.
 #[derive(Debug)]
 pub struct Session<T: Transport> {
@@ -148,6 +154,8 @@ impl<T: Transport> Session<T> {
                 quiet_since = Instant::now();
             } else if quiet_since.elapsed() >= self.config.idle {
                 return Ok(discarded);
+            } else {
+                std::thread::sleep(IDLE_POLL);
             }
             if Instant::now() >= deadline {
                 return Err(Error::Timeout {
@@ -221,6 +229,12 @@ impl<T: Transport> Session<T> {
             let n = self.transport.read(&mut chunk)?;
             if n > 0 {
                 self.buf.push_str(&String::from_utf8_lossy(&chunk[..n]));
+            } else {
+                // A transport whose read returns at once when idle would
+                // otherwise turn this into a busy loop.  The serial port
+                // blocks for its own timeout, but nothing in the
+                // contract requires that.
+                std::thread::sleep(IDLE_POLL);
             }
         }
     }

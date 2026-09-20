@@ -28,6 +28,7 @@ use std::time::Instant;
 use jiff::Timestamp;
 
 use crate::device::Device;
+use crate::error::Error;
 use crate::error::Result;
 use crate::session::Reply;
 use crate::snapshot::Freshness;
@@ -194,10 +195,9 @@ impl Handle {
         };
         self.requests
             .send(request)
-            .map_err(|_| crate::error::Error::Replay("the device task has stopped".to_owned()))?;
-        rx.recv().map_err(|_| {
-            crate::error::Error::Replay("the device task dropped a reply".to_owned())
-        })?
+            .map_err(|_| Error::TaskStopped("nothing is serving its request queue"))?;
+        rx.recv()
+            .map_err(|_| Error::TaskStopped("it dropped the reply"))?
     }
 }
 
@@ -207,14 +207,17 @@ pub enum Stopped {
     /// Every handle was dropped; nothing will ask again.
     HandlesDropped,
     /// The link failed repeatedly and the device should be reopened.
-    LinkFailed(crate::error::Error),
+    LinkFailed(Error),
 }
 
-/// How many polls in a row may fail before the link is called dead.
+/// How many link failures in a row before the link is called dead.
 ///
-/// One failure is ordinary: a timeout, or a value the receiver declined
-/// for a reason the parser did not expect.  A run of them means the
-/// port is gone, and reopening is the only way back.
+/// One is ordinary; a run of them means the port is gone and reopening
+/// is the only way back.  Only failures that reopening could fix count:
+/// see [`Error::is_link_failure`].  Counting parse errors and receiver
+/// refusals too meant one unexpected reply put the daemon in a
+/// five-second reconnect loop forever, logging nothing, while the
+/// hardware was healthy.
 const FAILURES_BEFORE_RECONNECT: u32 = 3;
 
 /// Runs the poll schedule and serves the request queue.
@@ -335,7 +338,14 @@ impl<T: Transport> DeviceTask<T> {
         match outcome {
             Ok(()) => self.failures = 0,
             Err(e) => {
-                self.failures += 1;
+                // A parse error or a refusal is recorded against the
+                // tier and retried on its next turn; only a failing
+                // link counts toward giving up on the port.
+                if e.is_link_failure() {
+                    self.failures += 1;
+                } else {
+                    self.failures = 0;
+                }
                 // Keep the values but say they are no longer current.  A
                 // monitor that goes on showing the last good numbers as
                 // though they were fresh is worse than one showing
@@ -343,7 +353,7 @@ impl<T: Transport> DeviceTask<T> {
                 // alone: another tier succeeding must not clear it.
                 snapshot.freshness = Freshness::Stale;
                 snapshot.polled.failed(tier, e.to_string());
-                if self.failures >= FAILURES_BEFORE_RECONNECT {
+                if e.is_link_failure() && self.failures >= FAILURES_BEFORE_RECONNECT {
                     self.shared.publish(snapshot);
                     return Some(Stopped::LinkFailed(e));
                 }

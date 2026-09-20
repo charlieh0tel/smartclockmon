@@ -105,28 +105,43 @@ pub(crate) struct Policy {
 /// did, leaves a monitor that can only listen.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Console {
-    writer: Option<Arc<Mutex<SendHalf>>>,
+    /// The current connection's write half, replaced on reconnect.
+    ///
+    /// Held behind a shared slot rather than by value because the
+    /// reader thread reconnects on its own: keeping the half from the
+    /// first connection left the console writing to a closed socket
+    /// after any daemon restart, silently, with readings still
+    /// arriving on the new one.
+    writer: Arc<Mutex<Option<SendHalf>>>,
 }
 
 impl Console {
     /// Whether there is anywhere to send.
     pub(crate) fn is_connected(&self) -> bool {
-        self.writer.is_some()
+        self.writer.lock().is_ok_and(|writer| writer.is_some())
+    }
+
+    /// Point the console at a new connection.
+    fn attach(&self, send: SendHalf) {
+        if let Ok(mut writer) = self.writer.lock() {
+            *writer = Some(send);
+        }
     }
 
     /// Send one command.  The answer arrives as an [`Update::Reply`].
     pub(crate) fn send(&self, scpi: &str) -> Result<()> {
-        let Some(writer) = &self.writer else {
-            return Err(anyhow::anyhow!("direct mode has no daemon to ask"));
+        let mut writer = self
+            .writer
+            .lock()
+            .map_err(|_| anyhow::anyhow!("poisoned writer"))?;
+        let Some(writer) = writer.as_mut() else {
+            return Err(anyhow::anyhow!("not connected to a daemon"));
         };
         let request = serde_json::json!({
             "v": 1,
             "id": "console",
             "op": { "kind": "query", "scpi": scpi },
         });
-        let mut writer = writer
-            .lock()
-            .map_err(|_| anyhow::anyhow!("poisoned writer"))?;
         writeln!(writer, "{request}")?;
         writer.flush()?;
         Ok(())
@@ -156,12 +171,12 @@ pub(crate) fn from_daemon(socket: &str) -> Result<(Receiver<Update>, Attachment,
     // snapshots arrived alongside the reply.
     let (first, send, database, policy) = connect_and_ask(socket)
         .with_context(|| format!("connecting to {socket}; is smartclockd running?"))?;
-    let console = Console {
-        writer: Some(Arc::new(Mutex::new(send))),
-    };
+    let console = Console::default();
+    console.attach(send);
 
     let (tx, rx) = channel();
     let path = socket.to_owned();
+    let reconnected = console.clone();
     thread::Builder::new()
         .name("smartclockmon-reader".to_owned())
         .spawn(move || {
@@ -182,7 +197,13 @@ pub(crate) fn from_daemon(socket: &str) -> Result<(Receiver<Update>, Attachment,
                     None => {
                         thread::sleep(RECONNECT_DELAY);
                         match connect_and_ask(&path) {
-                            Ok((open, ..)) => stream = Some(open),
+                            Ok((open, send, ..)) => {
+                                // The console follows the link, or it
+                                // would keep writing to the socket that
+                                // just died.
+                                reconnected.attach(send);
+                                stream = Some(open);
+                            }
                             Err(e) => {
                                 if tx.send(Update::Lost(e.to_string())).is_err() {
                                     return;
