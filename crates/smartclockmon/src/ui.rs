@@ -142,20 +142,9 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
         );
         return;
     };
-    let mode = match s.mode {
-        Some(SmartClockMode::Locked) => field(
-            "mode",
-            "Locked to GPS".to_owned(),
-            Style::new().fg(Color::Green),
-        ),
-        Some(SmartClockMode::Holdover) => field(
-            "mode",
-            "Holdover".to_owned(),
-            Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD),
-        ),
-        Some(other) => field("mode", format!("{other:?}"), Style::new().fg(Color::Yellow)),
-        None => absent("mode"),
-    };
+    let (mode_text, mode_style) = mode_line(s);
+    let mode = field("mode", mode_text, mode_style);
+
     let lines = vec![
         mode,
         s.tfom
@@ -187,6 +176,50 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
         ),
     ];
     frame.render_widget(Paragraph::new(lines).block(block(app, "Lock")), area);
+}
+
+/// The mode line, and how to colour it.
+///
+/// The state comes from `:SYNChronization:STATe?`, which is on the
+/// one-second tier, but that returns a bare `LOCK` with no detail.  The
+/// detail -- "stabilizing frequency", "GPS acquisition", "GPS 1PPS
+/// invalid" -- exists only on the status screen, which is polled every
+/// ten seconds.
+///
+/// So the two are combined, and the suffix is used only while the
+/// screen still agrees about the base state.  Otherwise a transition
+/// would show the fresh state carrying ten seconds of stale
+/// explanation, which is worse than no explanation.
+fn mode_line(snapshot: &Snapshot) -> (String, Style) {
+    let Some(mode) = snapshot.mode else {
+        return ("--".to_owned(), Style::new().fg(Color::DarkGray));
+    };
+    let (base, screen_word, style) = match mode {
+        SmartClockMode::Locked => ("Locked to GPS", "Locked", Style::new().fg(Color::Green)),
+        SmartClockMode::Recovery => ("Recovery", "Recovery", Style::new().fg(Color::Yellow)),
+        SmartClockMode::Holdover => (
+            "Holdover",
+            "Holdover",
+            Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        ),
+        SmartClockMode::Waiting => ("Waiting to recover", "Wait", Style::new().fg(Color::Yellow)),
+        SmartClockMode::PowerUp => ("Power-up", "Power-up", Style::new().fg(Color::Cyan)),
+        SmartClockMode::Other => ("Other", "Other", Style::new().fg(Color::Magenta)),
+    };
+
+    let detail = snapshot
+        .screen
+        .as_ref()
+        .and_then(|s| s.mode.as_deref())
+        .filter(|text| text.starts_with(screen_word))
+        .and_then(|text| text.split_once(':'))
+        .map(|(_, suffix)| suffix.trim().to_owned())
+        .filter(|suffix| !suffix.is_empty());
+
+    match detail {
+        Some(detail) => (format!("{base}: {detail}"), style),
+        None => (base.to_owned(), style),
+    }
 }
 
 fn oscillator(frame: &mut Frame, area: Rect, app: &App) {
@@ -479,4 +512,109 @@ fn health_faults(snapshot: &Snapshot) -> Option<Vec<String>> {
             .map(|(label, value)| format!("{label}: {value}"))
             .collect(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mode_line;
+    use jiff::Timestamp;
+    use smartclock::screen;
+    use smartclock::snapshot::Snapshot;
+    use smartclock::types::SmartClockMode;
+
+    fn snapshot(mode: Option<SmartClockMode>, screen_text: Option<&str>) -> Snapshot {
+        let mut s = Snapshot::new(Timestamp::now());
+        s.mode = mode;
+        s.screen = screen_text.map(screen::parse);
+        s
+    }
+
+    /// A screen whose mode line says `text`.
+    ///
+    /// The right-hand panel starts at column 46, as it does on the
+    /// receiver.  The scraper cuts every line there, so a panel placed
+    /// any closer would clip the mode text being tested.
+    fn screen_with(text: &str) -> String {
+        let pad = |left: &str, right: &str| format!("{left:<46}{right}\n");
+        let mut out = String::from("---- Receiver Status ----\n");
+        out.push_str("SYNCHRONIZATION ..................... [ Outputs Valid ]\n");
+        out.push_str(&pad("SmartClock Mode", "Reference Outputs"));
+        out.push_str(&pad(
+            &format!(">> {text}"),
+            "TFOM     3            FFOM     1",
+        ));
+        out.push_str("ACQUISITION ......................... [ GPS 1PPS Valid ]\n");
+        out.push_str(&pad("Tracking: 1       Not Tracking: 0", "Time"));
+        out.push_str(&pad(
+            "PRN  El  Az   SS",
+            "UTC      20:04:20     04 Feb 2007",
+        ));
+        out.push_str(&pad("  3  88 281  111", "ANT DLY  0 ns"));
+        out.push_str("HEALTH MONITOR ...................... [ OK ]\n");
+        out.push_str("Self Test: OK   GPS Rcv: OK\n");
+        out
+    }
+
+    #[test]
+    fn the_screens_detail_is_appended_to_the_fast_state() {
+        // The receiver's own display says "Locked to GPS: stabilizing
+        // frequency"; :SYNC:STATe? says only LOCK.
+        let s = snapshot(
+            Some(SmartClockMode::Locked),
+            Some(&screen_with("Locked to GPS: stabilizing frequency")),
+        );
+        assert_eq!(mode_line(&s).0, "Locked to GPS: stabilizing frequency");
+    }
+
+    #[test]
+    fn a_state_with_no_detail_reads_plainly() {
+        let s = snapshot(
+            Some(SmartClockMode::Locked),
+            Some(&screen_with("Locked to GPS")),
+        );
+        assert_eq!(mode_line(&s).0, "Locked to GPS");
+    }
+
+    #[test]
+    fn a_stale_detail_is_dropped_when_the_state_has_moved_on() {
+        // The screen is on the ten second tier and the state on the one
+        // second tier, so during a transition the screen still says
+        // Locked while the receiver has already dropped to holdover.
+        // Carrying the old explanation across would be worse than none.
+        let s = snapshot(
+            Some(SmartClockMode::Holdover),
+            Some(&screen_with("Locked to GPS: stabilizing frequency")),
+        );
+        assert_eq!(mode_line(&s).0, "Holdover");
+    }
+
+    #[test]
+    fn holdover_keeps_its_own_detail() {
+        let s = snapshot(
+            Some(SmartClockMode::Holdover),
+            Some(&screen_with("Holdover: GPS 1PPS invalid")),
+        );
+        assert_eq!(mode_line(&s).0, "Holdover: GPS 1PPS invalid");
+    }
+
+    #[test]
+    fn power_up_detail_survives_the_missing_space_after_the_colon() {
+        // The firmware writes "Power-up:GPS acquisition", with no space.
+        let s = snapshot(
+            Some(SmartClockMode::PowerUp),
+            Some(&screen_with("Power-up:GPS acquisition")),
+        );
+        assert_eq!(mode_line(&s).0, "Power-up: GPS acquisition");
+    }
+
+    #[test]
+    fn without_a_screen_the_state_still_shows() {
+        let s = snapshot(Some(SmartClockMode::Locked), None);
+        assert_eq!(mode_line(&s).0, "Locked to GPS");
+    }
+
+    #[test]
+    fn nothing_polled_yet_shows_as_absent() {
+        assert_eq!(mode_line(&snapshot(None, None)).0, "--");
+    }
 }
