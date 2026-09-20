@@ -165,19 +165,28 @@ low-order bits are dithered to interpolate the remaining four, with a
 second-order low-pass filter smoothing the result.  So "20-bit DAC"
 would be wrong: 20-bit value, 16-bit DAC, 4 bits of dither.
 
-### Ranges do not carry between models
+### How much frequency one EFC unit buys is unknown here
 
 That page measures 5.2e-13 of output frequency per EFC unit on a
-Z3801A, which puts its full span near 5.5e-7.  That figure is for the
-Z3801A and must not be applied here.
+Z3801A, putting its full span near 5.5e-7.
 
-On this 58503A the control voltage measures about 52 mV while `RELative`
-reads 36.06 percent, which puts full scale near plus or minus 144 mV --
-roughly a twentieth of the Z3801A's span at a 10811's usual EFC
-sensitivity.  The 58503A's EFC range is narrower than the Z3801A's, so
-per-unit frequency pull here is unknown and would need the same
-experiment run on this unit: log `EFC:ABSolute?` against a counter while
-the receiver corrects itself out of a long holdover.
+Whether the 58503A matches is open.  Both use an HP 10811: the Z3801A
+manual names it, and the development unit carries a 10811-60159.  The
+same oscillator argues for a similar span, but nothing here measures it.
+
+The one datum on this unit is an external reading of about 52 mV on the
+control voltage while `RELative` read 36.06 percent.  Taken as a
+deviation from centre that puts full scale near plus or minus 144 mV,
+which would need an EFC sensitivity around 2e-6 per volt to cover the
+Z3801A's span.  Whether that is the right sensitivity for a 10811, and
+whether 52 mV was measured from centre or to ground, are both unsettled,
+so nothing should be concluded from it yet.
+
+Settling it needs the same experiment Van Baak ran, on this unit: log
+`EFC:ABSolute?` against a counter while the receiver corrects itself out
+of a long holdover.  Until then the library reports the raw value and
+the percentage the receiver itself gives, and claims nothing about
+frequency.
 
 ### Why the date is wrong
 
