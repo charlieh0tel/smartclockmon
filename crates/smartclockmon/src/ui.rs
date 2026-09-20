@@ -11,11 +11,16 @@ use ratatui::layout::Rect;
 use ratatui::style::Color;
 use ratatui::style::Modifier;
 use ratatui::style::Style;
+use ratatui::symbols::Marker;
 use ratatui::symbols::border;
 use ratatui::text::Line;
 use ratatui::text::Span;
+use ratatui::widgets::Axis;
 use ratatui::widgets::Block;
 use ratatui::widgets::Cell;
+use ratatui::widgets::Chart;
+use ratatui::widgets::Dataset;
+use ratatui::widgets::GraphType;
 use ratatui::widgets::Paragraph;
 use ratatui::widgets::Row;
 use ratatui::widgets::Table;
@@ -24,6 +29,8 @@ use smartclock::snapshot::Snapshot;
 use smartclock::types::SmartClockMode;
 
 use crate::app::App;
+use crate::app::View;
+use crate::history::Trace;
 
 /// Block elements for the trend, lightest first.
 const TREND_BLOCKS: [char; 8] = [
@@ -38,6 +45,164 @@ const LABEL_WIDTH: usize = 12;
 
 /// Draw the whole monitor.
 pub(crate) fn draw(frame: &mut Frame, app: &App) {
+    match app.view {
+        View::Dashboard => dashboard(frame, app),
+        View::History => history(frame, app),
+    }
+}
+
+/// Graphs over a longer span, read from the daemon's log.
+///
+/// The three share one time axis and are stacked rather than overlaid,
+/// because they have different units and the question they answer is
+/// whether they move together: EFC following temperature is the room,
+/// EFC moving without it is the oscillator.
+fn history(frame: &mut Frame, app: &App) {
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Percentage(34),
+            Constraint::Percentage(33),
+            Constraint::Percentage(33),
+            Constraint::Length(1),
+        ])
+        .split(frame.area());
+    header(frame, rows[0], app);
+
+    if let Some(why) = &app.history_error {
+        frame.render_widget(
+            Paragraph::new(why.clone()).block(block(app, "History")),
+            rows[1].union(rows[3]),
+        );
+        footer(frame, rows[4], app);
+        return;
+    }
+
+    let span = app.window.label();
+    graph(
+        frame,
+        rows[1],
+        app,
+        &format!("EFC percent, {span}"),
+        &app.history.efc,
+        Color::Cyan,
+    );
+    graph(
+        frame,
+        rows[2],
+        app,
+        &format!("Temperature C, {span}"),
+        &app.history.temperature,
+        Color::Yellow,
+    );
+    graph(
+        frame,
+        rows[3],
+        app,
+        &format!("1 PPS TI ns, {span}"),
+        &app.history.time_interval,
+        Color::Green,
+    );
+    footer(frame, rows[4], app);
+}
+
+/// One metric against time, drawn as a band between its extremes with
+/// the mean through it.
+///
+/// Where every reading in a column agreed the three coincide and it
+/// reads as a single line.  Where they did not, the band shows how far
+/// apart they were, which is the only way a step survives being thinned
+/// into a column.
+fn graph(frame: &mut Frame, area: Rect, app: &App, title: &str, trace: &Trace, colour: Color) {
+    let Some(y) = trace.bounds() else {
+        frame.render_widget(
+            Paragraph::new("no readings in this window").block(block(app, title)),
+            area,
+        );
+        return;
+    };
+    // Braille packs four times the horizontal resolution of a cell, so
+    // an hour of readings fits a terminal width.  ASCII mode has no
+    // equivalent and falls back to dots.
+    let marker = if app.unicode {
+        Marker::Braille
+    } else {
+        Marker::Dot
+    };
+    // A line between fewer than two points draws nothing, and a slow
+    // series has exactly one early on.  Scatter still shows it.
+    let kind = if trace.mean.len() < 2 {
+        GraphType::Scatter
+    } else {
+        GraphType::Line
+    };
+    let edge = Style::new().fg(colour).add_modifier(Modifier::DIM);
+    let datasets = vec![
+        Dataset::default()
+            .marker(marker)
+            .graph_type(kind)
+            .style(edge)
+            .data(&trace.low),
+        Dataset::default()
+            .marker(marker)
+            .graph_type(kind)
+            .style(edge)
+            .data(&trace.high),
+        Dataset::default()
+            .marker(marker)
+            .graph_type(kind)
+            .style(Style::new().fg(colour))
+            .data(&trace.mean),
+    ];
+    let x = trace.span();
+    let axis = Style::new().fg(Color::DarkGray);
+    let chart = Chart::new(datasets)
+        .block(block(app, title))
+        .x_axis(
+            Axis::default()
+                .style(axis)
+                .bounds(x)
+                .labels([oldest(x[0]), "now".to_owned()]),
+        )
+        .y_axis(
+            Axis::default()
+                .style(axis)
+                .bounds(y)
+                .labels([format(y[0], y), format(y[1], y)]),
+        );
+    frame.render_widget(chart, area);
+}
+
+/// Show enough decimals to tell the two axis labels apart.
+///
+/// EFC moves by thousandths of a percent, so a fixed three decimals
+/// prints the same number at both ends of the axis and the reader
+/// cannot see the scale at all.
+fn format(value: f64, bounds: [f64; 2]) -> String {
+    let span = (bounds[1] - bounds[0]).abs();
+    let decimals = if span <= 0.0 {
+        3
+    } else {
+        (-span.log10().floor() as i32 + 1).clamp(0, 6) as usize
+    };
+    format!("{value:.decimals$}")
+}
+
+/// Label the left edge of the time axis.
+fn oldest(seconds_ago: f64) -> String {
+    let ago = -seconds_ago;
+    if ago >= 86_400.0 {
+        format!("-{:.1}d", ago / 86_400.0)
+    } else if ago >= 3600.0 {
+        format!("-{:.1}h", ago / 3600.0)
+    } else {
+        format!("-{:.0}m", ago / 60.0)
+    }
+}
+
+/// Current state at a glance.
+fn dashboard(frame: &mut Frame, app: &App) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -155,6 +320,13 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
             .map_or_else(|| absent("1 PPS TI"), |v| plain("1 PPS TI", v.to_string())),
         s.holdover_waiting
             .map_or_else(|| absent("waiting"), |w| plain("waiting", format!("{w:?}"))),
+        Line::from(vec![
+            Span::styled(
+                format!("{:<LABEL_WIDTH$}", "TI trend"),
+                Style::new().fg(Color::DarkGray),
+            ),
+            Span::styled(ti_trend(app, 30), Style::new().fg(Color::Green)),
+        ]),
         s.holdover_predicted.map_or_else(
             || absent("24 h error"),
             |v| plain("24 h error", v.to_string()),
@@ -380,6 +552,33 @@ fn trend(app: &App, width: usize) -> String {
         .collect()
 }
 
+/// A sparkline of recent 1 PPS intervals, scaled to its own span.
+fn ti_trend(app: &App, width: usize) -> String {
+    let mut values = app.ti_trend.iter().copied();
+    let Some(first) = values.next() else {
+        return "--".to_owned();
+    };
+    let (lo, hi) = values.fold((first, first), |(lo, hi), v| (lo.min(v), hi.max(v)));
+    let ramp = if app.unicode {
+        TREND_BLOCKS
+    } else {
+        TREND_ASCII
+    };
+    let span = (hi - lo).max(f64::EPSILON);
+    app.ti_trend
+        .iter()
+        .rev()
+        .take(width)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .map(|v| {
+            let level = ((v - lo) / span * (ramp.len() - 1) as f64).round();
+            ramp[(level as usize).min(ramp.len() - 1)]
+        })
+        .collect()
+}
+
 fn satellites(frame: &mut Frame, area: Rect, app: &App) {
     let screen = app.snapshot.as_ref().and_then(|s| s.screen.as_ref());
     let Some(screen) = screen else {
@@ -520,7 +719,7 @@ fn time_and_place(frame: &mut Frame, area: Rect, app: &App) {
 
 fn footer(frame: &mut Frame, area: Rect, app: &App) {
     let mut spans = vec![Span::styled(
-        "q quit  u toggle ASCII mode",
+        "q quit  g graphs  w window  u ASCII",
         Style::new().fg(Color::DarkGray),
     )];
     if let Some(error) = app.snapshot.as_ref().and_then(|s| s.last_error.as_ref()) {

@@ -5,11 +5,13 @@
 //! it records nothing, and the header says so.
 
 mod app;
+mod history;
 mod source;
 mod ui;
 
 use std::sync::mpsc::RecvTimeoutError;
 use std::time::Duration;
+use std::time::Instant;
 
 use anyhow::Result;
 use clap::Parser;
@@ -19,6 +21,7 @@ use crossterm::event::KeyCode;
 use crossterm::event::KeyEventKind;
 
 use crate::app::App;
+use crate::app::View;
 use crate::source::Update;
 
 #[derive(Parser)]
@@ -48,6 +51,10 @@ struct Cli {
 /// header does not look frozen.
 const TICK: Duration = Duration::from_millis(500);
 
+/// How often to re-read the log.  Querying a week of rows every frame
+/// would be wasteful, and the graphs do not move that fast.
+const HISTORY_REFRESH: Duration = Duration::from_secs(5);
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let (updates, attachment) = match &cli.device {
@@ -55,8 +62,11 @@ fn main() -> Result<()> {
         None => source::from_daemon(&cli.socket)?,
     };
 
+    let mut app = App::new(attachment, !cli.ascii);
+    app.open_log();
+
     let mut terminal = ratatui::init();
-    let outcome = run(&mut terminal, App::new(attachment, !cli.ascii), &updates);
+    let outcome = run(&mut terminal, app, &updates);
     // Restore the terminal whatever happened, or a failure leaves the
     // operator with no echo and no cursor.
     ratatui::restore();
@@ -68,7 +78,13 @@ fn run(
     mut app: App,
     updates: &std::sync::mpsc::Receiver<crate::source::Update>,
 ) -> Result<()> {
+    let mut due = Instant::now();
     while !app.quitting {
+        if app.view == View::History && Instant::now() >= due {
+            let columns = terminal.size().map_or(80, |s| usize::from(s.width));
+            app.refresh_history(columns);
+            due = Instant::now() + HISTORY_REFRESH;
+        }
         terminal.draw(|frame| ui::draw(frame, &app))?;
 
         // Wait for a snapshot, but wake often enough to notice a
@@ -93,6 +109,17 @@ fn run(
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => app.quitting = true,
                     KeyCode::Char('u') => app.unicode = !app.unicode,
+                    KeyCode::Char('g') | KeyCode::Tab => {
+                        app.view = match app.view {
+                            View::Dashboard => View::History,
+                            View::History => View::Dashboard,
+                        };
+                        due = Instant::now();
+                    }
+                    KeyCode::Char('w') => {
+                        app.window = app.window.next();
+                        due = Instant::now();
+                    }
                     _ => {}
                 }
             }
