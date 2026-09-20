@@ -283,7 +283,7 @@ fn oscillator(frame: &mut Frame, area: Rect, app: &App) {
             _ => {}
         }
         if let Some(code) = snap.efc_dac {
-            lines.push(plain("EFC code", format!("{code} of {}", 1u32 << 20)));
+            lines.push(plain("EFC raw", format!("{code} of {}", 1u32 << 20)));
         }
     }
 

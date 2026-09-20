@@ -70,19 +70,25 @@ impl EfcPercent {
         self.0.abs() / 100.0
     }
 
-    /// The percentage the receiver would report for a DAC code.
+    /// The percentage the receiver would report for a raw EFC value.
     ///
-    /// `:DIAGnostic:ROSCillator:EFControl:ABSolute?` returns the raw
-    /// code, and it is 20 bits: 713392 gives 36.0687, which is exactly
-    /// what `:RELative?` returned at the same moment.  Neither value is
-    /// documented anywhere; both were found by sweeping the receiver.
-    pub fn from_dac(code: u32) -> Option<Self> {
-        Self::new(f64::from(code) / f64::from(EFC_DAC_FULL_SCALE) * 200.0 - 100.0)
+    /// `:DIAGnostic:ROSCillator:EFControl:ABSolute?` returns that value
+    /// and it is 20 bits wide: 713392 gives 36.0687, exactly what
+    /// `:RELative?` returned at the same moment.  Neither command is
+    /// documented; both were found by sweeping the receiver.
+    ///
+    /// The converter behind it is not 20 bits.  On the Z3801A it is a
+    /// 16-bit AD569 whose low-order bits are dithered to interpolate
+    /// the remaining four, which Tom Van Baak traced with a scope at
+    /// <http://www.leapsecond.com/pages/z3801a-efc/>.  The arithmetic
+    /// here is unaffected, but "20-bit DAC" would be wrong.
+    pub fn from_raw(value: u32) -> Option<Self> {
+        Self::new(f64::from(value) / f64::from(EFC_FULL_SCALE) * 200.0 - 100.0)
     }
 }
 
-/// Codes in the EFC DAC's range.  Twenty bits.
-const EFC_DAC_FULL_SCALE: u32 = 1 << 20;
+/// The span of the raw EFC value.  Twenty bits.
+const EFC_FULL_SCALE: u32 = 1 << 20;
 
 impl fmt::Display for EfcPercent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -685,5 +691,30 @@ mod tests {
         assert_eq!(UtcOffset::new(-8, 0).to_string(), "-08:00");
         assert_eq!(UtcOffset::new(5, 30).to_string(), "+05:30");
         assert!(UtcOffset::default().is_utc());
+    }
+}
+
+#[cfg(test)]
+mod efc_tests {
+    use super::EfcPercent;
+
+    #[test]
+    fn the_raw_value_converts_to_the_percentage_the_receiver_reports() {
+        // Read from a 58503A moments apart: ABSolute? gave 713392 and
+        // RELative? gave +3.60687E+001.
+        let converted = EfcPercent::from_raw(713392).expect("in range");
+        assert!(
+            (converted.percent() - 36.0687).abs() < 1e-4,
+            "got {converted}"
+        );
+    }
+
+    #[test]
+    fn the_ends_and_the_middle_land_where_they_should() {
+        assert_eq!(EfcPercent::from_raw(0).expect("low").percent(), -100.0);
+        assert_eq!(EfcPercent::from_raw(1 << 19).expect("mid").percent(), 0.0);
+        // One below full scale, since 2^20 itself would exceed +100.
+        let high = EfcPercent::from_raw((1 << 20) - 1).expect("high");
+        assert!(high.percent() < 100.0 && high.percent() > 99.999);
     }
 }

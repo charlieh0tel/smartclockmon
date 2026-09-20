@@ -1614,7 +1614,7 @@ doc = "Oscillator oven current. Rises when the oven is heating."
 [[command]]
 id = "efc_absolute"
 class = "query"
-doc = "Oscillator EFC as a 20-bit DAC code; relative percent is code / 2^20 * 200 - 100."
+doc = "Oscillator EFC as a raw 20-bit value; relative percent is value / 2^20 * 200 - 100."
 
   [command.dialect.hp58503]
   scpi = ":DIAGnostic:ROSCillator:EFControl:ABSolute?"

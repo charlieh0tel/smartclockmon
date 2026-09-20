@@ -147,19 +147,37 @@ found fifteen commands, none of which appear in any manual here.
 | `:DIAGnostic:TOFFset?` | `+0.00000E+000` |
 | `:DIAGnostic:SLOG?` | oldest log entry, against `:LOG?` for the newest |
 
-### The EFC DAC is twenty bits
+### The EFC value is twenty bits
 
 `ABSolute` and `RELative` are the same quantity in different units:
 
     relative percent = code / 2^20 * 200 - 100
 
 Code 713392 gives 36.0687, which is exactly what `:RELative?` returned
-at the same moment.  So the DAC is 20 bits and `RELative` spans -100 to
-+100 across it.
+at the same moment, so the value spans twenty bits and `RELative` runs
+-100 to +100 across it.
 
-Measured externally, the control voltage on this unit is about 52 mV
-while `RELative` reads 36.06 percent, which puts full scale near
-plus or minus 144 mV and one code at roughly 0.27 microvolts.
+Tom Van Baak reached the same conclusion for the Z3801A by other means,
+and went further into the hardware:
+<http://www.leapsecond.com/pages/z3801a-efc/>.  The value is a 20-bit
+integer, but the converter is a 16-bit AD569 updated at 102.4 Hz whose
+low-order bits are dithered to interpolate the remaining four, with a
+second-order low-pass filter smoothing the result.  So "20-bit DAC"
+would be wrong: 20-bit value, 16-bit DAC, 4 bits of dither.
+
+### Ranges do not carry between models
+
+That page measures 5.2e-13 of output frequency per EFC unit on a
+Z3801A, which puts its full span near 5.5e-7.  That figure is for the
+Z3801A and must not be applied here.
+
+On this 58503A the control voltage measures about 52 mV while `RELative`
+reads 36.06 percent, which puts full scale near plus or minus 144 mV --
+roughly a twentieth of the Z3801A's span at a 10811's usual EFC
+sensitivity.  The 58503A's EFC range is narrower than the Z3801A's, so
+per-unit frequency pull here is unknown and would need the same
+experiment run on this unit: log `EFC:ABSolute?` against a counter while
+the receiver corrects itself out of a long holdover.
 
 ### Why the date is wrong
 
