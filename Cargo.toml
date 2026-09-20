@@ -5,6 +5,10 @@ members = [
     "crates/smartclockd",
     "crates/smartclockmon",
 ]
+# Without this the workspace is virtual, so cargo run, cargo build and
+# cargo deb all have to be told which package they mean.  The daemon is
+# the one worth defaulting to: it is what the deb installs.
+default-members = ["crates/smartclockd"]
 resolver = "3"
 
 [workspace.package]
@@ -12,6 +16,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.89"
 authors = ["Christopher Hoover <ch@murgatroid.com>"]
+license = "GPL-3.0-or-later"
 
 [workspace.lints.rust]
 missing_debug_implementations = "warn"

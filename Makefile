@@ -37,11 +37,13 @@ clean:
 	$(CARGO) clean
 
 # Requires cargo-deb: cargo install cargo-deb
-# The deb carries all three binaries, so build them before packaging and
-# tell cargo-deb not to rebuild just the daemon.
-deb: 
-	$(CARGO) build --release
-	$(CARGO) deb -p smartclockd --no-build
+# The deb carries all three binaries, so build the whole workspace first
+# and package without rebuilding.  cargo-deb warns that the asset paths
+# are not under target/release/ and so will not be built; that is the
+# point, --no-build means they are already there.
+deb:
+	$(CARGO) build --release --workspace
+	$(CARGO) deb --no-build
 
 install-service:
 	install -m 0644 packaging/systemd/smartclockd.service /etc/systemd/system/

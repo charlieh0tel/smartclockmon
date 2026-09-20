@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
+license.workspace = true
 
 [lints]
 workspace = true
@@ -27,7 +28,6 @@ smartclock = { path = "../smartclock" }
 name = "smartclockmon"
 maintainer = "Christopher Hoover <ch@murgatroid.com>"
 copyright = "2026, Christopher Hoover"
-license-file = ["../../LICENSE", "0"]
 extended-description = """\
 Library, logging daemon and terminal monitor for HP / Symmetricom \
 SmartClock GPS time and frequency reference receivers, spoken to over \

@@ -77,3 +77,11 @@ Vendor manuals in `third_party/`:
 
 `the keyword table` and `the keyword table` are 512 KB firmware, kept as
 a reference for resolving command trees that the manuals do not cover.
+
+## Licence
+
+GPL-3.0-or-later.  See `LICENSE`.
+
+The vendor manuals and firmware in `third_party/` are not covered
+by it; they remain the copyright of Symmetricom and its successors and
+are kept here as protocol documentation.
