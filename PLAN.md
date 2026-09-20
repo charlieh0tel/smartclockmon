@@ -659,8 +659,15 @@ Suggest a commit at each phase boundary.
 
 ## Known defects
 
-From the September 2026 review, not yet fixed, roughly by severity.
+From the September 2026 review.  Everything of consequence is fixed;
+what remains is listed so it is somewhere other than a chat log.
 
 | Where | What |
 | ----- | ---- |
-| various | Smaller items: duplicated dialect-name matches, the `-221`/`-230` rule written three times, the EFC full-scale constant in three places, `Duration::from_secs_f64` panicking on a negative flag. |
+|  | A client thread has no idle timeout and there is no cap on concurrent connections, so any local process able to open the socket can spawn daemon threads.  Socket permissions are the only limit, by design. |
+|  | A request line is read without a length cap, so a client that never sends a newline grows one string in the daemon. |
+|  | The same, in the simulator:  grows without bound, and the error queue with it. |
+|  | Audit entries are written when the next snapshot publishes rather than at once, and anything still queued at shutdown is lost. |
+|  | Commands queued while the link is down are executed on reconnect, however long that took, and  waits for them without a timeout. |
+|  | A deserialised epoch count large enough to overflow jiff panics in .  Unreachable from , reachable from a hostile reading. |
+|  | The socket''s mode is never set explicitly; it inherits the umask, which is the whole authorization boundary. |

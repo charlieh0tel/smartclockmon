@@ -26,6 +26,7 @@ use ratatui::widgets::Row;
 use ratatui::widgets::Table;
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Tier;
+use smartclock::types::EfcPercent;
 use smartclock::types::Seconds;
 use smartclock::types::SmartClockMode;
 use smartclock::wire::Reading;
@@ -499,7 +500,10 @@ fn oscillator(frame: &mut Frame, area: Rect, app: &App) {
             _ => {}
         }
         if let Some(code) = snap.efc_raw {
-            lines.push(plain("EFC raw", format!("{code} of {}", 1u32 << 20)));
+            lines.push(plain(
+                "EFC raw",
+                format!("{code} of {}", EfcPercent::FULL_SCALE),
+            ));
         }
     }
 

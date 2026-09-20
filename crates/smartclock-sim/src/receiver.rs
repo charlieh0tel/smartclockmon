@@ -4,6 +4,7 @@ use std::collections::VecDeque;
 
 use smartclock::command::CommandId;
 use smartclock::command::Dialect;
+use smartclock::types::EfcPercent;
 
 /// What the receiver sends back, before framing.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -198,7 +199,10 @@ impl Receiver {
     }
 
     fn answer(&mut self, id: CommandId) -> Answer {
-        let percent = f64::from(self.efc_raw) / f64::from(1u32 << 20) * 200.0 - 100.0;
+        // Through the library's own conversion rather than a second
+        // copy of the arithmetic, or the simulator could disagree with
+        // the code it exists to test.
+        let percent = EfcPercent::from_raw(self.efc_raw).map_or(0.0, |e| e.percent());
         match id {
             CommandId::Idn => Answer::line(self.identity.clone()),
             CommandId::SyncState => Answer::line(if self.holdover { "HOLD" } else { "LOCK" }),

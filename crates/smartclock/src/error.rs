@@ -2,6 +2,21 @@
 
 use std::time::Duration;
 
+/// The receiver declined because of its current state, not because the
+/// command was wrong: a settings conflict, or data that is stale.
+///
+/// Both mean the header parsed and the value simply does not exist
+/// right now -- present holdover error while locked, survey progress
+/// while in hold -- so a caller should read them as absent rather than
+/// as failure.  Named here because three places were testing the two
+/// numbers directly.
+pub const STATE_REFUSALS: [i32; 2] = [-221, -230];
+
+/// Whether a device error code means the receiver declined on state.
+pub fn is_state_refusal(code: i32) -> bool {
+    STATE_REFUSALS.contains(&code)
+}
+
 /// Anything that can go wrong talking to a receiver.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -57,12 +72,12 @@ pub enum Error {
     /// This dialect has no spelling for the operation.  Held as a typed
     /// error so a caller learns of it without a command reaching the
     /// receiver.
-    #[error("{dialect} has no command for {operation}")]
+    #[error("{dialect} has no command for {operation:?}")]
     Unsupported {
         /// The command tree in use.
         dialect: &'static str,
         /// The operation that has no spelling.
-        operation: &'static str,
+        operation: crate::command::CommandId,
     },
 
     /// The transcript being replayed ran out, or diverged from what the

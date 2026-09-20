@@ -246,6 +246,12 @@ fn main() {
     }
 
     out.push_str("impl Dialect {\n");
+    out.push_str("    /// The name this tree goes by in the command table.\n");
+    out.push_str("    pub fn name(self) -> &'static str {\n        match self {\n");
+    for d in &dialects {
+        let _ = writeln!(out, "            Dialect::{} => {d:?},", variant(d));
+    }
+    out.push_str("        }\n    }\n\n");
     out.push_str("    /// Every command this dialect defines.\n");
     out.push_str("    pub fn specs(self) -> &'static [Spec] {\n        match self {\n");
     for d in &dialects {

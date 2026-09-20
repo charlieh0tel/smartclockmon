@@ -83,12 +83,14 @@ impl EfcPercent {
     /// <http://www.leapsecond.com/pages/z3801a-efc/>.  The arithmetic
     /// here is unaffected, but "20-bit DAC" would be wrong.
     pub fn from_raw(value: u32) -> Option<Self> {
-        Self::new(f64::from(value) / f64::from(EFC_FULL_SCALE) * 200.0 - 100.0)
+        Self::new(f64::from(value) / f64::from(Self::FULL_SCALE) * 200.0 - 100.0)
     }
 }
 
-/// The span of the raw EFC value.  Twenty bits.
-const EFC_FULL_SCALE: u32 = 1 << 20;
+impl EfcPercent {
+    /// The span of the raw EFC value.  Twenty bits.
+    pub const FULL_SCALE: u32 = 1 << 20;
+}
 
 impl fmt::Display for EfcPercent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -518,12 +520,8 @@ impl ErrorEntry {
 
     /// Whether the receiver declined because of its current state
     /// rather than because the command was wrong.
-    ///
-    /// -221 is a settings conflict and -230 is stale data.  Both mean
-    /// the header parsed and the value simply does not exist right now,
-    /// such as present holdover error while locked.
     pub fn is_state_refusal(&self) -> bool {
-        self.code == -221 || self.code == -230
+        crate::error::is_state_refusal(self.code)
     }
 }
 

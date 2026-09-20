@@ -47,11 +47,8 @@ impl<'a, T: Transport> Control<'a, T> {
             .spec(id)
             .map(|s| s.scpi)
             .ok_or(Error::Unsupported {
-                dialect: match self.dialect {
-                    Dialect::Hp58503 => "hp58503",
-                    Dialect::Z3801 => "z3801",
-                },
-                operation: "the requested control command",
+                dialect: self.dialect.name(),
+                operation: id,
             })
     }
 

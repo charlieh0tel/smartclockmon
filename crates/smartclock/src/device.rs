@@ -91,12 +91,11 @@ impl<T: Transport> Device<T> {
 
     /// Send one logical operation and return its single reply line.
     fn ask(&mut self, id: CommandId) -> Result<String> {
+        // Naming the operation, not "the requested command": a typed
+        // error carrying a constant string is worse than no error.
         let spec = self.dialect.spec(id).ok_or(Error::Unsupported {
-            dialect: match self.dialect {
-                Dialect::Hp58503 => "hp58503",
-                Dialect::Z3801 => "z3801",
-            },
-            operation: "the requested command",
+            dialect: self.dialect.name(),
+            operation: id,
         })?;
         let scpi = spec.scpi;
         let reply = self.session.query(scpi)?;
@@ -112,7 +111,7 @@ impl<T: Transport> Device<T> {
     fn ask_optional(&mut self, id: CommandId) -> Result<Option<String>> {
         match self.ask(id) {
             Ok(line) => Ok(Some(line)),
-            Err(Error::Device { code, .. }) if code == -221 || code == -230 => Ok(None),
+            Err(Error::Device { code, .. }) if crate::error::is_state_refusal(code) => Ok(None),
             Err(e) => Err(e),
         }
     }
@@ -277,8 +276,8 @@ impl<T: Transport> Device<T> {
             .dialect
             .spec(CommandId::StatusScreen)
             .ok_or(Error::Unsupported {
-                dialect: "this dialect",
-                operation: "the status screen",
+                dialect: self.dialect.name(),
+                operation: CommandId::StatusScreen,
             })?;
         let reply = self.session.query(spec.scpi)?;
         Ok(screen::parse(&reply.lines.join("\n")))
