@@ -22,11 +22,13 @@ use anyhow::Context as _;
 use anyhow::Result;
 use interprocess::local_socket::Listener;
 use interprocess::local_socket::ListenerOptions;
+use interprocess::local_socket::Name;
 use interprocess::local_socket::Stream;
 use interprocess::local_socket::prelude::*;
 use smartclock::command::Argument;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
+use smartclock::task::Cadence;
 use smartclock::task::Handle;
 
 use crate::audit::Audit;
@@ -111,6 +113,10 @@ pub(crate) struct Info {
     pub database: String,
     /// What clients may do.
     pub policy: Policy,
+    /// How often each tier is polled.  A client showing the age of a
+    /// field needs these to know what counts as late; the defaults are
+    /// only defaults.
+    pub cadence: Cadence,
     /// Where to record commands that were not scheduled polls.
     pub audit: Audit,
 }
@@ -121,7 +127,7 @@ pub(crate) struct Info {
 /// the bind happened inside the serving thread, a daemon that could not
 /// bind printed one line from a dying thread and then ran forever
 /// claiming to listen.
-pub(crate) fn bind(name: interprocess::local_socket::Name<'static>) -> Result<Listener> {
+pub(crate) fn bind(name: Name<'static>) -> Result<Listener> {
     ListenerOptions::new()
         .name(name)
         .create_sync()
@@ -291,6 +297,9 @@ fn handle_request(request: Request, handle: &Handle, info: &Info) -> Message {
                 "allow_control": info.policy.control,
                 "allow_dangerous": info.policy.dangerous,
                 "allow_raw": info.policy.raw,
+                "cadence_fast": info.cadence.fast.as_secs_f64(),
+                "cadence_medium": info.cadence.medium.as_secs_f64(),
+                "cadence_slow": info.cadence.slow.as_secs_f64(),
             }),
         ),
         Op::Query { scpi } => send(id, &scpi, handle, info),

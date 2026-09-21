@@ -2,18 +2,17 @@
 
 use std::time::Duration;
 
-/// The receiver declined because of its current state, not because the
-/// command was wrong: a settings conflict, or data that is stale.
-///
-/// Both mean the header parsed and the value simply does not exist
-/// right now -- present holdover error while locked, survey progress
-/// while in hold -- so a caller should read them as absent rather than
-/// as failure.  Named here because three places were testing the two
-/// numbers directly.
-pub const STATE_REFUSALS: [i32; 2] = [-221, -230];
+use crate::command::CommandId;
 
 /// Whether a device error code means the receiver declined on state.
-pub fn is_state_refusal(code: i32) -> bool {
+///
+/// -221 is a settings conflict and -230 is data stale.  Both mean the
+/// header parsed and the value simply does not exist right now --
+/// present holdover error while locked, survey progress while in hold
+/// -- so a caller should read them as absent rather than as failure.
+/// A function rather than three places testing the two numbers.
+pub(crate) fn is_state_refusal(code: i32) -> bool {
+    const STATE_REFUSALS: [i32; 2] = [-221, -230];
     STATE_REFUSALS.contains(&code)
 }
 
@@ -77,7 +76,7 @@ pub enum Error {
         /// The command tree in use.
         dialect: &'static str,
         /// The operation that has no spelling.
-        operation: crate::command::CommandId,
+        operation: CommandId,
     },
 
     /// The transcript being replayed ran out, or diverged from what the

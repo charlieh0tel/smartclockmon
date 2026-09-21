@@ -20,13 +20,18 @@ maintain when the adapter changes.  Each `SMARTCLOCKD_*` variable
 matches the command line option of the same name, and `smartclockd
 --help` is the reference for what they do.
 
-At minimum, check `SMARTCLOCKD_DEVICE`.  The shipped value is the by-id
-path of the development adapter, which is almost certainly not yours:
+`SMARTCLOCKD_DEVICE` is required and has no default, so **the service
+will not start until you set it**.  That is deliberate: a default path
+does not fail when it is wrong, it opens whatever else is on that path
+and starts sending SCPI at it.  A failure to start, with the reason in
+the journal, is the better outcome.
 
     ls -l /dev/serial/by-id/
 
 Use a by-id path rather than `/dev/ttyUSB0`, which is assigned in
-enumeration order and moves when another adapter is plugged in.
+enumeration order and moves when another adapter is plugged in.  The
+line commented out in the shipped file is the development unit's
+adapter, left as an example of the shape.
 
 A boolean is enabled by setting it to `true`.  An empty value is a
 mistake the daemon refuses at startup rather than reading as off.
@@ -34,6 +39,16 @@ mistake the daemon refuses at startup rather than reading as off.
 `systemctl restart smartclockd` after any change; the file is read at
 startup only.  It is a conffile, so package upgrades will not overwrite
 your edits.
+
+A configuration mistake stops the service rather than looping.  systemd
+cannot check the file itself -- `Condition=` and `Assert=` do not see
+variables from an `EnvironmentFile` -- so the enforcement is by exit
+code: the daemon exits 2 for a usage error, which covers an unset
+device, an impossible baud and a malformed `ALLOW_` value, and
+`RestartPreventExitStatus=2` in the unit means it fails once and stays
+failed.  `systemctl status smartclockd` then shows the argument that is
+wrong.  Anything that might succeed on a retry exits 1 and still
+restarts.
 
 ## Where things live
 

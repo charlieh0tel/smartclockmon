@@ -14,11 +14,14 @@ mod server;
 use crate::audit::Audit;
 use crate::server::Policy;
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::mpsc::Receiver;
+use std::sync::mpsc::RecvTimeoutError;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::channel;
 use std::thread;
@@ -53,7 +56,11 @@ struct Cli {
     /// Serial device, or `tcp://host:port` for a receiver on the
     /// network or the simulator.  Prefer a /dev/serial/by-id/... path
     /// for a local one; /dev/ttyUSB0 does not survive re-enumeration.
-    #[arg(long, env = "SMARTCLOCKD_DEVICE", default_value = "/dev/ttyUSB0")]
+    ///
+    /// Required, and deliberately without a default.  A default does
+    /// not fail when it is wrong: it opens whatever else is on that
+    /// path and starts sending SCPI at it.
+    #[arg(long, env = "SMARTCLOCKD_DEVICE")]
     device: String,
 
     /// Bits per second.  Checked against the four the receiver accepts.
@@ -165,11 +172,11 @@ fn main() -> Result<()> {
                 }
                 let snapshot = match writes.recv_timeout(AUDIT_POLL) {
                     Ok(snapshot) => snapshot,
-                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+                    Err(RecvTimeoutError::Timeout) => continue,
                     // Every publisher has gone, which only happens
                     // when the daemon is shutting down.  Write what is
                     // left and stop.
-                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    Err(RecvTimeoutError::Disconnected) => {
                         while let Ok(entry) = audit_rx.try_recv() {
                             let _ = log.audit(&entry.scpi, &entry.class, &entry.outcome, None);
                         }
@@ -247,6 +254,7 @@ fn supervise(
         database: database.clone(),
         policy,
         audit,
+        cadence: cadence.clone(),
     }));
 
     let mut requests = requests_rx;
@@ -339,7 +347,6 @@ fn supervise(
 /// Give the socket owner and group access, and nobody else.
 #[cfg(unix)]
 fn set_socket_mode(socket: &Path) -> Result<()> {
-    use std::os::unix::fs::PermissionsExt as _;
     std::fs::set_permissions(socket, std::fs::Permissions::from_mode(0o660))
         .with_context(|| format!("setting permissions on {}", socket.display()))
 }

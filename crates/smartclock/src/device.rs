@@ -9,6 +9,7 @@ use crate::command::Dialect;
 use crate::control::Control;
 use crate::error::Error;
 use crate::error::Result;
+use crate::error::is_state_refusal;
 use crate::parse;
 use crate::parse::Identity;
 use crate::rollover::ReceiverDate;
@@ -110,7 +111,7 @@ impl<T: Transport> Device<T> {
     fn ask_optional(&mut self, id: CommandId) -> Result<Option<String>> {
         match self.ask(id) {
             Ok(line) => Ok(Some(line)),
-            Err(Error::Device { code, .. }) if crate::error::is_state_refusal(code) => Ok(None),
+            Err(Error::Device { code, .. }) if is_state_refusal(code) => Ok(None),
             Err(e) => Err(e),
         }
     }

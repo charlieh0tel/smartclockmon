@@ -31,8 +31,11 @@ use smartclock::types::Seconds;
 struct Cli {
     /// Serial device.  Prefer a /dev/serial/by-id/... path, which
     /// survives USB re-enumeration.
-    #[arg(long, default_value = "/dev/ttyUSB0", global = true)]
-    device: String,
+    ///
+    /// Required, and deliberately without a default: guessing at a
+    /// path means talking to whatever is on it.
+    #[arg(long, env = "SMARTCLOCK_DEVICE", global = true)]
+    device: Option<String>,
 
     /// Bits per second.  The receiver stores this setting, so it is not
     /// necessarily the 9600 factory default.  Checked against the four
@@ -102,8 +105,15 @@ fn main() -> Result<()> {
             cli.baud
         )
     })?;
+    // clap will not let a global argument be required, so the check is
+    // here.  It is still not optional: guessing at a path means talking
+    // to whatever is on it.
+    let device = cli.device.clone().context(
+        "--device is required and has no default; SMARTCLOCK_DEVICE works too. \
+         Try: ls -l /dev/serial/by-id/",
+    )?;
     let settings = Settings {
-        path: cli.device.clone(),
+        path: device.clone(),
         baud,
         read_timeout: Duration::from_millis(250),
     };
@@ -112,7 +122,7 @@ fn main() -> Result<()> {
         ..Config::default()
     };
     let port = SerialTransport::open(&settings)
-        .with_context(|| format!("opening {} at {} baud", cli.device, cli.baud))?;
+        .with_context(|| format!("opening {device} at {} baud", cli.baud))?;
 
     // Capture wraps the port, so a recording covers the sync exchange
     // too, not just the commands the subcommand issues.

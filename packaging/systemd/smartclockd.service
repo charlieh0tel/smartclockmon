@@ -21,6 +21,12 @@ ExecStart=/usr/bin/smartclockd
 # unit that lands in "failed" where the operator can see it.
 Restart=on-failure
 RestartSec=5
+# clap exits 2 for a usage error, which here means the configuration is
+# wrong -- SMARTCLOCKD_DEVICE unset, a baud the receiver cannot do, an
+# allow flag that is not true or false.  Retrying cannot fix any of
+# those, so fail once and stay failed where the operator sees it.  A
+# runtime failure exits 1 and still restarts.
+RestartPreventExitStatus=2
 
 User=smartclockd
 Group=smartclockd

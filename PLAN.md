@@ -341,6 +341,13 @@ default behaviour rather than an edge case.
 Use a `/dev/serial/by-id/...` path rather than `/dev/ttyUSB0`, which is
 not stable across re-enumeration.
 
+The device path has no default and both the daemon and the CLI refuse to
+run without one.  A default is worse than a missing argument here: it
+does not fail when it is wrong, it opens whatever else is on that path
+and starts sending SCPI at it, which is the one thing this project's
+rules are written to prevent.  The packaged configuration ships the
+setting commented out, so a fresh install fails to start and says why.
+
 ### Storage: SQLite
 
 Chosen over JSONL because EFC and holdover trending means range queries

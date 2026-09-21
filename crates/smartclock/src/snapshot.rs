@@ -165,8 +165,8 @@ impl Polled {
 
     /// Record that `tier` has just failed, leaving the time of its last
     /// success alone, since the values it wrote are still that old.
-    pub fn failed(&mut self, tier: Tier, why: String) {
-        self.get_mut(tier).error = Some(why);
+    pub fn failed(&mut self, tier: Tier, why: &str) {
+        self.get_mut(tier).error = Some(why.to_owned());
     }
 
     /// How long ago `tier` last succeeded, in seconds.
@@ -175,7 +175,12 @@ impl Polled {
         Some((now - at).total(jiff::Unit::Second).unwrap_or(0.0))
     }
 
-    /// Whatever went wrong most recently, across every tier.
+    /// The error of the first tier that has one, fastest first.
+    ///
+    /// Not the most recent: tiers are not comparable that way without
+    /// stamping each error with its own time, and what a reader wants
+    /// from a one-line summary is that something is wrong and roughly
+    /// where, which the fastest failing tier answers.
     pub fn any_error(&self) -> Option<&str> {
         Tier::ALL
             .into_iter()
@@ -259,9 +264,7 @@ mod tests {
         snapshot.settle_freshness();
         assert_eq!(snapshot.freshness, Freshness::Live);
 
-        snapshot
-            .polled
-            .failed(Tier::Medium, "no status screen".to_owned());
+        snapshot.polled.failed(Tier::Medium, "no status screen");
         snapshot.settle_freshness();
         assert_eq!(snapshot.freshness, Freshness::Stale);
 

@@ -2,6 +2,7 @@
 
 use std::fmt;
 
+use crate::error::is_state_refusal;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -521,7 +522,7 @@ impl ErrorEntry {
     /// Whether the receiver declined because of its current state
     /// rather than because the command was wrong.
     pub fn is_state_refusal(&self) -> bool {
-        crate::error::is_state_refusal(self.code)
+        is_state_refusal(self.code)
     }
 }
 

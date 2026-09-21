@@ -3,6 +3,7 @@
 use std::collections::VecDeque;
 
 use smartclock::snapshot::Freshness;
+use smartclock::snapshot::Tier;
 use smartclock::types::EfcPercent;
 use smartclock::wire::Reading;
 
@@ -156,8 +157,8 @@ impl App {
     pub(crate) fn lost(&mut self, why: String) {
         if let Some(snapshot) = self.snapshot.as_mut() {
             snapshot.freshness = Freshness::Disconnected;
-            for tier in smartclock::snapshot::Tier::ALL {
-                snapshot.polled.failed(tier, why.clone());
+            for tier in Tier::ALL {
+                snapshot.polled.failed(tier, &why);
             }
         }
     }

@@ -179,7 +179,7 @@ impl Shared {
         snapshot.at = at;
         snapshot.freshness = Freshness::Disconnected;
         for tier in Tier::ALL {
-            snapshot.polled.failed(tier, why.to_owned());
+            snapshot.polled.failed(tier, why);
         }
         self.publish(snapshot);
     }
@@ -499,7 +499,7 @@ impl<T: Transport> DeviceTask<T> {
                 // though they were fresh is worse than one showing
                 // nothing.  The failure is recorded against this tier
                 // alone: another tier succeeding must not clear it.
-                snapshot.polled.failed(tier, e.to_string());
+                snapshot.polled.failed(tier, &e.to_string());
                 snapshot.settle_freshness();
                 if e.is_link_failure() && self.failures >= FAILURES_BEFORE_RECONNECT {
                     self.shared.publish(snapshot);

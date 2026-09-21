@@ -218,9 +218,7 @@ fn a_working_tier_does_not_relabel_a_failing_one_as_current() {
 #[test]
 fn a_tier_that_works_does_not_clear_another_tiers_error() {
     let mut snapshot = Snapshot::new(jiff::Timestamp::now());
-    snapshot
-        .polled
-        .failed(Tier::Medium, "the screen timed out".to_owned());
+    snapshot.polled.failed(Tier::Medium, "the screen timed out");
 
     let mut device = device(Receiver::default());
     device
