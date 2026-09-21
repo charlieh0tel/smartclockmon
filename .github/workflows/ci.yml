@@ -7,19 +7,23 @@ on:
 
 jobs:
   ci:
-    # The shared definition, so this repo's CI matches the others.  The
-    # inputs restore what the defaults would drop:
+    # The shared definition, so this repo's CI matches the others.
     #
-    #   toolchain      pinned, rather than whatever stable is that week
-    #   fmt-toolchain  the same, because nightly rustfmt formats
-    #                  differently and would fail a check that "make
-    #                  fmt" had just satisfied
+    #   toolchain      not what pins the compiler -- rust-toolchain.toml
+    #   fmt-toolchain  does that, and wins over anything a workflow
+    #                  installs, because rustup honours the file on every
+    #                  cargo call in the repo.  These say the same
+    #                  version so each job pre-installs what it will
+    #                  actually use, instead of fetching a stable and a
+    #                  nightly for the file to override.  Keep them equal
+    #                  to the file: the version lives in two places and
+    #                  nothing checks that they agree.
     #   check-args     --all-targets, or clippy never sees the tests,
     #                  which are the larger half of this workspace
     uses: charlieh0tel/deb-workflows/.github/workflows/rust-ci.yml@v1
     with:
       # serialport needs libudev on Linux.
       build-deps: "libudev-dev"
-      toolchain: "1.89.0"
-      fmt-toolchain: "1.89.0"
+      toolchain: "1.98.1"
+      fmt-toolchain: "1.98.1"
       check-args: "--workspace --all-targets --all-features"
