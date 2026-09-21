@@ -1,10 +1,14 @@
 # Settings for smartclockd.  See `smartclockd --help`.
+#
+# Every line below is commented out and shows the built-in default.
+# Uncomment one only to change it -- except the first, which has no
+# default and must be set.
 
-# Required; there is no default.
+# REQUIRED.  Uncomment and set; the daemon will not start otherwise.
 #SMARTCLOCKD_DEVICE=/dev/serial/by-id/usb-<your-adapter>-if00-port0
 
 # 1200, 2400, 9600 or 19200.
-SMARTCLOCKD_BAUD=19200
+#SMARTCLOCKD_BAUD=19200
 
 #SMARTCLOCKD_DATABASE=/var/lib/smartclockd/snapshots.sqlite
 #SMARTCLOCKD_SOCKET=/run/smartclockd/socket
@@ -15,6 +19,6 @@ SMARTCLOCKD_BAUD=19200
 #SMARTCLOCKD_SLOW=60.0
 
 # What clients may send.  true or false; empty is rejected.
-#SMARTCLOCKD_ALLOW_CONTROL=true
-#SMARTCLOCKD_ALLOW_DANGEROUS=true
-#SMARTCLOCKD_ALLOW_RAW=true
+#SMARTCLOCKD_ALLOW_CONTROL=false
+#SMARTCLOCKD_ALLOW_DANGEROUS=false
+#SMARTCLOCKD_ALLOW_RAW=false

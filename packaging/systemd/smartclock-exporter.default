@@ -1,4 +1,7 @@
 # Settings for smartclock-exporter.  See `smartclock-exporter --help`.
+#
+# Every line below is commented out and shows the built-in default.
+# Uncomment one only to change it.
 
 #SMARTCLOCK_EXPORTER_LISTEN=127.0.0.1:9979
 #SMARTCLOCK_EXPORTER_SOCKET=/run/smartclockd/socket

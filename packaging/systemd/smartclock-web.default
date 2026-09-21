@@ -1,4 +1,7 @@
 # Settings for smartclock-web.  See `smartclock-web --help`.
+#
+# Every line below is commented out and shows the built-in default.
+# Uncomment one only to change it.
 
 #SMARTCLOCK_WEB_LISTEN=127.0.0.1:9980
 #SMARTCLOCK_WEB_SOCKET=/run/smartclockd/socket
