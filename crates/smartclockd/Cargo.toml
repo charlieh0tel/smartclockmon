@@ -12,7 +12,7 @@ workspace = true
 
 [dependencies]
 anyhow = "1.0.104"
-clap = { version = "4.6.7", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive", "env"] }
 interprocess = "2.4.4"
 jiff = "0.2.37"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
@@ -45,6 +45,7 @@ assets = [
     ["../../README.md", "usr/share/doc/smartclockmon/README.md", "644"],
     ["../../docs/screen-format-strings.md", "usr/share/doc/smartclockmon/screen-format-strings.md", "644"],
     ["../../docs/z3801-keywords.md", "usr/share/doc/smartclockmon/z3801-keywords.md", "644"],
+    ["../../docs/running.md", "usr/share/doc/smartclockmon/running.md", "644"],
     ["../../docs/commands.md", "usr/share/doc/smartclockmon/commands.md", "644"],
     ["../../docs/efc.md", "usr/share/doc/smartclockmon/efc.md", "644"],
     ["../../docs/OCXO.md", "usr/share/doc/smartclockmon/OCXO.md", "644"],

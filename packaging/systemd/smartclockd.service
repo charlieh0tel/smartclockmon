@@ -1,20 +1,17 @@
 [Unit]
 Description=SmartClock GPS receiver logging daemon
 Documentation=https://github.com/ch/smartclockmon
-# Tie the daemon to the adapter.  A USB serial device that re-enumerates
-# comes back as a new device unit, and BindsTo restarts us against it
-# rather than leaving us holding a file descriptor to nothing.
-BindsTo=dev-serial-by\x2did-usb\x2dProlific_Technology_Inc._USB\x2dSerial_Controller_D\x2dif00\x2dport0.device
-After=dev-serial-by\x2did-usb\x2dProlific_Technology_Inc._USB\x2dSerial_Controller_D\x2dif00\x2dport0.device
+# Nothing here names the adapter.  Every setting lives in
+# /etc/default/smartclockd so that this unit needs no editing; the
+# daemon reconnects by itself when a USB adapter re-enumerates, and
+# Restart=always covers the cases it cannot.  To have systemd stop the
+# daemon outright while the adapter is unplugged, add a drop-in with
+# BindsTo= and After= naming your device unit.  See docs/running.md.
 
 [Service]
 Type=exec
 EnvironmentFile=-/etc/default/smartclockd
-ExecStart=/usr/bin/smartclockd \
-    --device ${SMARTCLOCKD_DEVICE} \
-    --baud ${SMARTCLOCKD_BAUD} \
-    --database /var/lib/smartclockd/snapshots.sqlite \
-    --socket /run/smartclockd/socket
+ExecStart=/usr/bin/smartclockd
 Restart=always
 RestartSec=5
 

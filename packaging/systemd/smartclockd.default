@@ -1,4 +1,7 @@
-# Settings for smartclockd, read by its systemd unit.
+# Settings for smartclockd.  This is the only file you need to edit:
+# the systemd unit names none of these.  Each line matches a command
+# line option of the same name, so `smartclockd --help` documents them.
+# Commented-out settings show the built-in default.
 
 # Prefer a by-id path: /dev/ttyUSB0 is not stable across re-enumeration.
 SMARTCLOCKD_DEVICE=/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0
@@ -6,3 +9,32 @@ SMARTCLOCKD_DEVICE=/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Con
 # The receiver stores its own rate, so this is not necessarily the 9600
 # factory default.  Only 1200, 2400, 9600 and 19200 are accepted.
 SMARTCLOCKD_BAUD=19200
+
+# Where the snapshot log accumulates.  Unbounded; expect a few MB a day.
+#SMARTCLOCKD_DATABASE=/var/lib/smartclockd/snapshots.sqlite
+
+# Where clients connect.  Changing this means telling them too, so leave
+# it alone unless you have a reason.
+#SMARTCLOCKD_SOCKET=/run/smartclockd/socket
+
+# Seconds between polls of each tier.  The status screen is the medium
+# tier and runs about 1.8 KB, close to a second of wire time at 19200,
+# so it cannot be made much faster.
+#SMARTCLOCKD_FAST=1.0
+#SMARTCLOCKD_MEDIUM=10.0
+#SMARTCLOCKD_SLOW=60.0
+
+# What clients are allowed to send.  Off means the daemon only reads.
+# Set to true to enable; an empty value is rejected, not treated as off.
+#
+#   ALLOW_CONTROL    holdover, survey, antenna delay, elevation mask
+#   ALLOW_DANGEROUS  system preset, serial reconfiguration, flash erase,
+#                    language change.  A baud change survives a power
+#                    cycle and can leave the receiver unreachable.
+#   ALLOW_RAW        SCPI the command table does not recognise, judged
+#                    as control, or as dangerous if it looks like one of
+#                    the commands that can strand the link.
+#
+#SMARTCLOCKD_ALLOW_CONTROL=true
+#SMARTCLOCKD_ALLOW_DANGEROUS=true
+#SMARTCLOCKD_ALLOW_RAW=true

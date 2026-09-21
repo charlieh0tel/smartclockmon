@@ -398,11 +398,20 @@ Library layers, bottom up:
 
 ### systemd unit
 
-- `Type=notify`, signalling ready once the port is open and `*IDN?`
-  has answered.
+- `Type=exec`.  `Type=notify` was planned, signalling ready once the
+  port is open and `*IDN?` has answered, but the daemon is meant to
+  come up and keep retrying with no receiver attached, so there is no
+  moment that honestly counts as ready.
 - `Restart=always` with a backoff.
-- `BindsTo=` / `After=` the `.device` unit for the serial adapter, so a
-  USB re-enumeration restarts the daemon cleanly.
+- No `BindsTo=` / `After=` for the adapter's `.device` unit.  The
+  daemon reconnects on its own and binding would stop it dead while an
+  adapter is unplugged; naming a device in the unit also meant the
+  operator had to edit the unit, which is the one thing the
+  configuration file exists to avoid.  Offered as a drop-in recipe in
+  `docs/running.md` instead.
+- Every option readable from `SMARTCLOCKD_*` in the environment, so
+  `/etc/default/smartclockd` is the only file an operator edits and
+  `ExecStart=` names no settings at all.
 - `StateDirectory=smartclockd` for the database,
   `RuntimeDirectory=smartclockd` for the socket.
 - Dedicated user with `SupplementaryGroups=dialout` for port access;
@@ -418,7 +427,7 @@ With `interprocess` handling the IPC and no peer-credential code to
 port, systemd is the only Linux-specific piece left in the daemon;
 `serialport` and `rusqlite` are both portable.
 Porting therefore means writing a launchd plist or a Windows service
-wrapper and replacing `Type=notify`, not touching the protocol.
+wrapper, not touching the protocol.
 
 ### The command table is data
 

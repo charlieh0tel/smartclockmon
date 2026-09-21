@@ -21,9 +21,12 @@ is not, and the defects a review has found but nobody has fixed yet.
 
 ## Running it
 
-Build with `make`, or `make deb` for a package.
+Build with `make`, or `make deb` for a package.  Installed from the
+package, the daemon is configured entirely through
+`/etc/default/smartclockd` and started with `systemctl enable --now
+smartclockd`; see `docs/running.md`.
 
-The daemon holds the port, so everything else is a client of it:
+Run by hand, it holds the port and everything else is a client of it:
 
     smartclockd --device /dev/serial/by-id/usb-... \
                 --database ~/smartclock.sqlite \
@@ -49,7 +52,9 @@ The daemon refuses anything that changes the receiver unless started
 with `--allow-control`, refuses what can strand the link without
 `--allow-dangerous`, and refuses commands the table does not know
 without `--allow-raw`.  All three are off by default and every command
-that is not a scheduled poll is recorded in the log.
+that is not a scheduled poll is recorded in the log.  Every option also
+reads from a `SMARTCLOCKD_`-prefixed environment variable, which is how
+the service is configured without touching its unit.
 
 ## Hardware
 

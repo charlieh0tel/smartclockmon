@@ -53,49 +53,57 @@ struct Cli {
     /// Serial device, or `tcp://host:port` for a receiver on the
     /// network or the simulator.  Prefer a /dev/serial/by-id/... path
     /// for a local one; /dev/ttyUSB0 does not survive re-enumeration.
-    #[arg(long, default_value = "/dev/ttyUSB0")]
+    #[arg(long, env = "SMARTCLOCKD_DEVICE", default_value = "/dev/ttyUSB0")]
     device: String,
 
     /// Bits per second.  Checked against the four the receiver accepts.
-    #[arg(long, default_value_t = 19200)]
+    #[arg(long, env = "SMARTCLOCKD_BAUD", default_value_t = 19200)]
     baud: u32,
 
     /// Where to keep the snapshot log.
-    #[arg(long, default_value = "/var/lib/smartclockd/snapshots.sqlite")]
+    #[arg(
+        long,
+        env = "SMARTCLOCKD_DATABASE",
+        default_value = "/var/lib/smartclockd/snapshots.sqlite"
+    )]
     database: PathBuf,
 
     /// Where to listen for clients.
-    #[arg(long, default_value = "/run/smartclockd/socket")]
+    #[arg(
+        long,
+        env = "SMARTCLOCKD_SOCKET",
+        default_value = "/run/smartclockd/socket"
+    )]
     socket: PathBuf,
 
     /// Seconds between fast-tier polls.
-    #[arg(long, default_value_t = 1.0)]
+    #[arg(long, env = "SMARTCLOCKD_FAST", default_value_t = 1.0)]
     fast: f64,
 
     /// Seconds between status screen polls.  The screen is about 1.8 KB,
     /// close to a second of wire time at 19200, so this cannot be small.
-    #[arg(long, default_value_t = 10.0)]
+    #[arg(long, env = "SMARTCLOCKD_MEDIUM", default_value_t = 10.0)]
     medium: f64,
 
     /// Seconds between position and date polls.
-    #[arg(long, default_value_t = 60.0)]
+    #[arg(long, env = "SMARTCLOCKD_SLOW", default_value_t = 60.0)]
     slow: f64,
 
     /// Permit commands that change receiver state: holdover, survey,
     /// antenna delay, elevation mask.
-    #[arg(long)]
+    #[arg(long, env = "SMARTCLOCKD_ALLOW_CONTROL")]
     allow_control: bool,
 
     /// Permit commands that can strand the link or wipe configuration:
     /// system preset, serial reconfiguration, flash erase, language
     /// change.  A baud change persists across power cycles.
-    #[arg(long)]
+    #[arg(long, env = "SMARTCLOCKD_ALLOW_DANGEROUS")]
     allow_dangerous: bool,
 
     /// Permit raw SCPI the command table does not recognise.  An
     /// unrecognised command is treated as control, or as dangerous if
     /// it resembles one that can strand the link.
-    #[arg(long)]
+    #[arg(long, env = "SMARTCLOCKD_ALLOW_RAW")]
     allow_raw: bool,
 }
 
