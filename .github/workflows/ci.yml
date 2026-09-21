@@ -18,6 +18,8 @@ jobs:
     #                  which are the larger half of this workspace
     uses: charlieh0tel/deb-workflows/.github/workflows/rust-ci.yml@main
     with:
+      # serialport needs libudev on Linux.
+      build-deps: "libudev-dev"
       toolchain: "1.89.0"
       fmt-toolchain: "1.89.0"
       check-args: "--workspace --all-targets --all-features"
