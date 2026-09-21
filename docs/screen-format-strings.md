@@ -1,13 +1,9 @@
 # Status screen format strings
 
-Extracted from `the keyword table` with `strings`.  The Z3801A and the 58503A are not the same firmware, but the layout, the
-field widths and the set of variant strings are shared, and this
-enumerates them exactly rather than leaving them to be guessed from the
-handful of screens in the manuals.
-
-Regenerate with:
-
-    the keyword table
+The Z3801A and the 58503A do not share a firmware build, but the
+layout, the field widths and the set of variant strings are the same,
+and this enumerates them exactly rather than leaving them to be guessed
+from the handful of screens in the manuals.
 
 ## Frame
 

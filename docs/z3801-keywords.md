@@ -1,7 +1,7 @@
 # Z3801A SCPI keyword table
 
-Extracted from `the keyword table`.  This is the receiver's own
-vocabulary, so it settles spelling questions the manual leaves open.
+The receiver's own vocabulary, which settles spelling questions the
+manual leaves open.
 
 ## Encoding
 
