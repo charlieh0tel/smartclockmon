@@ -80,7 +80,7 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
     maybe(
         &mut out,
         "temperature_celsius",
-        "Internal temperature",
+        "Internal temperature; not the oscillator oven, which runs far hotter",
         r.temperature_c,
     );
     maybe(&mut out, "oven_current", "Oven current", r.oven_current);

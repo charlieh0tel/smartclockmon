@@ -274,7 +274,7 @@ fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
         Err(e) => line("EFC", &format!("unavailable: {e}")),
     }
     show(
-        "temperature",
+        "internal temp",
         device
             .temperature()
             .map(|v| absent_or(v, |v| format!("{v:.2} C"))),
@@ -513,7 +513,10 @@ fn render(info: &serde_json::Value, r: &Reading) {
 
     println!("\nOscillator");
     show_opt("EFC", r.efc.map(|v| v.to_string()));
-    show_opt("temperature", r.temperature_c.map(|v| format!("{v:.2} C")));
+    show_opt(
+        "internal temp",
+        r.temperature_c.map(|v| format!("{v:.2} C")),
+    );
     show_opt("oven current", r.oven_current.map(|v| format!("{v:.1}")));
     show_opt("EFC raw", r.efc_raw.map(|v| v.to_string()));
     show_opt(

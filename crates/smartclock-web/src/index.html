@@ -32,10 +32,13 @@
 
   /* Status strip: the few things worth seeing before anything else. */
   #status { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: baseline; }
-  .stat { display: flex; flex-direction: column; gap: 2px; }
+  /* A fixed column, so a reading that gets wider -- "-5.8 ns" to
+     "+122.6 ns" -- does not shove every tile after it sideways. */
+  .stat { display: flex; flex-direction: column; gap: 2px; min-width: 10ch; }
   .stat .v { font-size: 22px; font-variant-numeric: tabular-nums; line-height: 1.1; }
   .stat .k { font-size: 11px; color: var(--dim); }
   .pill { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  #age { min-width: 18ch; }
   .live { background: #14532d; color: var(--ok); }
   .stale { background: #422006; color: var(--warn); }
   .down { background: #450a0a; color: var(--bad); }
@@ -68,7 +71,7 @@
 <div class="panel">
   <div class="controls">
     <select id="column"></select>
-    <label><input type="checkbox" id="compare"> against temperature</label>
+    <label><input type="checkbox" id="compare"> against internal temp</label>
     <span class="grow"></span>
     <span id="ranges"></span>
     <button id="reset" title="Back to the last hour">reset</button>
@@ -110,7 +113,7 @@ const DOT_RANGE = 7;    // added at the strongest signal in the frame
 const LABELS = {
   efc_percent: ["EFC, percent of range", 1],
   efc_dac: ["EFC, raw counts", 1],
-  temperature_c: ["Temperature, C", 1],
+  temperature_c: ["Internal temperature, C", 1],
   oven_current: ["Oven current", 1],
   time_interval_s: ["1 PPS TI, ns", 1e9],
   tfom: ["Time figure of merit", 1],
@@ -190,13 +193,15 @@ async function poll() {
     ["TFOM / FFOM", `${s.tfom ?? "--"} / ${s.ffom ?? "--"}`],
     ["EFC", s.efc === null || s.efc === undefined ? "--" : fmt(s.efc, 3) + "%"],
     ["EFC raw", s.efc_raw ?? "--"],
-    ["temperature", s.temperature_c === null ? "--" : fmt(s.temperature_c, 2) + " C"],
+    ["internal temp", s.temperature_c == null ? "--" : fmt(s.temperature_c, 2) + " C"],
     ["1 PPS TI", s.time_interval_ns === null ? "--" : fmt(s.time_interval_ns, 1) + " ns"],
     ["tracking", s.screen?.tracking ?? "--"],
   ];
   $("status").innerHTML =
     `<span class="pill ${state[0]}">${state[1]}</span>` +
-    (oldest === null ? "" : `<span class="muted">oldest field ${oldest.toFixed(0)}s</span>`) +
+    (oldest === null
+      ? ""
+      : `<span class="muted" id="age">oldest field ${Math.max(0, oldest).toFixed(0)}s</span>`) +
     stats
       .map(
         ([k, v]) =>

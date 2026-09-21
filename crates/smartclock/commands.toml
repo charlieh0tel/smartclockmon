@@ -1689,7 +1689,7 @@ doc = "Erase flash. Firmware download only."
 [[command]]
 id = "temperature"
 class = "query"
-doc = "Internal temperature in degrees Celsius."
+doc = "Internal temperature, degrees Celsius. Not the oven: this reads 34 to 38 C where a 10811 oven runs at 75 to 85. Where the sensor sits is unknown, the command being undocumented."
 
   [command.dialect.hp58503]
   scpi = ":DIAGnostic:TEMPerature?"

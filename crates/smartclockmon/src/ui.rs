@@ -95,7 +95,7 @@ fn history(frame: &mut Frame, app: &App) {
     graph(
         frame,
         rows[2],
-        &format!("Temperature C, {span}"),
+        &format!("Internal temperature C, {span}"),
         &app.history.temperature,
         Color::Yellow,
     );
@@ -469,9 +469,9 @@ fn oscillator(frame: &mut Frame, area: Rect, app: &App) {
         // moves with it, so a drift reading means little on its own.
         match (snap.temperature_c, snap.oven_current) {
             (Some(t), Some(i)) => {
-                lines.push(plain("temperature", format!("{t:.2} C    oven {i:.1}")));
+                lines.push(plain("internal temp", format!("{t:.2} C    oven {i:.1}")));
             }
-            (Some(t), None) => lines.push(plain("temperature", format!("{t:.2} C"))),
+            (Some(t), None) => lines.push(plain("internal temp", format!("{t:.2} C"))),
             _ => {}
         }
         if let Some(code) = snap.efc_raw {
