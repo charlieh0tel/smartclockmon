@@ -323,3 +323,29 @@ fn a_tier_as_slow_as_its_period_does_not_starve_client_commands() {
     drop(handle);
     joiner.join().expect("the device thread");
 }
+
+#[test]
+fn a_command_waits_a_bounded_time_for_its_answer() {
+    // Nothing drains the queue while the link is down, so waiting
+    // forever meant a caller blocked until the receiver came back --
+    // possibly hours -- with its thread and its socket held open.
+    let (handle, joiner) = task::spawn(device(Receiver::default()), Cadence::default());
+    let reply = handle
+        .request_within(":SYNChronization:TFOMerit?", Duration::from_secs(5))
+        .expect("a prompt answer");
+    assert_eq!(reply.lines, vec!["+3"]);
+    drop(handle);
+    joiner.join().expect("the device thread");
+}
+
+#[test]
+fn a_flood_of_bad_commands_does_not_grow_the_error_queue() {
+    // The receiver's queue is finite and reports -350 when it
+    // overflows; the simulator's was not.
+    let mut device = device(Receiver::default());
+    for _ in 0..200 {
+        let _ = device.session().query(":NO:SUCH:COMMAND?");
+    }
+    // Still answering, and the queue drained rather than grown.
+    assert_eq!(device.tfom().expect("tfom after the flood").get(), 3);
+}

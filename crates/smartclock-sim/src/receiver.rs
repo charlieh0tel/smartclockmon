@@ -33,6 +33,9 @@ impl Answer {
     }
 }
 
+/// How many errors the queue holds before the oldest is dropped.
+const MAX_ERRORS: usize = 32;
+
 /// A status screen with plausible contents, in the layout firmware
 /// 3704-C uses: an `SS` column and underscore padding.
 const SCREEN: &str = include_str!("screen.txt");
@@ -190,7 +193,16 @@ impl Receiver {
     }
 
     /// Queue an error and refuse.
+    ///
+    /// The queue is bounded, as the receiver's is: a client sending
+    /// nothing but bad commands must not be able to grow it without
+    /// limit.  The oldest goes, since -350 "Queue overflow" is what a
+    /// real one reports.
     fn reject(&mut self, code: i32, message: &str) -> Answer {
+        if self.errors.len() >= MAX_ERRORS {
+            self.errors.pop_front();
+            self.errors.push_back((-350, "Queue overflow".to_owned()));
+        }
         self.errors.push_back((code, message.to_owned()));
         Answer {
             lines: Vec::new(),

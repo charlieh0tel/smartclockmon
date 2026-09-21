@@ -13,6 +13,12 @@ use crate::transport::Transport;
 use crate::transport::transcript::Direction;
 use crate::transport::transcript::Record;
 
+/// How many bytes a coalesced run may hold before it is written out.
+///
+/// Comfortably larger than a status screen, so ordinary traffic still
+/// records as one line per direction.
+const MAX_RUN: usize = 8192;
+
 /// Wraps a transport and writes every read and write to a JSONL sink.
 ///
 /// Consecutive bytes travelling the same way are coalesced into one
@@ -52,6 +58,17 @@ impl<T: Transport, W: Write> TeeTransport<T, W> {
     fn record(&mut self, dir: Direction, bytes: &[u8]) {
         if bytes.is_empty() {
             return;
+        }
+        // A run is flushed when it reaches this size as well as when
+        // the direction changes, so a long one-directional stream --
+        // the status screen, a full log dump -- cannot sit unwritten
+        // and growing.
+        if self
+            .run
+            .as_ref()
+            .is_some_and(|(_, _, buf)| buf.len() >= MAX_RUN)
+        {
+            self.emit();
         }
         match &mut self.run {
             Some((running, _, buf)) if *running == dir => buf.extend_from_slice(bytes),

@@ -198,6 +198,16 @@ impl Handle {
     /// one, so the wait can be as long as the slowest poll in flight --
     /// about a second when the status screen is being read.
     pub fn request(&self, scpi: impl Into<String>) -> Result<Reply> {
+        self.request_within(scpi, REQUEST_TIMEOUT)
+    }
+
+    /// Send one command and wait no longer than `within` for its reply.
+    ///
+    /// Waiting forever was wrong while the link was down: nothing
+    /// drains the queue then, so a caller blocked until the receiver
+    /// came back, which could be hours, and its thread and its socket
+    /// stayed up the whole time.
+    pub fn request_within(&self, scpi: impl Into<String>, within: Duration) -> Result<Reply> {
         let (tx, rx) = sync_channel(1);
         let request = Request::Command {
             scpi: scpi.into(),
@@ -206,8 +216,14 @@ impl Handle {
         self.requests
             .send(request)
             .map_err(|_| Error::TaskStopped("nothing is serving its request queue"))?;
-        rx.recv()
-            .map_err(|_| Error::TaskStopped("it dropped the reply"))?
+        match rx.recv_timeout(within) {
+            Ok(reply) => reply,
+            Err(RecvTimeoutError::Timeout) => Err(Error::Timeout {
+                waited: within,
+                seen: "the receiver did not answer; the link may be down".to_owned(),
+            }),
+            Err(RecvTimeoutError::Disconnected) => Err(Error::TaskStopped("it dropped the reply")),
+        }
     }
 }
 
@@ -219,6 +235,12 @@ pub enum Stopped {
     /// The link failed repeatedly and the device should be reopened.
     LinkFailed(Error),
 }
+
+/// How long a caller waits for a command before giving up.
+///
+/// Generous next to the slowest exchange -- a status screen is about a
+/// second at 19200 -- and short next to an outage.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// How many snapshots a subscriber may fall behind before it is
 /// dropped.
@@ -292,6 +314,24 @@ impl<T: Transport> DeviceTask<T> {
             failures: 0,
             resync: false,
         }
+    }
+
+    /// Answer and discard everything queued, for a link that has gone.
+    ///
+    /// Without this, commands submitted during an outage were run
+    /// against the receiver whenever it came back -- a survey the
+    /// operator started and abandoned hours earlier, kicked off on
+    /// reconnect.  A command is for the receiver that was attached when
+    /// it was sent.
+    pub fn discard_queued(requests: &Receiver<Request>, why: &'static str) -> usize {
+        let mut discarded = 0;
+        while let Ok(request) = requests.try_recv() {
+            if let Request::Command { answer, .. } = request {
+                let _ = answer.send(Err(Error::TaskStopped(why)));
+            }
+            discarded += 1;
+        }
+        discarded
     }
 
     /// Take the request channel back, so the next task can serve it.

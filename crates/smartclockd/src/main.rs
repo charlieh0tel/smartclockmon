@@ -99,6 +99,10 @@ struct Cli {
     allow_raw: bool,
 }
 
+/// How often the log thread looks for a command to record when no
+/// snapshot has arrived to wake it.
+const AUDIT_POLL: Duration = Duration::from_millis(200);
+
 /// How long to wait before reopening a receiver that went away.
 const RECONNECT_DELAY: Duration = Duration::from_secs(5);
 
@@ -137,14 +141,28 @@ fn main() -> Result<()> {
         .name("smartclockd-log".to_owned())
         .spawn(move || {
             // Commands are recorded on the same thread as snapshots so
-            // one connection stays one writer.
+            // one connection stays one writer.  Waiting on whichever
+            // arrives first, rather than draining commands only when a
+            // snapshot happens to publish: an audit entry should not
+            // sit until the next poll, and the queue should not be lost
+            // when the snapshots stop.
             loop {
                 while let Ok(entry) = audit_rx.try_recv() {
                     if let Err(e) = log.audit(&entry.scpi, &entry.class, &entry.outcome, None) {
                         eprintln!("smartclockd: could not record a command: {e}");
                     }
                 }
-                let Ok(snapshot) = writes.recv() else { return };
+                let snapshot = match writes.recv_timeout(AUDIT_POLL) {
+                    Ok(snapshot) => snapshot,
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+                    // The receiver is gone; write what is left and stop.
+                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                        while let Ok(entry) = audit_rx.try_recv() {
+                            let _ = log.audit(&entry.scpi, &entry.class, &entry.outcome, None);
+                        }
+                        return;
+                    }
+                };
                 // Only record readings that describe the receiver.  A
                 // disconnected snapshot is the same values again with a
                 // flag, and logging those would pad the history with
@@ -277,10 +295,34 @@ fn supervise(
             Stopped::LinkFailed(e) => {
                 eprintln!("smartclockd: link failed, reopening: {e}");
                 shared.mark_disconnected(Timestamp::now(), &e.to_string());
+                // A command is for the receiver that was attached when
+                // it was sent, so anything queued is answered rather
+                // than run against whatever comes back.
+                let dropped = DeviceTask::<SerialTransport>::discard_queued(
+                    &requests,
+                    "the link went down before the command ran",
+                );
+                if dropped > 0 {
+                    eprintln!("smartclockd: dropped {dropped} queued commands");
+                }
                 thread::sleep(RECONNECT_DELAY);
             }
         }
     }
+}
+
+/// Give the socket owner and group access, and nobody else.
+#[cfg(unix)]
+fn set_socket_mode(socket: &Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt as _;
+    std::fs::set_permissions(socket, std::fs::Permissions::from_mode(0o660))
+        .with_context(|| format!("setting permissions on {}", socket.display()))
+}
+
+/// Elsewhere the platform decides; there is no portable equivalent.
+#[cfg(not(unix))]
+fn set_socket_mode(_socket: &Path) -> Result<()> {
+    Ok(())
 }
 
 /// A cadence flag as a duration, refusing what cannot be one.
@@ -340,6 +382,11 @@ fn start_server(listening: Listening<'_>) -> Result<()> {
     // Bound here, not in the serving thread, so a failure is reported
     // to whoever started the daemon rather than to a dying thread.
     let listener = server::bind(name)?;
+    // Socket permissions are the whole of the authorization model, so
+    // they are set rather than inherited from whatever umask the daemon
+    // happened to start with.  Group access is deliberate: it is how an
+    // unprivileged operator runs the monitor.
+    set_socket_mode(socket)?;
     let handle = Handle::new(listening.requests.clone(), listening.shared.clone());
     let info = listening.info;
     let where_to = socket.display().to_string();

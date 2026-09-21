@@ -52,9 +52,15 @@ impl ReplayTransport {
         self
     }
 
-    /// Whether every record has been consumed.
+    /// Whether every record has been consumed and nothing extra was
+    /// written.
+    ///
+    /// Unmatched written bytes count: without them a test could send a
+    /// command absent from the capture, have the write silently
+    /// accepted because no Tx record was left to compare it against,
+    /// and still be told the transcript was fully replayed.
     pub fn exhausted(&self) -> bool {
-        self.records.is_empty() && self.pending.is_empty()
+        self.records.is_empty() && self.pending.is_empty() && self.written.is_empty()
     }
 
     /// Move receiver bytes into `pending`, skipping any Tx records that
@@ -85,7 +91,19 @@ impl Write for ReplayTransport {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.written.extend_from_slice(buf);
 
-        // Consume Tx records as the caller's writes cover them.
+        // Consume Tx records as the caller's writes cover them.  In
+        // strict mode a write with no Tx record left to match is a
+        // command the capture does not contain, which is exactly what
+        // strict mode exists to catch.
+        if self.strict
+            && !self.written.is_empty()
+            && !self.records.iter().any(|r| r.dir == Direction::Tx)
+        {
+            return Err(std::io::Error::other(format!(
+                "replay: sent {:?}, which the transcript does not contain",
+                String::from_utf8_lossy(&self.written)
+            )));
+        }
         while let Some(front) = self.records.front() {
             if front.dir != Direction::Tx {
                 break;

@@ -17,7 +17,7 @@ and a TUI client.  A GUI is possible later but is not planned.
 | 6 | Control commands, audit trail, raw console | done |
 | 7 | Generated command matrix | done; protocol and deployment notes not written |
 
-128 tests, none needing hardware.  `make ci` is what CI runs; `make
+132 tests, none needing hardware.  `make ci` is what CI runs; `make
 test-hw` is the hardware-only set and CI never runs it.
 
 Running against the development unit, logging to a database given on the
@@ -659,17 +659,12 @@ Suggest a commit at each phase boundary.
 
 ## Known defects
 
-From the September 2026 review.  Everything of consequence is fixed;
-what remains is recorded here so it is somewhere other than a chat log.
+None outstanding from the September 2026 review.  What it found is
+either fixed or, where a decision went the other way, recorded as a
+decision above.
 
-| Where | What |
-| ----- | ---- |
-| `server.rs` | A client thread has no idle timeout and there is no cap on concurrent connections, so any local process able to open the socket can spawn daemon threads.  Socket permissions are the only limit, by design. |
-| `server.rs` | A request line is read without a length cap, so a client that never sends a newline grows one string in the daemon. |
-| `smartclock-sim` | The same in the simulator: the partial-command buffer grows without bound, and the error queue with it. |
-| `smartclockd/src/main.rs` | Audit entries are written when the next snapshot publishes rather than at once, and anything still queued at shutdown is lost. |
-| `task.rs` | Commands queued while the link is down are run on reconnect, however long that took, and `Handle::request` waits for them without a timeout. |
-| `rollover.rs` | A deserialised epoch count large enough to overflow jiff panics in `corrected()`.  Unreachable from `checked()`, reachable from a hostile reading. |
-| `smartclockd` | The socket's mode is never set explicitly; it inherits the umask, and socket permissions are the whole authorization boundary. |
-| `transport/replay.rs` | Strict replay accepts extra unrecorded writes, so a test can pass while sending commands absent from the capture. |
-| `transport/tee.rs` | A coalesced run has no size cap and no idle flush, so a long one-directional stream stays buffered. |
+Two things are deliberately not defended against, because the threat
+model is a careless operator on a single-operator machine and not an
+attacker: socket permissions are the whole of the authorization, and a
+client that can open the socket can occupy one of the sixteen
+connection slots.

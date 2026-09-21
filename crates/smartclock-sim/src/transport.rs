@@ -16,6 +16,10 @@ use smartclock::transport::Transport;
 
 use crate::receiver::Receiver;
 
+/// Longest command the simulator will accumulate before giving up on
+/// it.  Generous next to any real command.
+const MAX_PARTIAL: usize = 4096;
+
 /// The prompt, spaced as the receiver spaces it.
 ///
 /// Note the space before the angle bracket.  The manuals print
@@ -109,6 +113,15 @@ impl Write for SimTransport {
         self.emit(&String::from_utf8_lossy(buf));
 
         let mut partial = self.partial.lock().expect("partial mutex");
+        // A client that never sends a newline would otherwise grow this
+        // without limit, and each write would rescan more of it.  The
+        // receiver has a finite input buffer too; overrunning it
+        // discards the line rather than the simulator's memory.
+        if partial.len() + buf.len() > MAX_PARTIAL {
+            partial.clear();
+            self.emit("\r\nE-363 > ");
+            return Ok(buf.len());
+        }
         partial.push_str(&String::from_utf8_lossy(buf));
         // A command ends at a newline; carriage returns are part of the
         // terminator, not of the command.

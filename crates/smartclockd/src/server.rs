@@ -10,9 +10,12 @@
 
 use std::io::BufRead;
 use std::io::BufReader;
+use std::io::Read as _;
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use std::thread;
 
 use anyhow::Context as _;
@@ -32,6 +35,23 @@ use crate::proto::Op;
 use crate::proto::Request;
 use crate::proto::VERSION;
 use smartclock::wire::Reading;
+
+/// Longest request line accepted.
+///
+/// A line is read until a newline, so without a cap a client that
+/// never sends one grows a single string in the daemon for as long as
+/// it keeps writing.  A status screen query is a few dozen bytes; this
+/// is generous.
+const MAX_REQUEST: u64 = 8192;
+
+/// How many clients may be connected at once.
+///
+/// Each takes two threads.  Socket permissions decide who may connect
+/// at all, but nothing stopped one mistaken loop from opening
+/// connections until the daemon ran out of threads, and the failure
+/// mode for that used to be a daemon that looked healthy and could
+/// never be reached again.
+const MAX_CLIENTS: usize = 16;
 
 /// What a client is permitted to do.
 ///
@@ -110,6 +130,7 @@ pub(crate) fn bind(name: interprocess::local_socket::Name<'static>) -> Result<Li
 
 /// Listen for clients until the process ends.
 pub(crate) fn serve(listener: Listener, handle: Handle, info: SharedInfo) -> Result<()> {
+    let clients = Arc::new(AtomicUsize::new(0));
     for incoming in listener.incoming() {
         let stream = match incoming {
             Ok(stream) => stream,
@@ -120,8 +141,15 @@ pub(crate) fn serve(listener: Listener, handle: Handle, info: SharedInfo) -> Res
                 continue;
             }
         };
+        if clients.load(Ordering::Relaxed) >= MAX_CLIENTS {
+            eprintln!("smartclockd: refusing a client, {MAX_CLIENTS} already connected");
+            drop(stream);
+            continue;
+        }
         let handle = handle.clone();
         let info = Arc::clone(&info);
+        clients.fetch_add(1, Ordering::Relaxed);
+        let counted = Arc::clone(&clients);
         // A spawn failure must not end the accept loop.  It used to
         // propagate, so one transient EAGAIN under thread pressure left
         // the daemon polling and logging, looking healthy, while no
@@ -132,9 +160,11 @@ pub(crate) fn serve(listener: Listener, handle: Handle, info: SharedInfo) -> Res
                 if let Err(e) = talk(stream, &handle, &info) {
                     eprintln!("smartclockd: client ended: {e}");
                 }
+                counted.fetch_sub(1, Ordering::Relaxed);
             });
         if let Err(e) = spawned {
             eprintln!("smartclockd: could not serve a client: {e}");
+            clients.fetch_sub(1, Ordering::Relaxed);
         }
     }
     Ok(())
@@ -169,8 +199,24 @@ fn talk(stream: Stream, handle: &Handle, info: &SharedInfo) -> Result<()> {
         })
         .context("spawning the push thread")?;
 
-    for line in BufReader::new(recv).lines() {
-        let line = line?;
+    // Capped: an unterminated line would otherwise grow without limit.
+    let mut reader = BufReader::new(recv);
+    loop {
+        let mut line = String::new();
+        let read = (&mut reader).take(MAX_REQUEST + 1).read_line(&mut line)?;
+        if read == 0 {
+            return Ok(());
+        }
+        if read as u64 > MAX_REQUEST {
+            write_line(
+                &writer,
+                &Message::err(
+                    String::new(),
+                    format!("a request may not exceed {MAX_REQUEST} bytes"),
+                ),
+            )?;
+            return Ok(());
+        }
         if line.trim().is_empty() {
             continue;
         }
@@ -186,7 +232,6 @@ fn talk(stream: Stream, handle: &Handle, info: &SharedInfo) -> Result<()> {
         };
         write_line(&writer, &reply)?;
     }
-    Ok(())
 }
 
 fn handle_request(request: Request, handle: &Handle, info: &Info) -> Message {

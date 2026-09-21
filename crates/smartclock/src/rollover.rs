@@ -87,14 +87,22 @@ impl ReceiverDate {
 
     /// The date with any detected rollover added back, or the raw date
     /// when none was detected.
+    ///
+    /// A rollover count this never produced can still arrive by
+    /// deserialisation, and `Span::days` panics rather than erroring
+    /// once the count exceeds what jiff can hold.  A reading from
+    /// elsewhere must not be able to abort the process that renders it,
+    /// so the span is built fallibly and an impossible one leaves the
+    /// raw date alone.
     pub fn corrected(self) -> Date {
-        match self.rollover {
-            Some(slip) => self
-                .raw
-                .checked_add(jiff::Span::new().days(slip.days()))
-                .unwrap_or(self.raw),
-            None => self.raw,
-        }
+        let Some(slip) = self.rollover else {
+            return self.raw;
+        };
+        jiff::Span::new()
+            .try_days(slip.days())
+            .ok()
+            .and_then(|span| self.raw.checked_add(span).ok())
+            .unwrap_or(self.raw)
     }
 }
 
@@ -138,6 +146,16 @@ mod tests {
             assert_eq!(seen.rollover(), None, "{wrong} was flagged");
             assert_eq!(seen.corrected(), wrong);
         }
+    }
+
+    #[test]
+    fn an_impossible_rollover_count_does_not_panic() {
+        // Reachable only by deserialising a reading from elsewhere, but
+        // rendering one must not be able to abort the process.
+        let absurd: ReceiverDate =
+            serde_json::from_str(r#"{"raw":"2007-02-04","rollover":{"epochs":4294967295}}"#)
+                .expect("a reading with an absurd rollover count");
+        assert_eq!(absurd.corrected(), date(2007, 2, 4));
     }
 
     #[test]
