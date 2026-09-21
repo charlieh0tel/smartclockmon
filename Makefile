@@ -64,8 +64,16 @@ clean:
 deb:
 	$(CARGO) build --release --workspace
 # -q keeps the output to the artifact path.
-	$(CARGO) deb -p smartclockd --no-build -q \
-	    --deb-version "$$(./target/release/smartclockd --version | awk '{print $$2}')"
+# A snapshot overrides the version with its own stamp, so two builds of
+# different code cannot share one.  A build standing on a release tag
+# does not: cargo-deb then takes the version from the changelog, which
+# is what CI does too, so the package built here and the package built
+# from the tag are the same version rather than 0.1.0 against 0.1.0-1.
+	@v=$$(./target/release/smartclockd --version | awk '{print $$2}'); \
+	case "$$v" in \
+	  *~git*) $(CARGO) deb -p smartclockd --no-build -q --deb-version "$$v" ;; \
+	  *)      $(CARGO) deb -p smartclockd --no-build -q ;; \
+	esac
 
 # Cut a release: one version, in both places that must agree, tagged.
 #
