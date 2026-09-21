@@ -53,13 +53,43 @@ impl Log {
     }
 
     fn migrate(&self) -> Result<()> {
+        // The metadata table first and alone, because the version it
+        // holds decides whether this database may be touched at all.
+        // Creating the rest before reading it meant a database from a
+        // newer daemon had three tables and seven columns added to it
+        // and was then refused, which is the opposite of what the
+        // refusal is for: a future schema that renamed one of these
+        // would find it silently resurrected.
         self.conn.execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS meta (
+            "CREATE TABLE IF NOT EXISTS meta (
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
+            );",
+        )?;
+        // Refuse a database this binary is too old to understand
+        // rather than writing into it and restamping it as ours.  A
+        // newer daemon may have added columns or changed what a column
+        // means, and the rows are the only record of a receiver's
+        // history: there is no undoing a bad write to them.
+        let found: Option<String> = self
+            .conn
+            .query_row("SELECT value FROM meta WHERE key = 'schema'", [], |row| {
+                row.get(0)
+            })
+            .optional()?;
+        if let Some(found) = found {
+            let found: i64 = found
+                .parse()
+                .with_context(|| format!("meta.schema is {found:?}, which is not a version"))?;
+            anyhow::ensure!(
+                found <= SCHEMA,
+                "this database is schema {found} and this smartclockd understands {SCHEMA}; \
+                 it was written by a newer version"
             );
+        }
 
+        self.conn.execute_batch(
+            r#"
             -- One row per poll that produced a publishable snapshot.
             CREATE TABLE IF NOT EXISTS snapshot (
                 id                   INTEGER PRIMARY KEY,
@@ -176,9 +206,10 @@ impl Log {
                 UNIQUE (receiver_id, entry, stamp, message)
             );
 
-            -- Every command that was not a scheduled poll.  Phase 6
-            -- fills this; the table exists now so the schema does not
-            -- move once there is history worth keeping.
+            -- Every command a client asked for.  Not a complete record
+            -- of what was sent: the poll schedule is not audited, and
+            -- neither are the journal's own queries, which are polls in
+            -- everything but the tier they run on.
             CREATE TABLE IF NOT EXISTS audit (
                 id      INTEGER PRIMARY KEY,
                 at      TEXT NOT NULL,
@@ -219,27 +250,6 @@ impl Log {
                     "ALTER TABLE {table} ADD COLUMN receiver_id INTEGER REFERENCES receiver(id)"
                 ))?;
             }
-        }
-        // Refuse a database this binary is too old to understand
-        // rather than writing into it and restamping it as ours.  A
-        // newer daemon may have added columns or changed what a column
-        // means, and the rows are the only record of a receiver's
-        // history: there is no undoing a bad write to them.
-        let found: Option<String> = self
-            .conn
-            .query_row("SELECT value FROM meta WHERE key = 'schema'", [], |row| {
-                row.get(0)
-            })
-            .optional()?;
-        if let Some(found) = found {
-            let found: i64 = found
-                .parse()
-                .with_context(|| format!("meta.schema is {found:?}, which is not a version"))?;
-            anyhow::ensure!(
-                found <= SCHEMA,
-                "this database is schema {found} and this smartclockd understands {SCHEMA}; \
-                 it was written by a newer version"
-            );
         }
         self.conn.execute(
             "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema', ?1)",
@@ -493,6 +503,36 @@ impl Log {
             ],
         )?;
         Ok(written > 0)
+    }
+
+    /// The span of diagnostic log entry numbers already held for one
+    /// receiver, lowest and highest.
+    ///
+    /// Lets a restarted daemon resume a backfill instead of walking the
+    /// whole log again: at sixteen entries a minute a full log takes a
+    /// quarter of an hour, so a daemon restarted more often than that
+    /// re-read the newest entries for ever and never reached the
+    /// oldest.
+    ///
+    /// The span is the extremes, not proof that everything between them
+    /// is held: an entry the receiver would not give up leaves a gap
+    /// that only a full re-walk fills.  Those are logged when they
+    /// happen.
+    pub(crate) fn log_span(&self, receiver: i64) -> Result<Option<(i64, i64)>> {
+        Ok(self.conn.query_row(
+            "SELECT MIN(entry), MAX(entry) FROM receiver_log WHERE receiver_id = ?1",
+            params![receiver],
+            |row| {
+                Ok(row
+                    .get::<_, Option<i64>>(0)?
+                    .zip(row.get::<_, Option<i64>>(1)?))
+            },
+        )?)
+    }
+
+    /// Which receiver rows written now belong to.
+    pub(crate) fn current_receiver(&self) -> Option<i64> {
+        self.current
     }
 
     /// How many error queue entries and diagnostic log entries are

@@ -260,6 +260,14 @@ fn main() -> Result<()> {
                         eprintln!("smartclockd: could not record a command: {e}");
                     }
                 }
+                // Before the journal, not after.  The journal writes
+                // rows of its own, and until this has run they would
+                // carry whichever receiver was attached last: on a swap
+                // the device task publishes for the new unit long
+                // before this thread has taken that snapshot off the
+                // queue, so an error or log entry read from the new
+                // receiver was filed under the old one.
+                note_attached(&mut log, &mut recorded, &journal_info);
                 if Instant::now() >= next_journal {
                     next_journal = Instant::now() + JOURNAL_EVERY;
                     // Only while a receiver is answering.  Every one of
@@ -269,9 +277,19 @@ fn main() -> Result<()> {
                     let attached = journal_handle
                         .latest()
                         .is_some_and(|s| s.freshness != Freshness::Disconnected);
-                    if attached && recorded.is_some() {
-                        let dialect = server::lock_or_poisoned(&journal_info).dialect;
-                        journal.pass(&journal_handle, dialect, &mut log);
+                    let (identity, dialect) = {
+                        let current = server::lock_or_poisoned(&journal_info);
+                        (current.identity.clone(), current.dialect)
+                    };
+                    // And the receiver the rows will be filed under has
+                    // to be the one now attached, not merely some
+                    // receiver: `note_attached` above can have been
+                    // outrun by a swap that happened since.
+                    let settled = recorded.as_ref() == Some(&identity);
+                    if let (true, true, Some(receiver)) =
+                        (attached, settled, log.current_receiver())
+                    {
+                        journal.pass(&journal_handle, dialect, receiver, &mut log);
                     }
                 }
                 let snapshot = match writes.recv_timeout(AUDIT_POLL) {
@@ -294,24 +312,12 @@ fn main() -> Result<()> {
                 if snapshot.freshness == Freshness::Disconnected {
                     continue;
                 }
-                // Immediately before the row is written, not once a
-                // cycle: a snapshot can be published before the
-                // identity is known, and checking earlier left the
-                // first row of every run attributed to no receiver at
-                // all.  It costs a string compare per row.
-                let identity = server::lock_or_poisoned(&journal_info).identity.clone();
-                if !identity.is_empty() && recorded.as_ref() != Some(&identity) {
-                    match log.note_receiver(&identity) {
-                        Ok(others) if !others.is_empty() => eprintln!(
-                            "smartclockd: this log also holds rows from {}; \
-                             every row says which receiver it came from",
-                            others.join(", ")
-                        ),
-                        Ok(_) => {}
-                        Err(e) => eprintln!("smartclockd: could not note the receiver: {e}"),
-                    }
-                    recorded = Some(identity);
-                }
+                // Again, immediately before the row is written: a
+                // snapshot can be published before the identity is
+                // known, and checking only at the top of the loop left
+                // the first row of every run attributed to no receiver
+                // at all.  It costs a string compare per row.
+                note_attached(&mut log, &mut recorded, &journal_info);
                 if let Err(e) = log.record(&snapshot) {
                     eprintln!("smartclockd: could not record a snapshot: {e}");
                 }
@@ -417,6 +423,28 @@ fn supervise(
             }
         }
     }
+}
+
+/// Make sure the log knows which receiver is attached, so that what is
+/// written next is filed under it.
+///
+/// Cheap enough to call before every write: a string compare, and the
+/// database is touched only when the identity has actually changed.
+fn note_attached(log: &mut db::Log, recorded: &mut Option<String>, info: &server::SharedInfo) {
+    let identity = server::lock_or_poisoned(info).identity.clone();
+    if identity.is_empty() || recorded.as_ref() == Some(&identity) {
+        return;
+    }
+    match log.note_receiver(&identity) {
+        Ok(others) if !others.is_empty() => eprintln!(
+            "smartclockd: this log also holds rows from {}; \
+             every row says which receiver it came from",
+            others.join(", ")
+        ),
+        Ok(_) => {}
+        Err(e) => eprintln!("smartclockd: could not note the receiver: {e}"),
+    }
+    *recorded = Some(identity);
 }
 
 /// Give the socket owner and group access, and nobody else.
