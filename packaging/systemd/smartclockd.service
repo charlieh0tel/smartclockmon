@@ -4,15 +4,22 @@ Documentation=https://github.com/ch/smartclockmon
 # Nothing here names the adapter.  Every setting lives in
 # /etc/default/smartclockd so that this unit needs no editing; the
 # daemon reconnects by itself when a USB adapter re-enumerates, and
-# Restart=always covers the cases it cannot.  To have systemd stop the
+# Restart= below covers the cases it cannot.  To have systemd stop the
 # daemon outright while the adapter is unplugged, add a drop-in with
 # BindsTo= and After= naming your device unit.  See docs/running.md.
+
+StartLimitIntervalSec=300
+StartLimitBurst=10
 
 [Service]
 Type=exec
 EnvironmentFile=-/etc/default/smartclockd
 ExecStart=/usr/bin/smartclockd
-Restart=always
+# on-failure, not always, with a limit: a bad setting in
+# /etc/default/smartclockd makes the daemon exit at startup, and without
+# a limit that is a restart every five seconds forever rather than a
+# unit that lands in "failed" where the operator can see it.
+Restart=on-failure
 RestartSec=5
 
 User=smartclockd
@@ -35,7 +42,9 @@ PrivateTmp=yes
 NoNewPrivileges=yes
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
-RestrictAddressFamilies=AF_UNIX
+# AF_INET/AF_INET6 because --device also takes tcp://host:port, for a
+# receiver on a serial-to-network adapter or for the simulator.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 MemoryDenyWriteExecute=yes
 LockPersonality=yes
 

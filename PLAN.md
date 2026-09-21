@@ -416,7 +416,9 @@ Library layers, bottom up:
   port is open and `*IDN?` has answered, but the daemon is meant to
   come up and keep retrying with no receiver attached, so there is no
   moment that honestly counts as ready.
-- `Restart=always` with a backoff.
+- `Restart=on-failure` with a backoff and a start limit, so a bad
+  setting in `/etc/default/smartclockd` lands the unit in `failed`
+  rather than restarting every five seconds forever.
 - No `BindsTo=` / `After=` for the adapter's `.device` unit.  The
   daemon reconnects on its own and binding would stop it dead while an
   adapter is unplugged; naming a device in the unit also meant the
@@ -432,7 +434,10 @@ Library layers, bottom up:
   `RuntimeDirectoryMode` and socket group ownership set so the TUI runs
   unprivileged.
 - Standard hardening: `ProtectSystem=strict`, `PrivateTmp`,
-  `NoNewPrivileges`.
+  `NoNewPrivileges`.  `RestrictAddressFamilies=` has to admit `AF_INET`
+  and `AF_INET6` as well as `AF_UNIX`, or the `tcp://host:port` device
+  form cannot open and the daemon restarts forever.  `PrivateDevices` is
+  deliberately absent: it would hide the serial port.
 
 A `systemctl --user` unit is the simpler alternative if system-wide
 installation proves annoying, at the cost of not starting until login.

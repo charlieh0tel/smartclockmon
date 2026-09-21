@@ -47,13 +47,41 @@ The log grows without bound, by a few MB a day at the default cadence.
 Nothing rotates it; that is deliberate, because the point of the record
 is to still have last year's holdover events.
 
-To carry over a database from running the daemon by hand, copy it in
-while the service is stopped, including the WAL files if they exist:
+To carry over a database from running the daemon by hand:
 
-    sudo systemctl stop smartclockd
-    sudo cp ~/smartclock.sqlite* /var/lib/smartclockd/
-    sudo chown smartclockd:smartclockd /var/lib/smartclockd/snapshots.sqlite*
+    sudo systemctl stop smartclockd       # if it is already running
+    # and stop whatever was writing the old file, or the copy tears
+
+    sqlite3 ~/smartclock.sqlite "PRAGMA wal_checkpoint(TRUNCATE);"
+
+    sudo install -d -o smartclockd -g smartclockd -m 0750 /var/lib/smartclockd
+    sudo install -o smartclockd -g smartclockd -m 0640 \
+         ~/smartclock.sqlite /var/lib/smartclockd/snapshots.sqlite
+
     sudo systemctl start smartclockd
+
+Three things to get right, each of which fails quietly:
+
+- **The name changes.**  The daemon opens `snapshots.sqlite`; copy the
+  file under its old name and the daemon ignores it and starts an empty
+  one.  Rename it as above, or point `SMARTCLOCKD_DATABASE` at whatever
+  you called it.
+- **Checkpoint first.**  `wal_checkpoint(TRUNCATE)` folds the write-ahead
+  log into the main file, so one file is the whole database.  Without it
+  you have to copy the `-wal` file too *and* rename it to match, or
+  SQLite silently drops the un-checkpointed tail.  The `-shm` file is
+  rebuilt and need not be copied.
+- **`install` rather than `cp`.**  It copies, chowns and chmods in one
+  step, so the file is never briefly owned by root.  The account exists
+  from the moment the package is installed, so this works before the
+  first start.  `install -d` is only needed when pre-populating like
+  this; `StateDirectory=` creates the directory itself, correctly owned,
+  when the service starts.
+
+Do not point `SMARTCLOCKD_DATABASE` into your home directory to skip the
+copy.  The unit sets `ProtectHome=yes`, so `/home` does not exist as far
+as the daemon is concerned, and it would fail to open and restart every
+five seconds.
 
 ## Watching it
 
@@ -67,8 +95,8 @@ the daemon has been configured to allow.
 ## Unplugging the adapter
 
 The daemon reconnects by itself when a USB adapter disappears and comes
-back, and `Restart=always` handles the failures it cannot absorb, so the
-unit deliberately does not bind to a device.  Binding it means the
+back, and `Restart=on-failure` handles the failures it cannot absorb, so
+the unit deliberately does not bind to a device.  Binding it means the
 daemon stops dead when the adapter is unplugged and only returns when
 systemd notices the device again, which is the wrong behaviour for a
 receiver that is meant to be logging continuously.
@@ -85,3 +113,11 @@ device unit rather than editing the shipped unit:
 
 `systemd-escape --path --suffix=device /dev/serial/by-id/...` produces
 the escaped unit name.
+
+## Talking to a receiver over the network
+
+`SMARTCLOCKD_DEVICE` also takes `tcp://host:port`, for a receiver behind
+a serial-to-network adapter or for the simulator.  The shipped unit
+allows the address families that needs, but if you have hardened it
+further, `RestrictAddressFamilies=` has to list `AF_INET` and `AF_INET6`
+or the daemon cannot open the connection and will restart forever.
