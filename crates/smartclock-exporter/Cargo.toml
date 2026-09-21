@@ -1,0 +1,17 @@
+[package]
+name = "smartclock-exporter"
+description = "Prometheus exporter for HP / Symmetricom SmartClock GPS receivers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = "1.0.100"
+clap = { version = "4.6.7", features = ["derive", "env"] }
+jiff = "0.2.37"
+smartclock = { path = "../smartclock" }

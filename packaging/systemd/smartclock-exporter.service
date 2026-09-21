@@ -1,0 +1,39 @@
+[Unit]
+Description=Prometheus exporter for a SmartClock GPS receiver
+Documentation=https://github.com/charlieh0tel/smartclockmon
+# The exporter answers a scrape from the daemon's last reading, so it is
+# useless without it, but it need not fail when the daemon restarts: it
+# reports up 0 for as long as that lasts, which is the honest answer and
+# the one Prometheus can alert on.
+Wants=smartclockd.service
+After=smartclockd.service
+
+[Service]
+Type=exec
+EnvironmentFile=-/etc/default/smartclock-exporter
+ExecStart=/usr/bin/smartclock-exporter
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2
+
+User=smartclockd
+Group=smartclockd
+
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+SystemCallFilter=@system-service
+
+[Install]
+WantedBy=multi-user.target

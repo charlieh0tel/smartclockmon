@@ -17,6 +17,7 @@ is not, and the defects a review has found but nobody has fixed yet.
 | `smartclockd` | holds the serial port, logs to SQLite, serves clients over a local socket |
 | `smartclockmon` | terminal monitor: a dashboard and history graphs |
 | `smartclock-cli` | one-shot queries, `diagnose`, transcript capture, and sweeping for undocumented commands |
+| `smartclock-exporter` | Prometheus metrics for the receiver, from the daemon's own readings |
 | `smartclock-sim` | a simulated receiver, in process for tests and over TCP for driving the real daemon |
 
 ## Running it
@@ -36,6 +37,16 @@ Run by hand, it holds the port and everything else is a client of it:
 
 In the monitor, `g` switches to the graphs, `w` cycles their span, `c`
 opens a command line, `q` quits.
+
+    smartclock-exporter            # http://127.0.0.1:9979/metrics
+
+The exporter answers a scrape from whatever the daemon last polled, so
+scraping costs the receiver nothing and cannot compete with the poll
+schedule.  It exports `smartclock_up`, and the age of each tier as
+`smartclock_tier_age_seconds`, because a daemon that has stopped polling
+otherwise looks like a remarkably steady oscillator: every other value
+stays exactly where it was.  A reading the receiver declined is left out
+rather than exported as zero.
 
 `smartclockmon --device ...` talks to the receiver directly, which needs
 the daemon stopped and records no history; the header says so.

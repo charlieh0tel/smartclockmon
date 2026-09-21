@@ -1644,6 +1644,7 @@ checksum = "ba467056f1b547ed52077911161fc86985becbc60e8e1857c8a144dab0def891"
 name = "smartclock"
 version = "0.1.1"
 dependencies = [
+ "interprocess",
  "jiff",
  "serde",
  "serde_json",
@@ -1661,6 +1662,16 @@ dependencies = [
  "interprocess",
  "jiff",
  "serde_json",
+ "smartclock",
+]
+
+[[package]]
+name = "smartclock-exporter"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "jiff",
  "smartclock",
 ]
 

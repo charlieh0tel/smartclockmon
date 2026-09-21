@@ -1,0 +1,11 @@
+# Settings for smartclock-exporter.  Each line matches a command line
+# option of the same name; `smartclock-exporter --help` documents them.
+
+# Where to serve /metrics.  Localhost by default: a reading says where
+# the receiver is to within a few metres, so widening this is a decision
+# to take rather than a default to accept.  Prometheus scraping from
+# another host needs 0.0.0.0:9979 here and a firewall that agrees.
+#SMARTCLOCK_EXPORTER_LISTEN=127.0.0.1:9979
+
+# The daemon's socket.
+#SMARTCLOCK_EXPORTER_SOCKET=/run/smartclockd/socket

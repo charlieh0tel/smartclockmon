@@ -81,6 +81,11 @@ pub enum Error {
 
     /// The transcript being replayed ran out, or diverged from what the
     /// caller sent.
+    /// A daemon refused a request, or answered with something this
+    /// client could not use.  Carries the daemon's own words.
+    #[error("the daemon said: {0}")]
+    Daemon(String),
+
     #[error("replay: {0}")]
     Replay(String),
 }

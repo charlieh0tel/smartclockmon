@@ -4,8 +4,6 @@
 //! open once it exists, so it must be stopped before using this.
 
 use std::fs::File;
-use std::io::BufRead as _;
-use std::io::BufReader;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
@@ -15,20 +13,12 @@ use anyhow::Context as _;
 use anyhow::Result;
 use clap::Parser;
 use clap::Subcommand;
-use interprocess::TryClone as _;
-use interprocess::local_socket::GenericFilePath;
-use interprocess::local_socket::Stream;
-use interprocess::local_socket::ToFsName as _;
-use interprocess::local_socket::traits::Stream as _;
 use jiff::Zoned;
+use smartclock::client::Daemon;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
 use smartclock::device::Device;
 use smartclock::error::Error;
-use smartclock::protocol::Message;
-use smartclock::protocol::Op;
-use smartclock::protocol::Request;
-use smartclock::protocol::VERSION;
 use smartclock::session::Config;
 use smartclock::session::Session;
 use smartclock::transport;
@@ -466,7 +456,12 @@ fn probe<T: Transport>(session: &mut Session<T>, dialect: &str) -> Result<()> {
 /// daemon already holds.  `probe` and `sweep` send hundreds of commands
 /// and belong on a port of their own, with the daemon stopped.
 fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
-    let mut daemon = Daemon::connect(socket)?;
+    let mut daemon = Daemon::connect(socket).with_context(|| {
+        format!(
+            "connecting to {}; is smartclockd running, and are you in its group?",
+            socket.display()
+        )
+    })?;
     match command {
         Command::Query { commands } => {
             for one in commands {
@@ -477,7 +472,7 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
             }
             Ok(())
         }
-        Command::Diagnose => daemon.diagnose(),
+        Command::Diagnose => diagnose_daemon(&mut daemon),
         Command::Commands => {
             print!("{}", smartclock::matrix::markdown());
             Ok(())
@@ -486,104 +481,6 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
             "probe and sweep send hundreds of commands and need the port to themselves; \
              stop smartclockd and use --device"
         ),
-    }
-}
-
-/// A connection to a running daemon.
-struct Daemon {
-    writer: Stream,
-    reader: BufReader<Stream>,
-    /// Distinguishes this client's replies from the snapshots that
-    /// arrive unasked on the same stream.
-    next_id: u32,
-}
-
-impl Daemon {
-    fn connect(socket: &Path) -> Result<Self> {
-        let name = socket
-            .to_fs_name::<GenericFilePath>()
-            .with_context(|| format!("{} is not a usable socket name", socket.display()))?;
-        let stream = Stream::connect(name).with_context(|| {
-            format!(
-                "connecting to {}; is smartclockd running, and are you in its group?",
-                socket.display()
-            )
-        })?;
-        let reader = BufReader::new(stream.try_clone()?);
-        Ok(Self {
-            writer: stream,
-            reader,
-            next_id: 0,
-        })
-    }
-
-    /// Send one request and wait for the reply that echoes its id.
-    ///
-    /// Snapshots arrive on the same stream whether or not anything was
-    /// asked, so anything that is not this request's reply is skipped
-    /// rather than mistaken for one.
-    fn ask(&mut self, op: Op) -> Result<serde_json::Value> {
-        self.next_id += 1;
-        let id = self.next_id.to_string();
-        let request = Request {
-            v: VERSION,
-            id: id.clone(),
-            op,
-        };
-        writeln!(self.writer, "{}", serde_json::to_string(&request)?)?;
-        self.writer.flush()?;
-
-        loop {
-            let mut line = String::new();
-            if self.reader.read_line(&mut line)? == 0 {
-                anyhow::bail!("the daemon closed the connection");
-            }
-            let message: Message = match serde_json::from_str(&line) {
-                Ok(message) => message,
-                // A message this version does not understand is not a
-                // reason to give up on the one being waited for.
-                Err(_) => continue,
-            };
-            match message {
-                Message::Reply {
-                    id: got, ok, err, ..
-                } if got == id => {
-                    return match (ok, err) {
-                        (Some(value), _) => Ok(value),
-                        (None, Some(why)) => anyhow::bail!("{why}"),
-                        (None, None) => anyhow::bail!("the daemon answered with neither"),
-                    };
-                }
-                _ => continue,
-            }
-        }
-    }
-
-    /// Send one command and return the lines it answered with.
-    fn query(&mut self, scpi: &str) -> Result<Vec<String>> {
-        let value = self.ask(Op::Query {
-            scpi: scpi.to_owned(),
-        })?;
-        let lines = value
-            .get("lines")
-            .and_then(|l| serde_json::from_value::<Vec<String>>(l.clone()).ok())
-            .unwrap_or_default();
-        Ok(lines)
-    }
-
-    /// Report the receiver's health from the daemon's own last reading.
-    ///
-    /// Sends nothing to the receiver.  The daemon polls all of this
-    /// anyway, so asking it again would cost link time and tell no one
-    /// anything new; the age of each tier is printed instead, so a
-    /// value that has not been refreshed says so.
-    fn diagnose(&mut self) -> Result<()> {
-        let info = self.ask(Op::Info)?;
-        let reading = self.ask(Op::Latest)?;
-        let reading: Reading =
-            serde_json::from_value(reading).context("the daemon's reading did not parse")?;
-        render(&info, &reading);
-        Ok(())
     }
 }
 
@@ -713,4 +610,17 @@ fn show_opt(label: &str, value: Option<String>) {
         Some(text) => line(label, &text),
         None => line(label, "unavailable"),
     }
+}
+
+/// Report the receiver's health from the daemon's own last reading.
+///
+/// Sends nothing to the receiver.  The daemon polls all of this anyway,
+/// so asking it again would cost link time and tell no one anything
+/// new; the age of each tier is printed instead, so a value that has
+/// not been refreshed says so.
+fn diagnose_daemon(daemon: &mut Daemon) -> Result<()> {
+    let info = daemon.info()?;
+    let reading = daemon.latest()?;
+    render(&info, &reading);
+    Ok(())
 }
