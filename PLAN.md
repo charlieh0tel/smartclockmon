@@ -101,8 +101,8 @@ screen -- the parts worth emulating -- are what it does not model.
 
 ### The daemon owns the port
 
-`smartclockd` runs as a systemd system service and holds
-`/dev/ttyUSB0` open for as long as it runs.  Nothing else can open it,
+`smartclockd` runs as a systemd system service and holds the serial
+port open for as long as it runs.  Nothing else can open it,
 so every other component is a client of the daemon.  This follows from
 wanting multi-day EFC history on a unit that may be dying: collection
 cannot depend on a TUI being up.

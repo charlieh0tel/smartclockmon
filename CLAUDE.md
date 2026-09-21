@@ -18,8 +18,12 @@ the project is, `PLAN.md` for architecture, decisions and phases.
 
 ## Hardware
 
-A live 58503A is attached at `/dev/ttyUSB0`, 19200 8N1.  It is in
-holdover and may have a failing OCXO.
+Which receiver is attached, where, and what state it is in are facts
+about a particular bench, not instructions about this project.  Ask, or
+read them from a running daemon: `smartclock-cli --socket ... diagnose`
+heads its report with the model, serial and firmware, and the snapshot
+log records which receiver every row came from.  Do not write them down
+here, where they go stale unnoticed.
 
 - Do not send anything to the receiver without asking.
 - Never send `:SYSTem:PRESet`, `:SYSTem:COMMunicate:*`,
