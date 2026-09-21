@@ -877,3 +877,241 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod socket_tests {
+    use super::Info;
+    use super::MAX_CLIENTS;
+    use super::MAX_REQUEST;
+    use super::Policy;
+    use super::bind;
+    use super::serve;
+    use crate::audit::Audit;
+
+    use std::io::BufRead;
+    use std::io::BufReader;
+    use std::io::Write;
+    use std::os::unix::net::UnixStream;
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+    use std::sync::mpsc::channel;
+    use std::thread;
+    use std::time::Duration;
+
+    use interprocess::local_socket::GenericFilePath;
+    use interprocess::local_socket::ToFsName as _;
+    use smartclock::command::Dialect;
+    use smartclock::task::Handle;
+    use smartclock::task::Shared;
+
+    /// A daemon listening on a socket of its own, with no receiver
+    /// behind it.
+    ///
+    /// Nothing here needs one: every path under test is refused, capped
+    /// or answered before a command would reach the device.  The
+    /// request channel's receiver is deliberately kept alive, so a test
+    /// that did reach the device would block rather than quietly get a
+    /// "task stopped" and look like it passed.
+    struct Daemon {
+        socket: PathBuf,
+        _requests: std::sync::mpsc::Receiver<smartclock::task::Request>,
+    }
+
+    impl Daemon {
+        fn start(name: &str) -> Self {
+            let socket = std::env::temp_dir()
+                .join(format!("smartclockd-test-{name}-{}", std::process::id()));
+            let _ = std::fs::remove_file(&socket);
+
+            let (tx, rx) = channel();
+            let (audit_tx, _audit_rx) = channel();
+            let handle = Handle::new(tx, Shared::new());
+            let info = Arc::new(Mutex::new(Info {
+                identity: "HEWLETT-PACKARD,58503A,0000A00000,3704-C".to_owned(),
+                dialect: Dialect::Hp58503,
+                database: "/nowhere".to_owned(),
+                policy: Policy::default(),
+                audit: Audit::new(audit_tx),
+                cadence: smartclock::task::Cadence::default(),
+            }));
+
+            let name_owned = socket.clone();
+            let listener = bind(
+                name_owned
+                    .clone()
+                    .to_fs_name::<GenericFilePath>()
+                    .expect("a socket name")
+                    .into_owned(),
+            )
+            .expect("bind");
+            crate::set_socket_mode(&socket).expect("mode");
+            thread::Builder::new()
+                .name("test-serve".to_owned())
+                .spawn(move || {
+                    let _ = serve(listener, handle, info);
+                })
+                .expect("serve thread");
+
+            Self {
+                socket,
+                _requests: rx,
+            }
+        }
+
+        fn connect(&self) -> UnixStream {
+            let stream = UnixStream::connect(&self.socket).expect("connect");
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .expect("timeout");
+            stream
+        }
+    }
+
+    impl Drop for Daemon {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.socket);
+        }
+    }
+
+    /// The first line the daemon sends that answers `id`.
+    fn reply_to(stream: &UnixStream, id: &str) -> String {
+        let mut reader = BufReader::new(stream.try_clone().expect("clone"));
+        for _ in 0..50 {
+            let mut line = String::new();
+            if reader.read_line(&mut line).expect("read") == 0 {
+                return String::new();
+            }
+            if line.contains(&format!("\"id\":\"{id}\"")) {
+                return line;
+            }
+        }
+        panic!("no reply to {id}");
+    }
+
+    #[test]
+    fn the_socket_is_not_world_accessible() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let daemon = Daemon::start("mode");
+        let mode = std::fs::metadata(&daemon.socket)
+            .expect("stat the socket")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o660, "the socket is {mode:o}, not 0660");
+    }
+
+    #[test]
+    fn a_request_longer_than_the_cap_is_refused_and_the_client_closed() {
+        // Deliberately unterminated.  A long line that does end is
+        // caught by the length check afterwards, but a line that never
+        // ends is caught only by the read being capped -- without that
+        // the daemon buffers whatever a client sends, forever, and this
+        // test hangs instead of failing.
+        let daemon = Daemon::start("cap");
+        let mut stream = daemon.connect();
+        let huge = "x".repeat(MAX_REQUEST as usize + 100);
+        write!(stream, "{huge}").expect("write");
+        stream.flush().expect("flush");
+
+        let mut reader = BufReader::new(stream.try_clone().expect("clone"));
+        let mut saw_refusal = false;
+        for _ in 0..50 {
+            let mut line = String::new();
+            match reader.read_line(&mut line) {
+                Ok(0) => break,
+                Ok(_) => {
+                    if line.contains("may not exceed") {
+                        saw_refusal = true;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+        assert!(saw_refusal, "an oversized request was not refused");
+    }
+
+    #[test]
+    fn the_seventeenth_client_is_turned_away_with_a_reason() {
+        let daemon = Daemon::start("clients");
+        // Held open, so the slots stay taken.
+        let held: Vec<_> = (0..MAX_CLIENTS).map(|_| daemon.connect()).collect();
+        assert_eq!(held.len(), MAX_CLIENTS);
+
+        let extra = daemon.connect();
+        let mut reader = BufReader::new(extra.try_clone().expect("clone"));
+        let mut line = String::new();
+        reader.read_line(&mut line).expect("read the refusal");
+        assert!(
+            line.contains("already connected"),
+            "expected a refusal, got {line:?}"
+        );
+    }
+
+    #[test]
+    fn half_closing_does_not_hand_the_slot_back() {
+        // The bug: the slot belonged to the request thread, so a client
+        // could end that thread with a half-close, release its slot,
+        // and leave the push thread holding a subscription and a
+        // socket.  Repeating it accumulated both without limit while
+        // the cap was never reached.
+        let daemon = Daemon::start("halfclose");
+        let held: Vec<_> = (0..MAX_CLIENTS)
+            .map(|_| {
+                let stream = daemon.connect();
+                stream
+                    .shutdown(std::net::Shutdown::Write)
+                    .expect("shutdown");
+                stream
+            })
+            .collect();
+        assert_eq!(held.len(), MAX_CLIENTS);
+
+        // Long enough that the request threads have all seen EOF.
+        thread::sleep(Duration::from_millis(200));
+
+        let extra = daemon.connect();
+        let mut reader = BufReader::new(extra.try_clone().expect("clone"));
+        let mut line = String::new();
+        reader.read_line(&mut line).expect("read");
+        assert!(
+            line.contains("already connected"),
+            "half-closed clients gave their slots back: {line:?}"
+        );
+    }
+
+    #[test]
+    fn a_dangerous_command_never_reaches_the_receiver() {
+        // The proof that it did not is that this returns at all: the
+        // request channel has no task behind it, so anything that got
+        // as far as the device would block until the test timed out.
+        let daemon = Daemon::start("gate");
+        let mut stream = daemon.connect();
+        writeln!(
+            stream,
+            r#"{{"v":1,"id":"d","op":{{"kind":"query","scpi":":SYSTem:COMMunicate:SERial1:BAUD 1200"}}}}"#
+        )
+        .expect("write");
+        let reply = reply_to(&stream, "d");
+        assert!(
+            reply.contains("allow-dangerous"),
+            "expected a policy refusal, got {reply}"
+        );
+    }
+
+    #[test]
+    fn a_query_header_carrying_a_payload_never_reaches_the_receiver() {
+        let daemon = Daemon::start("payload");
+        let mut stream = daemon.connect();
+        writeln!(
+            stream,
+            r#"{{"v":1,"id":"p","op":{{"kind":"query","scpi":":SYSTem:LANGuage? \"INSTALL\""}}}}"#
+        )
+        .expect("write");
+        let reply = reply_to(&stream, "p");
+        assert!(
+            reply.contains("takes no argument"),
+            "expected an argument refusal, got {reply}"
+        );
+    }
+}
