@@ -45,7 +45,11 @@ assets = [
     ["../../README.md", "usr/share/doc/smartclockmon/README.md", "644"],
     ["../../docs/screen-format-strings.md", "usr/share/doc/smartclockmon/screen-format-strings.md", "644"],
     ["../../docs/z3801-keywords.md", "usr/share/doc/smartclockmon/z3801-keywords.md", "644"],
+    ["../../docs/commands.md", "usr/share/doc/smartclockmon/commands.md", "644"],
+    ["../../docs/efc.md", "usr/share/doc/smartclockmon/efc.md", "644"],
+    ["../../docs/OCXO.md", "usr/share/doc/smartclockmon/OCXO.md", "644"],
 ]
 conf-files = ["/etc/default/smartclockd"]
 maintainer-scripts = "../../packaging/debian/"
+changelog = "../../packaging/debian/changelog"
 systemd-units = { unit-name = "smartclockd", unit-scripts = "../../packaging/systemd", enable = false, start = false }

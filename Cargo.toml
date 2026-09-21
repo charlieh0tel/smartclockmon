@@ -15,6 +15,12 @@ rust-version = "1.89"
 authors = ["Christopher Hoover <ch@murgatroid.com>"]
 license = "GPL-3.0-or-later"
 
+# Stripped in the packaged build: lintian objects to unstripped
+# binaries, and debug symbols triple the size of a package whose point
+# is to sit on a machine and log.
+[profile.release]
+strip = "symbols"
+
 [workspace.lints.rust]
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"

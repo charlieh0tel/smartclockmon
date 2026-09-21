@@ -1,0 +1,8 @@
+smartclockmon (0.1.0-1) unstable; urgency=low
+
+  * First package.  Library, logging daemon, terminal monitor, one-shot
+    CLI and a simulated receiver for HP / Symmetricom SmartClock GPS
+    time and frequency receivers.
+  * Verified against a 58503A (3710A01056, firmware 3704-C).
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sun, 20 Sep 2026 00:00:00 +0000
