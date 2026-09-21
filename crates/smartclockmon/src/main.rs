@@ -57,12 +57,12 @@ const HISTORY_REFRESH: Duration = Duration::from_secs(5);
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let (updates, attachment, console, policy) = match &cli.device {
+    let (updates, attachment, console, policy, cadence) = match &cli.device {
         Some(device) => source::from_device(device, cli.baud)?,
         None => source::from_daemon(&cli.socket)?,
     };
 
-    let mut app = App::new(attachment, !cli.ascii, console, policy);
+    let mut app = App::new(attachment, !cli.ascii, console, policy, cadence);
     app.open_log();
 
     let mut terminal = ratatui::init();

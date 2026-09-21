@@ -3,6 +3,7 @@
 use std::collections::VecDeque;
 
 use smartclock::snapshot::Freshness;
+use smartclock::task::Cadence;
 use smartclock::snapshot::Tier;
 use smartclock::types::EfcPercent;
 use smartclock::wire::Reading;
@@ -61,6 +62,10 @@ pub(crate) struct App {
     pub(crate) console: Console,
     /// What the daemon says this client may do.
     pub(crate) policy: Policy,
+    /// How often the daemon polls each tier, as it reported them.  The
+    /// defaults are only defaults, so a pane deciding whether a field
+    /// has gone quiet has to ask rather than assume.
+    pub(crate) cadence: Cadence,
     /// Whether the console is taking keystrokes.
     pub(crate) console_open: bool,
     /// What has been typed into it.
@@ -76,6 +81,7 @@ impl App {
         unicode: bool,
         console: Console,
         policy: Policy,
+        cadence: Cadence,
     ) -> Self {
         Self {
             snapshot: None,
@@ -91,6 +97,7 @@ impl App {
             history_error: None,
             console,
             policy,
+            cadence,
             console_open: false,
             console_input: String::new(),
             console_reply: None,

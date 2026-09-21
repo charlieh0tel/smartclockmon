@@ -309,9 +309,13 @@ const STALE_AFTER: f64 = 4.0;
 /// tier succeeding kept relabelling a minutes-old status screen as
 /// current.  Each pane now says the age of the fields it is actually
 /// showing.
-fn staleness(app: &App, tier: Tier, cadence: f64) -> Option<String> {
+fn staleness(app: &App, tier: Tier) -> Option<String> {
     let snapshot = app.snapshot.as_ref()?;
     let age = snapshot.polled.age(tier, jiff::Timestamp::now())?;
+    // The daemon's own cadence, not this tier's default: run with
+    // --medium 30 and a ten-second rule calls perfectly fresh data
+    // stale, which is the opposite of what the label is for.
+    let cadence = app.cadence.of(tier).as_secs_f64();
     (age > cadence * STALE_AFTER).then(|| format!("  [{age:.0}s old]"))
 }
 
@@ -553,7 +557,7 @@ fn oscillator(frame: &mut Frame, area: Rect, app: &App) {
 
     let mut title = "Oscillator".to_owned();
     // EFC is fast-tier but temperature and the raw value are not.
-    if let Some(age) = staleness(app, Tier::Medium, 10.0) {
+    if let Some(age) = staleness(app, Tier::Medium) {
         title.push_str(&age);
     }
     frame.render_widget(Paragraph::new(lines).block(block(app, &title)), area);
@@ -773,7 +777,7 @@ fn time_and_place(frame: &mut Frame, area: Rect, app: &App) {
 
     // Position and date are on the sixty-second tier.
     let mut title = "Time and position".to_owned();
-    if let Some(age) = staleness(app, Tier::Slow, 60.0) {
+    if let Some(age) = staleness(app, Tier::Slow) {
         title.push_str(&age);
     }
     frame.render_widget(Paragraph::new(lines).block(block(app, &title)), area);

@@ -163,13 +163,15 @@ const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 /// The first connection is made here, so running the monitor with no
 /// daemon says so at once rather than sitting on an empty screen.
 /// Later disconnections are handled by the reader, which keeps trying.
-pub(crate) fn from_daemon(socket: &str) -> Result<(Receiver<Update>, Attachment, Console, Policy)> {
+pub(crate) fn from_daemon(
+    socket: &str,
+) -> Result<(Receiver<Update>, Attachment, Console, Policy, Cadence)> {
     // Ask where the log lives before streaming starts, so the history
     // panes can open it without being told the path separately and
     // without risking a mismatch with the daemon's own.  The reader is
     // handed on rather than rebuilt: it has already buffered whatever
     // snapshots arrived alongside the reply.
-    let (first, send, database, policy) = connect_and_ask(socket)
+    let (first, send, database, policy, cadence) = connect_and_ask(socket)
         .with_context(|| format!("connecting to {socket}; is smartclockd running?"))?;
     let console = Console::default();
     console.attach(send);
@@ -224,6 +226,7 @@ pub(crate) fn from_daemon(socket: &str) -> Result<(Receiver<Update>, Attachment,
         },
         console,
         policy,
+        cadence,
     ))
 }
 
@@ -233,7 +236,7 @@ pub(crate) fn from_daemon(socket: &str) -> Result<(Receiver<Update>, Attachment,
 /// The reply shares the stream with snapshots, so lines that are not it
 /// are forwarded rather than dropped: the reader is returned still
 /// holding them.
-fn connect_and_ask(socket: &str) -> Result<(Reader, SendHalf, Option<String>, Policy)> {
+fn connect_and_ask(socket: &str) -> Result<(Reader, SendHalf, Option<String>, Policy, Cadence)> {
     let mut stream = connect(socket)?;
     writeln!(stream, r#"{{"v":1,"id":"info","op":{{"kind":"info"}}}}"#)?;
     stream.flush()?;
@@ -242,6 +245,10 @@ fn connect_and_ask(socket: &str) -> Result<(Reader, SendHalf, Option<String>, Po
     let mut reader = BufReader::new(recv);
     let mut database = None;
     let mut policy = Policy::default();
+    // Defaults only until the daemon says otherwise; it may have been
+    // started with any cadence, and a pane that calls data stale needs
+    // the real one to know what late means.
+    let mut cadence = Cadence::default();
     for _ in 0..MAX_LINES_BEFORE_INFO {
         let mut line = String::new();
         if reader.read_line(&mut line)? == 0 {
@@ -266,10 +273,25 @@ fn connect_and_ask(socket: &str) -> Result<(Reader, SendHalf, Option<String>, Po
                 dangerous: flag("allow_dangerous"),
                 raw: flag("allow_raw"),
             };
+            // An older daemon does not report these, so each falls back
+            // to the default rather than to zero.
+            let seconds = |name: &str, fallback: Duration| {
+                value
+                    .pointer(&format!("/ok/{name}"))
+                    .and_then(serde_json::Value::as_f64)
+                    .filter(|s| s.is_finite() && *s > 0.0)
+                    .map_or(fallback, Duration::from_secs_f64)
+            };
+            let default = Cadence::default();
+            cadence = Cadence {
+                fast: seconds("cadence_fast", default.fast),
+                medium: seconds("cadence_medium", default.medium),
+                slow: seconds("cadence_slow", default.slow),
+            };
             break;
         }
     }
-    Ok((reader, send, database, policy))
+    Ok((reader, send, database, policy, cadence))
 }
 
 /// The buffered read half of a connection to the daemon.
@@ -337,7 +359,7 @@ fn forward(reader: Reader, tx: &Sender<Update>) -> Result<(), ()> {
 pub(crate) fn from_device(
     device: &str,
     baud: u32,
-) -> Result<(Receiver<Update>, Attachment, Console, Policy)> {
+) -> Result<(Receiver<Update>, Attachment, Console, Policy, Cadence)> {
     let baud = BaudRate::new(baud).with_context(|| {
         let supported = BaudRate::ALL.map(|b| b.to_string()).join(", ");
         format!("{baud} is not a rate the receiver supports ({supported})")
@@ -352,7 +374,8 @@ pub(crate) fn from_device(
     let receiver =
         Device::open(Session::new(port, Config::default())).context("identifying the receiver")?;
 
-    let (handle, _joiner) = task::spawn(receiver, Cadence::default());
+    let cadence = Cadence::default();
+    let (handle, _joiner) = task::spawn(receiver, cadence.clone());
     let readings = handle.subscribe();
     // The handle must outlive this call or the task stops, so it is
     // leaked deliberately: the monitor polls until the process ends.
@@ -385,5 +408,6 @@ pub(crate) fn from_device(
         },
         Console::default(),
         Policy::default(),
+        cadence,
     ))
 }
