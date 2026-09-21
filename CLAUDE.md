@@ -9,7 +9,8 @@ the project is, `PLAN.md` for architecture, decisions and phases.
 - `PLAN.md` records why things are the way they are.  Read it before
   proposing architectural changes, and update it when a decision
   changes.
-- Vendor manuals in `third_party/` are the protocol specification.
+- Vendor manuals in `third_party/` are the protocol specification.  They
+  are not ours; see `third_party/NOTICE`.
   `097-59551-02` is authoritative for the 58503A; `097-z3801-01` for the
   Z3801A.  Do not guess at SCPI commands, response formats or status
   register bits -- look them up and cite the document.

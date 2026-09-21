@@ -1,0 +1,25 @@
+Third-party material
+====================
+
+Nothing in this directory is part of this project, and the project's
+licence does not apply to any of it.  Each document is the property of
+its copyright holder.  They are included for reference because they are
+the specification this software is written against: the SCPI command
+table cites them by page, and a claim in the code that is not backed by
+a receiver on the bench is backed by one of these.
+
+No licence to any of this material is granted or implied by its
+presence here.
+
+Hewlett-Packard / Agilent / Symmetricom
+---------------------------------------
+
+  097-58503-08-iss-1.pdf     58503A operating and programming manual
+  097-58503-12-iss-1.pdf     58503A service manual
+  097-58503-13-iss-1.pdf     58503A assembly-level service manual
+  097-59551-02-iss-1.pdf     59551A operating and programming manual,
+                             authoritative for the 58503A command set
+  097-z3801-01-iss-1.pdf     Z3801A operating and programming manual
+  58503a-01.pdf              58503A product note
+  10811-variants-90027-1.pdf 10811 oscillator variants
+  HP-10811AB-Manual.pdf      10811A/B oscillator manual

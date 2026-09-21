@@ -134,8 +134,9 @@ Vendor manuals in `third_party/`:
 `10811-variants-90027-1.pdf` and `HP-10811AB-Manual.pdf` specify the
 oscillator.
 
-`the keyword table` and `the keyword table` are 512 KB firmware, kept as
-a reference for resolving command trees that the manuals do not cover.
+`docs/z3801-keywords.md` lists the 313 SCPI keywords the Z3801A's own
+keyword table defines, and `docs/screen-format-strings.md` the status
+screen's printf templates.
 
 `docs/commands.md` is the command table rendered readably: which
 commands each tree has, how far each is confirmed, and the eleven that

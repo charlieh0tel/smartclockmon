@@ -99,7 +99,7 @@ screen -- the parts worth emulating -- are what it does not model.
 
 ### Firmware reversing is deferred
 
-`strings` over `the keyword table` already yielded the screen's
+`strings` over the Z3801A firmware already yielded the screen's
 printf formats, the time code layouts and the log and tolerance
 messages, which is recorded in `docs/screen-format-strings.md`.  Those
 are string literals, and literals are what `strings` finds; reversing
