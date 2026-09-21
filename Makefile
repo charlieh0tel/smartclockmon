@@ -84,8 +84,14 @@ deb:
 # commit that does not contain what was built.
 #
 #     make release VERSION=0.1.1
+# The version development continues on once VERSION is released: the
+# next patch, so a snapshot sorts after the release it follows.
+NEXT_VERSION = $(shell echo "$(VERSION)" | awk -F. '{printf "%d.%d.%d", $$1, $$2, $$3 + 1}')
+
 release:
 	@test -n "$(VERSION)" || { echo "usage: make release VERSION=x.y.z" >&2; exit 2; }
+	@echo "$(VERSION)" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$' || \
+	    { echo "VERSION must be x.y.z, not $(VERSION)" >&2; exit 2; }
 	@test -z "$$(git status --porcelain)" || { echo "the tree is dirty" >&2; exit 2; }
 	@git rev-parse -q --verify "refs/tags/v$(VERSION)" >/dev/null && \
 	    { echo "v$(VERSION) already exists" >&2; exit 2; } || true
@@ -101,8 +107,21 @@ release:
 	git add Cargo.toml Cargo.lock packaging/debian/changelog
 	git commit -m "Release $(VERSION)"
 	git tag -a "v$(VERSION)" -m "Release $(VERSION)"
+# Open the next patch version straight away.  A snapshot takes its
+# version from Cargo.toml, so while that still names the version just
+# released, every commit after the tag builds as 0.1.1-0~git..., which
+# sorts BELOW 0.1.1-1: apt would offer to replace a newer dev build with
+# the older release.  Moving to the next version means those snapshots
+# read 0.1.2-0~git... and sit where they belong, after the release they
+# follow and before the one they precede.  The changelog is not touched;
+# there is nothing to say about a version nobody has released yet.
+	sed -i '0,/^version = ".*"/s//version = "$(NEXT_VERSION)"/' Cargo.toml
+	$(CARGO) build --workspace
+	git add Cargo.toml Cargo.lock
+	git commit -m "Open $(NEXT_VERSION) for development"
 	@echo
-	@echo "Tagged v$(VERSION).  Push it to build and publish:"
+	@echo "Tagged v$(VERSION), and Cargo.toml now reads $(NEXT_VERSION)."
+	@echo "Push the tag to build and publish:"
 	@echo "    git push origin main && git push origin v$(VERSION)"
 
 install-service:
