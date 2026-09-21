@@ -1,0 +1,37 @@
+[Unit]
+Description=Browser view of a SmartClock GPS receiver
+Documentation=https://github.com/charlieh0tel/smartclockmon
+Wants=smartclockd.service
+After=smartclockd.service
+
+[Service]
+Type=exec
+EnvironmentFile=-/etc/default/smartclock-web
+ExecStart=/usr/bin/smartclock-web
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2
+
+# The same account as the daemon, because it reads the daemon's socket
+# and its log.  The log is opened read-only: the daemon is the only
+# writer, and a reader that cannot write cannot damage the record.
+User=smartclockd
+Group=smartclockd
+
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1684,6 +1684,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "smartclock-web"
+version = "0.2.1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "jiff",
+ "rusqlite",
+ "serde_json",
+ "smartclock",
+]
+
+[[package]]
 name = "smartclockd"
 version = "0.2.1"
 dependencies = [

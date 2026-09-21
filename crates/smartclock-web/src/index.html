@@ -1,0 +1,367 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SmartClock</title>
+
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.min.css"
+      integrity="sha384-IfV0B7MIOYuO95kO9G5ySKPz/85zqFNOAs8iy4tkK5zd9izhJAB8b7lHrwYqqmYE"
+      crossorigin="anonymous">
+
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #14161a; --panel: #1d2026; --line: #2b3038;
+    --text: #e6e8eb; --dim: #8b929c;
+    --ok: #4ade80; --warn: #fbbf24; --bad: #f87171; --accent: #38bdf8;
+    --font: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 12px; gap: 12px;
+    display: grid; grid-template-columns: 1fr 340px;
+    background: var(--bg); color: var(--text);
+    font: 13px/1.5 var(--font);
+  }
+  @media (max-width: 900px) { body { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .full { grid-column: 1 / -1; }
+  h2 { margin: 0 0 10px; font-size: 12px; font-weight: 600; color: var(--dim);
+       text-transform: uppercase; letter-spacing: .08em; }
+
+  /* Status strip: the few things worth seeing before anything else. */
+  #status { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: baseline; }
+  .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stat .v { font-size: 22px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .stat .k { font-size: 11px; color: var(--dim); }
+  .pill { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .live { background: #14532d; color: var(--ok); }
+  .stale { background: #422006; color: var(--warn); }
+  .down { background: #450a0a; color: var(--bad); }
+
+  /* Controls */
+  .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; align-items: center; }
+  button, select {
+    background: #262b33; color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 10px; font: inherit; cursor: pointer;
+  }
+  button:hover, select:hover { border-color: #3d4452; }
+  button[aria-pressed="true"] { background: var(--accent); color: #07121a; border-color: var(--accent); }
+  .grow { flex: 1; }
+  label { color: var(--dim); display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+
+  /* Sky plot */
+  #sky { width: 100%; height: auto; display: block; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th { text-align: left; color: var(--dim); font-weight: 500; padding: 3px 6px 6px 0; }
+  td { padding: 2px 6px 2px 0; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--dim); }
+  #note { color: var(--warn); }
+  footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
+  .uplot { width: 100% !important; }
+</style>
+
+<div class="panel full" id="status"><span class="muted">connecting…</span></div>
+
+<div class="panel">
+  <div class="controls">
+    <select id="column"></select>
+    <label><input type="checkbox" id="compare"> against temperature</label>
+    <span class="grow"></span>
+    <span id="ranges"></span>
+    <button id="reset" title="Drag on the chart to zoom">reset</button>
+  </div>
+  <div id="chart"></div>
+  <div id="note"></div>
+</div>
+
+<div class="panel">
+  <h2>Sky</h2>
+  <canvas id="sky" width="320" height="320"></canvas>
+  <table id="sats"><tbody class="muted"><tr><td>waiting…</td></tr></tbody></table>
+</div>
+
+<footer id="about"></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.iife.min.js"
+        integrity="sha384-Gx3t0zdBAuQOuvvmaLZj7HKEiSgWTAs+VdtNY7wt19QDPTDQjFIwAuXDj0zeN00c"
+        crossorigin="anonymous"></script>
+<script>
+"use strict";
+
+// The chart library is fetched from a CDN, so say so plainly rather
+// than leaving an empty rectangle if it did not arrive.
+const haveUplot = typeof uPlot !== "undefined";
+
+const RANGES = [
+  ["1h", 3600], ["6h", 21600], ["24h", 86400],
+  ["7d", 604800], ["30d", 2592000], ["all", null],
+];
+const LABELS = {
+  efc_percent: "EFC, percent of range",
+  efc_dac: "EFC, raw counts",
+  temperature_c: "Temperature, C",
+  oven_current: "Oven current",
+  time_interval_s: "1 PPS interval, seconds",
+  tfom: "Time figure of merit",
+  ffom: "Frequency figure of merit",
+};
+
+// The view is taken from the URL so a particular one can be kept: a
+// link to "EFC against temperature over the last day" is worth more
+// than a description of how to click to it.
+const view = new URLSearchParams(location.search);
+
+let chart = null;
+let span = view.has("range") ? Number(view.get("range")) || null : 3600;
+let zoom = null;          // [from, to] once the user has dragged
+let column = view.get("column") ?? "efc_percent";
+
+const $ = (id) => document.getElementById(id);
+const fmt = (v, digits = 3) =>
+  v === null || v === undefined ? "--" : Number(v).toFixed(digits);
+
+// ---------------------------------------------------------------- status
+
+async function tick() {
+  let s;
+  try {
+    s = await (await fetch("/api/snapshot")).json();
+  } catch {
+    $("status").innerHTML = `<span class="pill down">unreachable</span>`;
+    return;
+  }
+  if (s.error) {
+    $("status").innerHTML =
+      `<span class="pill down">no daemon</span> <span class="muted">${s.error}</span>`;
+    return;
+  }
+
+  const state = s.freshness === "Live" ? ["live", "LIVE"]
+              : s.freshness === "Stale" ? ["stale", "STALE"]
+              : ["down", "DISCONNECTED"];
+  // Age of the slowest group of fields: the honest headline, since the
+  // rest of this strip is only as current as its least current part.
+  const ages = ["fast", "medium", "slow"]
+    .map((t) => s.polled?.[t]?.at)
+    .filter(Boolean)
+    .map((at) => (Date.now() - Date.parse(at)) / 1000);
+  const oldest = ages.length ? Math.max(...ages) : null;
+
+  const stats = [
+    ["mode", s.mode ?? "--"],
+    ["TFOM / FFOM", `${s.tfom ?? "--"} / ${s.ffom ?? "--"}`],
+    ["EFC", s.efc === null || s.efc === undefined ? "--" : fmt(s.efc, 3) + "%"],
+    ["EFC raw", s.efc_raw ?? "--"],
+    ["temperature", s.temperature_c === null ? "--" : fmt(s.temperature_c, 2) + " C"],
+    ["1 PPS", s.time_interval_ns === null ? "--" : fmt(s.time_interval_ns, 1) + " ns"],
+    ["tracking", s.screen?.tracking ?? "--"],
+  ];
+  $("status").innerHTML =
+    `<span class="pill ${state[0]}">${state[1]}</span>` +
+    (oldest === null ? "" : `<span class="muted">oldest field ${oldest.toFixed(0)}s</span>`) +
+    stats.map(([k, v]) => `<span class="stat"><span class="v">${v}</span><span class="k">${k}</span></span>`).join("") +
+    (s.hardware ? `<span class="pill down">hardware ${s.hardware}</span>` : "") +
+    (s.date?.rollover
+      ? `<span class="pill stale">date ${s.date.rollover.epochs} epoch(s) behind — ${s.date.raw}</span>`
+      : "");
+
+  sky(s.screen);
+}
+
+// ------------------------------------------------------------------ sky
+
+// A polar plot of what the receiver can see: north up, horizon at the
+// rim, zenith at the middle.  This is the view the status screen's
+// table implies and never shows.
+function sky(screen) {
+  const c = $("sky"), ctx = c.getContext("2d");
+  const w = c.width, h = c.height, cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - 14;
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = "#2b3038";
+  ctx.fillStyle = "#8b929c";
+  ctx.font = "11px ui-monospace, monospace";
+  ctx.textAlign = "center";
+
+  for (const elev of [0, 30, 60]) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * (90 - elev) / 90, 0, 2 * Math.PI);
+    ctx.stroke();
+  }
+  for (const [deg, name] of [[0, "N"], [90, "E"], [180, "S"], [270, "W"]]) {
+    const a = (deg - 90) * Math.PI / 180;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+    ctx.stroke();
+    ctx.fillText(name, cx + (r + 9) * Math.cos(a), cy + (r + 9) * Math.sin(a) + 4);
+  }
+
+  const rows = [];
+  for (const sat of screen?.satellites ?? []) {
+    const state = sat.tracked ? "tracked" : sat.acquiring ? "acquiring" : "seen";
+    rows.push(`<tr><td>${sat.prn}</td><td>${sat.elevation ?? "--"}</td>` +
+              `<td>${sat.azimuth ?? "--"}</td><td>${sat.signal ?? "--"}</td>` +
+              `<td class="muted">${state}</td></tr>`);
+    if (sat.elevation === null || sat.azimuth === null) continue;
+    const a = (sat.azimuth - 90) * Math.PI / 180;
+    const d = r * (90 - sat.elevation) / 90;
+    const x = cx + d * Math.cos(a), y = cy + d * Math.sin(a);
+    // Size carries signal strength, colour carries state, so a strong
+    // tracked satellite and a weak one are told apart at a glance.
+    const size = sat.signal ? 4 + (sat.signal / 255) * 7 : 4;
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, 2 * Math.PI);
+    ctx.fillStyle = sat.tracked ? "#4ade80" : sat.acquiring ? "#fbbf24" : "#6b7280";
+    ctx.fill();
+    ctx.fillStyle = "#e6e8eb";
+    ctx.textAlign = x < cx ? "right" : "left";
+    ctx.fillText(sat.prn, x + (x < cx ? -size - 3 : size + 3), y + 4);
+    ctx.textAlign = "center";
+  }
+  $("sats").innerHTML =
+    "<thead><tr><th>PRN</th><th>el</th><th>az</th><th>SS</th><th>state</th></tr></thead><tbody>" +
+    (rows.join("") || `<tr><td class="muted">no satellite table yet</td></tr>`) +
+    "</tbody>";
+}
+
+// ---------------------------------------------------------------- charts
+
+async function fetchSeries(col, from, to) {
+  const q = new URLSearchParams({ column: col, points: 1500 });
+  if (from) q.set("from", Math.round(from));
+  if (to) q.set("to", Math.round(to));
+  return (await fetch("/api/history?" + q)).json();
+}
+
+async function draw() {
+  if (!haveUplot) {
+    $("note").textContent =
+      "The chart library did not load. It comes from a CDN, so this page needs internet access; the readings above do not.";
+    return;
+  }
+  let to = null, from = null;
+  if (zoom) { [from, to] = zoom; }
+  else if (span) { to = Date.now() / 1000; from = to - span; }
+
+  const main = await fetchSeries(column, from, to);
+  if (main.error) { $("note").textContent = main.error; return; }
+  $("note").textContent = main.at.length ? "" : "no readings in this range";
+
+  // "all" is only knowable once the log has been asked.
+  if (!span && !zoom && main.first) { from = main.first; to = main.last; }
+
+  const series = [
+    {},
+    { label: "min", stroke: "#0e7490", width: 1, points: { show: false } },
+    { label: "max", stroke: "#0e7490", width: 1, points: { show: false } },
+    { label: LABELS[column] ?? column, stroke: "#38bdf8", width: 1.5, points: { show: false } },
+  ];
+  const data = [main.at, main.min, main.max, main.mean];
+  // Wide enough for the longest label this column can produce.  The
+  // default gutter silently clips instead of overflowing, which turned
+  // an EFC of 712,793 into an axis reading 12,793 -- a plausible number,
+  // wrong by seven hundred thousand.
+  const widest = Math.max(
+    ...main.mean.filter((v) => v !== null).map((v) => v.toLocaleString().length),
+    4,
+  );
+  const axes = [
+    { stroke: "#8b929c", grid: { stroke: "#2b3038" }, ticks: { stroke: "#2b3038" } },
+    {
+      stroke: "#38bdf8",
+      grid: { stroke: "#2b3038" },
+      ticks: { stroke: "#2b3038" },
+      size: 30 + widest * 8,
+    },
+  ];
+
+  // The comparison the whole EFC question turns on: does the control
+  // voltage follow the oven, or the sky?
+  if ($("compare").checked && column !== "temperature_c") {
+    const other = await fetchSeries("temperature_c", main.from, main.to);
+    if (!other.error) {
+      series.push({ label: "temperature, C", stroke: "#fbbf24", width: 1.5, scale: "t", points: { show: false } });
+      data.push(other.mean);
+      axes.push({ scale: "t", side: 1, stroke: "#fbbf24", grid: { show: false } });
+    }
+  }
+
+  const opts = {
+    width: $("chart").clientWidth || 800,
+    height: 420,
+    series,
+    axes,
+    scales: { x: { time: true } },
+    cursor: { drag: { x: true, y: false } },
+    hooks: {
+      // Dragging sets the range; the buttons then show none selected,
+      // because the view is no longer any of them.
+      setScale: [(u, key) => {
+        if (key !== "x") return;
+        const { min, max } = u.scales.x;
+        if (min && max && (!from || Math.abs(min - from) > 1 || Math.abs(max - to) > 1)) {
+          zoom = [min, max];
+          span = null;
+          buttons();
+          load();
+        }
+      }],
+    },
+  };
+  if (chart) chart.destroy();
+  chart = new uPlot(opts, data, $("chart"));
+}
+
+let pending = null;
+function load() {
+  // Coalesce: dragging fires setScale repeatedly.
+  clearTimeout(pending);
+  pending = setTimeout(draw, 120);
+}
+
+function buttons() {
+  $("ranges").innerHTML = RANGES
+    .map(([label, secs]) =>
+      `<button data-secs="${secs}" aria-pressed="${!zoom && span === secs}">${label}</button>`)
+    .join(" ");
+  for (const b of $("ranges").querySelectorAll("button")) {
+    b.onclick = () => {
+      span = b.dataset.secs === "null" ? null : Number(b.dataset.secs);
+      zoom = null;
+      buttons();
+      load();
+    };
+  }
+}
+
+// ------------------------------------------------------------------ boot
+
+(async function () {
+  const info = await (await fetch("/api/info")).json();
+  $("about").textContent = info.error
+    ? info.error
+    : `${info.identity ?? ""} — ${info.dialect ?? ""} — smartclockd ${info.version ?? ""} — read only`;
+
+  const first = await fetchSeries(column, null, null);
+  $("column").innerHTML = (first.columns ?? [column])
+    .map((c) => `<option value="${c}">${LABELS[c] ?? c}</option>`)
+    .join("");
+  $("column").value = column;
+  $("compare").checked = view.get("compare") === "1";
+  $("column").onchange = () => { column = $("column").value; load(); };
+  $("compare").onchange = load;
+  $("reset").onclick = () => { zoom = null; span = 3600; buttons(); load(); };
+
+  buttons();
+  await draw();
+  await tick();
+  setInterval(tick, 1000);
+  // History moves slowly next to the live tiles; redrawing it every
+  // second would fight with the cursor for no gain.
+  setInterval(() => { if (!zoom) load(); }, 30000);
+  addEventListener("resize", load);
+})();
+</script>

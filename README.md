@@ -18,6 +18,7 @@ is not, and the defects a review has found but nobody has fixed yet.
 | `smartclockmon` | terminal monitor: a dashboard and history graphs |
 | `smartclock-cli` | one-shot queries, `diagnose`, transcript capture, and sweeping for undocumented commands |
 | `smartclock-exporter` | Prometheus metrics for the receiver, from the daemon's own readings |
+| `smartclock-web` | a browser view: live state, a sky plot, and history you can zoom |
 | `smartclock-sim` | a simulated receiver, in process for tests and over TCP for driving the real daemon |
 
 ## Running it
@@ -39,6 +40,17 @@ In the monitor, `g` switches to the graphs, `w` cycles their span, `c`
 opens a command line, `q` quits.
 
     smartclock-exporter            # http://127.0.0.1:9979/metrics
+
+    smartclock-web                 # http://127.0.0.1:9980/
+
+The browser view is read-only and is not the monitor in a window: it
+draws what a terminal cannot, which is mainly a polar sky plot and
+history you can drag to zoom, with any two series overlaid on separate
+axes.  EFC against temperature is the one that earns its keep -- see
+`docs/efc.md` for what that comparison is trying to settle.  The chart
+library comes from a CDN, pinned with an integrity hash, so the page
+needs internet even though the daemon does not; the page says so rather
+than showing an empty frame if it cannot be fetched.
 
 The exporter answers a scrape from whatever the daemon last polled, so
 scraping costs the receiver nothing and cannot compete with the poll
