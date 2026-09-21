@@ -1,3 +1,12 @@
+smartclockmon (0.1.1-1) unstable; urgency=low
+
+  * No change to the software.  Release and CI workflow only: a release
+    now tells the APT repository to rebuild instead of waiting for its
+    daily cron, the shared workflows are pinned, and neither is handed
+    secrets it does not need.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sun, 20 Sep 2026 22:03:33 -0700
+
 smartclockmon (0.1.0-1) unstable; urgency=low
 
   * First release.  Library, logging daemon, terminal monitor, one-shot
