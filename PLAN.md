@@ -462,6 +462,26 @@ and a typo is a compile error instead of a failed lookup.  `response`
 names a parser; the parsers stay hand-written in `parse`, so the table
 remains declarative and the awkward parsing stays real Rust.
 
+An entry may also declare what argument it takes, which is what the
+daemon checks a client's command against before anything reaches the
+receiver:
+
+```toml
+  [command.argument]
+  kind = "integer"   # or "word" with `allowed`, "none", or "free"
+  min  = 0
+  max  = 90
+```
+
+Omitting the block means the command takes no argument.  That default
+was `free` until the September 2026 review, which is to say the gate
+was fail-open: 101 of 113 entries had no block, so a query header --
+permitted under the default policy -- could carry the set form's
+payload beside it and be passed through untouched.  `:SYSTem:LANGuage?
+"INSTALL"` reached the simulated receiver on a daemon started with no
+flags at all.  `free` now has to be asked for by name, and a test pins
+the list of entries that ask.
+
 Two things fall out of having it: a test that every command reachable on
 the active dialect has both a parser and a fixture, and the phase 7
 per-model command matrix generated from the same source rather than

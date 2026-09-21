@@ -504,6 +504,7 @@ mod tests {
     use super::classify;
     use super::raw_class;
     use super::well_formed;
+    use smartclock::command::Argument;
     use smartclock::command::Class;
     use smartclock::command::Dialect;
 
@@ -563,6 +564,52 @@ mod tests {
         assert!(check_argument(":SYNChronization:HOLDover:INITiate", HP).is_ok());
         // An entry that carries its own argument is already complete.
         assert!(check_argument(":GPS:POSition:SURVey:STATe ONCE", HP).is_ok());
+    }
+
+    #[test]
+    fn a_query_header_cannot_carry_a_payload() {
+        // The gate reads the class from the header and passes the
+        // argument through, so an argument nobody constrained was an
+        // argument the receiver got to interpret.  Every entry used to
+        // default to Argument::Free, which meant a query header --
+        // permitted by the default policy -- could carry the payload of
+        // the set form beside it.  Both of these reached the receiver.
+        assert!(check_argument(":SYSTem:LANGuage? \"INSTALL\"", HP).is_err());
+        assert!(check_argument(":SYSTem:COMMunicate:SERial1:BAUD? 1200", HP).is_err());
+        // The bare queries are still fine.
+        assert!(check_argument(":SYSTem:LANGuage?", HP).is_ok());
+        assert!(check_argument(":SYSTem:COMMunicate:SERial1:BAUD?", HP).is_ok());
+    }
+
+    #[test]
+    fn only_named_commands_take_an_unconstrained_argument() {
+        // Argument::Free is now something an entry asks for.  If this
+        // list grows, the entry that grew it should be one that really
+        // does take an argument too various to describe.
+        let free: Vec<&str> = HP
+            .specs()
+            .iter()
+            .filter(|s| s.argument == Argument::Free)
+            .map(|s| s.scpi)
+            .collect();
+        assert_eq!(
+            free,
+            vec![
+                ":GPS:POSition",
+                ":GPS:SATellite:TRACking:IGNore",
+                ":GPS:SATellite:TRACking:INCLude",
+                ":GPS:REFerence:ADELay",
+                ":GPS:INITial:DATE",
+                ":GPS:INITial:TIME",
+                ":GPS:INITial:POSition",
+                ":SYNChronization:HOLDover:RECovery:LIMit:IGNore",
+                ":DIAGnostic:LOG:READ?",
+                ":DIAGnostic:TEST?",
+                ":PTIMe:TZONe",
+                ":SYSTem:COMMunicate:SERial1:FDUPlex",
+                ":SYSTem:LANGuage",
+            ]
+        );
     }
 
     #[test]

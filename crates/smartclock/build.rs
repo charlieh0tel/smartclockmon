@@ -66,7 +66,7 @@ struct Table {
 }
 
 /// The schema version this build script understands.
-const SCHEMA: u32 = 3;
+const SCHEMA: u32 = 4;
 
 fn variant(id: &str) -> String {
     id.split('_')
@@ -145,7 +145,10 @@ fn main() {
     );
     out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
     out.push_str("pub enum Argument {\n");
-    out.push_str("    /// Anything the caller likes.\n    Free,\n");
+    out.push_str("    /// Anything the caller likes.  Named explicitly by a\n");
+    out.push_str("    /// command whose argument is too various to describe;\n");
+    out.push_str("    /// never what an unspecified entry falls back to.\n");
+    out.push_str("    Free,\n");
     out.push_str("    /// The command takes no argument.\n    None,\n");
     out.push_str(
         "    /// A whole number within these bounds, inclusive.\n\
@@ -206,10 +209,15 @@ fn main() {
                 "hardware" => "Hardware",
                 other => panic!("unknown evidence {other:?} on command {:?}", c.id),
             };
+            // Absent means the command takes nothing.  The default has
+            // to be the strict one: an entry whose argument nobody
+            // thought about must not become a hole in the gate, and
+            // every command that does take one is spelled out below.
             let argument = match &c.argument {
-                None => "Argument::Free".to_owned(),
+                None => "Argument::None".to_owned(),
                 Some(a) => match a.kind.as_str() {
                     "none" => "Argument::None".to_owned(),
+                    "free" => "Argument::Free".to_owned(),
                     "integer" => format!(
                         "Argument::Integer {{ min: {}, max: {} }}",
                         a.min.unwrap_or(i64::MIN),

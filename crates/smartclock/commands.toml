@@ -30,7 +30,7 @@
 # The 59551A-only PULSe, SENSe:TSTamp and FORMat subsystems are omitted.
 # We have no such hardware, so entries for them could never be verified.
 
-schema = 3
+schema = 4
 
 [[command]]
 id = "idn"
@@ -90,6 +90,11 @@ doc = "Run internal selftest; 0 passed."
 id = "ese_set"
 class = "control"
 doc = "Set standard event status enable register."
+  [command.argument]
+  kind = "integer"
+  min = 0
+  max = 255
+
 
   [command.dialect.hp58503]
   scpi = "*ESE"
@@ -138,6 +143,11 @@ doc = "Read and clear standard event status register."
 id = "sre_set"
 class = "control"
 doc = "Set service request enable register."
+  [command.argument]
+  kind = "integer"
+  min = 0
+  max = 255
+
 
   [command.dialect.hp58503]
   scpi = "*SRE"
@@ -216,6 +226,9 @@ doc = "Instantaneous antenna position."
 id = "position_set"
 class = "control"
 doc = "Place receiver in position hold at a given location."
+  [command.argument]
+  kind = "free"
+
 
   [command.dialect.hp58503]
   scpi = ":GPS:POSition"
@@ -390,6 +403,9 @@ doc = "Satellites excluded from tracking."
 id = "sat_ignore_set"
 class = "control"
 doc = "Exclude satellites from tracking."
+  [command.argument]
+  kind = "free"
+
 
   [command.dialect.hp58503]
   scpi = ":GPS:SATellite:TRACking:IGNore"
@@ -432,6 +448,9 @@ doc = "Satellites considered for tracking."
 id = "sat_include_set"
 class = "control"
 doc = "Include satellites for tracking."
+  [command.argument]
+  kind = "free"
+
 
   [command.dialect.hp58503]
   scpi = ":GPS:SATellite:TRACking:INCLude"
@@ -462,6 +481,9 @@ doc = "Antenna cable delay, seconds."
 id = "antenna_delay_set"
 class = "control"
 doc = "Set antenna cable delay, seconds."
+  [command.argument]
+  kind = "free"
+
 
   [command.dialect.hp58503]
   scpi = ":GPS:REFerence:ADELay"
@@ -558,6 +580,9 @@ doc = "Count of predicted-visible satellites."
 id = "initial_date_set"
 class = "control"
 doc = "Seed date to speed first acquisition."
+  [command.argument]
+  kind = "free"
+
 
   [command.dialect.hp58503]
   scpi = ":GPS:INITial:DATE"
@@ -570,6 +595,9 @@ doc = "Seed date to speed first acquisition."
 id = "initial_time_set"
 class = "control"
 doc = "Seed time to speed first acquisition."
+  [command.argument]
+  kind = "free"
+
 
   [command.dialect.hp58503]
   scpi = ":GPS:INITial:TIME"
@@ -582,6 +610,9 @@ doc = "Seed time to speed first acquisition."
 id = "initial_pos_set"
 class = "control"
 doc = "Seed position to speed first acquisition."
+  [command.argument]
+  kind = "free"
+
 
   [command.dialect.hp58503]
   scpi = ":GPS:INITial:POSition"
@@ -881,6 +912,9 @@ doc = "Recover from manual holdover."
 id = "holdover_limit_ignore"
 class = "control"
 doc = "Force recovery despite the TI limit."
+  [command.argument]
+  kind = "free"
+
 
   [command.dialect.hp58503]
   scpi = ":SYNChronization:HOLDover:RECovery:LIMit:IGNore"
@@ -998,6 +1032,9 @@ doc = "Number of diagnostic log entries."
 id = "log_read"
 class = "query"
 doc = "One diagnostic log entry."
+  [command.argument]
+  kind = "free"
+
 
   [command.dialect.hp58503]
   scpi = ":DIAGnostic:LOG:READ?"
@@ -1226,6 +1263,9 @@ doc = "Total powered-on time."
 id = "diag_test"
 class = "control"
 doc = "Run a subsystem selftest. Requires a subsystem parameter; a bare send is -109."
+  [command.argument]
+  kind = "free"
+
 
   [command.dialect.hp58503]
   scpi = ":DIAGnostic:TEST?"
@@ -1368,6 +1408,9 @@ doc = "Local time zone offset from UTC."
 id = "tzone_set"
 class = "control"
 doc = "Set local time zone offset from UTC."
+  [command.argument]
+  kind = "free"
+
 
   [command.dialect.hp58503]
   scpi = ":PTIMe:TZONe"
@@ -1542,6 +1585,9 @@ doc = "Port 1 full duplex setting."
 id = "comm_fduplex_set"
 class = "dangerous"
 doc = "Set port 1 full duplex. Persists across power cycles."
+  [command.argument]
+  kind = "free"
+
 
   [command.dialect.hp58503]
   scpi = ":SYSTem:COMMunicate:SERial1:FDUPlex"
@@ -1605,6 +1651,9 @@ doc = "Command language, PRIMARY or INSTALL."
 id = "language_set"
 class = "dangerous"
 doc = "Switch command language. INSTALL disables normal operation."
+  [command.argument]
+  kind = "free"
+
 
   [command.dialect.hp58503]
   scpi = ":SYSTem:LANGuage"
