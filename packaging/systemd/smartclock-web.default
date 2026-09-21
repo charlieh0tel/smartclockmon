@@ -1,18 +1,5 @@
-# Settings for smartclock-web.  Each line matches a command line option
-# of the same name; `smartclock-web --help` documents them.
+# Settings for smartclock-web.  See `smartclock-web --help`.
 
-# Where to serve the page.  Localhost by default, and worth leaving
-# there: the page has no authentication of its own, and it shows where
-# the receiver is to within a few metres.  Reach it from elsewhere with
-#     ssh -L 9980:localhost:9980 thishost
-# rather than by widening this.
 #SMARTCLOCK_WEB_LISTEN=127.0.0.1:9980
-
-# The daemon's socket, for live readings.
 #SMARTCLOCK_WEB_SOCKET=/run/smartclockd/socket
-
-# The daemon's log, for history.  Opened read-only, but SQLite still
-# needs to write the -shm file alongside a WAL database, so this has to
-# be a directory the service account can write in -- which is why it
-# runs as smartclockd.
 #SMARTCLOCK_WEB_DATABASE=/var/lib/smartclockd/snapshots.sqlite

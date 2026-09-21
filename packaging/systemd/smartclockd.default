@@ -1,44 +1,20 @@
-# Settings for smartclockd.  This is the only file you need to edit:
-# the systemd unit names none of these.  Each line matches a command
-# line option of the same name, so `smartclockd --help` documents them.
-# Commented-out settings show the built-in default.
+# Settings for smartclockd.  See `smartclockd --help`.
 
-# REQUIRED.  There is no default: a wrong guess does not fail, it opens
-# whatever else is on that path and starts sending SCPI at it, so the
-# daemon refuses to start until you say.  `ls -l /dev/serial/by-id/`
-# lists the candidates; prefer a by-id path, since /dev/ttyUSB0 is
-# assigned in enumeration order and moves when another adapter appears.
+# Required; there is no default.
 #SMARTCLOCKD_DEVICE=/dev/serial/by-id/usb-<your-adapter>-if00-port0
 
-# The receiver stores its own rate, so this is not necessarily the 9600
-# factory default.  Only 1200, 2400, 9600 and 19200 are accepted.
+# 1200, 2400, 9600 or 19200.
 SMARTCLOCKD_BAUD=19200
 
-# Where the snapshot log accumulates.  Unbounded; expect a few MB a day.
 #SMARTCLOCKD_DATABASE=/var/lib/smartclockd/snapshots.sqlite
-
-# Where clients connect.  Changing this means telling them too, so leave
-# it alone unless you have a reason.
 #SMARTCLOCKD_SOCKET=/run/smartclockd/socket
 
-# Seconds between polls of each tier.  The status screen is the medium
-# tier and runs about 1.8 KB, close to a second of wire time at 19200,
-# so it cannot be made much faster.
+# Seconds between polls of each tier.
 #SMARTCLOCKD_FAST=1.0
 #SMARTCLOCKD_MEDIUM=10.0
 #SMARTCLOCKD_SLOW=60.0
 
-# What clients are allowed to send.  Off means the daemon only reads.
-# Set to true to enable; an empty value is rejected, not treated as off.
-#
-#   ALLOW_CONTROL    holdover, survey, antenna delay, elevation mask
-#   ALLOW_DANGEROUS  system preset, serial reconfiguration, flash erase,
-#                    language change.  A baud change survives a power
-#                    cycle and can leave the receiver unreachable.
-#   ALLOW_RAW        SCPI the command table does not recognise, judged
-#                    as control, or as dangerous if it looks like one of
-#                    the commands that can strand the link.
-#
+# What clients may send.  true or false; empty is rejected.
 #SMARTCLOCKD_ALLOW_CONTROL=true
 #SMARTCLOCKD_ALLOW_DANGEROUS=true
 #SMARTCLOCKD_ALLOW_RAW=true
