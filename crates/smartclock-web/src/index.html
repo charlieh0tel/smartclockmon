@@ -99,14 +99,14 @@ const RANGES = [
   ["1h", 3600], ["6h", 21600], ["24h", 86400],
   ["7d", 604800], ["30d", 2592000], ["all", null],
 ];
-// Label, and the factor that puts the column in units worth reading.
-// The interval is stored in seconds and is a few nanoseconds: plotted
-// as seconds, every axis tick rounds to 0.
 // The sky plot's dimensions, in pixels.
 const MARGIN = 20;      // room for the cardinal labels and a rim dot
 const DOT_MIN = 4;      // a satellite with no signal reading
 const DOT_RANGE = 7;    // added at the strongest signal in the frame
 
+// Label, and the factor that puts the column in units worth reading.
+// The interval is stored in seconds and is a few nanoseconds: plotted
+// as seconds, every axis tick rounds to 0.
 const LABELS = {
   efc_percent: ["EFC, percent of range", 1],
   efc_dac: ["EFC, raw counts", 1],
@@ -323,15 +323,24 @@ async function draw() {
   if (zoom) { [from, to] = zoom; }
   else if (span) { to = Date.now() / 1000; from = to - span; }
 
-  const main = await fetchSeries(column, from, to);
+  let main = await fetchSeries(column, from, to);
   // A later draw has started; this one's data belongs to a column or a
   // range nobody is looking at any more.
   if (mine !== generation) return;
+
+  // How far back the log goes is only knowable once it has been asked,
+  // so "all" costs a second request: the first answers with the
+  // server's default hour and the extent, the second asks for the
+  // extent.  Without this the button quietly showed the last hour --
+  // the range it names is the one range it did not fetch.
+  if (!span && !zoom && main.first && main.last > main.first) {
+    from = main.first;
+    to = main.last;
+    main = await fetchSeries(column, from, to);
+    if (mine !== generation) return;
+  }
   if (main.error) { $("note").textContent = main.error; return; }
   $("note").textContent = main.at.length ? "" : "no readings in this range";
-
-  // "all" is only knowable once the log has been asked.
-  if (!span && !zoom && main.first) { from = main.first; to = main.last; }
 
   const series = [
     {},
