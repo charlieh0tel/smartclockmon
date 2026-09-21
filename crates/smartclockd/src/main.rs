@@ -141,9 +141,12 @@ fn main() -> Result<()> {
     let shared = Shared::new();
     let (requests_tx, requests_rx) = channel();
 
-    // Writing the log is a subscriber like any other, so a slow or
-    // failing write cannot hold up the receiver.
-    let writes = shared.subscribe();
+    // Writing the log is a subscriber, so a slow or failing write
+    // cannot hold up the receiver -- but not an ordinary one.  An
+    // ordinary subscriber that falls behind is dropped, and for the
+    // thread that writes the history that means logging stops for good
+    // while the daemon runs on saying nothing.
+    let writes = shared.subscribe_lossless();
     let database = cli.database.display().to_string();
     thread::Builder::new()
         .name("smartclockd-log".to_owned())
@@ -163,7 +166,9 @@ fn main() -> Result<()> {
                 let snapshot = match writes.recv_timeout(AUDIT_POLL) {
                     Ok(snapshot) => snapshot,
                     Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
-                    // The receiver is gone; write what is left and stop.
+                    // Every publisher has gone, which only happens
+                    // when the daemon is shutting down.  Write what is
+                    // left and stop.
                     Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                         while let Ok(entry) = audit_rx.try_recv() {
                             let _ = log.audit(&entry.scpi, &entry.class, &entry.outcome, None);
@@ -314,6 +319,18 @@ fn supervise(
                     eprintln!("smartclockd: dropped {dropped} queued commands");
                 }
                 thread::sleep(RECONNECT_DELAY);
+                // And again: the queue is still open during the sleep,
+                // so anything submitted in that window would otherwise
+                // be the first thing run against the receiver that
+                // comes back -- which, on a by-id path, may not even be
+                // the same unit.
+                let late = DeviceTask::<SerialTransport>::discard_queued(
+                    &requests,
+                    "the link was down when the command was sent",
+                );
+                if late > 0 {
+                    eprintln!("smartclockd: dropped {late} commands sent during the outage");
+                }
             }
         }
     }
@@ -333,10 +350,21 @@ fn set_socket_mode(_socket: &Path) -> Result<()> {
     Ok(())
 }
 
+/// The longest cadence worth accepting.
+///
+/// A day between polls is already useless; past this the arithmetic is
+/// the problem rather than the setting.  `Duration::from_secs_f64`
+/// panics outright on a large enough value, and a merely absurd one
+/// overflows the `Instant` the schedule advances.
+const MAX_CADENCE_SECONDS: f64 = 86_400.0;
+
 /// A cadence flag as a duration, refusing what cannot be one.
 fn seconds(value: f64, flag: &str) -> Result<Duration> {
     if !value.is_finite() || value <= 0.0 {
         anyhow::bail!("{flag} must be a positive number of seconds, not {value}");
+    }
+    if value > MAX_CADENCE_SECONDS {
+        anyhow::bail!("{flag} must be at most {MAX_CADENCE_SECONDS} seconds, not {value}");
     }
     Ok(Duration::from_secs_f64(value))
 }

@@ -128,6 +128,25 @@ pub(crate) fn bind(name: interprocess::local_socket::Name<'static>) -> Result<Li
         .context("binding the local socket")
 }
 
+/// One connected client, counted for as long as this is held.
+///
+/// The count is what `MAX_CLIENTS` is enforced against, so releasing it
+/// has to survive the serving thread panicking.
+struct Slot(Arc<AtomicUsize>);
+
+impl Slot {
+    fn take(clients: &Arc<AtomicUsize>) -> Self {
+        clients.fetch_add(1, Ordering::Relaxed);
+        Self(Arc::clone(clients))
+    }
+}
+
+impl Drop for Slot {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
 /// Listen for clients until the process ends.
 pub(crate) fn serve(listener: Listener, handle: Handle, info: SharedInfo) -> Result<()> {
     let clients = Arc::new(AtomicUsize::new(0));
@@ -143,13 +162,22 @@ pub(crate) fn serve(listener: Listener, handle: Handle, info: SharedInfo) -> Res
         };
         if clients.load(Ordering::Relaxed) >= MAX_CLIENTS {
             eprintln!("smartclockd: refusing a client, {MAX_CLIENTS} already connected");
-            drop(stream);
+            // Say so rather than closing silently: a bare reset reads
+            // as the daemon having crashed, which is the wrong thing
+            // for an operator to go and investigate.
+            let writer = Arc::new(Mutex::new(stream));
+            let _ = write_line(
+                &writer,
+                &Message::err(
+                    String::new(),
+                    format!("{MAX_CLIENTS} clients are already connected"),
+                ),
+            );
             continue;
         }
         let handle = handle.clone();
         let info = Arc::clone(&info);
-        clients.fetch_add(1, Ordering::Relaxed);
-        let counted = Arc::clone(&clients);
+        let slot = Slot::take(&clients);
         // A spawn failure must not end the accept loop.  It used to
         // propagate, so one transient EAGAIN under thread pressure left
         // the daemon polling and logging, looking healthy, while no
@@ -157,14 +185,18 @@ pub(crate) fn serve(listener: Listener, handle: Handle, info: SharedInfo) -> Res
         let spawned = thread::Builder::new()
             .name("smartclockd-client".to_owned())
             .spawn(move || {
+                // The slot is released when this closure's frame goes,
+                // whether it returns or unwinds.  Decrementing on the
+                // way out by hand leaked a slot permanently on a panic,
+                // sixteen of which would have left the daemon accepting
+                // nobody.
+                let _slot = slot;
                 if let Err(e) = talk(stream, &handle, &info) {
                     eprintln!("smartclockd: client ended: {e}");
                 }
-                counted.fetch_sub(1, Ordering::Relaxed);
             });
         if let Err(e) = spawned {
             eprintln!("smartclockd: could not serve a client: {e}");
-            clients.fetch_sub(1, Ordering::Relaxed);
         }
     }
     Ok(())

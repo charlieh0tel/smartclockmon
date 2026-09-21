@@ -101,7 +101,10 @@ pub enum Request {
 #[derive(Debug, Clone, Default)]
 pub struct Shared {
     latest: Arc<Mutex<Option<Snapshot>>>,
+    /// Watchers that may be dropped for falling behind.
     subscribers: Arc<Mutex<Vec<SyncSender<Snapshot>>>>,
+    /// Watchers that may not: see [`Shared::subscribe_lossless`].
+    recorders: Arc<Mutex<Vec<Sender<Snapshot>>>>,
 }
 
 impl Shared {
@@ -131,6 +134,22 @@ impl Shared {
         rx
     }
 
+    /// Receive every snapshot, with no bound and no dropping.
+    ///
+    /// For the one subscriber whose job is to write the history down.
+    /// It runs in this process, so its queue is bounded by the daemon
+    /// staying alive rather than by a client's manners, and the cost of
+    /// getting it wrong is not symmetric: a watcher dropped for falling
+    /// behind reconnects, whereas the log writer dropped for a stall in
+    /// SQLite -- four contended writes at the five second busy timeout
+    /// will do it -- stops recording for good, with the daemon still
+    /// running and nothing saying so.
+    pub fn subscribe_lossless(&self) -> Receiver<Snapshot> {
+        let (tx, rx) = channel();
+        self.recorders.lock().expect("recorder mutex").push(tx);
+        rx
+    }
+
     /// Store a snapshot and hand it to every live subscriber.
     ///
     /// `try_send` rather than `send`: a full queue means that
@@ -142,6 +161,12 @@ impl Shared {
             .lock()
             .expect("subscriber mutex")
             .retain(|tx| tx.try_send(snapshot.clone()).is_ok());
+        // A recorder is only dropped when its receiver has gone, which
+        // means the thread that was writing the log has exited.
+        self.recorders
+            .lock()
+            .expect("recorder mutex")
+            .retain(|tx| tx.send(snapshot.clone()).is_ok());
     }
 
     /// Mark the last snapshot as no longer describing the receiver.
