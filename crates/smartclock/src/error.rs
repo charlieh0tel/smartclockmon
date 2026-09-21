@@ -95,6 +95,12 @@ impl Error {
     /// the reconnect threshold put the daemon in a five-second loop,
     /// logging nothing, on a receiver whose only fault was one reply
     /// the parser did not expect.
+    ///
+    /// `UnexplainedError` is the awkward one and is counted: the
+    /// receiver raised an error prompt and then had nothing in its
+    /// queue to explain it, which means the session and the receiver
+    /// are out of step rather than that the command was wrong, and
+    /// reopening does fix that.
     pub fn is_link_failure(&self) -> bool {
         matches!(
             self,

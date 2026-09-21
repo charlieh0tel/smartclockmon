@@ -38,6 +38,7 @@ use smartclock::device::Device;
 use smartclock::session::Config;
 use smartclock::session::Session;
 use smartclock::snapshot::Freshness;
+use smartclock::task;
 use smartclock::task::Cadence;
 use smartclock::task::DeviceTask;
 use smartclock::task::Handle;
@@ -336,10 +337,8 @@ fn supervise(
                 // A command is for the receiver that was attached when
                 // it was sent, so anything queued is answered rather
                 // than run against whatever comes back.
-                let dropped = DeviceTask::<SerialTransport>::discard_queued(
-                    &requests,
-                    "the link went down before the command ran",
-                );
+                let dropped =
+                    task::discard_queued(&requests, "the link went down before the command ran");
                 if dropped > 0 {
                     eprintln!("smartclockd: dropped {dropped} queued commands");
                 }
@@ -349,10 +348,8 @@ fn supervise(
                 // be the first thing run against the receiver that
                 // comes back -- which, on a by-id path, may not even be
                 // the same unit.
-                let late = DeviceTask::<SerialTransport>::discard_queued(
-                    &requests,
-                    "the link was down when the command was sent",
-                );
+                let late =
+                    task::discard_queued(&requests, "the link was down when the command was sent");
                 if late > 0 {
                     eprintln!("smartclockd: dropped {late} commands sent during the outage");
                 }

@@ -257,6 +257,27 @@ impl Handle {
     }
 }
 
+/// Answer and discard everything queued, for a link that has gone.
+///
+/// Without this, commands submitted during an outage were run against
+/// the receiver whenever it came back -- a survey the operator started
+/// and abandoned hours earlier, kicked off on reconnect.  A command is
+/// for the receiver that was attached when it was sent.
+///
+/// Free rather than a method: it touches neither the task nor its
+/// transport, and as an associated function the only way to call it was
+/// to name a transport that has nothing to do with it.
+pub fn discard_queued(requests: &Receiver<Request>, why: &'static str) -> usize {
+    let mut discarded = 0;
+    while let Ok(request) = requests.try_recv() {
+        if let Request::Command { answer, .. } = request {
+            let _ = answer.send(Err(Error::TaskStopped(why)));
+        }
+        discarded += 1;
+    }
+    discarded
+}
+
 /// Why a task stopped.
 #[derive(Debug)]
 pub enum Stopped {
@@ -351,24 +372,6 @@ impl<T: Transport> DeviceTask<T> {
             failures: 0,
             resync: false,
         }
-    }
-
-    /// Answer and discard everything queued, for a link that has gone.
-    ///
-    /// Without this, commands submitted during an outage were run
-    /// against the receiver whenever it came back -- a survey the
-    /// operator started and abandoned hours earlier, kicked off on
-    /// reconnect.  A command is for the receiver that was attached when
-    /// it was sent.
-    pub fn discard_queued(requests: &Receiver<Request>, why: &'static str) -> usize {
-        let mut discarded = 0;
-        while let Ok(request) = requests.try_recv() {
-            if let Request::Command { answer, .. } = request {
-                let _ = answer.send(Err(Error::TaskStopped(why)));
-            }
-            discarded += 1;
-        }
-        discarded
     }
 
     /// Take the request channel back, so the next task can serve it.
@@ -573,5 +576,70 @@ impl<T: Transport> DeviceTask<T> {
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Request;
+    use super::discard_queued;
+    use crate::error::Error;
+    use std::sync::mpsc::channel;
+    use std::sync::mpsc::sync_channel;
+    use std::time::Duration;
+    use std::time::Instant;
+
+    /// A command as a client's handle would submit it.
+    fn command(
+        scpi: &str,
+    ) -> (
+        Request,
+        std::sync::mpsc::Receiver<crate::error::Result<crate::session::Reply>>,
+    ) {
+        let (tx, rx) = sync_channel(1);
+        (
+            Request::Command {
+                scpi: scpi.to_owned(),
+                deadline: Instant::now() + Duration::from_secs(60),
+                answer: tx,
+            },
+            rx,
+        )
+    }
+
+    #[test]
+    fn a_discarded_command_is_answered_rather_than_left_waiting() {
+        // The queue outlives the task, so a command still in it when
+        // the link dies would otherwise run against whatever receiver
+        // came back -- and its caller would wait the full timeout to
+        // hear nothing.
+        let (tx, rx) = channel();
+        let (first, first_answer) = command(":SYNChronization:HOLDover:INITiate");
+        let (second, second_answer) = command(":GPS:POSition:SURVey:STATe ONCE");
+        tx.send(first).expect("queue the first");
+        tx.send(second).expect("queue the second");
+        tx.send(Request::Refresh).expect("queue a refresh");
+
+        let discarded = discard_queued(&rx, "the link went down");
+        assert_eq!(discarded, 3, "everything queued should be taken");
+
+        for answer in [first_answer, second_answer] {
+            match answer.try_recv() {
+                Ok(Err(Error::TaskStopped(why))) => assert_eq!(why, "the link went down"),
+                other => panic!("expected a TaskStopped answer, got {other:?}"),
+            }
+        }
+
+        // And the queue is empty, not merely drained of commands.
+        assert_eq!(discard_queued(&rx, "again"), 0);
+    }
+
+    #[test]
+    fn discarding_an_empty_queue_is_not_an_error() {
+        let (tx, rx) = channel::<Request>();
+        assert_eq!(discard_queued(&rx, "nothing to do"), 0);
+        drop(tx);
+        // A closed queue is still nothing to discard, not a panic.
+        assert_eq!(discard_queued(&rx, "nothing to do"), 0);
     }
 }

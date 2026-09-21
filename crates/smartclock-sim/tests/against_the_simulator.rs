@@ -491,3 +491,49 @@ fn a_command_whose_caller_gave_up_is_not_sent() {
     drop(handle);
     joiner.join().expect("the device thread");
 }
+
+#[test]
+fn a_receiver_that_only_refuses_is_not_a_dead_link() {
+    // Only a failure reopening could fix may count toward giving up on
+    // the port.  Counting receiver refusals too meant one unexpected
+    // reply put the daemon in a five-second reconnect loop against
+    // healthy hardware, logging nothing.  FAILURES_BEFORE_RECONNECT is
+    // 3, so twenty polls is well past it.
+    let (handle, joiner) = task::spawn(
+        device(Receiver::refusing()),
+        Cadence {
+            fast: Duration::from_millis(5),
+            medium: Duration::from_secs(3600),
+            slow: Duration::from_secs(3600),
+        },
+    );
+    let updates = handle.subscribe();
+
+    let mut seen = 0;
+    for _ in 0..20 {
+        match updates.recv_timeout(Duration::from_secs(2)) {
+            Ok(snapshot) => {
+                assert_eq!(snapshot.freshness, Freshness::Stale);
+                assert!(
+                    snapshot.polled.fast.error.is_some(),
+                    "the tier that failed should say so"
+                );
+                seen += 1;
+            }
+            Err(_) => break,
+        }
+    }
+
+    // Still polling, still reporting.  Count a refusal as a link
+    // failure and the task gives up after three, the thread ends, and
+    // both of these fail.
+    assert_eq!(seen, 20, "it stopped publishing after {seen} snapshots");
+    assert!(
+        !joiner.is_finished(),
+        "the task gave up on a link whose only fault was the receiver saying no"
+    );
+
+    drop(updates);
+    drop(handle);
+    joiner.join().expect("the device thread");
+}

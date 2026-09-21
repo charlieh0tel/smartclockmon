@@ -76,6 +76,12 @@ pub struct Receiver {
     base: Base,
     /// Errors waiting to be read, oldest first.
     errors: VecDeque<(i32, String)>,
+    /// Refuse every command the receiver would otherwise answer.
+    ///
+    /// A receiver that says no to everything is not a broken link, and
+    /// the daemon has to tell the two apart: see
+    /// [`Receiver::refusing`].
+    refuse_everything: bool,
 }
 
 /// The values drift moves around.
@@ -112,6 +118,7 @@ impl Default for Receiver {
             holdover: false,
             dialect: Dialect::Hp58503,
             ticks: 0,
+            refuse_everything: false,
             base: Base {
                 efc_raw: 713_587,
                 temperature: 37.40,
@@ -131,6 +138,22 @@ impl Receiver {
             hardware: 1 << 6,
             efc_raw: 1_040_000,
             holdover: true,
+            ..Self::default()
+        }
+        .settle()
+    }
+
+    /// A receiver that refuses every command it would otherwise
+    /// answer, with -113.
+    ///
+    /// For the difference between a receiver saying no and a link that
+    /// has gone: only the second is worth reopening the port over, and
+    /// treating the first as the second put the daemon in a five-second
+    /// reconnect loop against healthy hardware.  Reading the error
+    /// queue still works, or nothing could learn why.
+    pub fn refusing() -> Self {
+        Self {
+            refuse_everything: true,
             ..Self::default()
         }
         .settle()
@@ -165,6 +188,7 @@ impl Receiver {
             .iter()
             .find(|s| eq(s.scpi, command) || eq(s.scpi, header));
         match found {
+            Some(_) if self.refuse_everything => self.reject(-113, "Undefined header"),
             Some(spec) => self.answer(spec.id),
             None => self.reject(-113, "Undefined header"),
         }
