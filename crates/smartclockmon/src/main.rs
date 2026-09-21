@@ -40,11 +40,6 @@ struct Cli {
     /// Bits per second, for direct mode.
     #[arg(long, default_value_t = 19200)]
     baud: u32,
-
-    /// Draw with ASCII only, for a terminal that cannot render box
-    /// drawing or block elements.
-    #[arg(long)]
-    ascii: bool,
 }
 
 /// How often to redraw when nothing has arrived, so the clock in the
@@ -62,7 +57,7 @@ fn main() -> Result<()> {
         None => source::from_daemon(&cli.socket)?,
     };
 
-    let mut app = App::new(attachment, !cli.ascii, console, policy, cadence);
+    let mut app = App::new(attachment, console, policy, cadence);
     app.open_log();
 
     let mut terminal = ratatui::init();
@@ -127,7 +122,6 @@ fn run(
                 }
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => app.quitting = true,
-                    KeyCode::Char('u') => app.unicode = !app.unicode,
                     KeyCode::Char('g') | KeyCode::Tab => {
                         app.view = match app.view {
                             View::Dashboard => View::History,

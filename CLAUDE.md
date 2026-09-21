@@ -60,10 +60,12 @@ holdover and may have a failing OCXO.
 
 - Prefer ASCII in all code and user-facing strings (logs, CLI output,
   error messages).  Ask before using Unicode.
-- The TUI is the exception: box drawing, block elements and other
-  Unicode are fine there.  It keeps an ASCII mode for terminals that
-  cannot render them, so anything drawn with Unicode needs an ASCII
-  fallback.
+- The TUI is the exception: box drawing, block elements, braille and
+  other Unicode are fine there, with no ASCII fallback.  One existed and
+  was dropped: ratatui draws chart axes with box-drawing glyphs a caller
+  cannot replace, so the mode could never have been complete, and a
+  fallback that is wrong in the one place it is needed is worse than
+  none.
 - Prefer consistency above most other concerns.
 - Do not add trivial, obvious or redundant comments.
 - Be DRY.

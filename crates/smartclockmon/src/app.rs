@@ -43,9 +43,6 @@ pub(crate) struct App {
     pub(crate) attachment: Attachment,
     /// Set when the operator has asked to leave.
     pub(crate) quitting: bool,
-    /// Whether to draw with box drawing and block elements.  An ASCII
-    /// fallback exists for terminals that cannot render them.
-    pub(crate) unicode: bool,
     /// Recent 1 PPS intervals in nanoseconds, oldest first.
     pub(crate) ti_trend: VecDeque<f64>,
     /// Which screen is showing.
@@ -78,7 +75,6 @@ impl App {
     /// A monitor with nothing received yet.
     pub(crate) fn new(
         attachment: Attachment,
-        unicode: bool,
         console: Console,
         policy: Policy,
         cadence: Cadence,
@@ -88,7 +84,6 @@ impl App {
             efc_trend: VecDeque::with_capacity(TREND_LEN),
             attachment,
             quitting: false,
-            unicode,
             ti_trend: VecDeque::with_capacity(TREND_LEN),
             view: View::Dashboard,
             window: Window::Hour,

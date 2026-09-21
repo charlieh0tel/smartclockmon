@@ -40,9 +40,6 @@ const TREND_BLOCKS: [char; 8] = [
     '\u{2581}', '\u{2582}', '\u{2583}', '\u{2584}', '\u{2585}', '\u{2586}', '\u{2587}', '\u{2588}',
 ];
 
-/// The same ramp for a terminal that cannot draw blocks.
-const TREND_ASCII: [char; 8] = [' ', '.', ':', '-', '=', '+', '*', '#'];
-
 /// Width of the label column, so values line up across panes.
 const LABEL_WIDTH: usize = 12;
 
@@ -80,7 +77,7 @@ fn history(frame: &mut Frame, app: &App) {
 
     if let Some(why) = &app.history_error {
         frame.render_widget(
-            Paragraph::new(why.clone()).block(block(app, "History")),
+            Paragraph::new(why.clone()).block(block("History")),
             rows[1].union(rows[3]),
         );
         footer(frame, rows[5], app);
@@ -91,7 +88,6 @@ fn history(frame: &mut Frame, app: &App) {
     graph(
         frame,
         rows[1],
-        app,
         &format!("EFC percent, {span}"),
         &app.history.efc,
         Color::Cyan,
@@ -99,7 +95,6 @@ fn history(frame: &mut Frame, app: &App) {
     graph(
         frame,
         rows[2],
-        app,
         &format!("Temperature C, {span}"),
         &app.history.temperature,
         Color::Yellow,
@@ -107,7 +102,6 @@ fn history(frame: &mut Frame, app: &App) {
     graph(
         frame,
         rows[3],
-        app,
         &format!("1 PPS TI ns, {span}"),
         &app.history.time_interval,
         Color::Green,
@@ -122,10 +116,10 @@ fn history(frame: &mut Frame, app: &App) {
 /// reads as a single line.  Where they did not, the band shows how far
 /// apart they were, which is the only way a step survives being thinned
 /// into a column.
-fn graph(frame: &mut Frame, area: Rect, app: &App, title: &str, trace: &Trace, colour: Color) {
+fn graph(frame: &mut Frame, area: Rect, title: &str, trace: &Trace, colour: Color) {
     let Some(y) = trace.bounds() else {
         frame.render_widget(
-            Paragraph::new("no readings in this window").block(block(app, title)),
+            Paragraph::new("no readings in this window").block(block(title)),
             area,
         );
         return;
@@ -135,13 +129,8 @@ fn graph(frame: &mut Frame, area: Rect, app: &App, title: &str, trace: &Trace, c
     // and collapses onto the mean wherever the readings agreed.
     let titled = format!("{title}  [mean, min..max]");
     // Braille packs four times the horizontal resolution of a cell, so
-    // an hour of readings fits a terminal width.  ASCII mode has no
-    // equivalent and falls back to dots.
-    let marker = if app.unicode {
-        Marker::Braille
-    } else {
-        Marker::Dot
-    };
+    // an hour of readings fits a terminal width.
+    let marker = Marker::Braille;
     // A line between fewer than two points draws nothing, and a slow
     // series has exactly one early on.  Scatter still shows it.
     let kind = if trace.mean.len() < 2 {
@@ -173,7 +162,7 @@ fn graph(frame: &mut Frame, area: Rect, app: &App, title: &str, trace: &Trace, c
     let x = trace.span();
     let axis = Style::new().fg(Color::DarkGray);
     let chart = Chart::new(datasets)
-        .block(block(app, &titled))
+        .block(block(&titled))
         // No floating legend: three entries do not fit a pane this
         // short, and where they do they sit on top of the trace.  The
         // title carries the key instead, where it always shows and
@@ -257,24 +246,9 @@ fn dashboard(frame: &mut Frame, app: &App) {
     footer(frame, rows[4], app);
 }
 
-fn block(app: &App, title: &str) -> Block<'static> {
-    let set = if app.unicode {
-        border::ROUNDED
-    } else {
-        // A serial console on the bench may not render box drawing.
-        border::Set {
-            top_left: "+",
-            top_right: "+",
-            bottom_left: "+",
-            bottom_right: "+",
-            vertical_left: "|",
-            vertical_right: "|",
-            horizontal_top: "-",
-            horizontal_bottom: "-",
-        }
-    };
+fn block(title: &str) -> Block<'static> {
     Block::bordered()
-        .border_set(set)
+        .border_set(border::ROUNDED)
         .title(format!(" {title} "))
 }
 
@@ -293,10 +267,7 @@ fn header(frame: &mut Frame, area: Rect, app: &App) {
         Span::raw("  "),
         Span::raw(app.attachment.describe()),
     ]);
-    frame.render_widget(
-        Paragraph::new(line).block(block(app, "smartclockmon")),
-        area,
-    );
+    frame.render_widget(Paragraph::new(line).block(block("smartclockmon")), area);
 }
 
 /// How many times its own cadence a tier may lag before its pane is
@@ -347,7 +318,7 @@ fn absent(label: &str) -> Line<'_> {
 fn lock(frame: &mut Frame, area: Rect, app: &App) {
     let Some(s) = app.snapshot.as_ref() else {
         frame.render_widget(
-            Paragraph::new("waiting for a reading").block(block(app, "Lock")),
+            Paragraph::new("waiting for a reading").block(block("Lock")),
             area,
         );
         return;
@@ -409,7 +380,7 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
             _ => absent("holdover"),
         },
     ];
-    frame.render_widget(Paragraph::new(lines).block(block(app, "Lock")), area);
+    frame.render_widget(Paragraph::new(lines).block(block("Lock")), area);
 }
 
 /// The mode line, and how to colour it.
@@ -473,7 +444,7 @@ fn oscillator(frame: &mut Frame, area: Rect, app: &App) {
             lines.push(field("EFC", efc.to_string(), style));
             lines.push(field(
                 "range used",
-                format!("{:.0}%  {}", used * 100.0, gauge(used, 18, app.unicode)),
+                format!("{:.0}%  {}", used * 100.0, gauge(used, 18)),
                 style,
             ));
         }
@@ -560,17 +531,13 @@ fn oscillator(frame: &mut Frame, area: Rect, app: &App) {
     if let Some(age) = staleness(app, Tier::Medium) {
         title.push_str(&age);
     }
-    frame.render_widget(Paragraph::new(lines).block(block(app, &title)), area);
+    frame.render_widget(Paragraph::new(lines).block(block(&title)), area);
 }
 
 /// A horizontal bar showing how much of the tuning range is used.
-fn gauge(fraction: f64, width: usize, unicode: bool) -> String {
+fn gauge(fraction: f64, width: usize) -> String {
     let filled = ((fraction.clamp(0.0, 1.0)) * width as f64).round() as usize;
-    let (full, empty) = if unicode {
-        ('\u{2588}', '\u{2591}')
-    } else {
-        ('#', '.')
-    };
+    let (full, empty) = ('\u{2588}', '\u{2591}');
     let mut bar = String::with_capacity(width + 2);
     bar.push('[');
     for n in 0..width {
@@ -589,11 +556,7 @@ fn trend(app: &App, width: usize) -> String {
     let Some((lo, hi)) = app.efc_range() else {
         return String::new();
     };
-    let ramp = if app.unicode {
-        TREND_BLOCKS
-    } else {
-        TREND_ASCII
-    };
+    let ramp = TREND_BLOCKS;
     let span = (hi - lo).max(f64::EPSILON);
     app.efc_trend
         .iter()
@@ -616,11 +579,7 @@ fn ti_trend(app: &App, width: usize) -> String {
         return "--".to_owned();
     };
     let (lo, hi) = values.fold((first, first), |(lo, hi), v| (lo.min(v), hi.max(v)));
-    let ramp = if app.unicode {
-        TREND_BLOCKS
-    } else {
-        TREND_ASCII
-    };
+    let ramp = TREND_BLOCKS;
     let span = (hi - lo).max(f64::EPSILON);
     app.ti_trend
         .iter()
@@ -640,7 +599,7 @@ fn satellites(frame: &mut Frame, area: Rect, app: &App) {
     let screen = app.snapshot.as_ref().and_then(|s| s.screen.as_ref());
     let Some(screen) = screen else {
         frame.render_widget(
-            Paragraph::new("waiting for a status screen").block(block(app, "Satellites")),
+            Paragraph::new("waiting for a status screen").block(block("Satellites")),
             area,
         );
         return;
@@ -703,14 +662,14 @@ fn satellites(frame: &mut Frame, area: Rect, app: &App) {
         ],
     )
     .header(Row::new(vec!["PRN", "El", "Az", "SS", "state"]).style(header_style))
-    .block(block(app, &title));
+    .block(block(&title));
     frame.render_widget(table, area);
 }
 
 fn time_and_place(frame: &mut Frame, area: Rect, app: &App) {
     let Some(s) = app.snapshot.as_ref() else {
         frame.render_widget(
-            Paragraph::new("waiting for a reading").block(block(app, "Time and position")),
+            Paragraph::new("waiting for a reading").block(block("Time and position")),
             area,
         );
         return;
@@ -780,7 +739,7 @@ fn time_and_place(frame: &mut Frame, area: Rect, app: &App) {
     if let Some(age) = staleness(app, Tier::Slow) {
         title.push_str(&age);
     }
-    frame.render_widget(Paragraph::new(lines).block(block(app, &title)), area);
+    frame.render_widget(Paragraph::new(lines).block(block(&title)), area);
 }
 
 /// The raw command line, and the last answer.
@@ -820,14 +779,14 @@ fn console(frame: &mut Frame, area: Rect, app: &App) {
         };
         lines.push(Line::from(Span::styled(reply.clone(), style)));
     }
-    frame.render_widget(Paragraph::new(lines).block(block(app, &title)), area);
+    frame.render_widget(Paragraph::new(lines).block(block(&title)), area);
 }
 
 fn footer(frame: &mut Frame, area: Rect, app: &App) {
     let keys = if app.console_open {
         "Enter send  Esc close"
     } else {
-        "q quit  g graphs  w window  c command  u ASCII"
+        "q quit  g graphs  w window  c command"
     };
     let mut spans = vec![Span::styled(keys, Style::new().fg(Color::DarkGray))];
     if let Some(error) = app.snapshot.as_ref().and_then(|s| s.polled.any_error()) {

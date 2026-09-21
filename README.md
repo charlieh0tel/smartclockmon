@@ -35,7 +35,7 @@ Run by hand, it holds the port and everything else is a client of it:
     smartclockmon --socket /tmp/smartclockd.sock
 
 In the monitor, `g` switches to the graphs, `w` cycles their span, `c`
-opens a command line, `u` falls back to ASCII, `q` quits.
+opens a command line, `q` quits.
 
 `smartclockmon --device ...` talks to the receiver directly, which needs
 the daemon stopped and records no history; the header says so.
