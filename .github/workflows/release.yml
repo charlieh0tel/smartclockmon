@@ -1,0 +1,16 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  deb:
+    # No `package:` input.  With one, the shared workflow builds only
+    # that crate, and this package ships three binaries from three
+    # crates: cargo-deb then fails with "Static file asset has not been
+    # built".  Left empty, it builds the whole workspace and cargo-deb
+    # picks the single crate carrying [package.metadata.deb].
+    uses: charlieh0tel/deb-workflows/.github/workflows/rust-build-deb.yml@main
+    permissions:
+      contents: write

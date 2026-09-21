@@ -1,3 +1,6 @@
+# Do not add default-members.  CI runs a bare `cargo test`, which covers
+# every member only while this is absent; one was added once and cut the
+# run from 76 tests to 0, exit 0, CI green while testing nothing.
 [workspace]
 members = [
     "crates/smartclock",

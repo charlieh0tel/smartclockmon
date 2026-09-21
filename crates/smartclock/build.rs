@@ -106,17 +106,29 @@ fn stamp_version() {
             .filter(|text| !text.is_empty())
     };
 
+    let dirty = match git(&["status", "--porcelain"]) {
+        Some(_) => "+dirty",
+        None => "",
+    };
+
+    // A build standing exactly on its release tag, from a clean tree,
+    // is that release and says so.  Everything else is a snapshot, and
+    // has to sort BELOW the release it precedes: otherwise a local
+    // build installed on a machine outranks the released package and
+    // apt never offers the upgrade.  A `~` sorts before everything,
+    // the empty string included, which is what makes that work.
+    //
+    //     0.1.0-0~git79.gf4bfa6f  <  0.1.0-1
+    //     0.1.0-0~git79.gf4bfa6f  <  0.1.0-0~git80.g0badcafe
+    let tagged = git(&["describe", "--exact-match", "--tags", "HEAD"])
+        .filter(|tag| tag.trim_start_matches('v') == package && dirty.is_empty());
     let version = match (
+        tagged,
         git(&["rev-list", "--count", "HEAD"]),
         git(&["rev-parse", "--short", "HEAD"]),
     ) {
-        (Some(count), Some(commit)) => {
-            let dirty = match git(&["status", "--porcelain"]) {
-                Some(_) => "+dirty",
-                None => "",
-            };
-            format!("{package}-{count}+g{commit}{dirty}")
-        }
+        (Some(_), _, _) => package,
+        (None, Some(count), Some(commit)) => format!("{package}-0~git{count}.g{commit}{dirty}"),
         _ => package,
     };
     println!("cargo::rustc-env=SMARTCLOCK_VERSION={version}");

@@ -534,11 +534,7 @@ behaviour was absent, and the cause took a `--help` diff to find.
 The hand-written `packaging/debian/changelog` stays as the record of
 releases.  A derived version is a build, not a release.
 
-### CI is a Makefile
-
-The Makefile holds the real targets; GitHub Actions only calls `make
-ci`.  Local and CI then run the same thing by construction rather than
-by two definitions kept in sync by hand.
+### CI is shared; the Makefile is what you run
 
 ```
 make            build
@@ -547,12 +543,29 @@ make fmt        cargo fmt
 make clippy     cargo clippy --all-targets -- -D warnings
 make test       cargo test
 make test-hw    cargo test -- --ignored
+make deb        a snapshot package
+make release VERSION=x.y.z
 ```
 
-A `rust-toolchain.toml` pins the toolchain so a clippy lint that fires
-in CI fires locally too.  The workflow is checkout,
-`dtolnay/rust-toolchain` pinned to a commit sha, `Swatinem/rust-cache`,
-then `make ci` -- no installer piped from a URL.
+CI called `make ci` at first, so that local and CI ran one definition
+by construction.  It now calls the reusable `rust-ci.yml` shared with
+the other repositories in this fleet, because one repository doing it
+differently costs more than the symmetry is worth.  The inputs restore
+what the shared defaults would drop: the toolchain is pinned rather
+than tracking stable, `cargo fmt` is pinned to the same toolchain
+because nightly rustfmt formats differently and would fail a check that
+`make fmt` had just satisfied, and `--all-targets` is passed or clippy
+never lints the tests, which are the larger half of this workspace.
+
+Two things that were true of `make ci` are no longer enforced by CI and
+are worth knowing.  The shared `cargo test` does not say `--workspace`;
+harmless while there is no `default-members`, and adding one would
+silently narrow CI to a subset, which is a trap this repository has
+already fallen into once.  And the shared workflow pins its actions by
+tag rather than by commit sha, which is the fleet's posture, not this
+repository's preference.
+
+`make ci` remains the local command and remains the stricter one.
 
 The one wrinkle is that some tests need the receiver.  Those are
 `#[ignore]`d and reachable only through `make test-hw`, which CI never

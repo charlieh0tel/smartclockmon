@@ -38,9 +38,9 @@ section = "utils"
 priority = "optional"
 depends = "$auto, adduser"
 assets = [
-    ["../../target/release/smartclockd", "usr/bin/", "755"],
-    ["../../target/release/smartclock-cli", "usr/bin/", "755"],
-    ["../../target/release/smartclockmon", "usr/bin/", "755"],
+    ["target/release/smartclockd", "usr/bin/", "755"],
+    ["target/release/smartclock-cli", "usr/bin/", "755"],
+    ["target/release/smartclockmon", "usr/bin/", "755"],
     ["../../packaging/systemd/smartclockd.default", "etc/default/smartclockd", "644"],
     ["../../README.md", "usr/share/doc/smartclockmon/README.md", "644"],
     ["../../docs/screen-format-strings.md", "usr/share/doc/smartclockmon/screen-format-strings.md", "644"],
