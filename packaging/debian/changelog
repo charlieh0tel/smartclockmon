@@ -1,3 +1,10 @@
+smartclockmon (0.4.1-1) unstable; urgency=low
+
+  * The web view serves the position and the policy flags again.  0.4.0
+    withheld them; that was not asked for.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Mon, 21 Sep 2026 00:29:21 -0700
+
 smartclockmon (0.4.0-1) unstable; urgency=low
 
   * Security: the exporter and the web view bounded nothing.  A
