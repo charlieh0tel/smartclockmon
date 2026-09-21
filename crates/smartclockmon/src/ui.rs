@@ -366,7 +366,7 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
             |v| plain("1 PPS TI", format!("{v:+.1} ns")),
         ),
         s.holdover_waiting
-            .map_or_else(|| absent("waiting"), |w| plain("waiting", format!("{w:?}"))),
+            .map_or_else(|| absent("waiting"), |w| plain("waiting", w.to_string())),
         Line::from(vec![
             Span::styled(
                 format!("{:<LABEL_WIDTH$}", "TI trend"),

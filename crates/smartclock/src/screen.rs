@@ -389,7 +389,7 @@ struct Group {
 /// group when only one is.
 fn groups(header: &str) -> Vec<Group> {
     let mut found: Vec<Group> = Vec::new();
-    for (column, token) in word_positions(header) {
+    for (column, token) in word_offsets(header) {
         if token.eq_ignore_ascii_case("PRN") {
             found.push(Group {
                 fields: 0,
@@ -431,7 +431,9 @@ fn satellites(lines: &[&str]) -> Vec<SatelliteInfo> {
             // side is normal; keep reading until a section heading.
             continue;
         }
-        let first_column = word_positions(left).first().map_or(usize::MAX, |(c, _)| *c);
+        // Only the first word's offset is wanted, so the row is not
+        // collected into a Vec to read one number from it.
+        let first_column = word_offsets(left).next().map_or(usize::MAX, |(at, _)| at);
         let mut tokens = tokenize(left).into_iter().peekable();
         for (n, group) in groups.iter().enumerate() {
             if tokens.peek().is_none() {
@@ -458,24 +460,28 @@ fn satellites(lines: &[&str]) -> Vec<SatelliteInfo> {
 /// it.  The manuals' own ASCII is off by as much as four columns.
 const COLUMN_SLACK: usize = 4;
 
-/// Each whitespace-delimited word with the column it starts at.
-fn word_positions(line: &str) -> Vec<(usize, &str)> {
-    let mut out = Vec::new();
-    let mut start = None;
-    for (column, c) in line.char_indices() {
-        match (c.is_whitespace(), start) {
-            (false, None) => start = Some(column),
-            (true, Some(from)) => {
-                out.push((from, &line[from..column]));
-                start = None;
-            }
-            _ => {}
-        }
-    }
-    if let Some(from) = start {
-        out.push((from, &line[from..]));
-    }
-    out
+/// Each whitespace-delimited word with the byte offset it starts at.
+///
+/// Byte offsets, not character columns.  Everything compared against
+/// these -- `Group::column`, `first_column`, `COLUMN_SLACK` -- is a
+/// byte offset too, so they agree; but `panel_column` counts characters,
+/// and the two must not be mixed.  On a line that is pure ASCII, which
+/// every status screen the receiver emits is, they are the same number.
+fn word_offsets(line: &str) -> impl Iterator<Item = (usize, &str)> {
+    line.char_indices().filter_map(move |(at, c)| {
+        let starts_word = !c.is_whitespace()
+            && (at == 0
+                || line[..at]
+                    .chars()
+                    .next_back()
+                    .is_some_and(char::is_whitespace));
+        starts_word.then(|| {
+            let end = line[at..]
+                .find(char::is_whitespace)
+                .map_or(line.len(), |len| at + len);
+            (at, &line[at..end])
+        })
+    })
 }
 
 /// Split a row into tokens, reattaching a detached acquiring marker.
@@ -534,7 +540,6 @@ fn health_items(lines: &[&str]) -> Vec<(String, String)> {
     let Some(line) = lines.iter().find(|l| l.contains("Self Test:")) else {
         return Vec::new();
     };
-
     let mut items = Vec::new();
     let parts: Vec<&str> = line.split(':').collect();
     for n in 0..parts.len().saturating_sub(1) {

@@ -24,7 +24,6 @@ use smartclock::transport::serial::SerialTransport;
 use smartclock::transport::serial::Settings;
 use smartclock::transport::tee::TeeTransport;
 use smartclock::types::BaudRate;
-use smartclock::types::Seconds;
 
 #[derive(Parser)]
 #[command(about, version)]
@@ -164,8 +163,8 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command) -> Result<()> {
             Ok(())
         }
         Command::Probe { dialect } => probe(session, dialect),
-        Command::Diagnose => unreachable!("handled above, since it takes the session"),
         Command::Sweep { from } => sweep(session, from),
+        Command::Diagnose => unreachable!("handled above, since it takes the session"),
         // Handled before the port is opened.
         Command::Commands => Ok(()),
     }
@@ -227,63 +226,64 @@ fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
         "{} {}  serial {}  firmware {}",
         id.manufacturer, id.model, id.serial, id.firmware
     );
-    println!("  dialect            {:?}", device.dialect());
+    line("dialect", device.dialect().name());
 
     println!("\nLock");
-    show("mode", device.mode().map(|m| format!("{m:?}")))?;
+    show("mode", device.mode().map(|m| m.to_string()));
     show(
         "waiting to recover",
-        device.holdover_waiting().map(|w| format!("{w:?}")),
-    )?;
-    show("TFOM", device.tfom().map(|v| v.to_string()))?;
-    show("FFOM", device.ffom().map(|v| v.to_string()))?;
+        device.holdover_waiting().map(|w| w.to_string()),
+    );
+    show("TFOM", device.tfom().map(|v| v.to_string()));
+    show("FFOM", device.ffom().map(|v| v.to_string()));
     show(
         "1 PPS interval",
         device
             .time_interval()
-            .map(absent_or(|v: Seconds| v.to_string())),
-    )?;
+            .map(|v| absent_or(v, |v| v.to_string())),
+    );
 
     println!("\nOscillator");
     match device.efc() {
-        Ok(efc) => println!(
-            "  {:<18} {efc}  ({:.0}% of tuning range used)",
+        Ok(efc) => line(
             "EFC",
-            efc.range_used() * 100.0
+            &format!(
+                "{efc}  ({:.0}% of tuning range used)",
+                efc.range_used() * 100.0
+            ),
         ),
-        Err(e) => println!("  {:<18} unavailable: {e}", "EFC"),
+        Err(e) => line("EFC", &format!("unavailable: {e}")),
     }
     show(
         "temperature",
         device
             .temperature()
-            .map(absent_or(|v: f64| format!("{v:.2} C"))),
-    )?;
+            .map(|v| absent_or(v, |v| format!("{v:.2} C"))),
+    );
     show(
         "oven current",
         device
             .oven_current()
-            .map(absent_or(|v: f64| format!("{v:.1}"))),
-    )?;
+            .map(|v| absent_or(v, |v| format!("{v:.1}"))),
+    );
     show(
         "EFC raw",
-        device.efc_dac().map(absent_or(|v: u32| v.to_string())),
-    )?;
+        device.efc_dac().map(|v| absent_or(v, |v| v.to_string())),
+    );
     match device.hardware_condition() {
         Ok(condition) if condition.is_healthy() => {
-            println!(
-                "  {:<18} no faults (register {})",
+            line(
                 "hardware",
-                condition.bits()
+                &format!("no faults (register {})", condition.bits()),
             );
         }
         Ok(condition) => {
-            println!("  {:<18} register {}", "hardware", condition.bits());
+            line("hardware", &format!("register {}", condition.bits()));
             for fault in condition.faults() {
                 println!("    - {}", fault.describe());
             }
         }
-        Err(e) => println!("  {:<18} unavailable: {e}", "hardware"),
+        Err(e) => line("hardware", &format!("unavailable: {e}")),
     }
 
     println!("\nHoldover");
@@ -294,33 +294,33 @@ fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
             } else {
                 "not in holdover"
             };
-            println!("  {:<18} {state}, last {}", "state", holdover.elapsed);
+            line("state", &format!("{state}, last {}", holdover.elapsed));
         }
-        Err(e) => println!("  {:<18} unavailable: {e}", "state"),
+        Err(e) => line("state", &format!("unavailable: {e}")),
     }
     show(
         "predicted 24 h",
         device
             .holdover_predicted()
-            .map(absent_or(|v: Seconds| v.to_string())),
-    )?;
+            .map(|v| absent_or(v, |v| v.to_string())),
+    );
     show(
         "present error",
         device
             .holdover_present()
-            .map(absent_or(|v: Seconds| v.to_string())),
-    )?;
+            .map(|v| absent_or(v, |v| v.to_string())),
+    );
 
     println!("\nGPS");
     match (device.tracking_count(), device.visible_count()) {
         (Ok(tracked), Ok(visible)) => {
-            println!(
-                "  {:<18} {tracked} tracked of {visible} predicted",
-                "satellites"
+            line(
+                "satellites",
+                &format!("{tracked} tracked of {visible} predicted"),
             );
         }
-        (Ok(tracked), Err(_)) => println!("  {:<18} {tracked} tracked", "satellites"),
-        (Err(e), _) => println!("  {:<18} unavailable: {e}", "satellites"),
+        (Ok(tracked), Err(_)) => line("satellites", &format!("{tracked} tracked")),
+        (Err(e), _) => line("satellites", &format!("unavailable: {e}")),
     }
 
     // Checked against the host clock because firmware predating the
@@ -330,24 +330,37 @@ fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
     match device.date(today) {
         Ok(date) => match date.rollover() {
             Some(slip) => {
-                println!("  {:<18} {}  WRONG", "date", date.raw());
-                println!(
-                    "  {:<18} {} after {} GPS week rollover(s), {} days",
+                line("date", &format!("{}  WRONG", date.raw()));
+                line(
                     "",
-                    date.corrected(),
-                    slip.epochs,
-                    slip.days()
+                    &format!(
+                        "{} after {} GPS week rollover(s), {} days",
+                        date.corrected(),
+                        slip.epochs,
+                        slip.days()
+                    ),
                 );
-                println!("  {:<18} time of day, 1 PPS and 10 MHz are unaffected", "");
+                line("", "time of day, 1 PPS and 10 MHz are unaffected");
             }
-            None => println!("  {:<18} {}", "date", date.raw()),
+            None => line("date", &date.raw().to_string()),
         },
-        Err(e) => println!("  {:<18} unavailable: {e}", "date"),
+        Err(e) => line("date", &format!("unavailable: {e}")),
     }
 
     println!("\nLog");
-    show("entries", device.log_count().map(|n| n.to_string()))?;
+    show("entries", device.log_count().map(|n| n.to_string()));
     Ok(())
+}
+
+/// The column the values line up in.
+const LABEL_WIDTH: usize = 18;
+
+/// Print one label and its text, with the label padded to the column.
+///
+/// Every line in `diagnose` goes through here, so the width is written
+/// once.  An empty label continues the previous one.
+fn line(label: &str, text: &str) {
+    println!("  {label:<LABEL_WIDTH$} {text}");
 }
 
 /// Print one field, or why it could not be read.
@@ -355,17 +368,23 @@ fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
 /// A value that could not be read is said to be unavailable, never
 /// shown as a default: this is the tool someone points at a receiver
 /// they suspect.
-fn show(label: &str, value: smartclock::error::Result<String>) -> Result<()> {
+///
+/// Infallible, though it takes a `Result`: the failure it reports is
+/// the receiver's, not its own.  It used to return `Result<()>` that
+/// could never be `Err`, which put a `?` on ten call sites for nothing.
+fn show(label: &str, value: smartclock::error::Result<String>) {
     match value {
-        Ok(text) => println!("  {label:<18} {text}"),
-        Err(e) => println!("  {label:<18} unavailable: {e}"),
+        Ok(text) => line(label, &text),
+        Err(e) => line(label, &format!("unavailable: {e}")),
     }
-    Ok(())
 }
 
 /// Render an optional reading, saying so when the receiver declined it.
-fn absent_or<T>(render: impl Fn(T) -> String) -> impl Fn(Option<T>) -> String {
-    move |value| match value {
+///
+/// Takes the value rather than returning a closure, which spared every
+/// call site a type annotation it only needed to satisfy inference.
+fn absent_or<T>(value: Option<T>, render: impl FnOnce(T) -> String) -> String {
+    match value {
         Some(value) => render(value),
         None => "not applicable in this state".to_owned(),
     }

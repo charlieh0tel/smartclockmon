@@ -148,6 +148,7 @@ impl Log {
     /// second is six hundred thousand rows and a terminal has a couple
     /// of hundred columns.  Thinning happens in SQL so the rows never
     /// cross the process boundary.
+    ///
     /// The window is compared as a number, not as text.  `at` is
     /// written by jiff as `2026-09-20T00:05:00.123456789Z` with a
     /// `T`, while `datetime('now')` yields `2026-09-20 23:07:40`

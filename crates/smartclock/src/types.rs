@@ -144,6 +144,35 @@ pub enum HoldoverWaitReason {
     None,
 }
 
+impl fmt::Display for SmartClockMode {
+    /// Words for an operator, not variant names.  Printing these with
+    /// `{:?}` put Rust identifiers in front of whoever is diagnosing a
+    /// receiver, and would have changed silently under a rename.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            Self::Locked => "locked to GPS",
+            Self::Recovery => "recovering from holdover",
+            Self::Holdover => "in holdover",
+            Self::Waiting => "waiting to recover",
+            Self::PowerUp => "powering up",
+            Self::Other => "other",
+        };
+        f.write_str(text)
+    }
+}
+
+impl fmt::Display for HoldoverWaitReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            Self::Hardware => "a hardware fault",
+            Self::Gps => "no satellites",
+            Self::Limit => "the interval exceeds the recovery limit",
+            Self::None => "nothing; not waiting",
+        };
+        f.write_str(text)
+    }
+}
+
 impl HoldoverWaitReason {
     /// Parse the word `:SYNChronization:HOLDover:WAITing?` returns.
     pub fn parse(word: &str) -> Option<Self> {
@@ -634,7 +663,9 @@ impl fmt::Display for BaudRate {
 #[cfg(test)]
 mod tests {
     use super::BaudRate;
+    use super::HoldoverWaitReason;
     use super::Seconds;
+    use super::SmartClockMode;
     use super::TimeOfDay;
     use super::UtcOffset;
 
@@ -690,6 +721,21 @@ mod tests {
         assert_eq!(UtcOffset::new(-8, 0).to_string(), "-08:00");
         assert_eq!(UtcOffset::new(5, 30).to_string(), "+05:30");
         assert!(UtcOffset::default().is_utc());
+    }
+    #[test]
+    fn an_operator_reads_words_not_variant_names() {
+        // These go in front of whoever is diagnosing a receiver, so
+        // they are sentences rather than Rust identifiers -- and a
+        // rename must not change them silently.
+        assert_eq!(SmartClockMode::Locked.to_string(), "locked to GPS");
+        assert_eq!(SmartClockMode::Holdover.to_string(), "in holdover");
+        assert_eq!(SmartClockMode::PowerUp.to_string(), "powering up");
+        assert_eq!(HoldoverWaitReason::Gps.to_string(), "no satellites");
+        assert_eq!(
+            HoldoverWaitReason::Limit.to_string(),
+            "the interval exceeds the recovery limit"
+        );
+        assert_eq!(HoldoverWaitReason::None.to_string(), "nothing; not waiting");
     }
 }
 
