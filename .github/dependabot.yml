@@ -1,0 +1,24 @@
+# Actions only, deliberately.
+#
+# A third-party action runs with whatever token its step is handed, so
+# an unnoticed change to one is the supply-chain risk here worth a
+# weekly pull request.  The surface is small: two of the three uses are
+# this account's own deb-workflows@v1, a tag maintained to move, which
+# Dependabot leaves alone because it is already the latest major.  That
+# leaves repository-dispatch, pinned to a commit with its version in a
+# trailing comment -- the form Dependabot reads, so it bumps the SHA
+# and the comment together.
+#
+# The cargo ecosystem is left out.  255 transitive packages produce a
+# stream of version bumps whose value is hygiene, while the thing that
+# actually matters for a package other people install -- knowing a
+# dependency has a published advisory -- is answered by Dependabot
+# alerts and by the audit workflow, which fails the build instead of
+# adding to a queue nobody is reading.  Add it here if the hygiene
+# turns out to be wanted; grouped, and capped, or it is noise.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
