@@ -521,6 +521,19 @@ the active dialect has both a parser and a fixture, and the phase 7
 per-model command matrix generated from the same source rather than
 maintained by hand.
 
+### The package version is derived
+
+`make deb` builds `<version>-<commits>+g<sha>`, with `+dirty` appended
+when the tree is not clean, rather than a revision written down by hand.
+Two builds of different code then cannot carry the same version, which
+matters because dpkg treats reinstalling an identical version as a
+no-op: the binaries change or they do not, and nothing on the outside
+says which.  That happened -- a package was reinstalled, the new
+behaviour was absent, and the cause took a `--help` diff to find.
+
+The hand-written `packaging/debian/changelog` stays as the record of
+releases.  A derived version is a build, not a release.
+
 ### CI is a Makefile
 
 The Makefile holds the real targets; GitHub Actions only calls `make
