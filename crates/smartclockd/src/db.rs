@@ -719,6 +719,26 @@ mod tests {
             })
             .expect("the stamp survives");
         assert_eq!(found, "99");
+
+        // Nor is anything built in it.  The version check used to run
+        // after the whole migration, so a database from a future daemon
+        // had three tables created and seven columns added to it and
+        // was then refused -- and a later schema that renamed one of
+        // those would have found it quietly resurrected.  Refusing has
+        // to mean touching nothing.
+        let mut built: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+            .expect("read the schema")
+            .query_map([], |row| row.get(0))
+            .expect("list the tables")
+            .collect::<std::result::Result<_, _>>()
+            .expect("collect the tables");
+        built.sort();
+        assert_eq!(
+            built,
+            vec!["meta".to_owned()],
+            "a refused database must be left as it was found"
+        );
         let _ = std::fs::remove_file(&path);
     }
 
