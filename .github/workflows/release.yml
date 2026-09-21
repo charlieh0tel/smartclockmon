@@ -17,3 +17,20 @@ jobs:
     with:
       # serialport needs libudev on Linux.
       build-deps: "libudev-dev"
+
+  # Tell the APT repository to rebuild now rather than waiting for its
+  # daily cron.  apt-repo's own instructions give this as a step to add
+  # after the one that publishes the release; the publishing step lives
+  # inside the reusable workflow above, so it is a dependent job here
+  # instead, which needs `deb` to have succeeded before the release
+  # exists to be picked up.
+  apt-repo:
+    needs: deb
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger APT repo rebuild
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.APT_REPO_TOKEN }}
+          repository: charlieh0tel/apt-repo
+          event-type: update-apt-repo
