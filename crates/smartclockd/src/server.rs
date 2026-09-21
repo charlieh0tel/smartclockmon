@@ -110,7 +110,9 @@ pub(crate) type SharedInfo = Arc<Mutex<Info>>;
 /// of flags, all written whole.  Refusing to serve because of it would
 /// turn one panicked client thread into a daemon that answers nobody.
 pub(crate) fn lock_or_poisoned<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 /// What the daemon tells a client about itself.
@@ -344,10 +346,8 @@ fn send(id: String, scpi: &str, handle: &Handle, info: &Info) -> Message {
     };
     let to_send = to_send.as_str();
 
-    if let Some(spec) = spec {
-        if let Err(why) = check_argument(scpi, spec) {
-            return Message::err(id, why);
-        }
+    if let Some(Err(why)) = spec.map(|spec| check_argument(scpi, spec)) {
+        return Message::err(id, why);
     }
     if !info.policy.allows(class) {
         return Message::err(
