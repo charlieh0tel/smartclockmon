@@ -19,6 +19,14 @@ jobs:
     with:
       # serialport needs libudev on Linux.
       build-deps: "libudev-dev"
+      # Same version as rust-toolchain.toml, which is what actually
+      # decides: rustup honours that file on every cargo call, so
+      # without this the job installed stable and then built with the
+      # pinned toolchain anyway -- two downloads for one compiler.  Now
+      # that rust-build-deb takes the input, say it, so the published
+      # package is built by a toolchain this repo names rather than by
+      # whatever stable was that week.  Keep it equal to the file.
+      toolchain: "1.98.1"
 
   trigger-apt-repo:
     needs: deb
@@ -26,7 +34,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Trigger APT repo rebuild
-        uses: peter-evans/repository-dispatch@v4
+        # Pinned to a commit, as the shared workflows now are: a tag can
+        # be moved to point at anything, and this step is handed a token
+        # that can write to the APT repository.
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697  # v4.0.1
         with:
           token: ${{ secrets.APT_REPO_TOKEN }}
           repository: charlieh0tel/apt-repo
