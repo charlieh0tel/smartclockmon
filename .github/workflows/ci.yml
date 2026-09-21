@@ -23,4 +23,3 @@ jobs:
       toolchain: "1.89.0"
       fmt-toolchain: "1.89.0"
       check-args: "--workspace --all-targets --all-features"
-    secrets: inherit

@@ -4,9 +4,6 @@ on:
   push:
     tags: ["v*"]
 
-permissions:
-  contents: write
-
 jobs:
   deb:
     # No `package:` input.  With one, the shared workflow builds only
@@ -15,10 +12,13 @@ jobs:
     # built".  Left empty, it builds the whole workspace and cargo-deb
     # picks the single crate carrying [package.metadata.deb].
     uses: charlieh0tel/deb-workflows/.github/workflows/rust-build-deb.yml@v1
+    # Scoped to this job.  At workflow level it would also be granted to
+    # the dispatch job below, which writes nothing here.
+    permissions:
+      contents: write
     with:
       # serialport needs libudev on Linux.
       build-deps: "libudev-dev"
-    secrets: inherit
 
   trigger-apt-repo:
     needs: deb
