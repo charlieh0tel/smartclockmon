@@ -499,8 +499,8 @@ impl<T: Transport> DeviceTask<T> {
                 // though they were fresh is worse than one showing
                 // nothing.  The failure is recorded against this tier
                 // alone: another tier succeeding must not clear it.
-                snapshot.freshness = Freshness::Stale;
                 snapshot.polled.failed(tier, e.to_string());
+                snapshot.settle_freshness();
                 if e.is_link_failure() && self.failures >= FAILURES_BEFORE_RECONNECT {
                     self.shared.publish(snapshot);
                     return Some(Stopped::LinkFailed(e));

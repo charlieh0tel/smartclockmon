@@ -642,6 +642,16 @@ is this document's own principle broken by the scheduler.  Each tier
 now carries when it last succeeded and its own error, over the wire and
 into the log, and each pane shows the age of what it displays.
 
+The whole-snapshot flag survived that rework and went on contradicting
+it: still last-writer-wins, so with the medium tier failing and the fast
+tier fine it alternated `Live` and `Stale` every second, and the log's
+`freshness` column alternated with it.  It is now derived -- a snapshot
+is as current as its least current part -- and the history graphs select
+on `fast_at = at`, which asks the question they actually care about:
+whether the fast tier measured this row or the row restates the last
+one.  In the development database all 6836 rows were marked `live`,
+including 535 that were restatements.
+
 **A failed command could be answered by the next poll.**  A client
 command that errored left the reply in flight, and the next scheduled
 poll read it as its own: TFOM reported as FFOM, oven current as

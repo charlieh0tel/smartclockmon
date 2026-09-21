@@ -171,7 +171,14 @@ impl Log {
                  AVG(time_interval_s),   MIN(time_interval_s),   MAX(time_interval_s)
              FROM snapshot
              WHERE unixepoch(at) >= unixepoch('now') - ?1
-               AND freshness = 'live'
+               -- Every column plotted here is a fast-tier field, so the
+               -- question is whether the fast tier measured this row or
+               -- the row merely restates the last one.  fast_at answers
+               -- it exactly; the freshness flag does not, since it now
+               -- reports the whole snapshot and goes Stale when some
+               -- other tier fails.  Rows from before those columns
+               -- existed have no fast_at and fall back to the flag.
+               AND (fast_at = at OR (fast_at IS NULL AND freshness = 'live'))
              GROUP BY bucket
              ORDER BY ago",
         )?;

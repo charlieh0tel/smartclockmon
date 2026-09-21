@@ -210,6 +210,24 @@ impl Snapshot {
         }
     }
 
+    /// Recompute the whole-snapshot flag from the per-tier state.
+    ///
+    /// The flag predates `Polled` and used to be whatever the last tier
+    /// to run set it to, which contradicted the very thing `Polled` was
+    /// added for: with the medium tier failing and the fast tier fine,
+    /// it alternated Live and Stale every second, and the `freshness`
+    /// column in the log alternated with it.  A snapshot is as current
+    /// as its least current part.
+    ///
+    /// `Disconnected` is not decided here.  It means the link itself is
+    /// gone, which no tier's result can say on its own.
+    pub fn settle_freshness(&mut self) {
+        self.freshness = match self.polled.any_error() {
+            Some(_) => Freshness::Stale,
+            None => Freshness::Live,
+        };
+    }
+
     /// Whether the oscillator or the receiver is reporting a fault.
     pub fn has_fault(&self) -> bool {
         self.hardware.is_some_and(|h| !h.is_healthy())
@@ -218,5 +236,43 @@ impl Snapshot {
     /// Whether the receiver's calendar is behind by whole GPS epochs.
     pub fn has_rollover(&self) -> bool {
         self.date.is_some_and(|d| d.rollover().is_some())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Freshness;
+    use super::Snapshot;
+    use super::Tier;
+
+    #[test]
+    fn one_tier_failing_makes_the_whole_snapshot_stale() {
+        // The flag used to be whatever the last tier to run set, so a
+        // fast tier succeeding every second relabelled a snapshot whose
+        // status screen had been failing for minutes as Live, once a
+        // second, for as long as it went on.
+        let now = jiff::Timestamp::now();
+        let mut snapshot = Snapshot::new(now);
+        for tier in Tier::ALL {
+            snapshot.polled.succeeded(tier, now);
+        }
+        snapshot.settle_freshness();
+        assert_eq!(snapshot.freshness, Freshness::Live);
+
+        snapshot
+            .polled
+            .failed(Tier::Medium, "no status screen".to_owned());
+        snapshot.settle_freshness();
+        assert_eq!(snapshot.freshness, Freshness::Stale);
+
+        // The fast tier going round again must not paper over it.
+        snapshot.polled.succeeded(Tier::Fast, now);
+        snapshot.settle_freshness();
+        assert_eq!(snapshot.freshness, Freshness::Stale);
+
+        // Only the tier that was failing can clear it.
+        snapshot.polled.succeeded(Tier::Medium, now);
+        snapshot.settle_freshness();
+        assert_eq!(snapshot.freshness, Freshness::Live);
     }
 }

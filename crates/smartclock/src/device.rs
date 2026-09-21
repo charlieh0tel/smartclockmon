@@ -15,7 +15,6 @@ use crate::rollover::ReceiverDate;
 use crate::screen;
 use crate::screen::Screen;
 use crate::session::Session;
-use crate::snapshot::Freshness;
 use crate::snapshot::Snapshot;
 use crate::snapshot::Tier;
 use crate::transport::Transport;
@@ -330,8 +329,8 @@ impl<T: Transport> Device<T> {
             Tier::Slow => self.poll_slow(into, now)?,
         }
         into.at = now;
-        into.freshness = Freshness::Live;
         into.polled.succeeded(tier, now);
+        into.settle_freshness();
         Ok(())
     }
 
