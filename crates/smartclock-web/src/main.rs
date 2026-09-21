@@ -14,6 +14,9 @@ mod history;
 
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::Duration;
+use std::time::Instant;
 
 use anyhow::Result;
 use clap::Parser;
@@ -63,12 +66,13 @@ fn main() -> Result<()> {
     eprintln!("smartclock-web: serving http://{}/", cli.listen);
     let socket = cli.socket.clone();
     let database = cli.database.clone();
+    let cache = Cache::default();
     smartclock_http::serve(&cli.listen, move |target| {
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
         match path {
             "/" => Response::ok("text/html; charset=utf-8", PAGE.to_owned()),
-            "/api/snapshot" => json(snapshot(&socket)),
-            "/api/info" => json(info(&socket)),
+            "/api/snapshot" => json(cache.snapshot(&socket)),
+            "/api/info" => json(cache.info(&socket)),
             "/api/history" => json(series(&database, query)),
             _ => Response::not_found(),
         }
@@ -86,14 +90,61 @@ fn json(result: Result<serde_json::Value>) -> Response {
     Response::ok("application/json; charset=utf-8", value.to_string())
 }
 
-fn snapshot(socket: &Path) -> Result<serde_json::Value> {
-    let mut daemon = Daemon::connect(socket)?;
-    Ok(daemon.ask(Op::Latest)?)
+/// How long an answer from the daemon is reused.
+///
+/// The daemon polls the fast tier once a second, so a reading fetched
+/// more often than this is the same reading.  Without the cache every
+/// open page cost a daemon connection per second, and the daemon
+/// admits sixteen clients: a couple of browser tabs could take every
+/// slot and lock the operator's own monitor out of a receiver they
+/// have local access to.  A slot is released by the daemon's push
+/// thread on its next snapshot, so the crowding outlasts the request
+/// that caused it.
+const CACHE_FOR: Duration = Duration::from_millis(900);
+
+/// The daemon's answers, kept briefly.
+///
+/// One mutex rather than one connection: a held connection has to be
+/// reconnected when the daemon restarts, and this way a request that
+/// finds the cache warm does not touch the socket at all.
+#[derive(Default)]
+struct Cache {
+    latest: Mutex<Option<(Instant, serde_json::Value)>>,
+    info: Mutex<Option<(Instant, serde_json::Value)>>,
 }
 
-fn info(socket: &Path) -> Result<serde_json::Value> {
-    let mut daemon = Daemon::connect(socket)?;
-    Ok(daemon.info()?)
+impl Cache {
+    /// Answer from the cache, or ask the daemon and keep what it says.
+    ///
+    /// A failure is not cached: the daemon coming back should show up
+    /// on the next request, not a second later.
+    fn get<F>(
+        cell: &Mutex<Option<(Instant, serde_json::Value)>>,
+        ask: F,
+    ) -> Result<serde_json::Value>
+    where
+        F: FnOnce() -> Result<serde_json::Value>,
+    {
+        let mut held = cell.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some((at, value)) = held.as_ref()
+            && at.elapsed() < CACHE_FOR
+        {
+            return Ok(value.clone());
+        }
+        let value = ask()?;
+        *held = Some((Instant::now(), value.clone()));
+        Ok(value)
+    }
+
+    fn snapshot(&self, socket: &Path) -> Result<serde_json::Value> {
+        Self::get(&self.latest, || {
+            Ok(Daemon::connect(socket)?.ask(Op::Latest)?)
+        })
+    }
+
+    fn info(&self, socket: &Path) -> Result<serde_json::Value> {
+        Self::get(&self.info, || Ok(Daemon::connect(socket)?.info()?))
+    }
 }
 
 /// How much history a request that does not say gets.

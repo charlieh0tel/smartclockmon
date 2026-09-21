@@ -9,6 +9,7 @@ use std::io::BufRead as _;
 use std::io::BufReader;
 use std::io::Write as _;
 use std::path::Path;
+use std::time::Duration;
 
 use interprocess::TryClone as _;
 use interprocess::local_socket::GenericFilePath;
@@ -23,6 +24,35 @@ use crate::protocol::Op;
 use crate::protocol::Request;
 use crate::protocol::VERSION;
 use crate::wire::Reading;
+
+/// How long to wait on a daemon that has stopped answering.
+///
+/// Generous next to the slowest thing the daemon does -- a status
+/// screen is about a second of wire time -- and short next to never.
+/// Without a deadline a daemon that is alive but wedged parks its
+/// caller for good: the exporter would leak the thread serving each
+/// scrape, one every fifteen seconds, until the process died.
+const DEADLINE: Duration = Duration::from_secs(20);
+
+/// Put a deadline on a connection.
+///
+/// Reaching through the enum because `interprocess`'s portable
+/// `Stream` exposes no timeout of its own and no handle to set one on;
+/// the Unix variant does.  Elsewhere the deadline is simply absent,
+/// which is the same position this was in before.
+#[cfg(unix)]
+fn set_deadlines(stream: &Stream) {
+    use std::os::fd::AsFd;
+
+    let Stream::UdSocket(stream) = stream;
+    let fd = stream.as_fd();
+    let socket = socket2::SockRef::from(&fd);
+    let _ = socket.set_read_timeout(Some(DEADLINE));
+    let _ = socket.set_write_timeout(Some(DEADLINE));
+}
+
+#[cfg(not(unix))]
+fn set_deadlines(_stream: &Stream) {}
 
 /// A connection to a running daemon.
 #[derive(Debug)]
@@ -44,6 +74,7 @@ impl Daemon {
             ))
         })?;
         let stream = Stream::connect(name)?;
+        set_deadlines(&stream);
         let reader = BufReader::new(stream.try_clone()?);
         Ok(Self {
             writer: stream,
@@ -72,8 +103,24 @@ impl Daemon {
 
         loop {
             let mut line = String::new();
-            if self.reader.read_line(&mut line)? == 0 {
-                return Err(Error::Daemon("it closed the connection".to_owned()));
+            match self.reader.read_line(&mut line) {
+                Ok(0) => return Err(Error::Daemon("it closed the connection".to_owned())),
+                Ok(_) => {}
+                // The deadline expiring arrives as EAGAIN or ETIMEDOUT,
+                // which as a message says only "resource temporarily
+                // unavailable".  Say what actually happened.
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                    ) =>
+                {
+                    return Err(Error::Daemon(format!(
+                        "it did not answer within {}s",
+                        DEADLINE.as_secs()
+                    )));
+                }
+                Err(e) => return Err(e.into()),
             }
             // A message this version does not understand is not a reason
             // to give up on the one being waited for.
