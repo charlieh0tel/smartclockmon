@@ -16,10 +16,11 @@ jobs:
     #                  fmt" had just satisfied
     #   check-args     --all-targets, or clippy never sees the tests,
     #                  which are the larger half of this workspace
-    uses: charlieh0tel/deb-workflows/.github/workflows/rust-ci.yml@main
+    uses: charlieh0tel/deb-workflows/.github/workflows/rust-ci.yml@v1
     with:
       # serialport needs libudev on Linux.
       build-deps: "libudev-dev"
       toolchain: "1.89.0"
       fmt-toolchain: "1.89.0"
       check-args: "--workspace --all-targets --all-features"
+    secrets: inherit
