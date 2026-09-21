@@ -27,6 +27,14 @@ pub(crate) const PLOTTABLE: [&str; 7] = [
     "ffom",
 ];
 
+/// Fewest buckets worth drawing, and the most a chart can show.
+///
+/// The upper bound is about three times the pixels across a wide
+/// screen, so asking for more cannot make the picture better and can
+/// make the query slow.
+const MIN_POINTS: usize = 16;
+const MAX_POINTS: usize = 5000;
+
 /// One bucket: when, and what the readings in it did.
 ///
 /// `min` and `max` are kept because a mean alone hides the thing worth
@@ -74,8 +82,9 @@ impl Log {
             PLOTTABLE.contains(&column),
             "{column} is not a column this serves"
         );
-        let points = points.clamp(16, 5000) as i64;
-        let span = (to - from).max(1);
+        let points = points.clamp(MIN_POINTS, MAX_POINTS) as i64;
+        anyhow::ensure!(from <= to, "the range ends before it starts");
+        let span = to.saturating_sub(from).max(1);
         let sql = format!(
             "SELECT CAST((unixepoch(at) - ?1) * ?3 / ?4 AS INTEGER) AS bucket,
                     AVG(unixepoch(at)) AS at,

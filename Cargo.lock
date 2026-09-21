@@ -1673,6 +1673,14 @@ dependencies = [
  "clap",
  "jiff",
  "smartclock",
+ "smartclock-http",
+]
+
+[[package]]
+name = "smartclock-http"
+version = "0.3.1"
+dependencies = [
+ "anyhow",
 ]
 
 [[package]]
@@ -1693,6 +1701,7 @@ dependencies = [
  "rusqlite",
  "serde_json",
  "smartclock",
+ "smartclock-http",
 ]
 
 [[package]]

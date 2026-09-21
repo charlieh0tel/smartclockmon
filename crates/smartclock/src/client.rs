@@ -92,6 +92,16 @@ impl Daemon {
                         }
                     };
                 }
+                // A refusal that belongs to the connection rather than
+                // to a request: the daemon sends one with an empty id
+                // when it is full, precisely so that being full does
+                // not look like having crashed.  Skipping it and then
+                // reporting the EOF told the operator the opposite.
+                Message::Reply {
+                    id: got,
+                    err: Some(why),
+                    ..
+                } if got.is_empty() => return Err(Error::Daemon(why)),
                 _ => continue,
             }
         }

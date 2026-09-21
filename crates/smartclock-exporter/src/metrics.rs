@@ -175,9 +175,18 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
         ("medium", &r.polled.medium),
         ("slow", &r.polled.slow),
     ] {
-        if let Some(at) = state.at {
-            let age = (now - at).total(jiff::Unit::Second).unwrap_or(0.0);
-            let _ = writeln!(out, "{PREFIX}_tier_age_seconds{{tier=\"{tier}\"}} {age}");
+        // Skipped rather than defaulted: an age of zero reads as
+        // "polled just now", which is the one answer that must not be
+        // invented for a tier whose age is unknown.
+        if let Some(age) = state
+            .at
+            .and_then(|at| (now - at).total(jiff::Unit::Second).ok())
+        {
+            let _ = writeln!(
+                out,
+                "{PREFIX}_tier_age_seconds{{tier=\"{tier}\"}} {}",
+                age.max(0.0)
+            );
         }
     }
 

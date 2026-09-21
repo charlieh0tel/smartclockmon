@@ -12,18 +12,14 @@
 
 mod metrics;
 
-use std::io::BufRead as _;
-use std::io::BufReader;
-use std::io::Write as _;
-use std::net::TcpListener;
-use std::net::TcpStream;
+use std::path::Path;
 use std::path::PathBuf;
-use std::thread;
 
-use anyhow::Context as _;
 use anyhow::Result;
 use clap::Parser;
 use smartclock::client::Daemon;
+use smartclock::wire::Reading;
+use smartclock_http::Response;
 
 #[derive(Parser)]
 #[command(about, version = smartclock::VERSION)]
@@ -51,66 +47,23 @@ struct Cli {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let listener =
-        TcpListener::bind(&cli.listen).with_context(|| format!("binding {}", cli.listen))?;
     eprintln!(
         "smartclock-exporter: serving http://{}/metrics from {}",
         cli.listen,
         cli.socket.display()
     );
-
-    for stream in listener.incoming() {
-        let stream = match stream {
-            Ok(stream) => stream,
-            // One client failing to connect is not a reason to stop
-            // serving the others.
-            Err(e) => {
-                eprintln!("smartclock-exporter: rejected a connection: {e}");
-                continue;
-            }
-        };
-        let socket = cli.socket.clone();
-        // A scrape that hangs must not block the next one: Prometheus
-        // gives up after its own timeout and tries again, and a serial
-        // link that has gone quiet can take seconds to say so.
-        let spawned = thread::Builder::new()
-            .name("smartclock-scrape".to_owned())
-            .spawn(move || serve(&stream, &socket));
-        if let Err(e) = spawned {
-            eprintln!("smartclock-exporter: could not serve a scrape: {e}");
-        }
-    }
-    Ok(())
-}
-
-/// Answer one HTTP request.
-fn serve(stream: &TcpStream, socket: &std::path::Path) {
-    let mut reader = BufReader::new(stream);
-    let mut line = String::new();
-    if reader.read_line(&mut line).is_err() {
-        return;
-    }
-    // "GET /metrics HTTP/1.1".  Only the path is of interest; a scrape
-    // sends no body and no header this needs.
-    let path = line.split_whitespace().nth(1).unwrap_or("/");
-
-    let (status, body) = match path {
-        "/metrics" => ("200 OK", metrics::render(read(socket).as_ref())),
-        "/" => (
-            "200 OK",
+    let socket = cli.socket.clone();
+    smartclock_http::serve(&cli.listen, move |path| match path {
+        "/metrics" => Response::ok(
+            "text/plain; version=0.0.4; charset=utf-8",
+            metrics::render(latest_reading(&socket).as_ref()),
+        ),
+        "/" => Response::ok(
+            "text/plain; charset=utf-8",
             "smartclock-exporter\n\nMetrics are at /metrics.\n".to_owned(),
         ),
-        _ => ("404 Not Found", "not found\n".to_owned()),
-    };
-    let mut writer = stream;
-    let _ = write!(
-        writer,
-        "HTTP/1.1 {status}\r\n\
-         Content-Type: text/plain; version=0.0.4; charset=utf-8\r\n\
-         Content-Length: {}\r\n\
-         Connection: close\r\n\r\n{body}",
-        body.len()
-    );
+        _ => Response::not_found(),
+    })
 }
 
 /// The daemon's last reading, or nothing if it could not be asked.
@@ -119,7 +72,7 @@ fn serve(stream: &TcpStream, socket: &std::path::Path) {
 /// readings rather than as an HTTP error: Prometheus records the former
 /// as a fact about the receiver and the latter as a fault in the
 /// scrape, and the receiver being unreachable is the fact.
-fn read(socket: &std::path::Path) -> Option<smartclock::wire::Reading> {
+fn latest_reading(socket: &Path) -> Option<Reading> {
     match Daemon::connect(socket).and_then(|mut d| d.latest()) {
         Ok(reading) => Some(reading),
         Err(e) => {

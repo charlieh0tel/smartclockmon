@@ -79,13 +79,13 @@ pub enum Error {
         operation: CommandId,
     },
 
-    /// The transcript being replayed ran out, or diverged from what the
-    /// caller sent.
     /// A daemon refused a request, or answered with something this
     /// client could not use.  Carries the daemon's own words.
     #[error("the daemon said: {0}")]
     Daemon(String),
 
+    /// The transcript being replayed ran out, or diverged from what the
+    /// caller sent.
     #[error("replay: {0}")]
     Replay(String),
 }

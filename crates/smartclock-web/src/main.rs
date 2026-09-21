@@ -12,19 +12,14 @@
 
 mod history;
 
-use std::io::BufRead as _;
-use std::io::BufReader;
-use std::io::Write as _;
-use std::net::TcpListener;
-use std::net::TcpStream;
 use std::path::Path;
 use std::path::PathBuf;
-use std::thread;
 
-use anyhow::Context as _;
 use anyhow::Result;
 use clap::Parser;
 use smartclock::client::Daemon;
+use smartclock::protocol::Op;
+use smartclock_http::Response;
 
 use crate::history::Log;
 use crate::history::PLOTTABLE;
@@ -65,87 +60,44 @@ struct Cli {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let listener =
-        TcpListener::bind(&cli.listen).with_context(|| format!("binding {}", cli.listen))?;
     eprintln!("smartclock-web: serving http://{}/", cli.listen);
-
-    for stream in listener.incoming() {
-        let stream = match stream {
-            Ok(stream) => stream,
-            Err(e) => {
-                eprintln!("smartclock-web: rejected a connection: {e}");
-                continue;
-            }
-        };
-        let socket = cli.socket.clone();
-        let database = cli.database.clone();
-        let spawned = thread::Builder::new()
-            .name("smartclock-web-client".to_owned())
-            .spawn(move || serve(&stream, &socket, &database));
-        if let Err(e) = spawned {
-            eprintln!("smartclock-web: could not serve a request: {e}");
+    let socket = cli.socket.clone();
+    let database = cli.database.clone();
+    smartclock_http::serve(&cli.listen, move |target| {
+        let (path, query) = target.split_once('?').unwrap_or((target, ""));
+        match path {
+            "/" => Response::ok("text/html; charset=utf-8", PAGE.to_owned()),
+            "/api/snapshot" => json(snapshot(&socket)),
+            "/api/info" => json(info(&socket)),
+            "/api/history" => json(series(&database, query)),
+            _ => Response::not_found(),
         }
-    }
-    Ok(())
-}
-
-/// Answer one request.
-fn serve(stream: &TcpStream, socket: &Path, database: &Path) {
-    let mut reader = BufReader::new(stream);
-    let mut line = String::new();
-    if reader.read_line(&mut line).is_err() {
-        return;
-    }
-    let target = line.split_whitespace().nth(1).unwrap_or("/");
-    let (path, query) = target.split_once('?').unwrap_or((target, ""));
-
-    let (status, kind, body) = match path {
-        "/" => ("200 OK", "text/html; charset=utf-8", PAGE.to_owned()),
-        "/api/snapshot" => json(snapshot(socket)),
-        "/api/info" => json(info(socket)),
-        "/api/history" => json(series(database, query)),
-        _ => (
-            "404 Not Found",
-            "text/plain; charset=utf-8",
-            "not found\n".to_owned(),
-        ),
-    };
-    let mut writer = stream;
-    let _ = write!(
-        writer,
-        "HTTP/1.1 {status}\r\n\
-         Content-Type: {kind}\r\n\
-         Content-Length: {}\r\n\
-         Cache-Control: no-store\r\n\
-         Connection: close\r\n\r\n{body}",
-        body.len()
-    );
+    })
 }
 
 /// Wrap a result as JSON, reporting a failure as data rather than as an
 /// HTTP error: the page can then say what went wrong in the place the
 /// value would have been, instead of silently showing nothing.
-fn json(result: Result<serde_json::Value>) -> (&'static str, &'static str, String) {
+fn json(result: Result<serde_json::Value>) -> Response {
     let value = match result {
         Ok(value) => value,
         Err(e) => serde_json::json!({ "error": format!("{e:#}") }),
     };
-    (
-        "200 OK",
-        "application/json; charset=utf-8",
-        value.to_string(),
-    )
+    Response::ok("application/json; charset=utf-8", value.to_string())
 }
 
 fn snapshot(socket: &Path) -> Result<serde_json::Value> {
     let mut daemon = Daemon::connect(socket)?;
-    Ok(daemon.ask(smartclock::protocol::Op::Latest)?)
+    Ok(daemon.ask(Op::Latest)?)
 }
 
 fn info(socket: &Path) -> Result<serde_json::Value> {
     let mut daemon = Daemon::connect(socket)?;
     Ok(daemon.info()?)
 }
+
+/// How much history a request that does not say gets.
+const DEFAULT_WINDOW: i64 = 3600;
 
 /// `?column=efc_percent&from=...&to=...&points=1500`
 ///
@@ -173,7 +125,12 @@ fn series(database: &Path, query: &str) -> Result<serde_json::Value> {
     // against a log that stopped yesterday still shows something.
     #[expect(clippy::cast_possible_truncation, reason = "unix seconds fit an i64")]
     let to = to.unwrap_or(last as i64);
-    let from = from.unwrap_or(to - 3600);
+    // unwrap_or would evaluate this even when `from` was given, and
+    // `?to=-9223372036854775808` then overflows before the value is
+    // used at all -- which in a debug build kills the thread before
+    // any response is written, so the caller gets a dropped socket
+    // rather than the JSON error this function promises.
+    let from = from.unwrap_or_else(|| to.saturating_sub(DEFAULT_WINDOW));
 
     let buckets = log.series(&column, from, to, points)?;
     Ok(serde_json::json!({

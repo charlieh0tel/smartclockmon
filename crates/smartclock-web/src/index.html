@@ -63,7 +63,7 @@
   .uplot { width: 100% !important; }
 </style>
 
-<div class="panel full" id="status"><span class="muted">connecting…</span></div>
+<div class="panel full" id="status"><span class="muted">connecting...</span></div>
 
 <div class="panel">
   <div class="controls">
@@ -80,7 +80,7 @@
 <div class="panel">
   <h2>Sky</h2>
   <canvas id="sky" width="320" height="320"></canvas>
-  <table id="sats"><tbody class="muted"><tr><td>waiting…</td></tr></tbody></table>
+  <table id="sats"><tbody class="muted"><tr><td>waiting...</td></tr></tbody></table>
 </div>
 
 <footer id="about"></footer>
@@ -127,6 +127,13 @@ let zoom = null;          // [from, to] once the user has dragged
 let column = view.get("column") ?? "efc_percent";
 
 const $ = (id) => document.getElementById(id);
+// Everything interpolated into innerHTML goes through this.  The values
+// are numbers and enums today, but they come from a string scraper over
+// a serial line, and one field becoming an Option<String> upstream
+// would otherwise make this page execute whatever the receiver said.
+const esc = (v) =>
+  String(v).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const fmt = (v, digits = 3) =>
   v === null || v === undefined ? "--" : Number(v).toFixed(digits);
 
@@ -137,12 +144,11 @@ async function tick() {
   try {
     s = await (await fetch("/api/snapshot")).json();
   } catch {
-    $("status").innerHTML = `<span class="pill down">unreachable</span>`;
+    lost("unreachable");
     return;
   }
   if (s.error) {
-    $("status").innerHTML =
-      `<span class="pill down">no daemon</span> <span class="muted">${s.error}</span>`;
+    lost("no daemon", s.error);
     return;
   }
 
@@ -169,13 +175,29 @@ async function tick() {
   $("status").innerHTML =
     `<span class="pill ${state[0]}">${state[1]}</span>` +
     (oldest === null ? "" : `<span class="muted">oldest field ${oldest.toFixed(0)}s</span>`) +
-    stats.map(([k, v]) => `<span class="stat"><span class="v">${v}</span><span class="k">${k}</span></span>`).join("") +
-    (s.hardware ? `<span class="pill down">hardware ${s.hardware}</span>` : "") +
+    stats
+      .map(
+        ([k, v]) =>
+          `<span class="stat"><span class="v">${esc(v)}</span><span class="k">${k}</span></span>`,
+      )
+      .join("") +
+    (s.hardware ? `<span class="pill down">hardware ${esc(s.hardware)}</span>` : "") +
     (s.date?.rollover
-      ? `<span class="pill stale">date ${s.date.rollover.epochs} epoch(s) behind — ${s.date.raw}</span>`
+      ? `<span class="pill stale">date ${esc(s.date.rollover.epochs)} epoch(s) behind, ${esc(s.date.raw)}</span>`
       : "");
 
   sky(s.screen);
+}
+
+// Nothing is known any more.  The sky is cleared with the strip: a
+// canvas still showing eight tracked satellites next to the words "no
+// daemon" asserts a sky the receiver may not have, which is the one
+// stale value a GPS tool must not show.
+function lost(what, why) {
+  $("status").innerHTML =
+    `<span class="pill down">${esc(what)}</span>` +
+    (why ? ` <span class="muted">${esc(why)}</span>` : "");
+  sky(null);
 }
 
 // ------------------------------------------------------------------ sky
@@ -311,22 +333,32 @@ async function draw() {
     scales: { x: { time: true } },
     cursor: { drag: { x: true, y: false } },
     hooks: {
-      // Dragging sets the range; the buttons then show none selected,
-      // because the view is no longer any of them.
-      setScale: [(u, key) => {
-        if (key !== "x") return;
-        const { min, max } = u.scales.x;
-        if (min && max && (!from || Math.abs(min - from) > 1 || Math.abs(max - to) > 1)) {
-          zoom = [min, max];
-          span = null;
-          buttons();
-          load();
-        }
+      // setSelect, not setScale.  setScale also fires when uPlot sets
+      // the scale from the data it was just given, which is every
+      // draw: the hook then decided the user had zoomed, latched the
+      // range, unlit every preset button and -- because the background
+      // refresh is skipped while zoomed -- stopped the history
+      // updating for the life of the page.  setSelect fires only for a
+      // drag.
+      setSelect: [(u) => {
+        if (u.select.width <= 0) return;
+        zoom = [
+          u.posToVal(u.select.left, "x"),
+          u.posToVal(u.select.left + u.select.width, "x"),
+        ];
+        span = null;
+        buttons();
+        load();
       }],
     },
   };
   if (chart) chart.destroy();
   chart = new uPlot(opts, data, $("chart"));
+  chart.over.addEventListener("dblclick", () => {
+    zoom = null;
+    buttons();
+    load();
+  });
 }
 
 let pending = null;
@@ -357,7 +389,9 @@ function buttons() {
   const info = await (await fetch("/api/info")).json();
   $("about").textContent = info.error
     ? info.error
-    : `${info.identity ?? ""} — ${info.dialect ?? ""} — smartclockd ${info.version ?? ""} — read only`;
+    : [info.identity, info.dialect, `smartclockd ${info.version ?? "?"}`, "read only"]
+        .filter(Boolean)
+        .join("  --  ");
 
   const first = await fetchSeries(column, null, null);
   $("column").innerHTML = (first.columns ?? [column])

@@ -17,3 +17,4 @@ jiff = "0.2.37"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde_json = "1.0.151"
 smartclock = { path = "../smartclock" }
+smartclock-http = { path = "../smartclock-http" }
