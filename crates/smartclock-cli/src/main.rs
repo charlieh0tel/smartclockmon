@@ -19,8 +19,8 @@ use smartclock::device::Device;
 use smartclock::error::Error;
 use smartclock::session::Config;
 use smartclock::session::Session;
+use smartclock::transport;
 use smartclock::transport::Transport;
-use smartclock::transport::serial::SerialTransport;
 use smartclock::transport::serial::Settings;
 use smartclock::transport::tee::TeeTransport;
 use smartclock::types::BaudRate;
@@ -28,8 +28,9 @@ use smartclock::types::BaudRate;
 #[derive(Parser)]
 #[command(about, version)]
 struct Cli {
-    /// Serial device.  Prefer a /dev/serial/by-id/... path, which
-    /// survives USB re-enumeration.
+    /// Serial device, or `tcp://host:port` for a receiver on the
+    /// network or the simulator.  Prefer a /dev/serial/by-id/... path
+    /// for a local one, which survives USB re-enumeration.
     ///
     /// Required, and deliberately without a default: guessing at a
     /// path means talking to whatever is on it.
@@ -120,7 +121,7 @@ fn main() -> Result<()> {
         timeout: Duration::from_secs_f64(cli.timeout),
         ..Config::default()
     };
-    let port = SerialTransport::open(&settings)
+    let port = transport::open(&settings)
         .with_context(|| format!("opening {device} at {} baud", cli.baud))?;
 
     // Capture wraps the port, so a recording covers the sync exchange

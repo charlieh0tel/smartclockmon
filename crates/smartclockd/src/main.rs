@@ -45,10 +45,9 @@ use smartclock::task::Handle;
 use smartclock::task::Request;
 use smartclock::task::Shared;
 use smartclock::task::Stopped;
+use smartclock::transport;
 use smartclock::transport::Transport;
-use smartclock::transport::serial::SerialTransport;
 use smartclock::transport::serial::Settings;
-use smartclock::transport::tcp::TcpTransport;
 use smartclock::types::BaudRate;
 
 #[derive(Parser)]
@@ -384,23 +383,14 @@ fn seconds(value: f64, flag: &str) -> Result<Duration> {
     Ok(Duration::from_secs_f64(value))
 }
 
-/// Open whatever the device path names.
+/// Open the receiver and identify it.
 ///
-/// A `tcp://host:port` path reaches a receiver over the network, which
-/// covers both a serial adapter behind ser2net and the simulator.  The
-/// simulator listens on TCP rather than offering a pseudo-terminal,
-/// since a PTY would confine it to Unix.
+/// The path may name a serial port or a receiver on the network;
+/// `transport::open` decides which, so every tool accepts the same
+/// paths.
 fn open(settings: &Settings) -> Result<Device<Box<dyn Transport + Send>>> {
-    let port: Box<dyn Transport + Send> = match settings.path.strip_prefix("tcp://") {
-        Some(address) => Box::new(
-            TcpTransport::connect(address, settings.read_timeout)
-                .with_context(|| format!("connecting to {address}"))?,
-        ),
-        None => Box::new(
-            SerialTransport::open(settings)
-                .with_context(|| format!("opening {} at {}", settings.path, settings.baud))?,
-        ),
-    };
+    let port =
+        transport::open(settings).with_context(|| format!("cannot open {}", settings.path))?;
     let session = Session::new(port, Config::default());
     Device::open(session).context("identifying the receiver")
 }

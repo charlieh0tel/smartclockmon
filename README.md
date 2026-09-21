@@ -43,7 +43,12 @@ the daemon stopped and records no history; the header says so.
 With no receiver to hand, the simulator answers in its place:
 
     smartclock-sim 127.0.0.1:5025
-    smartclockd --device tcp://127.0.0.1:5025 ...
+    smartclockd     --device tcp://127.0.0.1:5025 ...
+    smartclock-cli  --device tcp://127.0.0.1:5025 diagnose
+
+Every tool takes `tcp://host:port` wherever it takes a device path, so
+the same command that talks to the receiver talks to the simulator, or
+to a serial adapter behind ser2net.
 
 `--faulty` gives one with its oscillator control near the rail, for the
 paths that only run when something is wrong.
