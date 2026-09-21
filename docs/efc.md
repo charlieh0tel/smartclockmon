@@ -64,29 +64,69 @@ Each line is an external measurement at the oscillator's EFC pin,
 recorded with the raw value the receiver reported at the same moment.
 Two readings far enough apart in count give the slope.
 
+Measured with an HP 34401A, black lead on ground and red on the EFC pin
+at the oscillator, the same two points each time.
+
 | When (UTC) | EFC pin | Raw | Relative | Temperature |
 | ---------- | ------- | --- | -------- | ----------- |
 | 2026-09-20 22:41 | 50.77 mV | 713587 | +36.1061 % | 37.40 C |
+| 2026-09-21 01:52 | 55.5 mV  | 712820 | +35.9597 % | 36.04 C |
 
 Earlier, less precisely: about 52 mV at the coax and about 50 mV at the
-pin, both near raw 713352 to 713426.  Those are consistent with the row
-above and add nothing to the slope, since the count has barely moved.
+pin, both near raw 713352 to 713426.  Those are consistent with the
+first row and add nothing to the slope, since the count has barely
+moved.
+
+### What the pair says, and what it does not
+
+Between those two rows the count fell 765 and the pin rose 4.73 mV.
+That is **6.2 uV per count**, against 9.5 uV per count if the receiver
+drives the full -5 V to +5 V and 0.13 uV per count if it drives only a
+sliver.  The sliver mapping predicts 0.1 mV of movement where 4.73 mV
+was measured, a factor of 47 out; the full-span mapping is within 35
+percent.  So the pin moves like something driven across volts, not
+millivolts, which makes the "receiver drives a sliver and the unit needs
+retrimming" branch much less likely.
+
+Two things stop this settling it.
+
+The sign is backwards.  The count went down and the voltage went up.
+Either something inverts between the DAC and the pin, or the reasoning
+above is measuring the wrong thing.
+
+The temperature fell 1.365 C over the same interval, so the count and
+the temperature moved together and the pair cannot say which drove the
+voltage.  A tempco of 3.5 mV/C in the measurement path would account for
+the whole 4.73 mV with no relationship to the DAC at all.  Across the
+whole log the two correlate at r = 0.79, so this is not a remote
+possibility.
+
+Note also that the receiver's reported temperature is quantised to
+0.273 C -- ten distinct values in 9000 samples -- so "the temperature
+did not change" only ever means "it did not cross a step".
 
 ### The measurement that would settle it
 
-The EFC count drifts on its own, about 70 counts over a few minutes of
-probing.  Over a day it should move thousands.  The two candidate
-mappings predict very different voltages for that movement:
+Separating the DAC from the temperature needs a pair taken while the
+temperature is flat and the count is not.  The log has those: windows
+where the reported temperature holds one quantisation step for ten
+minutes while the count moves 300 to 400.  Over such a window the
+predictions are far enough apart to decide it:
 
-| If the receiver drives | Volts per count | 1000 counts |
-| ---------------------- | --------------- | ----------- |
-| The full -5 V to +5 V | 9.5 uV | 9.5 mV, easily seen |
-| Only +/- 139 mV | 0.13 uV | 0.13 mV, invisible |
+| If the pin follows | Change over ~375 counts |
+| ------------------ | ----------------------- |
+| The DAC, at full-span sensitivity | about 3.6 mV |
+| Temperature only | at most 0.95 mV, bounded by the 0.273 C step |
 
-A factor of seventy apart.  So: note the EFC pin voltage and the raw
-count together, leave the daemon logging, and read both again a day
-later.  The daemon already records the count, so this needs two meter
-readings and nothing else.
+So: two readings ten to fifteen minutes apart during a thermally quiet
+stretch.  The daemon records the count and the temperature, so this
+needs the two meter readings and nothing else.
+
+The absolute level remains unexplained either way.  At 36 percent the
+specification mapping puts the pin at +1.80 V and it reads tens of
+millivolts, and a slope near the full-span figure makes that harder to
+explain rather than easier: a divider that scaled 1.8 V down to 50 mV
+would scale the slope down with it, and it is not scaled down.
 
 ## Where the unit stands, conditionally
 
@@ -99,7 +139,10 @@ per hertz of range, most of a year at best.
 
 These differ by more than an order of magnitude, so the earlier claim of
 a decade of headroom should not be relied on until the measurement above
-is done.  What does hold regardless is the receiver's own judgement: the
+is done.  The second paired reading leans towards the specification
+mapping -- the pin moves microvolts per count, not tenths of a
+microvolt -- but leans is all it does while the temperature confound
+stands.  What does hold regardless is the receiver's own judgement: the
 hardware condition register has neither the near-full-scale nor the
 full-scale EFC bit set, and its health monitor reports EFC OK.  The
 receiver does not think the oscillator is near its limit.
