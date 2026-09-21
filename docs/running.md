@@ -40,6 +40,12 @@ mistake the daemon refuses at startup rather than reading as off.
 startup only.  It is a conffile, so package upgrades will not overwrite
 your edits.
 
+A database written by a newer smartclockd is refused rather than
+opened: the schema stamp is now read back, not just written, since the
+snapshots are the only record of a receiver's history and a bad write to
+them cannot be undone.  That refusal exits 2 as well, so it stops rather
+than reopening the file every five seconds.
+
 A configuration mistake stops the service rather than looping.  systemd
 cannot check the file itself -- `Condition=` and `Assert=` do not see
 variables from an `EnvironmentFile` -- so the enforcement is by exit

@@ -3,8 +3,8 @@
 use std::collections::VecDeque;
 
 use smartclock::snapshot::Freshness;
-use smartclock::task::Cadence;
 use smartclock::snapshot::Tier;
+use smartclock::task::Cadence;
 use smartclock::types::EfcPercent;
 use smartclock::wire::Reading;
 

@@ -118,6 +118,13 @@ struct Cli {
 /// snapshot has arrived to wake it.
 const AUDIT_POLL: Duration = Duration::from_millis(200);
 
+/// The exit status for a mistake no retry can fix.
+///
+/// The same code clap uses for a usage error, and the unit's
+/// `RestartPreventExitStatus=`, so anything that says "what you asked
+/// for is wrong" stops rather than looping.
+const CONFIGURATION_ERROR: i32 = 2;
+
 /// How long to wait before reopening a receiver that went away.
 const RECONNECT_DELAY: Duration = Duration::from_secs(5);
 
@@ -135,7 +142,17 @@ fn main() -> Result<()> {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("creating {}", parent.display()))?;
     }
-    let mut log = db::Log::open(&cli.database)?;
+    // A database this binary cannot read is a configuration mistake,
+    // not a transient failure, so it exits like one: retrying cannot
+    // turn a newer schema into an older one, and Restart= would
+    // otherwise reopen it every five seconds forever.
+    let mut log = match db::Log::open(&cli.database) {
+        Ok(log) => log,
+        Err(e) => {
+            eprintln!("smartclockd: {e:#}");
+            std::process::exit(CONFIGURATION_ERROR);
+        }
+    };
     eprintln!(
         "smartclockd: log at {} holds {} snapshots and {} commands",
         cli.database.display(),

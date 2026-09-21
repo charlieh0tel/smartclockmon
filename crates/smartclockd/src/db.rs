@@ -13,6 +13,7 @@ use std::path::Path;
 use anyhow::Context as _;
 use anyhow::Result;
 use rusqlite::Connection;
+use rusqlite::OptionalExtension as _;
 use rusqlite::params;
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Snapshot;
@@ -119,6 +120,27 @@ impl Log {
                 self.conn
                     .execute_batch(&format!("ALTER TABLE snapshot ADD COLUMN {column} TEXT"))?;
             }
+        }
+        // Refuse a database this binary is too old to understand
+        // rather than writing into it and restamping it as ours.  A
+        // newer daemon may have added columns or changed what a column
+        // means, and the rows are the only record of a receiver's
+        // history: there is no undoing a bad write to them.
+        let found: Option<String> = self
+            .conn
+            .query_row("SELECT value FROM meta WHERE key = 'schema'", [], |row| {
+                row.get(0)
+            })
+            .optional()?;
+        if let Some(found) = found {
+            let found: i64 = found
+                .parse()
+                .with_context(|| format!("meta.schema is {found:?}, which is not a version"))?;
+            anyhow::ensure!(
+                found <= SCHEMA,
+                "this database is schema {found} and this smartclockd understands {SCHEMA}; \
+                 it was written by a newer version"
+            );
         }
         self.conn.execute(
             "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema', ?1)",
@@ -245,5 +267,72 @@ impl Log {
         Ok(self
             .conn
             .query_row("SELECT COUNT(*) FROM snapshot", [], |r| r.get(0))?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Log;
+    use super::SCHEMA;
+    use rusqlite::Connection;
+
+    /// A database file of our own, under the test runner's temp dir.
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let path =
+            std::env::temp_dir().join(format!("smartclockd-{name}-{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        path
+    }
+
+    #[test]
+    fn a_database_from_a_newer_daemon_is_refused_not_restamped() {
+        // The stamp was written with INSERT OR REPLACE and never read,
+        // so a database written by a later schema was silently relabelled
+        // as this one's and written into.  Snapshots are the only record
+        // of a receiver's history; there is no undoing that.
+        let path = scratch("newer");
+        let conn = Connection::open(&path).expect("create the database");
+        conn.execute_batch(
+            "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+             INSERT INTO meta VALUES ('schema', '99');",
+        )
+        .expect("stamp it as newer");
+        drop(conn);
+
+        let refused = Log::open(&path).expect_err("a newer schema must be refused");
+        let why = format!("{refused:#}");
+        assert!(
+            why.contains("99"),
+            "the message should name the version: {why}"
+        );
+
+        // And the stamp is left alone rather than overwritten with ours.
+        let conn = Connection::open(&path).expect("reopen");
+        let found: String = conn
+            .query_row("SELECT value FROM meta WHERE key = 'schema'", [], |row| {
+                row.get(0)
+            })
+            .expect("the stamp survives");
+        assert_eq!(found, "99");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_database_of_our_own_schema_opens_and_is_stamped() {
+        let path = scratch("ours");
+        let log = Log::open(&path).expect("a fresh database opens");
+        let found: String = log
+            .conn
+            .query_row("SELECT value FROM meta WHERE key = 'schema'", [], |row| {
+                row.get(0)
+            })
+            .expect("a stamp");
+        assert_eq!(found, SCHEMA.to_string());
+        drop(log);
+        // Reopening its own database is not a refusal.
+        Log::open(&path).expect("reopening our own schema");
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
     }
 }
