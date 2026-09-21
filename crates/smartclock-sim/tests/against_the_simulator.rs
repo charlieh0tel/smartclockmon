@@ -16,6 +16,7 @@ use smartclock::snapshot::Tier;
 use smartclock::task;
 use smartclock::task::Cadence;
 use smartclock::types::SmartClockMode;
+use smartclock_sim::receiver::MAX_ERRORS;
 use smartclock_sim::receiver::Receiver;
 use smartclock_sim::transport::SimTransport;
 
@@ -340,12 +341,56 @@ fn a_command_waits_a_bounded_time_for_its_answer() {
 
 #[test]
 fn a_flood_of_bad_commands_does_not_grow_the_error_queue() {
-    // The receiver's queue is finite and reports -350 when it
-    // overflows; the simulator's was not.
-    let mut device = device(Receiver::default());
-    for _ in 0..200 {
-        let _ = device.session().query(":NO:SUCH:COMMAND?");
+    // Driven at the receiver rather than through a Session, because a
+    // Session reads :SYSTem:ERRor? after every refusal to build its
+    // typed error, and so never lets the queue fill.  A client that
+    // sends bad commands and never asks why is the case that can grow
+    // it, and the one a bound has to survive.
+    let flood = 200;
+    let mut receiver = Receiver::default();
+    for _ in 0..flood {
+        let answer = receiver.respond(":NO:SUCH:COMMAND?");
+        assert!(!answer.accepted, "a bad command must be refused");
     }
-    // Still answering, and the queue drained rather than grown.
-    assert_eq!(device.tfom().expect("tfom after the flood").get(), 3);
+
+    // Drain it, counting.  A queue that grew by one per rejection would
+    // hand back a few hundred of these.
+    let mut drained = Vec::new();
+    loop {
+        let answer = receiver.respond(":SYSTem:ERRor?");
+        let line = answer.lines.first().expect("one line per error").clone();
+        if line.starts_with("+0,") {
+            break;
+        }
+        assert!(
+            drained.len() <= flood,
+            "the queue is not draining: {} entries and counting",
+            drained.len()
+        );
+        drained.push(line);
+    }
+
+    assert_eq!(
+        drained.len(),
+        MAX_ERRORS,
+        "the queue should stop at its bound, not grow with the flood"
+    );
+    // The earliest error survives and the last slot carries the
+    // overflow marker, as 488.2 asks.
+    assert!(
+        drained[0].starts_with("-113,"),
+        "expected the first rejection to be kept, got {}",
+        drained[0]
+    );
+    assert!(
+        drained[MAX_ERRORS - 1].starts_with("-350,"),
+        "expected -350 in the last slot, got {}",
+        drained[MAX_ERRORS - 1]
+    );
+
+    // Still answering afterwards.
+    assert_eq!(
+        receiver.respond(":SYNChronization:TFOMerit?").lines,
+        vec!["+3"]
+    );
 }

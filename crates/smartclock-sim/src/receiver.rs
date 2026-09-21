@@ -33,8 +33,14 @@ impl Answer {
     }
 }
 
-/// How many errors the queue holds before the oldest is dropped.
-const MAX_ERRORS: usize = 32;
+/// How many errors the queue holds.  Public so a test can state the
+/// bound it expects rather than repeating the number.
+pub const MAX_ERRORS: usize = 32;
+
+/// SCPI's "Queue overflow", which a full queue reports in place of its
+/// last entry.
+const QUEUE_OVERFLOW_CODE: i32 = -350;
+const QUEUE_OVERFLOW_MESSAGE: &str = "Queue overflow";
 
 /// A status screen with plausible contents, in the layout firmware
 /// 3704-C uses: an `SS` column and underscore padding.
@@ -196,14 +202,18 @@ impl Receiver {
     ///
     /// The queue is bounded, as the receiver's is: a client sending
     /// nothing but bad commands must not be able to grow it without
-    /// limit.  The oldest goes, since -350 "Queue overflow" is what a
-    /// real one reports.
+    /// limit.  A full one keeps the errors it already holds, turns its
+    /// last entry into -350 and discards everything after, which is
+    /// what IEEE 488.2 asks for and keeps the earliest error -- the one
+    /// that usually explains the rest -- readable.
     fn reject(&mut self, code: i32, message: &str) -> Answer {
         if self.errors.len() >= MAX_ERRORS {
-            self.errors.pop_front();
-            self.errors.push_back((-350, "Queue overflow".to_owned()));
+            if let Some(last) = self.errors.back_mut() {
+                *last = (QUEUE_OVERFLOW_CODE, QUEUE_OVERFLOW_MESSAGE.to_owned());
+            }
+        } else {
+            self.errors.push_back((code, message.to_owned()));
         }
-        self.errors.push_back((code, message.to_owned()));
         Answer {
             lines: Vec::new(),
             accepted: false,
