@@ -1,3 +1,44 @@
+smartclockmon (0.5.0-1) unstable; urgency=low
+
+  * The daemon now records what the receiver keeps about itself.  Its
+    error queue is drained and written down, where before nothing read
+    an error the receiver raised unprompted -- and reading an entry is
+    what removes it, so a queue left alone discards what it holds.  Its
+    diagnostic log is copied out entry by entry; the count was recorded
+    before, which said that things had happened and never what.
+  * The operation, holdover and powerup condition registers are polled
+    alongside the hardware one.  Their event registers are deliberately
+    left alone: reading one clears it, which would take the latched
+    transition from anything else watching and retract the receiver's
+    own alarm.
+  * On the development unit this immediately reported a full diagnostic
+    log -- 222 entries, the maximum, with a newest entry from March 2025
+    -- so that receiver has silently recorded nothing for eighteen
+    months.  Watch for smartclock_log_almost_full.
+  * The learned oscillator temperature coefficient is polled and
+    recorded.  Units are undocumented; the trend is the point.
+  * Every row says which receiver it came from.  A receiver table holds
+    one row per unit, keyed on the serial alone, and the snapshots,
+    errors, diagnostic log entries and audit trail all carry its id.
+    Before this a log file did not record what it was a log of, and a
+    bench where units are swapped accumulated two oscillators' history
+    with no way to tell the rows apart -- which reads as one oscillator
+    with a step in it.  Rows written before this release keep a null
+    receiver rather than being attributed to whatever is attached now.
+  * The receiver's own UTC is polled, recorded and displayed.  The
+    command existed and was called from nowhere.
+  * The exporter gains smartclock_oven_tempco and the decoded condition
+    bits: locked, reference_valid, position_hold, log_almost_full,
+    oven_warm, date_time_valid, holdover_recovering and
+    holdover_exceeding_threshold.
+  * Upgrade note: the log moves to schema 4, migrating in place.  An
+    earlier smartclockd refuses a migrated log and exits 2, which
+    RestartPreventExitStatus= stops rather than retries, so a downgrade
+    after upgrading leaves the service stopped with the data intact.
+    Recovery is forward, not back.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Mon, 21 Sep 2026 09:26:43 -0700
+
 smartclockmon (0.4.1-1) unstable; urgency=low
 
   * The web view serves the position and the policy flags again.  0.4.0
