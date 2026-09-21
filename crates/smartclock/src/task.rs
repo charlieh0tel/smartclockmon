@@ -79,6 +79,10 @@ pub enum Request {
     Command {
         /// The SCPI string to send.
         scpi: String,
+        /// When the caller stops waiting.  Past it the command is
+        /// answered but not sent: a caller that has given up must not
+        /// have its command executed behind its back.
+        deadline: Instant,
         /// Where to put the answer.
         answer: SyncSender<Result<Reply>>,
     },
@@ -211,6 +215,7 @@ impl Handle {
         let (tx, rx) = sync_channel(1);
         let request = Request::Command {
             scpi: scpi.into(),
+            deadline: Instant::now() + within,
             answer: tx,
         };
         self.requests
@@ -241,6 +246,13 @@ pub enum Stopped {
 /// Generous next to the slowest exchange -- a status screen is about a
 /// second at 19200 -- and short next to an outage.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// How many queued commands are served before the schedule gets a turn.
+///
+/// Enough that an interactive client is answered without waiting on a
+/// poll, small enough that a client looping on requests cannot stop the
+/// polling: the two interleave rather than one starving the other.
+const REQUESTS_PER_POLL: usize = 4;
 
 /// How many snapshots a subscriber may fall behind before it is
 /// dropped.
@@ -349,20 +361,30 @@ impl<T: Transport> DeviceTask<T> {
             let now = Instant::now();
             let (tier, due) = self.next_due();
 
-            // Serve anything waiting before running a due tier.  Polls
-            // used to take absolute priority, so a tier as slow as its
-            // own period was always overdue and client commands were
-            // never served at all: every caller blocked forever and the
-            // queue grew without bound.
+            // Serve what is waiting before running a due tier, but
+            // only a bounded batch of it.  Polls used to take absolute
+            // priority, so a tier as slow as its own period was always
+            // overdue and client commands were never served at all:
+            // every caller blocked forever and the queue grew without
+            // bound.  Draining without a bound inverted that -- a
+            // handful of clients each holding one request outstanding
+            // published no snapshots at all, logged nothing, and left
+            // the last one labelled Live.  A cap makes the two
+            // interleave: at worst one poll per REQUESTS_PER_POLL
+            // commands, and at worst that many commands per poll.
             //
             // Disconnection has to be noticed here too.  When every tier
             // is permanently overdue the blocking wait below is never
             // reached, so it was the only thing watching for the handles
             // going away, and the task ran on after the last one had
             // been dropped.
-            loop {
+            for _ in 0..REQUESTS_PER_POLL {
                 match self.requests.try_recv() {
-                    Ok(request) => self.serve(request),
+                    Ok(request) => {
+                        if let Some(stopped) = self.serve(request) {
+                            return stopped;
+                        }
+                    }
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => return Stopped::HandlesDropped,
                 }
@@ -379,7 +401,11 @@ impl<T: Transport> DeviceTask<T> {
             // request arriving in that window is served immediately,
             // which is what preempts a scheduled poll.
             match self.requests.recv_timeout(due - now) {
-                Ok(request) => self.serve(request),
+                Ok(request) => {
+                    if let Some(stopped) = self.serve(request) {
+                        return stopped;
+                    }
+                }
                 Err(RecvTimeoutError::Timeout) => {}
                 Err(RecvTimeoutError::Disconnected) => return Stopped::HandlesDropped,
             }
@@ -395,16 +421,26 @@ impl<T: Transport> DeviceTask<T> {
             .expect("at least one tier")
     }
 
+    /// Clear the line if the last exchange left the receiver talking.
+    ///
+    /// Anything that reads a reply has to do this first, a poll and a
+    /// served command alike, or it reads the previous exchange's late
+    /// answer as its own.
+    fn ensure_synced(&mut self) -> Option<Stopped> {
+        if !self.resync {
+            return None;
+        }
+        self.resync = false;
+        match self.device.session().sync() {
+            Ok(_) => None,
+            Err(e) => Some(Stopped::LinkFailed(e)),
+        }
+    }
+
     /// Run one tier, returning a reason to stop if the link has died.
     fn run_tier(&mut self, tier: Tier) -> Option<Stopped> {
-        // A command served since the last poll failed and left the
-        // receiver talking; clear the line before reading anything as a
-        // measurement.
-        if self.resync {
-            self.resync = false;
-            if let Err(e) = self.device.session().sync() {
-                return Some(Stopped::LinkFailed(e));
-            }
+        if let Some(stopped) = self.ensure_synced() {
+            return Some(stopped);
         }
         let now = Timestamp::now();
         let mut snapshot = self.shared.latest().unwrap_or_else(|| Snapshot::new(now));
@@ -459,17 +495,42 @@ impl<T: Transport> DeviceTask<T> {
         None
     }
 
-    /// Run one submitted request.
-    fn serve(&mut self, request: Request) {
+    /// Run one submitted request, returning a reason to stop if the
+    /// link has died under it.
+    fn serve(&mut self, request: Request) -> Option<Stopped> {
         match request {
-            Request::Command { scpi, answer } => {
+            Request::Command {
+                scpi,
+                deadline,
+                answer,
+            } => {
+                // Nobody is waiting for this any more.  Sending it
+                // anyway meant a command the caller was told had timed
+                // out was executed regardless -- a holdover it thought
+                // had failed, initiated seconds later, recorded in the
+                // audit trail as "failed".
+                if Instant::now() >= deadline {
+                    let _ = answer.send(Err(Error::Timeout {
+                        waited: Duration::ZERO,
+                        seen: "the caller stopped waiting before this was sent".to_owned(),
+                    }));
+                    return None;
+                }
+                // A command served since the last exchange failed left
+                // the receiver talking; clear the line before reading
+                // this one's answer.
+                if let Some(stopped) = self.ensure_synced() {
+                    let _ = answer.send(Err(Error::TaskStopped(
+                        "the link failed while resynchronising",
+                    )));
+                    return Some(stopped);
+                }
                 let outcome = self.device.session().query(&scpi);
                 // A failed command leaves the receiver's reply still
-                // travelling, and the next scheduled poll would read it
-                // as its own answer: a TFOM reported as an FFOM, oven
+                // travelling, and whatever reads next would take it as
+                // its own answer: a TFOM reported as an FFOM, oven
                 // current reported as temperature, recorded to the log
-                // as a measurement.  run_tier resyncs for exactly this
-                // reason; serving a client command must too.
+                // as a measurement.
                 let failed = outcome.is_err();
                 // A caller that gave up before the answer arrived is
                 // not an error worth acting on.
@@ -477,12 +538,14 @@ impl<T: Transport> DeviceTask<T> {
                 if failed {
                     self.resync = true;
                 }
+                None
             }
             Request::Refresh => {
                 let now = Instant::now();
                 for tier in Tier::ALL {
                     self.due[tier as usize] = now;
                 }
+                None
             }
         }
     }

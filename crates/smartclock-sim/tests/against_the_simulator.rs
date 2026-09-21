@@ -5,6 +5,9 @@
 //! order, so a transcript never lines up.  These run against a
 //! simulator that answers whatever it is asked.
 
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use smartclock::device::Device;
@@ -393,4 +396,100 @@ fn a_flood_of_bad_commands_does_not_grow_the_error_queue() {
         receiver.respond(":SYNChronization:TFOMerit?").lines,
         vec!["+3"]
     );
+}
+
+#[test]
+fn client_commands_cannot_starve_the_poll_schedule() {
+    // The fix for polls starving requests overshot into the reverse:
+    // an unbounded drain meant a few clients each keeping one request
+    // outstanding published no snapshots at all, logged nothing, and
+    // left the last snapshot labelled Live.
+    let (handle, joiner) = task::spawn(
+        device(Receiver::default()),
+        Cadence {
+            fast: Duration::from_millis(10),
+            medium: Duration::from_secs(3600),
+            slow: Duration::from_secs(3600),
+        },
+    );
+    let updates = handle.subscribe();
+
+    let busy = Arc::new(AtomicBool::new(true));
+    let clients: Vec<_> = (0..32)
+        .map(|_| {
+            let handle = handle.clone();
+            let busy = Arc::clone(&busy);
+            std::thread::spawn(move || {
+                let mut served = 0;
+                while busy.load(Ordering::Relaxed) {
+                    if handle.request(":SYNChronization:TFOMerit?").is_ok() {
+                        served += 1;
+                    }
+                }
+                served
+            })
+        })
+        .collect();
+
+    // Read throughout -- a subscriber that stops reading for long
+    // enough falls SUBSCRIBER_BACKLOG behind and is dropped, which
+    // looks exactly like starvation from here -- but only count after
+    // the clients are up, since the first poll happens before they
+    // are and would otherwise carry the test on its own.
+    let start = std::time::Instant::now();
+    let counting_from = start + Duration::from_millis(500);
+    let until = start + Duration::from_millis(2000);
+    let mut snapshots = 0;
+    while std::time::Instant::now() < until {
+        let left = until.saturating_duration_since(std::time::Instant::now());
+        if updates.recv_timeout(left).is_ok() && std::time::Instant::now() >= counting_from {
+            snapshots += 1;
+        }
+    }
+    busy.store(false, Ordering::Relaxed);
+    let served: usize = clients
+        .into_iter()
+        .map(|c| c.join().expect("a client"))
+        .sum();
+
+    // Both sides have to make progress.  Before the bound this was 0
+    // snapshots; polls taking absolute priority made it 0 commands.
+    assert!(
+        snapshots > 10,
+        "only {snapshots} snapshots in 1.5 s while clients were busy; the schedule is starved"
+    );
+    assert!(served > 0, "no client command served in two seconds");
+
+    drop(updates);
+    drop(handle);
+    joiner.join().expect("the device thread");
+}
+
+#[test]
+fn a_command_whose_caller_gave_up_is_not_sent() {
+    // A timeout used to mean only that the caller stopped listening:
+    // the command sat in the queue and was run whenever the task got to
+    // it, so a holdover the operator was told had failed began seconds
+    // later, and the audit trail recorded it as a failure.
+    let (handle, joiner) = task::spawn(device(Receiver::default()), Cadence::default());
+
+    let gave_up = handle.request_within(
+        ":SYNChronization:HOLDover:INITiate",
+        Duration::from_nanos(1),
+    );
+    assert!(gave_up.is_err(), "a one-nanosecond wait should time out");
+
+    // Give the task long enough to have run it, had it been going to.
+    std::thread::sleep(Duration::from_millis(300));
+    let reply = handle
+        .request(":SYNChronization:STATe?")
+        .expect("the receiver answers");
+    assert_eq!(
+        reply.lines,
+        vec!["LOCK"],
+        "the receiver left lock, so the abandoned command was sent after all"
+    );
+
+    drop(handle);
+    joiner.join().expect("the device thread");
 }

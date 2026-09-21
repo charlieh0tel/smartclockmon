@@ -296,8 +296,22 @@ command unconditionally.
 Requests are serviced between commands, never mid-command, because a
 partially read response desynchronizes the prompt framing.  Worst-case
 control latency is therefore about one status screen read, roughly one
-second.  If that matters, the fast tier keeps running and the status
-tier is deferred while the request queue is non-empty.
+second.
+
+Requests and polls take turns, and the turn is bounded in both
+directions, which took two goes to get right.  Polls first had absolute
+priority, so a tier as slow as its own period was always overdue and no
+client command was ever served; the fix drained the whole queue before
+each poll, which inverted it -- a handful of clients each keeping one
+request outstanding published no snapshots at all, logged nothing, and
+left the last one labelled `Live`.  At most `REQUESTS_PER_POLL` commands
+are now served before the schedule gets its turn.
+
+A command also carries the deadline of the caller that sent it.  A
+request that times out client-side used to stay in the queue and run
+whenever the task reached it, so a holdover the operator had been told
+had failed began seconds later and the audit trail recorded it as a
+failure.  Past its deadline a command is answered, not sent.
 
 Two consequences worth building in:
 
