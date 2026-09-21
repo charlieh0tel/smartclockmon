@@ -86,7 +86,11 @@ impl Log {
         anyhow::ensure!(from <= to, "the range ends before it starts");
         let span = to.saturating_sub(from).max(1);
         let sql = format!(
-            "SELECT CAST((unixepoch(at) - ?1) * ?3 / ?4 AS INTEGER) AS bucket,
+            // Divided by the span plus one so that a row landing exactly
+            // on `to` falls in the last bucket rather than in one past
+            // it: the inclusive range would otherwise return points + 1
+            // buckets, which is not what the caller asked for.
+            "SELECT CAST((unixepoch(at) - ?1) * ?3 / (?4 + 1) AS INTEGER) AS bucket,
                     AVG(unixepoch(at)) AS at,
                     AVG({column}), MIN({column}), MAX({column})
              FROM snapshot

@@ -89,7 +89,11 @@ impl Daemon {
     /// asked, so anything that is not this request's reply is skipped
     /// rather than mistaken for one.
     pub fn ask(&mut self, op: Op) -> Result<serde_json::Value> {
-        self.next_id += 1;
+        // Wrapping rather than overflowing: a connection held open for
+        // long enough would otherwise panic before sending anything,
+        // and a repeated id is harmless here because a reply can only
+        // arrive while its own request is outstanding.
+        self.next_id = self.next_id.wrapping_add(1);
         let id = self.next_id.to_string();
         let request = Request {
             v: VERSION,
