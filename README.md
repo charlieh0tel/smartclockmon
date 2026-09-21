@@ -29,7 +29,7 @@ smartclockd`; see `docs/running.md`.
 Run by hand, it holds the port and everything else is a client of it:
 
     smartclockd --device /dev/serial/by-id/usb-... \
-                --database ~/smartclock.sqlite \
+                --database snapshots.sqlite \
                 --socket /tmp/smartclockd.sock
 
     smartclockmon --socket /tmp/smartclockd.sock
@@ -71,12 +71,8 @@ and 1 PPS, and report state over a serial port using SCPI.
 | Z3816A | `:PTIME:GPSYSTEM:`, `:ROSC:` | Assumed as Z3801A; unverified          |
 
 The development unit is a 58503A with Option 001 (front-panel
-display/keypad), at 19200 8N1 on
-
-    /dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0
-
-which is stable across re-enumeration, unlike `/dev/ttyUSB0`.  Its rear
-serial port is DB-25; the 58503B uses DB-9.  It answers `*IDN?` with
+display/keypad), at 19200 8N1.  Its rear serial port is DB-25; the
+58503B uses DB-9.  It answers `*IDN?` with
 
     HEWLETT-PACKARD,58503A,3710A01056,3704-C
 

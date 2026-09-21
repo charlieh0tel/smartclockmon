@@ -8,9 +8,7 @@
 # daemon refuses to start until you say.  `ls -l /dev/serial/by-id/`
 # lists the candidates; prefer a by-id path, since /dev/ttyUSB0 is
 # assigned in enumeration order and moves when another adapter appears.
-# The line below is the development unit's adapter -- almost certainly
-# not yours.
-#SMARTCLOCKD_DEVICE=/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0
+#SMARTCLOCKD_DEVICE=/dev/serial/by-id/usb-<your-adapter>-if00-port0
 
 # The receiver stores its own rate, so this is not necessarily the 9600
 # factory default.  Only 1200, 2400, 9600 and 19200 are accepted.

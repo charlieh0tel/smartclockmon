@@ -29,9 +29,7 @@ the journal, is the better outcome.
     ls -l /dev/serial/by-id/
 
 Use a by-id path rather than `/dev/ttyUSB0`, which is assigned in
-enumeration order and moves when another adapter is plugged in.  The
-line commented out in the shipped file is the development unit's
-adapter, left as an example of the shape.
+enumeration order and moves when another adapter is plugged in.
 
 A boolean is enabled by setting it to `true`.  An empty value is a
 mistake the daemon refuses at startup rather than reading as off.
@@ -67,42 +65,6 @@ restarts.
 The log grows without bound, by a few MB a day at the default cadence.
 Nothing rotates it; that is deliberate, because the point of the record
 is to still have last year's holdover events.
-
-To carry over a database from running the daemon by hand:
-
-    sudo systemctl stop smartclockd       # if it is already running
-    # and stop whatever was writing the old file, or the copy tears
-
-    sqlite3 ~/smartclock.sqlite "PRAGMA wal_checkpoint(TRUNCATE);"
-
-    sudo install -d -o smartclockd -g smartclockd -m 0750 /var/lib/smartclockd
-    sudo install -o smartclockd -g smartclockd -m 0640 \
-         ~/smartclock.sqlite /var/lib/smartclockd/snapshots.sqlite
-
-    sudo systemctl start smartclockd
-
-Three things to get right, each of which fails quietly:
-
-- **The name changes.**  The daemon opens `snapshots.sqlite`; copy the
-  file under its old name and the daemon ignores it and starts an empty
-  one.  Rename it as above, or point `SMARTCLOCKD_DATABASE` at whatever
-  you called it.
-- **Checkpoint first.**  `wal_checkpoint(TRUNCATE)` folds the write-ahead
-  log into the main file, so one file is the whole database.  Without it
-  you have to copy the `-wal` file too *and* rename it to match, or
-  SQLite silently drops the un-checkpointed tail.  The `-shm` file is
-  rebuilt and need not be copied.
-- **`install` rather than `cp`.**  It copies, chowns and chmods in one
-  step, so the file is never briefly owned by root.  The account exists
-  from the moment the package is installed, so this works before the
-  first start.  `install -d` is only needed when pre-populating like
-  this; `StateDirectory=` creates the directory itself, correctly owned,
-  when the service starts.
-
-Do not point `SMARTCLOCKD_DATABASE` into your home directory to skip the
-copy.  The unit sets `ProtectHome=yes`, so `/home` does not exist as far
-as the daemon is concerned, and it would fail to open and restart every
-five seconds.
 
 ## Watching it
 
