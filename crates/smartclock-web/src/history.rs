@@ -94,7 +94,16 @@ impl Log {
                     AVG(unixepoch(at)) AS at,
                     AVG({column}), MIN({column}), MAX({column})
              FROM snapshot
-             WHERE unixepoch(at) >= ?1 AND unixepoch(at) <= ?2
+             -- Compared as text, against the column itself, so the
+             -- index on `at` can be used.  unixepoch(at) >= ? reads
+             -- every row in the table instead: 2 ms today, but the log
+             -- grows without bound and this is one query per chart.
+             -- The stored form is RFC 3339 with fractional seconds and
+             -- a Z, so a bound truncated to the second sorts before
+             -- every row within that second, which is what the
+             -- inclusive lower and exclusive upper bounds want.
+             WHERE at >= strftime('%Y-%m-%dT%H:%M:%S', ?1, 'unixepoch')
+               AND at < strftime('%Y-%m-%dT%H:%M:%S', ?2 + 1, 'unixepoch')
                AND (fast_at = at OR (fast_at IS NULL AND freshness = 'live'))
              GROUP BY bucket
              ORDER BY at"
