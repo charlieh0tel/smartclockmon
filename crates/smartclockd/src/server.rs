@@ -14,6 +14,7 @@ use std::io::Read as _;
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::thread;
@@ -147,6 +148,15 @@ pub(crate) fn bind(name: Name<'static>) -> Result<Listener> {
         .context("binding the local socket")
 }
 
+/// Clears a flag when it goes, whatever ended the thread holding it.
+struct Hangup(Arc<AtomicBool>);
+
+impl Drop for Hangup {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Relaxed);
+    }
+}
+
 /// One connected client, counted for as long as this is held.
 ///
 /// The count is what `MAX_CLIENTS` is enforced against, so releasing it
@@ -209,8 +219,7 @@ pub(crate) fn serve(listener: Listener, handle: Handle, info: SharedInfo) -> Res
                 // way out by hand leaked a slot permanently on a panic,
                 // sixteen of which would have left the daemon accepting
                 // nobody.
-                let _slot = slot;
-                if let Err(e) = talk(stream, &handle, &info) {
+                if let Err(e) = talk(stream, &handle, &info, slot) {
                     eprintln!("smartclockd: client ended: {e}");
                 }
             });
@@ -227,7 +236,14 @@ pub(crate) fn serve(listener: Listener, handle: Handle, info: SharedInfo) -> Res
 /// cannot hold up its own requests.  Both threads write to the same
 /// half behind a mutex; the messages are single short lines, so holding
 /// it is brief and it keeps them from interleaving mid-line.
-fn talk(stream: Stream, handle: &Handle, info: &SharedInfo) -> Result<()> {
+///
+/// The push thread is the half that holds resources -- a subscription,
+/// a socket, a thread -- so it is the half that holds the client's
+/// slot.  Counting the request thread instead let a client half-close
+/// its sending side, end `talk`, release the slot, and leave the push
+/// thread running; repeating that accumulated subscriptions and threads
+/// without limit while `MAX_CLIENTS` was never reached.
+fn talk(stream: Stream, handle: &Handle, info: &SharedInfo, slot: Slot) -> Result<()> {
     let (recv, send_half) = stream.split();
     let writer = Arc::new(Mutex::new(send_half));
 
@@ -237,12 +253,24 @@ fn talk(stream: Stream, handle: &Handle, info: &SharedInfo) -> Result<()> {
         write_line(&writer, &Message::event(&snapshot))?;
     }
 
+    // Tells the push thread to stop when this one does.  It notices on
+    // the next snapshot rather than at once, which is a second or so at
+    // the fast tier, because it is parked on the subscription.
+    let serving = Arc::new(AtomicBool::new(true));
+    let _hangup = Hangup(Arc::clone(&serving));
+
     let updates = handle.subscribe();
     let pusher = Arc::clone(&writer);
     thread::Builder::new()
         .name("smartclockd-push".to_owned())
         .spawn(move || {
+            // The slot lives here, and is released when this thread
+            // ends rather than when the request thread does.
+            let _slot = slot;
             for snapshot in updates {
+                if !serving.load(Ordering::Relaxed) {
+                    return;
+                }
                 if write_line(&pusher, &Message::event(&snapshot)).is_err() {
                     return;
                 }
@@ -473,8 +501,12 @@ fn classify(scpi: &str, dialect: Dialect) -> Option<(&'static Spec, String)> {
 /// that happens.
 fn check_argument(scpi: &str, spec: &Spec) -> Result<(), String> {
     // An entry that carries its own argument, such as
-    // ":GPS:POSition:SURVey:STATe ONCE", is already complete.
-    if spec.scpi.eq_ignore_ascii_case(scpi) {
+    // ":GPS:POSition:SURVey:STATe ONCE", is already complete.  Only
+    // such an entry: the check used to skip any command that matched a
+    // table entry exactly, which let a command that requires a value
+    // through with none -- :GPS:SATellite:TRACking:EMANgle on its own
+    // passed the integer rule by never reaching it.
+    if spec.scpi.eq_ignore_ascii_case(scpi) && spec.scpi.contains(char::is_whitespace) {
         return Ok(());
     }
     let argument = scpi
@@ -627,6 +659,20 @@ mod tests {
         assert!(check_argument(":SYNChronization:HOLDover:INITiate", HP).is_ok());
         // An entry that carries its own argument is already complete.
         assert!(check_argument(":GPS:POSition:SURVey:STATe ONCE", HP).is_ok());
+    }
+
+    #[test]
+    fn a_command_that_needs_a_value_is_refused_without_one() {
+        // Matching a table entry exactly used to end the check, so a
+        // command whose argument is required passed by never reaching
+        // the rule that requires it.
+        assert!(check_argument(":GPS:SATellite:TRACking:EMANgle", HP).is_err());
+        assert!(check_argument(":SYSTem:COMMunicate:SERial1:BAUD", HP).is_err());
+        assert!(check_argument(":PTIMe:TCODe:FORMat", HP).is_err());
+        // An entry that is the whole command is still fine with none.
+        assert!(check_argument(":GPS:POSition:SURVey:STATe ONCE", HP).is_ok());
+        assert!(check_argument(":SYNChronization:HOLDover:INITiate", HP).is_ok());
+        assert!(check_argument(":SYNChronization:TINTerval?", HP).is_ok());
     }
 
     #[test]
