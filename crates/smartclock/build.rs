@@ -80,9 +80,52 @@ fn variant(id: &str) -> String {
         .collect()
 }
 
+/// Stamp the build with the commit it came from.
+///
+/// One string, used by every binary's `--version`, by the daemon's
+/// startup line and its info reply, by the row the log records, and by
+/// the Debian package's version, so that all of them name the same
+/// build.  Falls back to the crate version alone where git cannot
+/// answer -- a source tarball, or a build outside a checkout.
+fn stamp_version() {
+    let package = env::var("CARGO_PKG_VERSION").expect("CARGO_PKG_VERSION");
+
+    // Rebuild when the checked-out commit changes, or the stamp is
+    // whatever it was when this last ran.
+    for path in [".git/HEAD", ".git/refs/heads"] {
+        println!("cargo::rerun-if-changed=../../{path}");
+    }
+
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .args(args)
+            .output()
+            .ok()
+            .filter(|out| out.status.success())
+            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
+            .filter(|text| !text.is_empty())
+    };
+
+    let version = match (
+        git(&["rev-list", "--count", "HEAD"]),
+        git(&["rev-parse", "--short", "HEAD"]),
+    ) {
+        (Some(count), Some(commit)) => {
+            let dirty = match git(&["status", "--porcelain"]) {
+                Some(_) => "+dirty",
+                None => "",
+            };
+            format!("{package}-{count}+g{commit}{dirty}")
+        }
+        _ => package,
+    };
+    println!("cargo::rustc-env=SMARTCLOCK_VERSION={version}");
+}
+
 fn main() {
     println!("cargo::rerun-if-changed=commands.toml");
     println!("cargo::rerun-if-changed=build.rs");
+    stamp_version();
 
     let raw = fs::read_to_string("commands.toml").expect("read commands.toml");
     let table: Table = toml::from_str(&raw).expect("parse commands.toml");

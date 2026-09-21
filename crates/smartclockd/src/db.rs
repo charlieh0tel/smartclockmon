@@ -146,6 +146,13 @@ impl Log {
             "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema', ?1)",
             params![SCHEMA.to_string()],
         )?;
+        // Which build last wrote here.  A row that looks wrong is worth
+        // little without knowing what produced it, and the database
+        // outlives any number of upgrades.
+        self.conn.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('writer', ?1)",
+            params![smartclock::VERSION],
+        )?;
         Ok(())
     }
 

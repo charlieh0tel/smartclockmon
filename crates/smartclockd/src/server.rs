@@ -332,6 +332,7 @@ fn handle_request(request: Request, handle: &Handle, info: &Info) -> Message {
         Op::Info => Message::ok(
             id,
             serde_json::json!({
+                "version": smartclock::VERSION,
                 "identity": info.identity,
                 "dialect": info.dialect.name(),
                 "database": info.database,

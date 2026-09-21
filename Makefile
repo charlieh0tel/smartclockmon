@@ -8,18 +8,14 @@
 
 CARGO ?= cargo
 
-# The package revision is derived, not written down, so that two builds
-# of different code can never carry the same version.  dpkg treats a
-# reinstall of an identical version as a no-op upgrade, which makes "did
-# my change land?" unanswerable from the outside: the commit count gives
-# a revision that only ever rises, and the short hash names the commit
-# it came from.  A dirty tree says so, since such a build is not
-# reproducible from any commit.
-DEB_REVISION := $(shell git rev-list --count HEAD 2>/dev/null || echo 0)
-DEB_COMMIT   := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
-DEB_DIRTY    := $(shell test -n "$$(git status --porcelain 2>/dev/null)" && echo +dirty)
-DEB_UPSTREAM := $(shell sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
-DEB_VERSION  := $(DEB_UPSTREAM)-$(DEB_REVISION)+g$(DEB_COMMIT)$(DEB_DIRTY)
+# The package version is asked of the binary being packaged rather than
+# derived a second time here.  The binary is stamped at compile time by
+# the library's build script, so the package, the --version output, the
+# daemon's journal line, its info reply and the writer recorded in the
+# log all carry one string.  Two builds of different code then cannot
+# share a version, which matters because dpkg treats reinstalling an
+# identical version as a no-op: the binaries change or they do not, and
+# nothing from the outside says which.
 
 .PHONY: all build ci fmt fmt-check clippy test test-hw doc docs clean deb install-service
 
@@ -73,7 +69,8 @@ deb:
 # at "../../target/release/".  It is telling us it will not build them,
 # which is right -- the line above did, and --no-build says so.  The
 # artifact path is still printed.
-	$(CARGO) deb -p smartclockd --no-build -q --deb-version $(DEB_VERSION)
+	$(CARGO) deb -p smartclockd --no-build -q \
+	    --deb-version "$$(./target/release/smartclockd --version | awk '{print $$2}')"
 
 install-service:
 	install -m 0644 packaging/systemd/smartclockd.service /etc/systemd/system/

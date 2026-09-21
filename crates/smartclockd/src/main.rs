@@ -50,7 +50,7 @@ use smartclock::transport::serial::Settings;
 use smartclock::types::BaudRate;
 
 #[derive(Parser)]
-#[command(about, version)]
+#[command(about, version = smartclock::VERSION)]
 struct Cli {
     /// Serial device, or `tcp://host:port` for a receiver on the
     /// network or the simulator.  Prefer a /dev/serial/by-id/... path
@@ -152,6 +152,9 @@ fn main() -> Result<()> {
             std::process::exit(CONFIGURATION_ERROR);
         }
     };
+    // First line in the journal, so "which build is running" is
+    // answerable from the logs alone rather than by finding the binary.
+    eprintln!("smartclockd: version {}", smartclock::VERSION);
     eprintln!(
         "smartclockd: log at {} holds {} snapshots and {} commands",
         cli.database.display(),

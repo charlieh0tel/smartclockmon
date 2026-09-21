@@ -25,7 +25,7 @@ use crate::app::View;
 use crate::source::Update;
 
 #[derive(Parser)]
-#[command(about, version)]
+#[command(about, version = smartclock::VERSION)]
 struct Cli {
     /// The daemon's socket.
     #[arg(long, default_value = "/run/smartclockd/socket")]

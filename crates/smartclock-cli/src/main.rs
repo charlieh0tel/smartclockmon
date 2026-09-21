@@ -40,7 +40,7 @@ use smartclock::types::Seconds;
 use smartclock::wire::Reading;
 
 #[derive(Parser)]
-#[command(about, version)]
+#[command(about, version = smartclock::VERSION)]
 struct Cli {
     /// Serial device, or `tcp://host:port` for a receiver on the
     /// network or the simulator.  Prefer a /dev/serial/by-id/... path
