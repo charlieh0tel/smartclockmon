@@ -15,18 +15,26 @@ and a TUI client.  A GUI is possible later but is not planned.
 | 4 | Simulated receiver | done |
 | 5 | The monitor, with history graphs | done |
 | 6 | Control commands, audit trail, raw console | done |
-| 7 | Generated command matrix | done; protocol and deployment notes not written |
+| 7 | Generated command matrix, deployment notes | done; protocol notes not written |
 
-131 tests, none needing hardware.  `make ci` is what CI runs; `make
+151 tests, none needing hardware.  `make ci` is what CI runs; `make
 test-hw` is the hardware-only set and CI never runs it.
 
-Running against the development unit, logging to a database given on the
-command line.  Not yet installed as a service, though `make deb` builds
-the package and the unit file is written.
+Installed from the package and running as a service against the
+development unit, logging to `/var/lib/smartclockd/snapshots.sqlite`.
+`docs/running.md` is the deployment note; the socket protocol is still
+undocumented, and stays that way until something other than the monitor
+speaks it, since one client and one server agreeing is not a protocol.
 
-An adversarial review in September 2026 -- four Claude reviewers and
-one Codex run over the whole tree -- found about forty defects, five of
-them serious enough to fix at once.  What they had in common is worth
+Two adversarial reviews in September 2026.  The first -- four Claude
+reviewers and one Codex run over the whole tree -- found about forty
+defects, five of them serious enough to fix at once.  The second went
+over that day's diff and found eight more, several of them in the fixes
+themselves: a bound that grew the queue it bounded, an unbounded channel
+introduced to stop a silent drop, a freshness rule that called a
+snapshot current when two thirds of it had never been read.  Fixing is
+where defects come from, which is the argument for reviewing a diff
+rather than a tree.  What they had in common is worth
 recording: every one produced a **wrong value presented confidently**
 rather than an error, and all 106 tests passed throughout, because the
 fixtures only covered the layouts that happened to work.  They are
