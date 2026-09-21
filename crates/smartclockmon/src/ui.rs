@@ -676,6 +676,10 @@ fn time_and_place(frame: &mut Frame, area: Rect, app: &App) {
     };
     let mut lines = Vec::new();
 
+    match s.time {
+        Some(time) => lines.push(plain("UTC", format!("{time}"))),
+        None => lines.push(absent("UTC")),
+    }
     match s.date {
         Some(date) => match date.rollover() {
             Some(slip) => {

@@ -17,11 +17,12 @@ use rusqlite::OpenFlags;
 ///
 /// Named here rather than taken from the query string, so a request
 /// cannot ask for arbitrary SQL.
-pub(crate) const PLOTTABLE: [&str; 7] = [
+pub(crate) const PLOTTABLE: [&str; 8] = [
     "efc_percent",
     "efc_dac",
     "temperature_c",
     "oven_current",
+    "oven_tempco",
     "time_interval_s",
     "tfom",
     "ffom",

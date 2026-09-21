@@ -15,12 +15,16 @@ use crate::screen::Screen;
 use crate::types::EfcPercent;
 use crate::types::Ffom;
 use crate::types::HardwareCondition;
+use crate::types::HoldoverCondition;
 use crate::types::HoldoverDuration;
 use crate::types::HoldoverWaitReason;
+use crate::types::OperationCondition;
 use crate::types::Position;
+use crate::types::PowerupCondition;
 use crate::types::Seconds;
 use crate::types::SmartClockMode;
 use crate::types::Tfom;
+use crate::types::TimeOfDay;
 
 /// How often a group of fields is refreshed.
 ///
@@ -82,11 +86,29 @@ pub struct Snapshot {
     pub hardware: Option<HardwareCondition>,
     /// Why the receiver has not left holdover.
     pub holdover_waiting: Option<HoldoverWaitReason>,
+    /// UTC as the receiver reports it.
+    ///
+    /// On the fast tier because a clock read once a minute and shown as
+    /// a clock is a lie for the other fifty-nine seconds.  It is still
+    /// as of the poll, not of the moment it is drawn.
+    pub time: Option<TimeOfDay>,
+
+    /// The operation condition register.
+    pub operation: Option<OperationCondition>,
+    /// The holdover condition register.
+    pub holdover_state: Option<HoldoverCondition>,
+    /// The powerup condition register.
+    pub powerup: Option<PowerupCondition>,
 
     /// Internal temperature in degrees Celsius.  Undocumented command.
     pub temperature: Option<f64>,
     /// Oven current.  Undocumented command.
     pub oven_current: Option<f64>,
+    /// The temperature coefficient the receiver has learned for its
+    /// oscillator.  Undocumented command, so the units are unknown; the
+    /// value is worth recording for its trend rather than its
+    /// magnitude.
+    pub oven_tempco: Option<f64>,
     /// EFC as the raw 20-bit DAC code.  Undocumented command.
     pub efc_dac: Option<u32>,
 
@@ -202,8 +224,13 @@ impl Snapshot {
             efc: None,
             hardware: None,
             holdover_waiting: None,
+            time: None,
+            operation: None,
+            holdover_state: None,
+            powerup: None,
             temperature: None,
             oven_current: None,
+            oven_tempco: None,
             efc_dac: None,
             holdover_duration: None,
             holdover_predicted: None,

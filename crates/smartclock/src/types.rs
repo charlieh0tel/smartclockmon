@@ -320,6 +320,91 @@ impl HoldoverCondition {
     }
 }
 
+/// Bits of `:STATus:OPERation:CONDition?`.
+///
+/// Mostly summaries of the subgroup registers, which are read directly
+/// and so say nothing new here.  The four that are not -- locked,
+/// position hold, reference valid and log almost full -- exist nowhere
+/// else.  097-59551-02 5-38.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OperationCondition(u16);
+
+impl OperationCondition {
+    /// Wrap a raw register value.
+    pub fn from_bits(bits: u16) -> Self {
+        Self(bits)
+    }
+
+    /// The raw register value.
+    pub fn bits(self) -> u16 {
+        self.0
+    }
+
+    /// Bit 1: locked to GPS.
+    pub fn locked(self) -> bool {
+        self.0 & (1 << 1) != 0
+    }
+
+    /// Bit 3: holding a surveyed position rather than surveying.
+    pub fn position_hold(self) -> bool {
+        self.0 & (1 << 3) != 0
+    }
+
+    /// Bit 4: the GPS 1 PPS is fit to discipline against.
+    pub fn reference_valid(self) -> bool {
+        self.0 & (1 << 4) != 0
+    }
+
+    /// Bit 6: the diagnostic log is near the point where it stops
+    /// recording.  Entries are lost quietly once it is full, so this is
+    /// the only warning that the receiver's own history is about to
+    /// stop being written.
+    pub fn log_almost_full(self) -> bool {
+        self.0 & (1 << 6) != 0
+    }
+}
+
+/// Bits of `:STATus:OPERation:POWerup:CONDition?`.
+///
+/// All three are cleared at powerup and set as the receiver comes up,
+/// so the register doubles as a record of how far through its startup
+/// it got -- and, for a unit that has been power cycled without anyone
+/// watching, of whether it ever finished.  097-59551-02 5-39.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PowerupCondition(u16);
+
+impl PowerupCondition {
+    /// Wrap a raw register value.
+    pub fn from_bits(bits: u16) -> Self {
+        Self(bits)
+    }
+
+    /// The raw register value.
+    pub fn bits(self) -> u16 {
+        self.0
+    }
+
+    /// Bit 0: a satellite has been tracked since powerup.
+    pub fn first_satellite_tracked(self) -> bool {
+        self.0 & 1 != 0
+    }
+
+    /// Bit 1: the oscillator oven has warmed up.
+    ///
+    /// The nearest thing the receiver offers to oven telemetry beyond
+    /// the current draw: a warm oven that goes cold again says the
+    /// oven, not the crystal, is the fault.
+    pub fn oven_warm(self) -> bool {
+        self.0 & (1 << 1) != 0
+    }
+
+    /// Bit 2: the date and time were set at the first lock after
+    /// powerup.
+    pub fn date_time_valid(self) -> bool {
+        self.0 & (1 << 2) != 0
+    }
+}
+
 /// Which vertical datum a height is referenced to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Datum {

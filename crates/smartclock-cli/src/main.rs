@@ -286,6 +286,12 @@ fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
             .map(|v| absent_or(v, |v| format!("{v:.1}"))),
     );
     show(
+        "oven tempco",
+        device
+            .oven_tempco()
+            .map(|v| absent_or(v, |v| format!("{v:.2} (learned; units undocumented)"))),
+    );
+    show(
         "EFC raw",
         device.efc_dac().map(|v| absent_or(v, |v| v.to_string())),
     );
@@ -304,6 +310,37 @@ fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
         }
         Err(e) => line("hardware", &format!("unavailable: {e}")),
     }
+
+    println!("\nStatus");
+    show(
+        "operation",
+        device.operation_condition().map(|op| {
+            format!(
+                "register {}: {}",
+                op.bits(),
+                flags(&[
+                    ("locked", op.locked()),
+                    ("position hold", op.position_hold()),
+                    ("reference valid", op.reference_valid()),
+                    ("log almost full", op.log_almost_full()),
+                ])
+            )
+        }),
+    );
+    show(
+        "powerup",
+        device.powerup_condition().map(|up| {
+            format!(
+                "register {}: {}",
+                up.bits(),
+                flags(&[
+                    ("first satellite tracked", up.first_satellite_tracked()),
+                    ("oven warm", up.oven_warm()),
+                    ("date and time valid", up.date_time_valid()),
+                ])
+            )
+        }),
+    );
 
     println!("\nHoldover");
     match device.holdover_duration() {
@@ -342,6 +379,8 @@ fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
         (Err(e), _) => line("satellites", &format!("unavailable: {e}")),
     }
 
+    show("UTC", device.time().map(|t| t.to_string()));
+
     // Checked against the host clock because firmware predating the
     // 2019 GPS week rollover reports a date exactly 1024 weeks in the
     // past.  Its time of day and outputs are sound.
@@ -369,6 +408,23 @@ fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
     println!("\nLog");
     show("entries", device.log_count().map(|n| n.to_string()));
     Ok(())
+}
+
+/// The conditions that are true, named, or "none".
+///
+/// A register printed as a number says nothing without the manual, and
+/// the bits that are clear are not worth a line each.
+fn flags(set: &[(&str, bool)]) -> String {
+    let named: Vec<&str> = set
+        .iter()
+        .filter(|(_, on)| *on)
+        .map(|(name, _)| *name)
+        .collect();
+    if named.is_empty() {
+        "none".to_owned()
+    } else {
+        named.join(", ")
+    }
 }
 
 /// The column the values line up in.
@@ -518,6 +574,11 @@ fn render(info: &serde_json::Value, r: &Reading) {
         r.temperature_c.map(|v| format!("{v:.2} C")),
     );
     show_opt("oven current", r.oven_current.map(|v| format!("{v:.1}")));
+    show_opt(
+        "oven tempco",
+        r.oven_tempco
+            .map(|v| format!("{v:.2} (learned; units undocumented)")),
+    );
     show_opt("EFC raw", r.efc_raw.map(|v| v.to_string()));
     show_opt(
         "hardware",
@@ -527,6 +588,32 @@ fn render(info: &serde_json::Value, r: &Reading) {
             } else {
                 format!("register {}", condition.bits())
             }
+        }),
+    );
+
+    println!("\nStatus");
+    show_opt(
+        "operation",
+        r.locked.map(|_| {
+            flags(&[
+                ("locked", r.locked == Some(true)),
+                ("position hold", r.position_hold == Some(true)),
+                ("reference valid", r.reference_valid == Some(true)),
+                ("log almost full", r.log_almost_full == Some(true)),
+            ])
+        }),
+    );
+    show_opt(
+        "powerup",
+        r.oven_warm.map(|_| {
+            flags(&[
+                (
+                    "first satellite tracked",
+                    r.first_satellite_tracked == Some(true),
+                ),
+                ("oven warm", r.oven_warm == Some(true)),
+                ("date and time valid", r.date_time_valid == Some(true)),
+            ])
         }),
     );
 
@@ -554,6 +641,7 @@ fn render(info: &serde_json::Value, r: &Reading) {
     );
 
     println!("\nGPS");
+    show_opt("UTC", r.time.map(|t| t.to_string()));
     match r.screen.as_ref() {
         Some(screen) => {
             show_opt(

@@ -23,9 +23,12 @@ use crate::types::Datum;
 use crate::types::EfcPercent;
 use crate::types::Ffom;
 use crate::types::HardwareCondition;
+use crate::types::HoldoverCondition;
 use crate::types::HoldoverDuration;
 use crate::types::HoldoverWaitReason;
+use crate::types::OperationCondition;
 use crate::types::Position;
+use crate::types::PowerupCondition;
 use crate::types::Seconds;
 use crate::types::SmartClockMode;
 use crate::types::Tfom;
@@ -174,6 +177,20 @@ impl<T: Transport> Device<T> {
             .transpose()
     }
 
+    /// The temperature coefficient the receiver has learned for its
+    /// oscillator.  Undocumented.
+    ///
+    /// Unlike the temperature and the oven current, this is not a
+    /// measurement but a model: the receiver's own estimate of how the
+    /// crystal responds.  An estimate that moves over months is the
+    /// receiver saying the crystal has changed, which no instantaneous
+    /// reading shows.
+    pub fn oven_tempco(&mut self) -> Result<Option<f64>> {
+        self.ask_optional(CommandId::OvenTempco)?
+            .map(|l| parse::real(&l))
+            .transpose()
+    }
+
     /// EFC as the raw DAC code.  Undocumented.
     pub fn efc_dac(&mut self) -> Result<Option<u32>> {
         let Some(line) = self.ask_optional(CommandId::EfcAbsolute)? else {
@@ -185,14 +202,42 @@ impl<T: Transport> Device<T> {
 
     /// The hardware condition register.
     pub fn hardware_condition(&mut self) -> Result<HardwareCondition> {
-        let line = self.ask(CommandId::HardwareCondition)?;
-        let bits = parse::int(&line)?;
-        u16::try_from(bits)
+        self.register(CommandId::HardwareCondition)
             .map(HardwareCondition::from_bits)
-            .map_err(|_| Error::Parse {
-                reply: line,
-                expected: "a 16-bit register",
-            })
+    }
+
+    /// The operation condition register.
+    pub fn operation_condition(&mut self) -> Result<OperationCondition> {
+        self.register(CommandId::OperCondition)
+            .map(OperationCondition::from_bits)
+    }
+
+    /// The holdover condition register.
+    pub fn holdover_condition(&mut self) -> Result<HoldoverCondition> {
+        self.register(CommandId::HoldoverCondition)
+            .map(HoldoverCondition::from_bits)
+    }
+
+    /// The powerup condition register.
+    pub fn powerup_condition(&mut self) -> Result<PowerupCondition> {
+        self.register(CommandId::PowerupCondition)
+            .map(PowerupCondition::from_bits)
+    }
+
+    /// Read a status register as a bare 16-bit word.
+    ///
+    /// Condition registers only.  Reading an event register clears it,
+    /// which would take the latched bit away from whatever else is
+    /// watching and, through the summary bits, retract the receiver's
+    /// own alarm; a logger must not do that as a side effect of
+    /// logging.
+    fn register(&mut self, id: CommandId) -> Result<u16> {
+        let line = self.ask(id)?;
+        let bits = parse::int(&line)?;
+        u16::try_from(bits).map_err(|_| Error::Parse {
+            reply: line,
+            expected: "a 16-bit register",
+        })
     }
 
     /// Why the receiver has not left holdover.
@@ -343,6 +388,7 @@ impl<T: Transport> Device<T> {
         into.efc = Some(self.efc()?);
         into.hardware = Some(self.hardware_condition()?);
         into.holdover_waiting = Some(self.holdover_waiting()?);
+        into.time = Some(self.time()?);
         Ok(())
     }
 
@@ -353,6 +399,16 @@ impl<T: Transport> Device<T> {
         into.temperature = self.temperature()?;
         into.oven_current = self.oven_current()?;
         into.efc_dac = self.efc_dac()?;
+        // The subgroup condition registers.  A condition register is
+        // read in real time and holds nothing, so sampling one every
+        // ten seconds misses transitions -- the event registers catch
+        // those, and reading an event register clears it, which a
+        // logger has no business doing.  What survives a poll here is
+        // the receiver's steady state, which is what the history is
+        // for.
+        into.operation = Some(self.operation_condition()?);
+        into.holdover_state = Some(self.holdover_condition()?);
+        into.powerup = Some(self.powerup_condition()?);
         into.holdover_duration = Some(self.holdover_duration()?);
         into.holdover_predicted = self.holdover_predicted()?;
         into.holdover_present = self.holdover_present()?;
@@ -366,6 +422,7 @@ impl<T: Transport> Device<T> {
         let date = self.date(today)?;
         into.date = Some(date);
         into.log_count = Some(self.log_count()?);
+        into.oven_tempco = self.oven_tempco()?;
         Ok(())
     }
 }

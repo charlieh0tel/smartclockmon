@@ -22,10 +22,14 @@ use crate::snapshot::Snapshot;
 use crate::types::EfcPercent;
 use crate::types::Ffom;
 use crate::types::HardwareCondition;
+use crate::types::HoldoverCondition;
 use crate::types::HoldoverWaitReason;
+use crate::types::OperationCondition;
 use crate::types::Position;
+use crate::types::PowerupCondition;
 use crate::types::SmartClockMode;
 use crate::types::Tfom;
+use crate::types::TimeOfDay;
 
 /// One reading of a receiver, as clients see it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -51,6 +55,9 @@ pub struct Reading {
     pub temperature_c: Option<f64>,
     /// Oven current, as the receiver reports it.
     pub oven_current: Option<f64>,
+    /// The oscillator temperature coefficient the receiver has learned.
+    /// Units unknown; the trend is the point.
+    pub oven_tempco: Option<f64>,
     /// Hardware condition register.
     pub hardware: Option<HardwareCondition>,
     /// The faults that register names, decoded.
@@ -63,6 +70,32 @@ pub struct Reading {
     pub hardware_faults: Vec<String>,
     /// Why the receiver has not left holdover.
     pub holdover_waiting: Option<HoldoverWaitReason>,
+
+    /// Locked to GPS, from the operation condition register.
+    ///
+    /// The condition registers are decoded here and their raw words are
+    /// not sent: a bit position is only meaningful against the manual,
+    /// and a client showing "operation 90" has said nothing.  The words
+    /// themselves are kept in the log, where a later reader can go back
+    /// to them if a bit turns out to have been misread.
+    pub locked: Option<bool>,
+    /// Holding a surveyed position rather than surveying.
+    pub position_hold: Option<bool>,
+    /// The GPS 1 PPS is fit to discipline against.
+    pub reference_valid: Option<bool>,
+    /// The receiver's diagnostic log is near the point where it stops
+    /// recording.
+    pub log_almost_full: Option<bool>,
+    /// Coming out of holdover.
+    pub holdover_recovering: Option<bool>,
+    /// Holdover has run past its configured threshold.
+    pub holdover_exceeding_threshold: Option<bool>,
+    /// A satellite has been tracked since powerup.
+    pub first_satellite_tracked: Option<bool>,
+    /// The oscillator oven has warmed up since powerup.
+    pub oven_warm: Option<bool>,
+    /// The date and time were set at the first lock after powerup.
+    pub date_time_valid: Option<bool>,
     /// Whether it is in holdover now.
     pub holdover_active: Option<bool>,
     /// Time spent in holdover, in seconds.
@@ -76,6 +109,8 @@ pub struct Reading {
     pub position: Option<Position>,
     /// The receiver's date, with any rollover recorded.
     pub date: Option<ReceiverDate>,
+    /// UTC as the receiver reports it, as of the last fast poll.
+    pub time: Option<TimeOfDay>,
     /// Diagnostic log entry count.
     pub log_count: Option<i64>,
     /// The scraped status screen, the only source of per-satellite
@@ -104,18 +139,31 @@ impl From<&Snapshot> for Reading {
             efc_raw: s.efc_dac,
             temperature_c: s.temperature,
             oven_current: s.oven_current,
+            oven_tempco: s.oven_tempco,
             hardware: s.hardware,
             hardware_faults: s
                 .hardware
                 .map(|h| h.faults().map(|f| f.describe().to_owned()).collect())
                 .unwrap_or_default(),
             holdover_waiting: s.holdover_waiting,
+            locked: s.operation.map(OperationCondition::locked),
+            position_hold: s.operation.map(OperationCondition::position_hold),
+            reference_valid: s.operation.map(OperationCondition::reference_valid),
+            log_almost_full: s.operation.map(OperationCondition::log_almost_full),
+            holdover_recovering: s.holdover_state.map(HoldoverCondition::recovering),
+            holdover_exceeding_threshold: s
+                .holdover_state
+                .map(HoldoverCondition::exceeding_threshold),
+            first_satellite_tracked: s.powerup.map(PowerupCondition::first_satellite_tracked),
+            oven_warm: s.powerup.map(PowerupCondition::oven_warm),
+            date_time_valid: s.powerup.map(PowerupCondition::date_time_valid),
             holdover_active: s.holdover_duration.map(|h| h.active),
             holdover_seconds: s.holdover_duration.map(|h| h.elapsed.as_secs()),
             holdover_predicted_s: s.holdover_predicted.map(|v| v.as_secs()),
             holdover_present_s: s.holdover_present.map(|v| v.as_secs()),
             position: s.position,
             date: s.date,
+            time: s.time,
             log_count: s.log_count,
             screen: s.screen.clone(),
             polled: s.polled.clone(),

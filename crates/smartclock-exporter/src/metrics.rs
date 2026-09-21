@@ -86,6 +86,13 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
     maybe(&mut out, "oven_current", "Oven current", r.oven_current);
     maybe(
         &mut out,
+        "oven_tempco",
+        "Oscillator temperature coefficient as the receiver has learned it; \
+         units undocumented, so watch the trend and not the value",
+        r.oven_tempco,
+    );
+    maybe(
+        &mut out,
         "time_interval_seconds",
         "Interval between the receiver's 1 PPS and GPS",
         r.time_interval_ns.map(|ns| ns * 1e-9),
@@ -108,6 +115,49 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
         "Hardware condition register; 0 is healthy",
         r.hardware.map(|h| f64::from(h.bits())),
     );
+    // The condition registers, as the booleans they decode to.  A
+    // register exported as a number would need the manual and a
+    // bitwise expression in every alert that used it.
+    for (name, help, value) in [
+        ("locked", "1 while locked to GPS", r.locked),
+        (
+            "reference_valid",
+            "1 while the GPS 1 PPS is fit to discipline against",
+            r.reference_valid,
+        ),
+        (
+            "position_hold",
+            "1 while holding a surveyed position rather than surveying",
+            r.position_hold,
+        ),
+        (
+            "log_almost_full",
+            "1 when the receiver's diagnostic log is near the point where it stops recording",
+            r.log_almost_full,
+        ),
+        (
+            "oven_warm",
+            "1 once the oscillator oven has warmed up since powerup",
+            r.oven_warm,
+        ),
+        (
+            "date_time_valid",
+            "1 once the date and time were set at the first lock after powerup",
+            r.date_time_valid,
+        ),
+        (
+            "holdover_recovering",
+            "1 while coming out of holdover",
+            r.holdover_recovering,
+        ),
+        (
+            "holdover_exceeding_threshold",
+            "1 while holdover has run past its configured threshold",
+            r.holdover_exceeding_threshold,
+        ),
+    ] {
+        maybe(&mut out, name, help, value.map(|v| f64::from(u8::from(v))));
+    }
     maybe(
         &mut out,
         "holdover_active",

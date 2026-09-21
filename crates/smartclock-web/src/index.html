@@ -115,10 +115,12 @@ const LABELS = {
   efc_dac: ["EFC, raw counts", 1],
   temperature_c: ["Internal temperature, C", 1],
   oven_current: ["Oven current", 1],
+  oven_tempco: ["Oscillator tempco, learned", 1],
   time_interval_s: ["1 PPS TI, ns", 1e9],
   tfom: ["Time figure of merit", 1],
   ffom: ["Frequency figure of merit", 1],
 };
+const pad = (n) => String(n).padStart(2, "0");
 const label = (c) => (LABELS[c] ?? [c, 1])[0];
 const factor = (c) => (LABELS[c] ?? [c, 1])[1];
 const scaled = (values, c) =>
@@ -188,7 +190,14 @@ async function poll() {
     .map((at) => (Date.now() - Date.parse(at)) / 1000);
   const oldest = ages.length ? Math.max(...ages) : null;
 
+  // The receiver's own clock, not the browser's.  Shown as of the last
+  // fast poll rather than ticking: a clock animated between polls
+  // would be the page's arithmetic presented as the receiver's time.
+  const utc = s.time
+    ? `${pad(s.time.hour)}:${pad(s.time.minute)}:${pad(s.time.second)}`
+    : "--";
   const stats = [
+    ["receiver UTC", utc],
     ["mode", s.mode ?? "--"],
     ["TFOM / FFOM", `${s.tfom ?? "--"} / ${s.ffom ?? "--"}`],
     ["EFC", s.efc === null || s.efc === undefined ? "--" : fmt(s.efc, 3) + "%"],

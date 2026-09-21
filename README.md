@@ -60,6 +60,24 @@ otherwise looks like a remarkably steady oscillator: every other value
 stays exactly where it was.  A reading the receiver declined is left out
 rather than exported as zero.
 
+The daemon also copies out what the receiver writes down for itself.
+Its error queue is drained once a minute and every entry recorded, which
+matters because reading an entry removes it and a queue left alone
+eventually discards what it holds; its diagnostic log, 222 entries deep
+and no deeper, is copied entry by entry into the same database, newest
+first and then backwards through whatever was already there.  Neither
+survives being left where it is, and between them they are the
+receiver's own account of its faults.
+
+Every row says which receiver it came from.  A `receiver` table holds
+one row per unit that has written to the file, keyed on the serial from
+`*IDN?` -- the serial alone, because firmware changes under it and an
+upgrade is not a different instrument -- and the snapshots, satellites,
+errors, diagnostic log entries and audit trail all carry its id.  A
+bench where units are swapped otherwise accumulates two oscillators'
+history in one file with no way to tell the rows apart, which makes
+every long-run comparison in it a comparison between two crystals.
+
 `smartclockmon --device ...` talks to the receiver directly, which needs
 the daemon stopped and records no history; the header says so.
 

@@ -8,9 +8,11 @@
 mod audit;
 
 mod db;
+mod journal;
 mod server;
 
 use crate::audit::Audit;
+use crate::journal::Journal;
 use crate::server::Policy;
 
 #[cfg(unix)]
@@ -25,6 +27,7 @@ use std::sync::mpsc::Sender;
 use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
+use std::time::Instant;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -127,6 +130,15 @@ const CONFIGURATION_ERROR: i32 = 2;
 /// How long to wait before reopening a receiver that went away.
 const RECONNECT_DELAY: Duration = Duration::from_secs(5);
 
+/// How long after startup the receiver's own records are first read.
+const FIRST_JOURNAL: Duration = Duration::from_secs(5);
+
+/// How often they are read after that.
+///
+/// The error queue is one query when it is empty, which is nearly
+/// always, so this costs almost nothing on a healthy receiver.
+const JOURNAL_EVERY: Duration = Duration::from_secs(60);
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let baud = BaudRate::new(cli.baud).with_context(|| {
@@ -155,8 +167,25 @@ fn main() -> Result<()> {
     // First line in the journal, so "which build is running" is
     // answerable from the logs alone rather than by finding the binary.
     eprintln!("smartclockd: version {}", smartclock::VERSION);
+    let (errors, entries) = log.journal_counts()?;
+    // Said at startup rather than left to be discovered in SQL: a log
+    // holding two units' history is a thing to know before reading any
+    // trend out of it.
+    let receivers = log.receivers()?;
+    if receivers.len() > 1 {
+        eprintln!(
+            "smartclockd: this log holds history from {} receivers: {}",
+            receivers.len(),
+            receivers
+                .iter()
+                .map(|(serial, model)| format!("{model} {serial}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
     eprintln!(
-        "smartclockd: log at {} holds {} snapshots and {} commands",
+        "smartclockd: log at {} holds {} snapshots, {} commands, \
+         {errors} receiver errors and {entries} diagnostic log entries",
         cli.database.display(),
         log.count()?,
         log.audit_count()?
@@ -167,16 +196,58 @@ fn main() -> Result<()> {
     let shared = Shared::new();
     let (requests_tx, requests_rx) = channel();
 
+    // from_secs_f64 panics on a negative or non-finite value, so a
+    // typo in a flag would abort rather than being reported.
+    let cadence = Cadence {
+        fast: seconds(cli.fast, "--fast")?,
+        medium: seconds(cli.medium, "--medium")?,
+        slow: seconds(cli.slow, "--slow")?,
+    };
+    let policy = Policy {
+        control: cli.allow_control,
+        dangerous: cli.allow_dangerous,
+        raw: cli.allow_raw,
+    };
+    if policy.control || policy.dangerous || policy.raw {
+        eprintln!(
+            "smartclockd: clients may change the receiver (control {}, dangerous {}, raw {})",
+            policy.control, policy.dangerous, policy.raw
+        );
+    }
+    // Built here rather than where the receiver is opened, because the
+    // log thread needs the dialect too: the queries it sends are
+    // resolved through the same table as every other one, and which
+    // table that is only becomes known once a receiver has answered.
+    let database = cli.database.display().to_string();
+    let info: server::SharedInfo = Arc::new(Mutex::new(server::Info {
+        identity: String::new(),
+        dialect: Dialect::Hp58503,
+        database: database.clone(),
+        policy,
+        audit: Audit::new(audit_tx),
+        cadence: cadence.clone(),
+    }));
+
     // Writing the log is a subscriber, so a slow or failing write
     // cannot hold up the receiver -- but not an ordinary one.  An
     // ordinary subscriber that falls behind is dropped, and for the
     // thread that writes the history that means logging stops for good
     // while the daemon runs on saying nothing.
     let writes = shared.subscribe_lossless();
-    let database = cli.database.display().to_string();
+    // The journal reaches the receiver the way any client does, through
+    // the request queue, so it takes its turn between polls rather than
+    // interrupting one.
+    let journal_handle = Handle::new(requests_tx.clone(), shared.clone());
+    let journal_info = Arc::clone(&info);
     thread::Builder::new()
         .name("smartclockd-log".to_owned())
         .spawn(move || {
+            let mut journal = Journal::default();
+            let mut recorded: Option<String> = None;
+            // Soon after startup rather than immediately: the first
+            // pass wants a receiver that has answered, and the errors
+            // worth catching are the ones raised as it comes up.
+            let mut next_journal = Instant::now() + FIRST_JOURNAL;
             // Commands are recorded on the same thread as snapshots so
             // one connection stays one writer.  Waiting on whichever
             // arrives first, rather than draining commands only when a
@@ -187,6 +258,20 @@ fn main() -> Result<()> {
                 while let Ok(entry) = audit_rx.try_recv() {
                     if let Err(e) = log.audit(&entry.scpi, &entry.class, &entry.outcome, None) {
                         eprintln!("smartclockd: could not record a command: {e}");
+                    }
+                }
+                if Instant::now() >= next_journal {
+                    next_journal = Instant::now() + JOURNAL_EVERY;
+                    // Only while a receiver is answering.  Every one of
+                    // these queries would otherwise wait out its
+                    // timeout, and the audit entries behind them would
+                    // wait with it.
+                    let attached = journal_handle
+                        .latest()
+                        .is_some_and(|s| s.freshness != Freshness::Disconnected);
+                    if attached && recorded.is_some() {
+                        let dialect = server::lock_or_poisoned(&journal_info).dialect;
+                        journal.pass(&journal_handle, dialect, &mut log);
                     }
                 }
                 let snapshot = match writes.recv_timeout(AUDIT_POLL) {
@@ -209,6 +294,24 @@ fn main() -> Result<()> {
                 if snapshot.freshness == Freshness::Disconnected {
                     continue;
                 }
+                // Immediately before the row is written, not once a
+                // cycle: a snapshot can be published before the
+                // identity is known, and checking earlier left the
+                // first row of every run attributed to no receiver at
+                // all.  It costs a string compare per row.
+                let identity = server::lock_or_poisoned(&journal_info).identity.clone();
+                if !identity.is_empty() && recorded.as_ref() != Some(&identity) {
+                    match log.note_receiver(&identity) {
+                        Ok(others) if !others.is_empty() => eprintln!(
+                            "smartclockd: this log also holds rows from {}; \
+                             every row says which receiver it came from",
+                            others.join(", ")
+                        ),
+                        Ok(_) => {}
+                        Err(e) => eprintln!("smartclockd: could not note the receiver: {e}"),
+                    }
+                    recorded = Some(identity);
+                }
                 if let Err(e) = log.record(&snapshot) {
                     eprintln!("smartclockd: could not record a snapshot: {e}");
                 }
@@ -216,15 +319,7 @@ fn main() -> Result<()> {
         })
         .context("spawning the log thread")?;
 
-    supervise(
-        cli,
-        baud,
-        shared,
-        requests_tx,
-        requests_rx,
-        database,
-        Audit::new(audit_tx),
-    )
+    supervise(cli, baud, cadence, shared, requests_tx, requests_rx, info)
 }
 
 /// Keep a receiver open, reopening it whenever the link dies.
@@ -236,46 +331,17 @@ fn main() -> Result<()> {
 fn supervise(
     cli: Cli,
     baud: BaudRate,
+    cadence: Cadence,
     shared: Shared,
     requests_tx: Sender<Request>,
     requests_rx: Receiver<Request>,
-    database: String,
-    audit: Audit,
+    info: server::SharedInfo,
 ) -> Result<()> {
     let settings = Settings {
         path: cli.device.clone(),
         baud,
         read_timeout: Duration::from_millis(250),
     };
-    // from_secs_f64 panics on a negative or non-finite value, so a
-    // typo in a flag would abort rather than being reported.
-    let cadence = Cadence {
-        fast: seconds(cli.fast, "--fast")?,
-        medium: seconds(cli.medium, "--medium")?,
-        slow: seconds(cli.slow, "--slow")?,
-    };
-
-    let policy = Policy {
-        control: cli.allow_control,
-        dangerous: cli.allow_dangerous,
-        raw: cli.allow_raw,
-    };
-    if policy.control || policy.dangerous || policy.raw {
-        eprintln!(
-            "smartclockd: clients may change the receiver (control {}, dangerous {}, raw {})",
-            policy.control, policy.dangerous, policy.raw
-        );
-    }
-
-    let info: server::SharedInfo = Arc::new(Mutex::new(server::Info {
-        identity: String::new(),
-        dialect: Dialect::Hp58503,
-        database: database.clone(),
-        policy,
-        audit,
-        cadence: cadence.clone(),
-    }));
-
     let mut requests = requests_rx;
     let mut serving = false;
     loop {

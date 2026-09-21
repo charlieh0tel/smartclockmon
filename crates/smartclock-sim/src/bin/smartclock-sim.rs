@@ -21,6 +21,15 @@ fn main() -> std::io::Result<()> {
         .nth(1)
         .unwrap_or_else(|| "127.0.0.1:5025".to_owned());
     let faulty = std::env::args().any(|a| a == "--faulty");
+    // Errors the receiver is to have raised by itself, as
+    // `--queue-error -313,"Calibration memory lost"`.  Seeded per
+    // client, since each client gets its own receiver.
+    let queued: Vec<(i32, String)> = std::env::args()
+        .skip_while(|a| a != "--queue-error")
+        .skip(1)
+        .take(1)
+        .filter_map(|a| parse_error(&a))
+        .collect();
 
     let listener = TcpListener::bind(&address)?;
     eprintln!(
@@ -39,11 +48,14 @@ fn main() -> std::io::Result<()> {
         };
         // Each client gets its own receiver, so one test cannot see
         // another's holdover.
-        let receiver = if faulty {
+        let mut receiver = if faulty {
             Receiver::faulty()
         } else {
             Receiver::default()
         };
+        for (code, message) in &queued {
+            receiver.queue_error(*code, message);
+        }
         thread::spawn(move || {
             if let Err(e) = serve(stream, SimTransport::new(receiver)) {
                 eprintln!("smartclock-sim: client ended: {e}");
@@ -51,6 +63,12 @@ fn main() -> std::io::Result<()> {
         });
     }
     Ok(())
+}
+
+/// `-313,Calibration memory lost` as a code and a message.
+fn parse_error(argument: &str) -> Option<(i32, String)> {
+    let (code, message) = argument.split_once(',')?;
+    Some((code.trim().parse().ok()?, message.trim().to_owned()))
 }
 
 /// Shuttle bytes between the socket and the simulated receiver.

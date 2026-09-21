@@ -18,6 +18,15 @@ fn integers_keep_their_leading_plus() {
 }
 
 #[test]
+fn the_learned_tempco_is_a_plain_real() {
+    // Read from the receiver in September 2026 and identical to the
+    // reading the phase 7 sweep took, which is the first evidence that
+    // this may be a stored calibration rather than a value the receiver
+    // keeps revising.
+    assert!((parse::real("-3.36500E+001").expect("real") + 33.65).abs() < 1e-9);
+}
+
+#[test]
 fn reals_arrive_in_scientific_notation() {
     assert!((parse::real("+3.60971E+001").expect("real") - 36.0971).abs() < 1e-9);
     assert!((parse::real("-4.1E-009").expect("real") + 4.1e-9).abs() < 1e-18);
@@ -117,6 +126,10 @@ fn the_identity_string_splits_into_four_fields() {
 #[test]
 fn the_reported_date_and_time_parse() {
     assert_eq!(parse::ymd("+2007,+2,+4").expect("date"), date(2007, 2, 4));
+    assert_eq!(
+        parse::hms("+16,+9,+55").expect("time").to_string(),
+        "16:09:55"
+    );
     assert_eq!(
         parse::hms("+20,+4,+31").expect("time").to_string(),
         "20:04:31"

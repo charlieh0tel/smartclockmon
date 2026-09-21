@@ -42,6 +42,31 @@ pub const MAX_ERRORS: usize = 32;
 const QUEUE_OVERFLOW_CODE: i32 = -350;
 const QUEUE_OVERFLOW_MESSAGE: &str = "Queue overflow";
 
+/// How many diagnostic log entries the simulated receiver holds.  The
+/// real one tops out at 222.
+const LOG_ENTRIES: i64 = 222;
+
+/// One diagnostic log entry in the receiver's own format:
+/// `"Log NNN: YYYYMMDD.HH:MM:SS: <message>"`.  097-59551-02 5-34.
+///
+/// The messages repeat in a short cycle rather than being all the same,
+/// so a reader that keys entries by their text rather than by their
+/// number is caught here instead of in the field.
+fn log_entry(entry: i64) -> String {
+    const MESSAGES: [&str; 4] = [
+        "Holdover started, not tracking GPS",
+        "Holdover ended",
+        "Position survey complete",
+        "Power on",
+    ];
+    let minute = entry % 60;
+    // Zero padded to three, as the instrument writes it.
+    format!(
+        "\"Log {entry:03}:20050727.06:{minute:02}:34: {}\"",
+        MESSAGES[(entry as usize) % MESSAGES.len()]
+    )
+}
+
 /// A status screen with plausible contents, in the layout firmware
 /// 3704-C uses: an `SS` column and underscore padding.
 const SCREEN: &str = include_str!("screen.txt");
@@ -181,7 +206,7 @@ impl Receiver {
             return Answer::line(format!("{code:+},\"{message}\""));
         }
 
-        let (header, _argument) = split(command);
+        let (header, argument) = split(command);
         let found = self
             .dialect
             .specs()
@@ -189,9 +214,38 @@ impl Receiver {
             .find(|s| eq(s.scpi, command) || eq(s.scpi, header));
         match found {
             Some(_) if self.refuse_everything => self.reject(-113, "Undefined header"),
-            Some(spec) => self.answer(spec.id),
+            Some(spec) => self.answer(spec.id, argument),
             None => self.reject(-113, "Undefined header"),
         }
+    }
+
+    /// Put an error in the queue that no command of ours caused.
+    ///
+    /// The receiver raises errors on its own -- a failed self test, a
+    /// reference lost -- and those are the ones worth having, because
+    /// an error raised by a command we sent is read back by the session
+    /// to explain that command's failure and never reaches the queue
+    /// again.  Seeding one is the only way to exercise the code that
+    /// collects the rest.
+    pub fn queue_error(&mut self, code: i32, message: &str) {
+        self.errors.push_back((code, message.to_owned()));
+    }
+
+    /// The operation condition register this receiver would report.
+    ///
+    /// Assembled from the state the simulator already keeps rather than
+    /// stored separately, so it cannot disagree with the mode and the
+    /// holdover flag that the other commands answer from.
+    fn operation_bits(&self) -> u16 {
+        const POWERUP_SUMMARY: u16 = 1;
+        const LOCKED: u16 = 1 << 1;
+        const POSITION_HOLD: u16 = 1 << 3;
+        const REFERENCE_VALID: u16 = 1 << 4;
+        let mut bits = POWERUP_SUMMARY | POSITION_HOLD;
+        if !self.holdover {
+            bits |= LOCKED | REFERENCE_VALID;
+        }
+        bits
     }
 
     /// Nudge the values a little, so nothing reads as a constant.
@@ -244,7 +298,7 @@ impl Receiver {
         }
     }
 
-    fn answer(&mut self, id: CommandId) -> Answer {
+    fn answer(&mut self, id: CommandId, argument: &str) -> Answer {
         // Through the library's own conversion rather than a second
         // copy of the arithmetic, or the simulator could disagree with
         // the code it exists to test.
@@ -289,10 +343,25 @@ impl Receiver {
             }
             CommandId::Date => Answer::line("+2007,+2,+4"),
             CommandId::Time => Answer::line("+20,+4,+31"),
-            CommandId::LogCount => Answer::line("+222"),
-            CommandId::LogRead | CommandId::LogOldest => {
-                Answer::line("\"Log 222:20050727.06:17:34: Holdover started, not tracking GPS\"")
+            CommandId::LogCount => Answer::line(format!("{:+}", LOG_ENTRIES)),
+            // Without an entry number this is the newest entry, with
+            // one it is that entry; the oldest has its own command.
+            CommandId::LogRead => {
+                let entry = argument.parse::<i64>().unwrap_or(LOG_ENTRIES);
+                if (1..=LOG_ENTRIES).contains(&entry) {
+                    Answer::line(log_entry(entry))
+                } else {
+                    self.reject(-222, "Data out of range")
+                }
             }
+            CommandId::LogOldest => Answer::line(log_entry(1)),
+            CommandId::OperCondition | CommandId::OperEvent => {
+                Answer::line(format!("{:+}", self.operation_bits()))
+            }
+            CommandId::HoldoverCondition | CommandId::HoldoverEvent => {
+                Answer::line(format!("{:+}", u16::from(self.holdover)))
+            }
+            CommandId::PowerupCondition => Answer::line("+7"),
             CommandId::SatTracking => Answer::line("+3,+4,+16,+26,+28,+31"),
             CommandId::SatTrackingCount => Answer::line("+6"),
             CommandId::SatVisible => Answer::line("+1,+3,+4,+6,+9,+16,+26,+28,+31"),

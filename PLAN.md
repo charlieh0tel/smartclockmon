@@ -16,8 +16,10 @@ and a TUI client.  A GUI is possible later but is not planned.
 | 5 | The monitor, with history graphs | done |
 | 6 | Control commands, audit trail, raw console | done |
 | 7 | Generated command matrix, deployment notes | done; protocol notes not written |
+| 8 | Prometheus exporter, browser view | done |
+| 9 | The receiver's own records: error queue, diagnostic log, condition registers | done |
 
-151 tests, none needing hardware.  `make ci` is what CI runs; `make
+159 tests, none needing hardware.  `make ci` is what CI runs; `make
 test-hw` is the hardware-only set and CI never runs it.
 
 Installed from the package and running as a service against the
@@ -322,6 +324,74 @@ and starts sending SCPI at it, which is the one thing this project's
 rules are written to prevent.  The packaged configuration ships the
 setting commented out, so a fresh install fails to start and says why.
 
+### The receiver's own records
+
+Three things the receiver keeps that the telemetry does not cover, all
+added after asking what could be recorded and was not.
+
+**The error queue is drained and written down.**  `:SYSTem:ERRor?`
+*removes* the entry it returns, so the queue is not a view of anything:
+whatever is not read is eventually discarded to make room.  The session
+already read one entry after each failed command, to turn an error
+prompt into a typed error, but that entry was used to explain the
+failure and then dropped, and nothing at all read an error the receiver
+raised on its own.  Those are the ones worth having.
+
+**The diagnostic log is copied out entry by entry.**  The count was
+already polled, which recorded that seven things had happened and never
+what.  `:DIAG:LOG:READ:ALL?` returns the lot in one reply, which for a
+full log is about 56 KB and half a minute of wire time -- too much to do
+between two snapshots -- so the copy is `:DIAG:LOG:READ? <n>`, sixteen
+entries a pass, new ones first and then backwards through the history
+that was already there.  Entries are stored by content rather than by
+number, because clearing the log restarts the numbering and the same
+number then means a different entry.
+
+**Condition registers, not event registers.**  The hardware condition
+register was the only one read.  The operation, holdover and powerup
+condition registers are now read with it, which is free of side effects:
+a condition register is live and holds nothing.  Their *event* registers
+are deliberately left alone.  An event register latches a transition and
+is cleared by reading it, so a logger reading one takes the transition
+away from anything else watching and, through the summary bits, retracts
+the receiver's own alarm.  Catching transitions is not worth silently
+disarming the front panel.
+
+`:STATus:QUEStionable:CONDition?` is skipped for a different reason: its
+only condition bit is the one the user sets themselves, and the bit that
+carries information -- Time Reset, the receiver having found its clock
+disagreed with the satellites -- is event-only.  There is no
+side-effect-free way to read it.  097-59551-02 5-39.
+
+All of this runs on the thread that owns the database, reaching the
+receiver through the ordinary request queue, rather than in the poll
+schedule.  It is the only arrangement with no window in which an entry
+has been taken from the receiver and not yet written down: reading is
+what removes it, and a channel between the read and the write is a gap
+a shutdown can lose it in.
+
+### Rows belong to a receiver, not to a file
+
+The log recorded no trace of its own subject: the identity was printed
+to the journal at startup and kept nowhere that travelled with the data,
+so a file handed to someone else did not say what it was a log of.  The
+first fix was a metadata key, which was not a fix.  It answered "which
+receiver wrote here most recently" when the question is "which receiver
+wrote *this row*", and on a bench where units are swapped those differ.
+Two oscillators' history in one file, indistinguishable, reads as one
+oscillator with a step in it.
+
+So: a `receiver` table, one row per unit, and a `receiver_id` on every
+table that is per-unit.  Keyed on the serial alone.  Keying on the whole
+of `*IDN?` -- the first attempt -- reports a firmware upgrade as a
+different receiver, which is a false alarm on the single most likely
+event.  Firmware is recorded as last seen, so the row describes what is
+on the unit now rather than what was on it first.
+
+Rows written before any of this existed keep a NULL id.  Backfilling
+them with the receiver attached today would put one unit's history under
+another's name, which is the failure this exists to prevent.
+
 ### Storage: SQLite
 
 Chosen over JSONL because EFC and holdover trending means range queries
@@ -343,10 +413,11 @@ Tiers, to be measured against hardware before being fixed:
 
 | Tier  | Contents                                                    |
 | ----- | ----------------------------------------------------------- |
-| ~1 s  | `:SYNC:TINT?`, `:SYNC:TFOM?`, `:SYNC:FFOM?`, `:DIAG:ROSC:EFC:REL?`, `:STAT:OPER:HARD:COND?`, `:SYNC:STATE?` |
+| ~1 s  | `:SYNC:TINT?`, `:SYNC:TFOM?`, `:SYNC:FFOM?`, `:DIAG:ROSC:EFC:REL?`, `:STAT:OPER:HARD:COND?`, `:SYNC:STATE?`, `:PTIM:TIME?` |
 | ~10 s | `:SYST:STAT?` (satellite table, health line), holdover duration and uncertainty |
-| ~60 s | position, leap second state, lifetime count                 |
-| event | `:DIAG:LOG:COUNT?` change -> `:DIAG:LOG:READ:ALL?`           |
+| ~60 s | position, date, diagnostic log count, learned oscillator tempco |
+|       | The receiver's UTC is on the fast tier, not with the date: a clock read once a minute and shown as a clock is wrong for the other fifty-nine seconds. |
+| ~60 s | the error queue and any new diagnostic log entries, off the schedule; see below |
 
 A control request arriving on the socket must be able to preempt a
 scheduled status screen read.
