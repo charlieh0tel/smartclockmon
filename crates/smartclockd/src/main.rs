@@ -300,16 +300,10 @@ fn supervise(
         // Refreshed on every open, so clients are told about the
         // receiver that is actually attached and their commands are
         // gated against its command table.
-        match info.lock() {
-            Ok(mut current) => {
-                current.identity = identity.clone();
-                current.dialect = device.dialect();
-            }
-            Err(poisoned) => {
-                let mut current = poisoned.into_inner();
-                current.identity = identity.clone();
-                current.dialect = device.dialect();
-            }
+        {
+            let mut current = server::lock_or_poisoned(&info);
+            current.identity = identity.clone();
+            current.dialect = device.dialect();
         }
 
         // The socket opens only once a receiver has answered, so a

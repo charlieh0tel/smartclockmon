@@ -28,6 +28,7 @@ use interprocess::local_socket::prelude::*;
 use smartclock::command::Argument;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
+use smartclock::command::Spec;
 use smartclock::task::Cadence;
 use smartclock::task::Handle;
 
@@ -101,6 +102,16 @@ impl Policy {
 /// Z3801A on the same by-id path, and the gate reads the wrong command
 /// table.
 pub(crate) type SharedInfo = Arc<Mutex<Info>>;
+
+/// Take a lock, poisoned or not.
+///
+/// A poisoned `Info` means some thread panicked while holding it, not
+/// that the contents are wrong -- it is a receiver's identity and a set
+/// of flags, all written whole.  Refusing to serve because of it would
+/// turn one panicked client thread into a daemon that answers nobody.
+pub(crate) fn lock_or_poisoned<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 /// What the daemon tells a client about itself.
 #[derive(Debug, Clone)]
@@ -258,14 +269,14 @@ fn talk(stream: Stream, handle: &Handle, info: &SharedInfo) -> Result<()> {
         if line.trim().is_empty() {
             continue;
         }
-        // Read per request, so a reconnect to a different receiver
-        // takes effect for the next command rather than at restart.
-        let current = match info.lock() {
-            Ok(guard) => guard.clone(),
-            Err(poisoned) => poisoned.into_inner().clone(),
-        };
+        // Parse before locking, and hold the guard only across the
+        // request itself: cloning the whole Info -- two Strings, the
+        // policy and the audit handle -- per request line bought
+        // nothing, since the lock is uncontended except at reconnect.
+        // Read per request rather than per connection, so a reconnect
+        // to a different receiver takes effect for the next command.
         let reply = match serde_json::from_str::<Request>(&line) {
-            Ok(request) => handle_request(request, handle, &current),
+            Ok(request) => handle_request(request, handle, &lock_or_poisoned(info)),
             Err(e) => Message::err(String::new(), format!("malformed request: {e}")),
         };
         write_line(&writer, &reply)?;
@@ -319,9 +330,11 @@ fn send(id: String, scpi: &str, handle: &Handle, info: &Info) -> Message {
     if let Err(why) = well_formed(scpi) {
         return Message::err(id, why);
     }
-    let (class, to_send) = match classify(scpi, info.dialect) {
-        Some(found) => found,
-        None if info.policy.raw => (raw_class(scpi), scpi.to_owned()),
+    // A command the table knows brings its spec with it; one it does
+    // not has no argument rules to check, only a guessed class.
+    let (spec, class, to_send) = match classify(scpi, info.dialect) {
+        Some((spec, to_send)) => (Some(spec), spec.class, to_send),
+        None if info.policy.raw => (None, raw_class(scpi), scpi.to_owned()),
         None => {
             return Message::err(
                 id,
@@ -331,8 +344,10 @@ fn send(id: String, scpi: &str, handle: &Handle, info: &Info) -> Message {
     };
     let to_send = to_send.as_str();
 
-    if let Err(why) = check_argument(scpi, info.dialect) {
-        return Message::err(id, why);
+    if let Some(spec) = spec {
+        if let Err(why) = check_argument(scpi, spec) {
+            return Message::err(id, why);
+        }
     }
     if !info.policy.allows(class) {
         return Message::err(
@@ -432,17 +447,17 @@ fn well_formed(scpi: &str) -> Result<(), String> {
 /// So the whole string is tried first, then the part before the first
 /// space as a header with the rest as its argument.  The table's
 /// spelling is what gets sent, so a client may use any casing.
-fn classify(scpi: &str, dialect: Dialect) -> Option<(Class, String)> {
+fn classify(scpi: &str, dialect: Dialect) -> Option<(&'static Spec, String)> {
     let specs = dialect.specs();
     if let Some(spec) = specs.iter().find(|s| s.scpi.eq_ignore_ascii_case(scpi)) {
-        return Some((spec.class, spec.scpi.to_owned()));
+        return Some((spec, spec.scpi.to_owned()));
     }
     let (header, argument) = scpi.split_once(char::is_whitespace)?;
     let argument = argument.trim();
     let spec = specs
         .iter()
         .find(|s| s.scpi.eq_ignore_ascii_case(header.trim()))?;
-    Some((spec.class, format!("{} {argument}", spec.scpi)))
+    Some((spec, format!("{} {argument}", spec.scpi)))
 }
 
 /// Check a command's argument against what the table permits.
@@ -452,23 +467,19 @@ fn classify(scpi: &str, dialect: Dialect) -> Option<(Class, String)> {
 /// a message naming the command and the bound, and an exchange that
 /// never happened rather than one recorded in the audit trail as a
 /// command that was sent and refused.
-fn check_argument(scpi: &str, dialect: Dialect) -> Result<(), String> {
-    let (header, argument) = match scpi.split_once(char::is_whitespace) {
-        Some((header, argument)) => (header.trim(), argument.trim()),
-        None => (scpi, ""),
-    };
-    let Some(spec) = dialect
-        .specs()
-        .iter()
-        .find(|s| s.scpi.eq_ignore_ascii_case(scpi) || s.scpi.eq_ignore_ascii_case(header))
-    else {
-        return Ok(());
-    };
+/// Takes the spec [`classify`] matched rather than looking one up
+/// again: two searches with slightly different rules could disagree
+/// about which entry a command is, and the gate must not be the place
+/// that happens.
+fn check_argument(scpi: &str, spec: &Spec) -> Result<(), String> {
     // An entry that carries its own argument, such as
     // ":GPS:POSition:SURVey:STATe ONCE", is already complete.
     if spec.scpi.eq_ignore_ascii_case(scpi) {
         return Ok(());
     }
+    let argument = scpi
+        .split_once(char::is_whitespace)
+        .map_or("", |(_, argument)| argument.trim());
 
     match spec.argument {
         Argument::Free => Ok(()),
@@ -541,7 +552,6 @@ fn write_line<W: Write>(writer: &Arc<Mutex<W>>, message: &Message) -> Result<()>
 #[cfg(test)]
 mod tests {
     use super::Policy;
-    use super::check_argument;
     use super::classify;
     use super::raw_class;
     use super::well_formed;
@@ -551,9 +561,19 @@ mod tests {
 
     const HP: Dialect = Dialect::Hp58503;
 
+    /// What `send` does: classify, then check the argument against the
+    /// spec classify matched, rather than looking one up a second time.
+    fn check_argument(scpi: &str, dialect: Dialect) -> Result<(), String> {
+        match classify(scpi, dialect) {
+            Some((spec, _)) => super::check_argument(scpi, spec),
+            None => Ok(()),
+        }
+    }
+
     #[test]
     fn a_command_with_no_argument_matches_whole() {
-        let (class, sent) = classify(":SYNChronization:TINTerval?", HP).expect("known");
+        let (spec, sent) = classify(":SYNChronization:TINTerval?", HP).expect("known");
+        let class = spec.class;
         assert_eq!(class, Class::Query);
         assert_eq!(sent, ":SYNChronization:TINTerval?");
     }
@@ -563,8 +583,9 @@ mod tests {
         // The regression this exists for.  The table holds the header
         // alone, so comparing whole strings made every command taking an
         // argument unreachable, and refused it as though it were a typo.
-        let (class, sent) =
+        let (spec, sent) =
             classify(":GPS:SATellite:TRACking:EMANgle 10", HP).expect("known with argument");
+        let class = spec.class;
         assert_eq!(class, Class::Control);
         assert_eq!(sent, ":GPS:SATellite:TRACking:EMANgle 10");
     }
@@ -573,7 +594,8 @@ mod tests {
     fn an_entry_carrying_its_own_argument_still_matches() {
         // :GPS:POSition:SURVey:STATe ONCE is one table entry, argument
         // and all, so the whole-string attempt has to come first.
-        let (class, sent) = classify(":GPS:POSition:SURVey:STATe ONCE", HP).expect("known");
+        let (spec, sent) = classify(":GPS:POSition:SURVey:STATe ONCE", HP).expect("known");
+        let class = spec.class;
         assert_eq!(class, Class::Control);
         assert_eq!(sent, ":GPS:POSition:SURVey:STATe ONCE");
     }
@@ -748,8 +770,9 @@ mod tests {
     fn matching_by_header_does_not_let_a_dangerous_command_through() {
         // The header form must not become a way to smuggle one past the
         // gate by appending a parameter.
-        let (class, _) =
+        let (spec, _) =
             classify(":SYSTem:COMMunicate:SERial1:BAUD 9600", HP).expect("known with argument");
+        let class = spec.class;
         assert_eq!(class, Class::Dangerous);
         assert!(!Policy::default().allows(class));
     }
