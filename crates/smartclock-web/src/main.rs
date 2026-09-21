@@ -90,6 +90,25 @@ fn json(result: Result<serde_json::Value>) -> Response {
     Response::ok("application/json; charset=utf-8", value.to_string())
 }
 
+/// Drop fields the page does not display.
+///
+/// This server has no authentication of its own -- the daemon's has
+/// always been the group on its socket, and a TCP port has no group --
+/// so whatever it serves is readable by anyone who can reach the port.
+/// The surveyed position gives the antenna's location to within a few
+/// metres, and the policy flags say which command classes are unlocked
+/// on a daemon that can strand a serial link.  Neither appears on the
+/// page, so neither needs to leave the machine.  The monitor and the
+/// command line tool still see both: they come through the socket,
+/// where group membership still means something.
+fn withhold(value: &mut serde_json::Value, fields: &[&str]) {
+    if let Some(object) = value.as_object_mut() {
+        for field in fields {
+            object.remove(*field);
+        }
+    }
+}
+
 /// How long an answer from the daemon is reused.
 ///
 /// The daemon polls the fast tier once a second, so a reading fetched
@@ -138,12 +157,21 @@ impl Cache {
 
     fn snapshot(&self, socket: &Path) -> Result<serde_json::Value> {
         Self::get(&self.latest, || {
-            Ok(Daemon::connect(socket)?.ask(Op::Latest)?)
+            let mut value = Daemon::connect(socket)?.ask(Op::Latest)?;
+            withhold(&mut value, &["position"]);
+            Ok(value)
         })
     }
 
     fn info(&self, socket: &Path) -> Result<serde_json::Value> {
-        Self::get(&self.info, || Ok(Daemon::connect(socket)?.info()?))
+        Self::get(&self.info, || {
+            let mut value = Daemon::connect(socket)?.info()?;
+            withhold(
+                &mut value,
+                &["allow_control", "allow_dangerous", "allow_raw", "database"],
+            );
+            Ok(value)
+        })
     }
 }
 
