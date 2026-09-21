@@ -1,3 +1,18 @@
+smartclockmon (0.2.0-1) unstable; urgency=low
+
+  * New: smartclock-exporter, Prometheus metrics served from the
+    daemon's own readings, so a scrape costs the receiver nothing.  A
+    reading the receiver declined is left out rather than exported as
+    zero, and the age of each poll tier is exported so that a daemon
+    which has stopped polling cannot pass for a steady oscillator.
+  * The monitor's ASCII mode is gone: ratatui draws chart axes with
+    box-drawing glyphs a caller cannot replace, so the fallback could
+    never have been complete.
+  * smartclock-cli --socket asks a running daemon instead of taking the
+    serial port, so queries and diagnose work while logging continues.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sun, 20 Sep 2026 22:46:20 -0700
+
 smartclockmon (0.1.1-1) unstable; urgency=low
 
   * No change to the software.  Release and CI workflow only: a release
