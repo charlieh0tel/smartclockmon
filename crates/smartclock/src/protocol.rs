@@ -1,23 +1,28 @@
 //! The client protocol: newline-delimited JSON over a local socket.
 //!
+//! In the library rather than in the daemon because more than one
+//! program speaks it: the daemon serves it, and the monitor and the
+//! command line tool both talk to it.
+//!
 //! Debuggable with `socat`, and not tied to Rust on either end.  The
 //! stream is multiplexed -- snapshots arrive unsolicited while replies
 //! interleave -- so every request carries an id the reply echoes.
 
 use serde::Deserialize;
 use serde::Serialize;
-use smartclock::snapshot::Snapshot;
-use smartclock::wire::Reading;
+
+use crate::snapshot::Snapshot;
+use crate::wire::Reading;
 
 /// Bumped when the message shapes change.  Daemon and clients are
 /// upgraded separately, so both ends check it.
-pub(crate) const VERSION: u32 = 1;
+pub const VERSION: u32 = 1;
 
 /// A message from a client.
-#[derive(Debug, Clone, Deserialize)]
-pub(crate) struct Request {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Request {
     /// Protocol version the client speaks.
-    pub(crate) v: u32,
+    pub v: u32,
     /// Correlates the reply.  Echoed back verbatim.
     pub id: String,
     /// What to do.
@@ -25,13 +30,14 @@ pub(crate) struct Request {
 }
 
 /// What a client is asking for.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
-pub(crate) enum Op {
+pub enum Op {
     /// Send a read-only command and return its reply.
     Query {
-        /// The SCPI string.  Rejected unless the command table marks it
-        /// a query: control lands in phase 6.
+        /// The SCPI string.  What it is allowed to be depends on the
+        /// flags the daemon was started with, not on the name of this
+        /// variant.
         scpi: String,
     },
     /// Return the most recent snapshot without waiting.
@@ -41,15 +47,15 @@ pub(crate) enum Op {
 }
 
 /// A message from the daemon.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub(crate) enum Message {
+pub enum Message {
     /// An unsolicited reading.
     Event {
         /// Protocol version.
         v: u32,
         /// Always `snapshot`.
-        event: &'static str,
+        event: String,
         /// The reading.
         snapshot: Box<Reading>,
     },
@@ -70,16 +76,16 @@ pub(crate) enum Message {
 
 impl Message {
     /// Wrap a reading for broadcast.
-    pub(crate) fn event(snapshot: &Snapshot) -> Self {
+    pub fn event(snapshot: &Snapshot) -> Self {
         Self::Event {
             v: VERSION,
-            event: "snapshot",
+            event: "snapshot".to_owned(),
             snapshot: Box::new(Reading::from(snapshot)),
         }
     }
 
     /// A successful reply.
-    pub(crate) fn ok(id: String, value: serde_json::Value) -> Self {
+    pub fn ok(id: String, value: serde_json::Value) -> Self {
         Self::Reply {
             v: VERSION,
             id,
@@ -89,7 +95,7 @@ impl Message {
     }
 
     /// A failed reply.
-    pub(crate) fn err(id: String, why: impl std::fmt::Display) -> Self {
+    pub fn err(id: String, why: impl std::fmt::Display) -> Self {
         Self::Reply {
             v: VERSION,
             id,

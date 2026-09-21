@@ -4,7 +4,10 @@
 //! open once it exists, so it must be stopped before using this.
 
 use std::fs::File;
+use std::io::BufRead as _;
+use std::io::BufReader;
 use std::io::Write;
+use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -12,11 +15,20 @@ use anyhow::Context as _;
 use anyhow::Result;
 use clap::Parser;
 use clap::Subcommand;
+use interprocess::TryClone as _;
+use interprocess::local_socket::GenericFilePath;
+use interprocess::local_socket::Stream;
+use interprocess::local_socket::ToFsName as _;
+use interprocess::local_socket::traits::Stream as _;
 use jiff::Zoned;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
 use smartclock::device::Device;
 use smartclock::error::Error;
+use smartclock::protocol::Message;
+use smartclock::protocol::Op;
+use smartclock::protocol::Request;
+use smartclock::protocol::VERSION;
 use smartclock::session::Config;
 use smartclock::session::Session;
 use smartclock::transport;
@@ -24,6 +36,8 @@ use smartclock::transport::Transport;
 use smartclock::transport::serial::Settings;
 use smartclock::transport::tee::TeeTransport;
 use smartclock::types::BaudRate;
+use smartclock::types::Seconds;
+use smartclock::wire::Reading;
 
 #[derive(Parser)]
 #[command(about, version)]
@@ -47,6 +61,16 @@ struct Cli {
     /// Seconds to wait for a prompt.
     #[arg(long, default_value_t = 5.0, global = true)]
     timeout: f64,
+
+    /// Ask a running smartclockd instead of opening the port.
+    ///
+    /// The daemon holds the serial port for as long as it runs, so a
+    /// direct-mode tool has to be given `--device` with the daemon
+    /// stopped.  This talks to the daemon over its socket instead,
+    /// which leaves the logging running and is gated by whatever flags
+    /// the daemon was started with.
+    #[arg(long, conflicts_with_all = ["device", "capture"], global = true)]
+    socket: Option<PathBuf>,
 
     /// Record the whole exchange to this JSONL transcript.
     #[arg(long, global = true)]
@@ -96,6 +120,10 @@ fn main() -> Result<()> {
     if matches!(cli.command, Command::Commands) {
         print!("{}", smartclock::matrix::markdown());
         return Ok(());
+    }
+
+    if let Some(socket) = cli.socket.clone() {
+        return through_daemon(&socket, &cli.command);
     }
 
     let baud = BaudRate::new(cli.baud).with_context(|| {
@@ -429,4 +457,260 @@ fn probe<T: Transport>(session: &mut Session<T>, dialect: &str) -> Result<()> {
 
     println!("\n{answered} answered, {refused} refused, {failed} failed");
     Ok(())
+}
+
+/// Serve a subcommand from a running daemon rather than from the port.
+///
+/// Only the subcommands that make sense through another process: a
+/// query is one exchange, and diagnose is a rendering of state the
+/// daemon already holds.  `probe` and `sweep` send hundreds of commands
+/// and belong on a port of their own, with the daemon stopped.
+fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
+    let mut daemon = Daemon::connect(socket)?;
+    match command {
+        Command::Query { commands } => {
+            for one in commands {
+                let reply = daemon.query(one)?;
+                for line in reply {
+                    println!("{line}");
+                }
+            }
+            Ok(())
+        }
+        Command::Diagnose => daemon.diagnose(),
+        Command::Commands => {
+            print!("{}", smartclock::matrix::markdown());
+            Ok(())
+        }
+        Command::Probe { .. } | Command::Sweep { .. } => anyhow::bail!(
+            "probe and sweep send hundreds of commands and need the port to themselves; \
+             stop smartclockd and use --device"
+        ),
+    }
+}
+
+/// A connection to a running daemon.
+struct Daemon {
+    writer: Stream,
+    reader: BufReader<Stream>,
+    /// Distinguishes this client's replies from the snapshots that
+    /// arrive unasked on the same stream.
+    next_id: u32,
+}
+
+impl Daemon {
+    fn connect(socket: &Path) -> Result<Self> {
+        let name = socket
+            .to_fs_name::<GenericFilePath>()
+            .with_context(|| format!("{} is not a usable socket name", socket.display()))?;
+        let stream = Stream::connect(name).with_context(|| {
+            format!(
+                "connecting to {}; is smartclockd running, and are you in its group?",
+                socket.display()
+            )
+        })?;
+        let reader = BufReader::new(stream.try_clone()?);
+        Ok(Self {
+            writer: stream,
+            reader,
+            next_id: 0,
+        })
+    }
+
+    /// Send one request and wait for the reply that echoes its id.
+    ///
+    /// Snapshots arrive on the same stream whether or not anything was
+    /// asked, so anything that is not this request's reply is skipped
+    /// rather than mistaken for one.
+    fn ask(&mut self, op: Op) -> Result<serde_json::Value> {
+        self.next_id += 1;
+        let id = self.next_id.to_string();
+        let request = Request {
+            v: VERSION,
+            id: id.clone(),
+            op,
+        };
+        writeln!(self.writer, "{}", serde_json::to_string(&request)?)?;
+        self.writer.flush()?;
+
+        loop {
+            let mut line = String::new();
+            if self.reader.read_line(&mut line)? == 0 {
+                anyhow::bail!("the daemon closed the connection");
+            }
+            let message: Message = match serde_json::from_str(&line) {
+                Ok(message) => message,
+                // A message this version does not understand is not a
+                // reason to give up on the one being waited for.
+                Err(_) => continue,
+            };
+            match message {
+                Message::Reply {
+                    id: got, ok, err, ..
+                } if got == id => {
+                    return match (ok, err) {
+                        (Some(value), _) => Ok(value),
+                        (None, Some(why)) => anyhow::bail!("{why}"),
+                        (None, None) => anyhow::bail!("the daemon answered with neither"),
+                    };
+                }
+                _ => continue,
+            }
+        }
+    }
+
+    /// Send one command and return the lines it answered with.
+    fn query(&mut self, scpi: &str) -> Result<Vec<String>> {
+        let value = self.ask(Op::Query {
+            scpi: scpi.to_owned(),
+        })?;
+        let lines = value
+            .get("lines")
+            .and_then(|l| serde_json::from_value::<Vec<String>>(l.clone()).ok())
+            .unwrap_or_default();
+        Ok(lines)
+    }
+
+    /// Report the receiver's health from the daemon's own last reading.
+    ///
+    /// Sends nothing to the receiver.  The daemon polls all of this
+    /// anyway, so asking it again would cost link time and tell no one
+    /// anything new; the age of each tier is printed instead, so a
+    /// value that has not been refreshed says so.
+    fn diagnose(&mut self) -> Result<()> {
+        let info = self.ask(Op::Info)?;
+        let reading = self.ask(Op::Latest)?;
+        let reading: Reading =
+            serde_json::from_value(reading).context("the daemon's reading did not parse")?;
+        render(&info, &reading);
+        Ok(())
+    }
+}
+
+/// Print a daemon's reading in the shape `diagnose` prints.
+///
+/// The ages come from the reading's own per-tier state, so a field the
+/// daemon has not refreshed lately says so rather than looking current.
+fn render(info: &serde_json::Value, r: &Reading) {
+    let text = |key: &str| {
+        info.get(key)
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("unknown")
+    };
+    println!("{}", text("identity"));
+    line("dialect", text("dialect"));
+    line("source", &format!("daemon, reading taken {}", r.at));
+
+    println!("\nLock");
+    show_opt("mode", r.mode.as_ref().map(ToString::to_string));
+    show_opt(
+        "waiting to recover",
+        r.holdover_waiting.as_ref().map(ToString::to_string),
+    );
+    show_opt("TFOM", r.tfom.map(|v| v.to_string()));
+    show_opt("FFOM", r.ffom.map(|v| v.to_string()));
+    show_opt(
+        "1 PPS interval",
+        r.time_interval_ns.map(|v| format!("{v:+.1} ns")),
+    );
+
+    println!("\nOscillator");
+    show_opt("EFC", r.efc.map(|v| v.to_string()));
+    show_opt("temperature", r.temperature_c.map(|v| format!("{v:.2} C")));
+    show_opt("oven current", r.oven_current.map(|v| format!("{v:.1}")));
+    show_opt("EFC raw", r.efc_raw.map(|v| v.to_string()));
+    show_opt(
+        "hardware",
+        r.hardware.map(|condition| {
+            if condition.is_healthy() {
+                format!("no faults (register {})", condition.bits())
+            } else {
+                format!("register {}", condition.bits())
+            }
+        }),
+    );
+
+    println!("\nHoldover");
+    show_opt(
+        "state",
+        r.holdover_active.map(|active| {
+            let state = if active {
+                "in holdover"
+            } else {
+                "not in holdover"
+            };
+            format!("{state}, last {:.0} s", r.holdover_seconds.unwrap_or(0.0))
+        }),
+    );
+    // Through Seconds so the socket path scales the same way the
+    // direct path does: "432.0 us", not "0.0003212 s".
+    show_opt(
+        "predicted 24 h",
+        r.holdover_predicted_s.map(|v| Seconds::new(v).to_string()),
+    );
+    show_opt(
+        "present error",
+        r.holdover_present_s.map(|v| Seconds::new(v).to_string()),
+    );
+
+    println!("\nGPS");
+    match r.screen.as_ref() {
+        Some(screen) => {
+            show_opt(
+                "satellites",
+                screen
+                    .tracking
+                    .map(|n| format!("{n} tracked of {} in view", screen.satellites.len())),
+            );
+            if screen.satellites_suspect {
+                line("", "the table disagrees with these counts");
+            }
+        }
+        None => line("satellites", "unavailable: no status screen yet"),
+    }
+    match r.date.as_ref() {
+        Some(date) => match date.rollover() {
+            Some(slip) => {
+                line("date", &format!("{}  WRONG", date.raw()));
+                line(
+                    "",
+                    &format!(
+                        "{} after {} GPS week rollover(s), {} days",
+                        date.corrected(),
+                        slip.epochs,
+                        slip.days()
+                    ),
+                );
+                line("", "time of day, 1 PPS and 10 MHz are unaffected");
+            }
+            None => line("date", &date.raw().to_string()),
+        },
+        None => line("date", "unavailable"),
+    }
+
+    println!("\nLog");
+    show_opt("entries", r.log_count.map(|n| n.to_string()));
+
+    println!("\nFreshness");
+    for (tier, state) in [
+        ("fast", &r.polled.fast),
+        ("medium", &r.polled.medium),
+        ("slow", &r.polled.slow),
+    ] {
+        let text = match (&state.at, &state.error) {
+            (Some(at), None) => format!("last read {at}"),
+            (Some(at), Some(e)) => format!("last read {at}, then: {e}"),
+            (None, Some(e)) => format!("never read: {e}"),
+            (None, None) => "never read".to_owned(),
+        };
+        line(tier, &text);
+    }
+}
+
+/// Print a field the daemon may not have, saying so when it has not.
+fn show_opt(label: &str, value: Option<String>) {
+    match value {
+        Some(text) => line(label, &text),
+        None => line(label, "unavailable"),
+    }
 }

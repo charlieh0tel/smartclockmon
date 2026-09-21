@@ -8,7 +8,6 @@
 mod audit;
 
 mod db;
-mod proto;
 mod server;
 
 use crate::audit::Audit;

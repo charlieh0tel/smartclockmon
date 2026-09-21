@@ -34,10 +34,10 @@ use smartclock::task::Cadence;
 use smartclock::task::Handle;
 
 use crate::audit::Audit;
-use crate::proto::Message;
-use crate::proto::Op;
-use crate::proto::Request;
-use crate::proto::VERSION;
+use smartclock::protocol::Message;
+use smartclock::protocol::Op;
+use smartclock::protocol::Request;
+use smartclock::protocol::VERSION;
 use smartclock::wire::Reading;
 
 /// Longest request line accepted.
@@ -333,7 +333,7 @@ fn handle_request(request: Request, handle: &Handle, info: &Info) -> Message {
             id,
             serde_json::json!({
                 "identity": info.identity,
-                "dialect": format!("{:?}", info.dialect),
+                "dialect": info.dialect.name(),
                 "database": info.database,
                 "allow_control": info.policy.control,
                 "allow_dangerous": info.policy.dangerous,

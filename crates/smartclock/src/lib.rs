@@ -8,6 +8,7 @@ pub mod device;
 pub mod error;
 pub mod matrix;
 pub mod parse;
+pub mod protocol;
 pub mod rollover;
 pub mod screen;
 pub mod session;
