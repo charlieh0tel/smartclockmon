@@ -53,6 +53,14 @@ pub struct Reading {
     pub oven_current: Option<f64>,
     /// Hardware condition register.
     pub hardware: Option<HardwareCondition>,
+    /// The faults that register names, decoded.
+    ///
+    /// Decoded here rather than left to each client: the register is
+    /// the field that says the oscillator has railed, and a client
+    /// showing it as "hardware 192" has told the reader nothing.  The
+    /// bit table belongs with the receiver, not copied into every
+    /// program that displays it.
+    pub hardware_faults: Vec<String>,
     /// Why the receiver has not left holdover.
     pub holdover_waiting: Option<HoldoverWaitReason>,
     /// Whether it is in holdover now.
@@ -97,6 +105,10 @@ impl From<&Snapshot> for Reading {
             temperature_c: s.temperature,
             oven_current: s.oven_current,
             hardware: s.hardware,
+            hardware_faults: s
+                .hardware
+                .map(|h| h.faults().map(|f| f.describe().to_owned()).collect())
+                .unwrap_or_default(),
             holdover_waiting: s.holdover_waiting,
             holdover_active: s.holdover_duration.map(|h| h.active),
             holdover_seconds: s.holdover_duration.map(|h| h.elapsed.as_secs()),

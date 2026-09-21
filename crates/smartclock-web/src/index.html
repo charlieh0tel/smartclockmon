@@ -102,6 +102,11 @@ const RANGES = [
 // Label, and the factor that puts the column in units worth reading.
 // The interval is stored in seconds and is a few nanoseconds: plotted
 // as seconds, every axis tick rounds to 0.
+// The sky plot's dimensions, in pixels.
+const MARGIN = 20;      // room for the cardinal labels and a rim dot
+const DOT_MIN = 4;      // a satellite with no signal reading
+const DOT_RANGE = 7;    // added at the strongest signal in the frame
+
 const LABELS = {
   efc_percent: ["EFC, percent of range", 1],
   efc_dac: ["EFC, raw counts", 1],
@@ -127,6 +132,18 @@ let zoom = null;          // [from, to] once the user has dragged
 let column = view.get("column") ?? "efc_percent";
 
 const $ = (id) => document.getElementById(id);
+// Total: never rejects, never hangs.  A rejected fetch anywhere in the
+// boot sequence used to abort it before the polling timer was
+// installed, leaving the page stuck on "connecting..." until someone
+// reloaded it -- the one failure that needed a human.
+async function getJson(url) {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    return await response.json();
+  } catch (e) {
+    return { error: String(e) };
+  }
+}
 // Everything interpolated into innerHTML goes through this.  The values
 // are numbers and enums today, but they come from a string scraper over
 // a serial line, and one field becoming an Option<String> upstream
@@ -139,14 +156,19 @@ const fmt = (v, digits = 3) =>
 
 // ---------------------------------------------------------------- status
 
+let ticking = false;
 async function tick() {
-  let s;
+  if (ticking) return;
+  ticking = true;
   try {
-    s = await (await fetch("/api/snapshot")).json();
-  } catch {
-    lost("unreachable");
-    return;
+    await poll();
+  } finally {
+    ticking = false;
   }
+}
+
+async function poll() {
+  const s = await getJson("/api/snapshot");
   if (s.error) {
     lost("no daemon", s.error);
     return;
@@ -181,7 +203,12 @@ async function tick() {
           `<span class="stat"><span class="v">${esc(v)}</span><span class="k">${k}</span></span>`,
       )
       .join("") +
-    (s.hardware ? `<span class="pill down">hardware ${esc(s.hardware)}</span>` : "") +
+    (s.hardware_faults?.length
+      ? `<span class="pill down">${s.hardware_faults.map(esc).join(", ")}</span>`
+      : "") +
+    (s.screen?.satellites_suspect
+      ? `<span class="pill stale">satellite table disagrees with its own counts</span>`
+      : "") +
     (s.date?.rollover
       ? `<span class="pill stale">date ${esc(s.date.rollover.epochs)} epoch(s) behind, ${esc(s.date.raw)}</span>`
       : "");
@@ -207,7 +234,7 @@ function lost(what, why) {
 // table implies and never shows.
 function sky(screen) {
   const c = $("sky"), ctx = c.getContext("2d");
-  const w = c.width, h = c.height, cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - 14;
+  const w = c.width, h = c.height, cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - MARGIN;
   ctx.clearRect(0, 0, w, h);
   ctx.strokeStyle = "#2b3038";
   ctx.fillStyle = "#8b929c";
@@ -225,8 +252,13 @@ function sky(screen) {
     ctx.moveTo(cx, cy);
     ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
     ctx.stroke();
-    ctx.fillText(name, cx + (r + 9) * Math.cos(a), cy + (r + 9) * Math.sin(a) + 4);
+    ctx.fillText(name, cx + (r + 10) * Math.cos(a), cy + (r + 10) * Math.sin(a) + 4);
   }
+
+  const signals = (screen?.satellites ?? [])
+    .map((s) => s.signal)
+    .filter((v) => v != null && v > 0);
+  const strongest = signals.length ? Math.max(...signals) : 0;
 
   const rows = [];
   for (const sat of screen?.satellites ?? []) {
@@ -234,13 +266,27 @@ function sky(screen) {
     rows.push(`<tr><td>${sat.prn}</td><td>${sat.elevation ?? "--"}</td>` +
               `<td>${sat.azimuth ?? "--"}</td><td>${sat.signal ?? "--"}</td>` +
               `<td class="muted">${state}</td></tr>`);
-    if (sat.elevation === null || sat.azimuth === null) continue;
+    // Below the horizon, or a reading the scraper could not make sense
+    // of: either would land outside the plot.
+    if (
+      !Number.isFinite(sat.elevation) ||
+      !Number.isFinite(sat.azimuth) ||
+      sat.elevation < 0
+    ) {
+      continue;
+    }
     const a = (sat.azimuth - 90) * Math.PI / 180;
     const d = r * (90 - sat.elevation) / 90;
     const x = cx + d * Math.cos(a), y = cy + d * Math.sin(a);
-    // Size carries signal strength, colour carries state, so a strong
-    // tracked satellite and a weak one are told apart at a glance.
-    const size = sat.signal ? 4 + (sat.signal / 255) * 7 : 4;
+    // Scaled to the strongest satellite in this frame, because the
+    // receiver's own scale is undocumented and differs between models
+    // -- one reports 0 to 9, another 0 to 49.  Dividing by a fixed 255
+    // made every dot the same size, which is what this looked like
+    // before anyone measured it.
+    const size =
+      sat.signal == null || !strongest
+        ? DOT_MIN
+        : DOT_MIN + (sat.signal / strongest) * DOT_RANGE;
     ctx.beginPath();
     ctx.arc(x, y, size, 0, 2 * Math.PI);
     ctx.fillStyle = sat.tracked ? "#4ade80" : sat.acquiring ? "#fbbf24" : "#6b7280";
@@ -262,10 +308,12 @@ async function fetchSeries(col, from, to) {
   const q = new URLSearchParams({ column: col, points: 1500 });
   if (from) q.set("from", Math.round(from));
   if (to) q.set("to", Math.round(to));
-  return (await fetch("/api/history?" + q)).json();
+  return getJson("/api/history?" + q);
 }
 
+let generation = 0;
 async function draw() {
+  const mine = ++generation;
   if (!haveUplot) {
     $("note").textContent =
       "The chart library did not load. It comes from a CDN, so this page needs internet access; the readings above do not.";
@@ -276,6 +324,9 @@ async function draw() {
   else if (span) { to = Date.now() / 1000; from = to - span; }
 
   const main = await fetchSeries(column, from, to);
+  // A later draw has started; this one's data belongs to a column or a
+  // range nobody is looking at any more.
+  if (mine !== generation) return;
   if (main.error) { $("note").textContent = main.error; return; }
   $("note").textContent = main.at.length ? "" : "no readings in this range";
 
@@ -318,7 +369,11 @@ async function draw() {
   // voltage follow the oven, or the sky?
   if ($("compare").checked && column !== "temperature_c") {
     const other = await fetchSeries("temperature_c", main.from, main.to);
-    if (!other.error) {
+    if (mine !== generation) return;
+    // Only overlay a series bucketed the same way, or uPlot draws a
+    // silently misaligned comparison -- on the one chart where the
+    // comparison is the whole point.
+    if (!other.error && other.mean?.length === main.at.length) {
       series.push({ label: "temperature, C", stroke: "#fbbf24", width: 1.5, scale: "t", points: { show: false } });
       data.push(other.mean);
       axes.push({ scale: "t", side: 1, stroke: "#fbbf24", grid: { show: false } });
@@ -386,7 +441,7 @@ function buttons() {
 // ------------------------------------------------------------------ boot
 
 (async function () {
-  const info = await (await fetch("/api/info")).json();
+  const info = await getJson("/api/info");
   $("about").textContent = info.error
     ? info.error
     : [info.identity, info.dialect, `smartclockd ${info.version ?? "?"}`, "read only"]
