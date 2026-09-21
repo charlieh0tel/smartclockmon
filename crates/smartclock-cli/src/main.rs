@@ -256,7 +256,7 @@ fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
     show("TFOM", device.tfom().map(|v| v.to_string()));
     show("FFOM", device.ffom().map(|v| v.to_string()));
     show(
-        "1 PPS interval",
+        "1 PPS TI",
         device
             .time_interval()
             .map(|v| absent_or(v, |v| v.to_string())),
@@ -507,7 +507,7 @@ fn render(info: &serde_json::Value, r: &Reading) {
     show_opt("TFOM", r.tfom.map(|v| v.to_string()));
     show_opt("FFOM", r.ffom.map(|v| v.to_string()));
     show_opt(
-        "1 PPS interval",
+        "1 PPS TI",
         r.time_interval_ns.map(|v| format!("{v:+.1} ns")),
     );
 

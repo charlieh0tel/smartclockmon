@@ -99,15 +99,22 @@ const RANGES = [
   ["1h", 3600], ["6h", 21600], ["24h", 86400],
   ["7d", 604800], ["30d", 2592000], ["all", null],
 ];
+// Label, and the factor that puts the column in units worth reading.
+// The interval is stored in seconds and is a few nanoseconds: plotted
+// as seconds, every axis tick rounds to 0.
 const LABELS = {
-  efc_percent: "EFC, percent of range",
-  efc_dac: "EFC, raw counts",
-  temperature_c: "Temperature, C",
-  oven_current: "Oven current",
-  time_interval_s: "1 PPS interval, seconds",
-  tfom: "Time figure of merit",
-  ffom: "Frequency figure of merit",
+  efc_percent: ["EFC, percent of range", 1],
+  efc_dac: ["EFC, raw counts", 1],
+  temperature_c: ["Temperature, C", 1],
+  oven_current: ["Oven current", 1],
+  time_interval_s: ["1 PPS TI, ns", 1e9],
+  tfom: ["Time figure of merit", 1],
+  ffom: ["Frequency figure of merit", 1],
 };
+const label = (c) => (LABELS[c] ?? [c, 1])[0];
+const factor = (c) => (LABELS[c] ?? [c, 1])[1];
+const scaled = (values, c) =>
+  factor(c) === 1 ? values : values.map((v) => (v === null ? null : v * factor(c)));
 
 // The view is taken from the URL so a particular one can be kept: a
 // link to "EFC against temperature over the last day" is worth more
@@ -156,7 +163,7 @@ async function tick() {
     ["EFC", s.efc === null || s.efc === undefined ? "--" : fmt(s.efc, 3) + "%"],
     ["EFC raw", s.efc_raw ?? "--"],
     ["temperature", s.temperature_c === null ? "--" : fmt(s.temperature_c, 2) + " C"],
-    ["1 PPS", s.time_interval_ns === null ? "--" : fmt(s.time_interval_ns, 1) + " ns"],
+    ["1 PPS TI", s.time_interval_ns === null ? "--" : fmt(s.time_interval_ns, 1) + " ns"],
     ["tracking", s.screen?.tracking ?? "--"],
   ];
   $("status").innerHTML =
@@ -257,15 +264,22 @@ async function draw() {
     {},
     { label: "min", stroke: "#0e7490", width: 1, points: { show: false } },
     { label: "max", stroke: "#0e7490", width: 1, points: { show: false } },
-    { label: LABELS[column] ?? column, stroke: "#38bdf8", width: 1.5, points: { show: false } },
+    { label: label(column), stroke: "#38bdf8", width: 1.5, points: { show: false } },
   ];
-  const data = [main.at, main.min, main.max, main.mean];
+  const data = [
+    main.at,
+    scaled(main.min, column),
+    scaled(main.max, column),
+    scaled(main.mean, column),
+  ];
   // Wide enough for the longest label this column can produce.  The
   // default gutter silently clips instead of overflowing, which turned
   // an EFC of 712,793 into an axis reading 12,793 -- a plausible number,
   // wrong by seven hundred thousand.
   const widest = Math.max(
-    ...main.mean.filter((v) => v !== null).map((v) => v.toLocaleString().length),
+    ...scaled(main.mean, column)
+      .filter((v) => v !== null)
+      .map((v) => v.toLocaleString().length),
     4,
   );
   const axes = [
@@ -347,7 +361,7 @@ function buttons() {
 
   const first = await fetchSeries(column, null, null);
   $("column").innerHTML = (first.columns ?? [column])
-    .map((c) => `<option value="${c}">${LABELS[c] ?? c}</option>`)
+    .map((c) => `<option value="${c}">${label(c)}</option>`)
     .join("");
   $("column").value = column;
   $("compare").checked = view.get("compare") === "1";
