@@ -724,9 +724,10 @@ Suggest a commit at each phase boundary.
 2. Whether the receiver drives the oscillator's whole -5 V to +5 V input
    or a sliver of it.  See `docs/efc.md`: one paired reading is
    recorded, and a second once the count has moved settles it.
-3. Whether to install the daemon as a service.  The package builds and
-   the unit is written, but neither has been installed or tested, which
-   is also what phase 7's deployment notes wait on.
+3. Which other SmartClock variants are on hand.  The z3801 dialect has
+   56 entries with firmware evidence behind them and no hardware, so
+   until a Z3801A answers, that half of the table is spelling checked
+   against a keyword dump rather than behaviour.
 
 ## Known defects
 
@@ -736,6 +737,20 @@ decision above.
 
 Two things are deliberately not defended against, because the threat
 model is a careless operator on a single-operator machine and not an
-attacker: socket permissions are the whole of the authorization, and a
-client that can open the socket can occupy one of the sixteen
-connection slots.
+attacker.
+
+Socket permissions are the whole of the authorization: group membership
+decides who may connect, and whoever connects may issue whatever the
+daemon was started to allow.
+
+A client that connects and never speaks holds one of the sixteen slots
+until the process ends.  There is no read timeout because
+`interprocess` 2.4.4's portable `Stream` exposes no handle to set one
+on, so closing this would mean `socket2` and a `cfg(unix)` arm for
+`SO_RCVTIMEO` -- a dependency and platform-specific code in the part of
+the daemon that was written the way it was to stay portable.  A program
+that connects and goes silent is a bug in a program the operator wrote,
+and the daemon says so in the journal rather than failing quietly.  The
+half of this that was a real defect -- a client half-closing its sending
+side, releasing its slot, and leaving the push thread running -- is
+fixed and tested.
