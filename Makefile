@@ -54,7 +54,13 @@ clean:
 # point, --no-build means they are already there.
 deb:
 	$(CARGO) build --release --workspace
-	$(CARGO) deb -p smartclockd --no-build
+# -q suppresses three warnings that cargo-deb emits every time and that
+# nothing can act on: it only recognises asset paths beginning exactly
+# "target/release/", and from crates/smartclockd the three binaries are
+# at "../../target/release/".  It is telling us it will not build them,
+# which is right -- the line above did, and --no-build says so.  The
+# artifact path is still printed.
+	$(CARGO) deb -p smartclockd --no-build -q
 
 install-service:
 	install -m 0644 packaging/systemd/smartclockd.service /etc/systemd/system/
