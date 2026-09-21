@@ -224,12 +224,22 @@ impl Snapshot {
     /// column in the log alternated with it.  A snapshot is as current
     /// as its least current part.
     ///
+    /// A tier that has never been polled counts against it too.  Only
+    /// errors were considered at first, so a snapshot one fast poll old
+    /// -- with no sky, no position and no date, because those tiers had
+    /// not run yet -- called itself `Live`.  It has no error to report
+    /// and it is not current either.
+    ///
     /// `Disconnected` is not decided here.  It means the link itself is
     /// gone, which no tier's result can say on its own.
     pub fn settle_freshness(&mut self) {
-        self.freshness = match self.polled.any_error() {
-            Some(_) => Freshness::Stale,
-            None => Freshness::Live,
+        let every_tier_current = Tier::ALL.into_iter().all(|tier| {
+            self.polled.get(tier).at.is_some() && self.polled.get(tier).error.is_none()
+        });
+        self.freshness = if every_tier_current {
+            Freshness::Live
+        } else {
+            Freshness::Stale
         };
     }
 
@@ -249,6 +259,27 @@ mod tests {
     use super::Freshness;
     use super::Snapshot;
     use super::Tier;
+
+    #[test]
+    fn a_tier_that_has_never_run_is_not_current_either() {
+        // One fast poll in, there is no sky, no position and no date.
+        // Reporting that as Live because no tier had errored yet told a
+        // client the whole reading was current when two thirds of it
+        // did not exist.
+        let now = jiff::Timestamp::now();
+        let mut snapshot = Snapshot::new(now);
+        snapshot.polled.succeeded(Tier::Fast, now);
+        snapshot.settle_freshness();
+        assert_eq!(snapshot.freshness, Freshness::Stale);
+
+        snapshot.polled.succeeded(Tier::Medium, now);
+        snapshot.settle_freshness();
+        assert_eq!(snapshot.freshness, Freshness::Stale);
+
+        snapshot.polled.succeeded(Tier::Slow, now);
+        snapshot.settle_freshness();
+        assert_eq!(snapshot.freshness, Freshness::Live);
+    }
 
     #[test]
     fn one_tier_failing_makes_the_whole_snapshot_stale() {

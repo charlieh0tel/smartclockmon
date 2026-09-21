@@ -649,6 +649,12 @@ is this document's own principle broken by the scheduler.  Each tier
 now carries when it last succeeded and its own error, over the wire and
 into the log, and each pane shows the age of what it displays.
 
+A snapshot is `Live` only when every tier has succeeded and none is
+carrying an error, so the first minute after startup reads `Stale`:
+there is no sky, no position and no date yet, and saying otherwise told
+a client the whole reading was current when two thirds of it did not
+exist.
+
 The whole-snapshot flag survived that rework and went on contradicting
 it: still last-writer-wins, so with the medium tier failing and the fast
 tier fine it alternated `Live` and `Stale` every second, and the log's

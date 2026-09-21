@@ -537,3 +537,64 @@ fn a_receiver_that_only_refuses_is_not_a_dead_link() {
     drop(handle);
     joiner.join().expect("the device thread");
 }
+
+#[test]
+fn a_steady_stream_of_refreshes_does_not_starve_the_slow_tier() {
+    // Refresh sets every deadline to the same instant, so ties are the
+    // normal case rather than the exception.  Breaking them by tier
+    // order meant fast and medium took their turns and another refresh
+    // arrived before slow ever got one -- and a control command
+    // triggers a refresh, so a client issuing them steadily was enough
+    // to stop position and date being read at all.
+    let (handle, joiner) = task::spawn(
+        device(Receiver::default()),
+        Cadence {
+            fast: Duration::from_millis(20),
+            medium: Duration::from_millis(20),
+            slow: Duration::from_millis(20),
+        },
+    );
+    let updates = handle.subscribe();
+
+    let refresher = handle.clone();
+    let stop = Arc::new(AtomicBool::new(false));
+    let stopper = Arc::clone(&stop);
+    let spammer = std::thread::spawn(move || {
+        // No pause: the queue must never be empty, or a gap lets the
+        // other tiers through and the starvation cannot show.
+        while !stopper.load(Ordering::Relaxed) {
+            refresher.refresh();
+        }
+    });
+
+    // The slow tier carries position and date, so its timestamp moving
+    // is the proof it ran.
+    let mut slow_ran = false;
+    let until = std::time::Instant::now() + Duration::from_secs(3);
+    let mut first = None;
+    while std::time::Instant::now() < until {
+        let left = until.saturating_duration_since(std::time::Instant::now());
+        let Ok(snapshot) = updates.recv_timeout(left) else {
+            break;
+        };
+        match (first, snapshot.polled.slow.at) {
+            (None, at) => first = Some(at),
+            (Some(before), at) if at != before => {
+                slow_ran = true;
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    stop.store(true, Ordering::Relaxed);
+    spammer.join().expect("the refresher");
+    assert!(
+        slow_ran,
+        "the slow tier never ran while refreshes kept arriving"
+    );
+
+    drop(updates);
+    drop(handle);
+    joiner.join().expect("the device thread");
+}

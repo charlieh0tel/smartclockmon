@@ -20,6 +20,7 @@ use std::sync::mpsc::RecvTimeoutError;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::SyncSender;
 use std::sync::mpsc::TryRecvError;
+use std::sync::mpsc::TrySendError;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::sync_channel;
 use std::thread;
@@ -104,7 +105,7 @@ pub struct Shared {
     /// Watchers that may be dropped for falling behind.
     subscribers: Arc<Mutex<Vec<SyncSender<Snapshot>>>>,
     /// Watchers that may not: see [`Shared::subscribe_lossless`].
-    recorders: Arc<Mutex<Vec<Sender<Snapshot>>>>,
+    recorders: Arc<Mutex<Vec<SyncSender<Snapshot>>>>,
 }
 
 impl Shared {
@@ -134,18 +135,23 @@ impl Shared {
         rx
     }
 
-    /// Receive every snapshot, with no bound and no dropping.
+    /// Receive every snapshot, with a subscription that is never
+    /// dropped for falling behind.
     ///
     /// For the one subscriber whose job is to write the history down.
-    /// It runs in this process, so its queue is bounded by the daemon
-    /// staying alive rather than by a client's manners, and the cost of
-    /// getting it wrong is not symmetric: a watcher dropped for falling
-    /// behind reconnects, whereas the log writer dropped for a stall in
-    /// SQLite -- four contended writes at the five second busy timeout
-    /// will do it -- stops recording for good, with the daemon still
-    /// running and nothing saying so.
+    /// The asymmetry is the point: a watcher dropped for falling behind
+    /// reconnects, whereas the log writer dropped for a stall in SQLite
+    /// -- four contended writes at the five second busy timeout will do
+    /// it -- stops recording for good, with the daemon still running
+    /// and nothing saying so.
+    ///
+    /// The queue is still bounded, and generously: unbounded traded a
+    /// silent stop for an unbounded heap, which on a daemon meant to
+    /// run for months is the worse of the two.  A recorder this far
+    /// behind has something wrong with it that losing a snapshot will
+    /// not make worse, and [`Shared::publish`] says so out loud.
     pub fn subscribe_lossless(&self) -> Receiver<Snapshot> {
-        let (tx, rx) = channel();
+        let (tx, rx) = sync_channel(RECORDER_BACKLOG);
         self.recorders.lock().expect("recorder mutex").push(tx);
         rx
     }
@@ -161,12 +167,24 @@ impl Shared {
             .lock()
             .expect("subscriber mutex")
             .retain(|tx| tx.try_send(snapshot.clone()).is_ok());
-        // A recorder is only dropped when its receiver has gone, which
-        // means the thread that was writing the log has exited.
-        self.recorders
-            .lock()
-            .expect("recorder mutex")
-            .retain(|tx| tx.send(snapshot.clone()).is_ok());
+        // A recorder keeps its subscription whatever happens: it is
+        // only removed when its receiver has gone, which means the
+        // thread that was writing the log has exited.  A full queue
+        // costs this one snapshot and a complaint, not the recording of
+        // every snapshot after it.
+        self.recorders.lock().expect("recorder mutex").retain(|tx| {
+            match tx.try_send(snapshot.clone()) {
+                Ok(()) => true,
+                Err(TrySendError::Full(_)) => {
+                    eprintln!(
+                        "smartclock: the recorder is {RECORDER_BACKLOG} snapshots behind; \
+                         dropping this one"
+                    );
+                    true
+                }
+                Err(TrySendError::Disconnected(_)) => false,
+            }
+        });
     }
 
     /// Mark the last snapshot as no longer describing the receiver.
@@ -293,6 +311,14 @@ pub enum Stopped {
 /// second at 19200 -- and short next to an outage.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
+/// How many snapshots a recorder may fall behind before one is lost.
+///
+/// Far deeper than a watcher's backlog, because a recorder is never
+/// dropped and losing a snapshot means losing it from the history.  At
+/// the one-second tier this is about twenty minutes of stalled SQLite,
+/// which is a broken disk rather than a slow one.
+const RECORDER_BACKLOG: usize = 1024;
+
 /// How many queued commands are served before the schedule gets a turn.
 ///
 /// Enough that an interactive client is answered without waiting on a
@@ -326,6 +352,9 @@ pub struct DeviceTask<T: Transport> {
     requests: Receiver<Request>,
     /// When each tier is next due.
     due: [Instant; 3],
+    /// When each tier last ran, for breaking ties between equal
+    /// deadlines.  See [`DeviceTask::next_due`].
+    last_run: [Instant; 3],
     /// Consecutive failed polls.
     failures: u32,
     /// Set when a served command left the session mid-reply.
@@ -369,6 +398,7 @@ impl<T: Transport> DeviceTask<T> {
             shared,
             requests,
             due: [now, now, now],
+            last_run: [now, now, now],
             failures: 0,
             resync: false,
         }
@@ -386,9 +416,6 @@ impl<T: Transport> DeviceTask<T> {
     /// Poll and serve requests until the handles go or the link dies.
     pub fn run(&mut self) -> Stopped {
         loop {
-            let now = Instant::now();
-            let (tier, due) = self.next_due();
-
             // Serve what is waiting before running a due tier, but
             // only a bounded batch of it.  Polls used to take absolute
             // priority, so a tier as slow as its own period was always
@@ -418,6 +445,15 @@ impl<T: Transport> DeviceTask<T> {
                 }
             }
 
+            // Read the schedule after serving, not before.  Serving
+            // can outlast the wait that was computed before it, and a
+            // Refresh served in that batch moves every deadline, so a
+            // reading taken earlier describes a schedule that no longer
+            // exists: the task would sleep out a delay that had already
+            // expired on a tier that was by then overdue.
+            let now = Instant::now();
+            let (tier, due) = self.next_due();
+
             if due <= now {
                 if let Some(stopped) = self.run_tier(tier) {
                     return stopped;
@@ -442,10 +478,18 @@ impl<T: Transport> DeviceTask<T> {
 
     /// The tier that comes due soonest.
     fn next_due(&self) -> (Tier, Instant) {
+        // Ties go to whichever tier ran longest ago, not to whichever
+        // comes first in Tier::ALL.  A Refresh sets all three deadlines
+        // to the same instant, so ties are common, and a fixed order
+        // meant the slow tier could be passed over indefinitely: every
+        // refresh recreated the tie, fast and medium took their turns,
+        // and another refresh arrived before slow ever got one.  A
+        // control command triggers a refresh, so a client issuing them
+        // steadily was enough.
         Tier::ALL
             .into_iter()
             .map(|t| (t, self.due[t as usize]))
-            .min_by_key(|(_, at)| *at)
+            .min_by_key(|(t, at)| (*at, self.last_run[*t as usize]))
             .expect("at least one tier")
     }
 
@@ -478,6 +522,7 @@ impl<T: Transport> DeviceTask<T> {
         // the sampling of a drifting oscillator is uneven.  Clamped
         // forward when a poll overruns so a slow tier cannot accumulate
         // a backlog of missed deadlines.
+        self.last_run[tier as usize] = Instant::now();
         let cadence = self.cadence.of(tier);
         let slot = &mut self.due[tier as usize];
         *slot += cadence;
@@ -537,11 +582,14 @@ impl<T: Transport> DeviceTask<T> {
                 // out was executed regardless -- a holdover it thought
                 // had failed, initiated seconds later, recorded in the
                 // audit trail as "failed".
-                if Instant::now() >= deadline {
+                let expired = |answer: &SyncSender<Result<Reply>>| {
                     let _ = answer.send(Err(Error::Timeout {
                         waited: Duration::ZERO,
                         seen: "the caller stopped waiting before this was sent".to_owned(),
                     }));
+                };
+                if Instant::now() >= deadline {
+                    expired(&answer);
                     return None;
                 }
                 // A command served since the last exchange failed left
@@ -552,6 +600,14 @@ impl<T: Transport> DeviceTask<T> {
                         "the link failed while resynchronising",
                     )));
                     return Some(stopped);
+                }
+                // Again, because resynchronising talks to the receiver
+                // and can take as long as a whole exchange.  The check
+                // has to hold at the moment of transmission, not just
+                // when the request was picked up.
+                if Instant::now() >= deadline {
+                    expired(&answer);
+                    return None;
                 }
                 let outcome = self.device.session().query(&scpi);
                 // A failed command leaves the receiver's reply still
