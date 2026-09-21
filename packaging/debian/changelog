@@ -1,3 +1,27 @@
+smartclockmon (0.4.0-1) unstable; urgency=low
+
+  * Security: the exporter and the web view bounded nothing.  A
+    request line with no newline grew memory at wire speed from one
+    connection, and a connection that sent nothing held a thread for
+    the life of the process.  Both now cap the request, the number in
+    flight, and how long a client may take.  This matters for anyone
+    serving the web view on anything but localhost.
+  * The web view withholds the antenna position and the policy flags
+    from its HTTP responses; it never displayed them, and it has no
+    authentication of its own.
+  * The web view no longer opens a daemon connection per request, which
+    could take all sixteen of the daemon's client slots and lock out
+    the monitor and the command line tool.
+  * The chart latched into a zoom on every page load, which stopped the
+    history updating; the "all" range fetched one hour rather than all
+    of it; the hardware register showed as a bitmask rather than as the
+    fault it names; the sky plot kept showing satellites after the
+    daemon went away.
+  * Clients time out after twenty seconds on a daemon that has stopped
+    answering, rather than waiting for ever.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Mon, 21 Sep 2026 00:15:11 -0700
+
 smartclockmon (0.3.0-1) unstable; urgency=low
 
   * New: smartclock-web, a read-only browser view.  A polar sky plot, a
