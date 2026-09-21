@@ -28,8 +28,8 @@ keyword present here, so their spelling is confirmed even though no such
 receiver has been on the line.  Those are marked `evidence = "firmware"`.
 
 The exception is `:DIAGnostic:ERASe`, which belongs to the INSTALL
-language used for firmware download, not the PRIMARY language this image
-serves.  It stays `evidence = "manual"`.
+language used for firmware download, not the PRIMARY language this
+table serves.  It stays `evidence = "manual"`.
 
 The table gives the vocabulary, not the tree: which keyword nests under
 which would need the parser code, not its strings.
