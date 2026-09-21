@@ -74,11 +74,11 @@ The development unit is a 58503A with Option 001 (front-panel
 display/keypad), at 19200 8N1.  Its rear serial port is DB-25; the
 58503B uses DB-9.  It answers `*IDN?` with
 
-    HEWLETT-PACKARD,58503A,3710A01056,3704-C
+    HEWLETT-PACKARD,58503A,0000A00000,3704-C
 
 Its oscillator is an HP 10811-60159 (see `docs/OCXO.md`), and its GPS
-engine is a Motorola
-reporting `SOFTWARE DATE 06 Aug 1996`.  That engine is why the receiver
+engine is a Motorola reporting `MODEL # B4121P1115` and `SOFTWARE DATE
+06 Aug 1996`.  That engine is why the receiver
 reports a date 1024 weeks in the past: its firmware predates the GPS
 week rollovers of 1999 and 2019.  Time of day, 1 PPS and 10 MHz are
 unaffected.

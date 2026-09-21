@@ -144,7 +144,7 @@ fn most_of_the_z3801_tree_is_firmware_confirmed() {
 
 #[test]
 fn the_primary_tree_has_been_probed() {
-    // Phase 1 probed a 58503A (3710A01056, firmware 3704-C).  If this
+    // Phase 1 probed a 58503A (0000A00000, firmware 3704-C).  If this
     // drops to zero the table has been regenerated and lost its
     // provenance.
     let verified = Dialect::Hp58503

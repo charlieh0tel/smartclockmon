@@ -30,17 +30,17 @@ changes nothing, so a sweep is safe and settles the question.
 
 | Command | Operation | Found on |
 | ------- | --------- | -------- |
-| `:DIAGnostic:TEMPerature?` | temperature | 58503A 3710A01056 |
-| `:DIAGnostic:ROSCillator:CURRent?` | oven current | 58503A 3710A01056 |
-| `:DIAGnostic:ROSCillator:EFControl:ABSolute?` | efc absolute | 58503A 3710A01056 |
-| `:DIAGnostic:ROSCillator:TCOefficient?` | oven tempco | 58503A 3710A01056 |
-| `:DIAGnostic:IDENtification:GPSystem?` | gps engine identity | 58503A 3710A01056 |
-| `:DIAGnostic:IDENtification:DEFault?` | model identity | 58503A 3710A01056 |
-| `:DIAGnostic:GPSystem:TIME?` | gps engine time | 58503A 3710A01056 |
-| `:DIAGnostic:GPSystem:UTC?` | gps engine utc | 58503A 3710A01056 |
-| `:DIAGnostic:TOFFset?` | time offset | 58503A 3710A01056 |
-| `:DIAGnostic:ROSCillator:EFControl:DATA?` | efc data | 58503A 3710A01056 |
-| `:DIAGnostic:SLOG?` | log oldest | 58503A 3710A01056 |
+| `:DIAGnostic:TEMPerature?` | temperature | a 58503A |
+| `:DIAGnostic:ROSCillator:CURRent?` | oven current | a 58503A |
+| `:DIAGnostic:ROSCillator:EFControl:ABSolute?` | efc absolute | a 58503A |
+| `:DIAGnostic:ROSCillator:TCOefficient?` | oven tempco | a 58503A |
+| `:DIAGnostic:IDENtification:GPSystem?` | gps engine identity | a 58503A |
+| `:DIAGnostic:IDENtification:DEFault?` | model identity | a 58503A |
+| `:DIAGnostic:GPSystem:TIME?` | gps engine time | a 58503A |
+| `:DIAGnostic:GPSystem:UTC?` | gps engine utc | a 58503A |
+| `:DIAGnostic:TOFFset?` | time offset | a 58503A |
+| `:DIAGnostic:ROSCillator:EFControl:DATA?` | efc data | a 58503A |
+| `:DIAGnostic:SLOG?` | log oldest | a 58503A |
 
 ## Every command
 

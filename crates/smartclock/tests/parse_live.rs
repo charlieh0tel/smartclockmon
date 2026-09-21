@@ -1,5 +1,5 @@
-//! Parsers checked against replies recorded from a 58503A
-//! (3710A01056, firmware 3704-C) during phase 1 probing.
+//! Parsers checked against replies recorded from a 58503A running
+//! firmware 3704-C, during phase 1 probing.
 
 use jiff::civil::date;
 use smartclock::parse;
@@ -107,10 +107,10 @@ fn the_error_queue_entry_splits_into_code_and_text() {
 
 #[test]
 fn the_identity_string_splits_into_four_fields() {
-    let id = parse::identity("HEWLETT-PACKARD,58503A,3710A01056,3704-C").expect("identity");
+    let id = parse::identity("HEWLETT-PACKARD,58503A,0000A00000,3704-C").expect("identity");
     assert_eq!(id.manufacturer, "HEWLETT-PACKARD");
     assert_eq!(id.model, "58503A");
-    assert_eq!(id.serial, "3710A01056");
+    assert_eq!(id.serial, "0000A00000");
     assert_eq!(id.firmware, "3704-C");
 }
 

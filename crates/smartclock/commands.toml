@@ -1695,7 +1695,7 @@ doc = "Internal temperature in degrees Celsius."
   scpi = ":DIAGnostic:TEMPerature?"
   response = "seconds_or_real"
   models = ["58503A"]
-  cite = "discovered on 58503A 3710A01056"
+  cite = "discovered on a 58503A"
   evidence = "hardware"
 
 [[command]]
@@ -1707,7 +1707,7 @@ doc = "Oscillator oven current. Rises when the oven is heating."
   scpi = ":DIAGnostic:ROSCillator:CURRent?"
   response = "real"
   models = ["58503A"]
-  cite = "discovered on 58503A 3710A01056"
+  cite = "discovered on a 58503A"
   evidence = "hardware"
 
 [[command]]
@@ -1719,7 +1719,7 @@ doc = "Oscillator EFC as a raw 20-bit value; relative percent is value / 2^20 * 
   scpi = ":DIAGnostic:ROSCillator:EFControl:ABSolute?"
   response = "int"
   models = ["58503A"]
-  cite = "discovered on 58503A 3710A01056"
+  cite = "discovered on a 58503A"
   evidence = "hardware"
 
 [[command]]
@@ -1731,7 +1731,7 @@ doc = "Oscillator temperature coefficient as the receiver has learned it."
   scpi = ":DIAGnostic:ROSCillator:TCOefficient?"
   response = "real"
   models = ["58503A"]
-  cite = "discovered on 58503A 3710A01056"
+  cite = "discovered on a 58503A"
   evidence = "hardware"
 
 [[command]]
@@ -1743,7 +1743,7 @@ doc = "Identity of the internal GPS engine."
   scpi = ":DIAGnostic:IDENtification:GPSystem?"
   response = "string_list"
   models = ["58503A"]
-  cite = "discovered on 58503A 3710A01056"
+  cite = "discovered on a 58503A"
   evidence = "hardware"
 
 [[command]]
@@ -1755,7 +1755,7 @@ doc = "Receiver model and a two-letter code."
   scpi = ":DIAGnostic:IDENtification:DEFault?"
   response = "string_list"
   models = ["58503A"]
-  cite = "discovered on 58503A 3710A01056"
+  cite = "discovered on a 58503A"
   evidence = "hardware"
 
 [[command]]
@@ -1767,7 +1767,7 @@ doc = "Time and date straight from the GPS engine, before the receiver's own han
   scpi = ":DIAGnostic:GPSystem:TIME?"
   response = "hms_ymd"
   models = ["58503A"]
-  cite = "discovered on 58503A 3710A01056"
+  cite = "discovered on a 58503A"
   evidence = "hardware"
 
 [[command]]
@@ -1779,7 +1779,7 @@ doc = "Whether the GPS engine is applying the UTC correction."
   scpi = ":DIAGnostic:GPSystem:UTC?"
   response = "bool01"
   models = ["58503A"]
-  cite = "discovered on 58503A 3710A01056"
+  cite = "discovered on a 58503A"
   evidence = "hardware"
 
 [[command]]
@@ -1791,7 +1791,7 @@ doc = "Time offset applied to the 1 PPS, in seconds."
   scpi = ":DIAGnostic:TOFFset?"
   response = "real"
   models = ["58503A"]
-  cite = "discovered on 58503A 3710A01056"
+  cite = "discovered on a 58503A"
   evidence = "hardware"
 
 [[command]]
@@ -1803,7 +1803,7 @@ doc = "Undocumented EFC data word. Reads 0 on the development unit."
   scpi = ":DIAGnostic:ROSCillator:EFControl:DATA?"
   response = "int"
   models = ["58503A"]
-  cite = "discovered on 58503A 3710A01056"
+  cite = "discovered on a 58503A"
   evidence = "hardware"
 
 [[command]]
@@ -1815,5 +1815,5 @@ doc = "Oldest diagnostic log entry, where :DIAGnostic:LOG:READ? gives the newest
   scpi = ":DIAGnostic:SLOG?"
   response = "string"
   models = ["58503A"]
-  cite = "discovered on 58503A 3710A01056"
+  cite = "discovered on a 58503A"
   evidence = "hardware"

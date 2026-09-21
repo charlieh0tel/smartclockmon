@@ -110,7 +110,7 @@ impl Receiver {
 impl Default for Receiver {
     fn default() -> Self {
         Self {
-            identity: "HEWLETT-PACKARD,58503A,3710A01056,3704-C".to_owned(),
+            identity: "HEWLETT-PACKARD,58503A,0000A00000,3704-C".to_owned(),
             efc_raw: 713_587,
             temperature: 37.40,
             time_interval: -4.8e-9,

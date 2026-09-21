@@ -132,7 +132,7 @@ rest: an unknown header returns -113 and changes nothing, so a sweep is
 safe and definitive.  1,530 candidates over the `:DIAGnostic` subtree
 found fifteen commands, none of which appear in any manual here.
 
-| Command | Reading on 3710A01056 |
+| Command | Reading on the 58503A |
 | ------- | --------------------- |
 | `:DIAGnostic:TEMPerature?` | `+3.68550E+001`, degrees Celsius |
 | `:DIAGnostic:ROSCillator:CURRent?` | `+1.05882E+002`, oven current |

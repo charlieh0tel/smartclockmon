@@ -22,8 +22,8 @@ Between them they cover the cases a naive scraper gets wrong:
 
 ## From hardware
 
-`58503a-live-01.txt` was captured from the development unit (3710A01056,
-firmware 3704-C) during phase 1.  It differs from every manual sample in
+`58503a-live-01.txt` was captured from the development unit, a 58503A
+running firmware 3704-C, during phase 1.  It differs from every manual sample in
 ways that would have broken a scraper written only against them:
 
 - The satellite table's fourth column is headed `SS`, not `C/N`, and

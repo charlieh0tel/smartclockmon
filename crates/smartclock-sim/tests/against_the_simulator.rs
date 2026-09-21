@@ -41,7 +41,7 @@ fn the_session_frames_against_a_receiver_that_echoes_and_prompts() {
     // terminator.
     let device = device(Receiver::default());
     assert_eq!(device.identity().model, "58503A");
-    assert_eq!(device.identity().serial, "3710A01056");
+    assert_eq!(device.identity().serial, "0000A00000");
 }
 
 #[test]

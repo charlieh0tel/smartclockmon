@@ -1,7 +1,7 @@
 {"t": 0.250302059, "dir": "tx", "data": "\r\n"}
 {"t": 0.25242409, "dir": "rx", "data": "\r\nscpi >"}
 {"t": 0.256372616, "dir": "tx", "data": "*IDN?\r\n"}
-{"t": 0.25690477, "dir": "rx", "data": " *IDN?\r\nHEWLETT-PACKARD,58503A,3710A01056,3704-C\r\nscpi >"}
+{"t": 0.25690477, "dir": "rx", "data": " *IDN?\r\nHEWLETT-PACKARD,58503A,0000A00000,3704-C\r\nscpi >"}
 {"t": 0.305288049, "dir": "tx", "data": "*ESE?\r\n"}
 {"t": 0.305747108, "dir": "rx", "data": " *ESE?\r\n+0\r\nscpi >"}
 {"t": 0.31973233, "dir": "tx", "data": "*ESR?\r\n"}

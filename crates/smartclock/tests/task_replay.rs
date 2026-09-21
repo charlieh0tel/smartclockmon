@@ -35,7 +35,7 @@ fn device() -> Device<ReplayTransport> {
 fn the_recorded_receiver_identifies_itself() {
     let device = device();
     assert_eq!(device.identity().model, "58503A");
-    assert_eq!(device.identity().serial, "3710A01056");
+    assert_eq!(device.identity().serial, "0000A00000");
     assert_eq!(device.identity().firmware, "3704-C");
 }
 
