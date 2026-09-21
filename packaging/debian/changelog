@@ -1,3 +1,15 @@
+smartclockmon (0.3.0-1) unstable; urgency=low
+
+  * New: smartclock-web, a read-only browser view.  A polar sky plot, a
+    live status strip, and history you can drag to zoom, with any two
+    series on separate axes -- EFC against temperature being the one
+    that earns its keep.  Serves on localhost only; the chart library
+    is fetched from a CDN, pinned with an integrity hash.
+  * smartclock-exporter and smartclock-web each ship a systemd unit and
+    a conffile, both disabled until enabled.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sun, 20 Sep 2026 23:10:12 -0700
+
 smartclockmon (0.2.0-1) unstable; urgency=low
 
   * New: smartclock-exporter, Prometheus metrics served from the
