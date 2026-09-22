@@ -72,42 +72,47 @@ at the oscillator, the same two points each time.
 | 2026-09-20 22:41 | 50.77 mV | 713587 | +36.1061 % | 37.40 C |
 | 2026-09-21 01:52 | 55.5 mV  | 712820 | +35.9597 % | 36.04 C |
 | 2026-09-22 01:35 | 52.58 mV | 713269 | +36.0453 % | 39.86 C |
+| 2026-09-22 19:56 | 54.77 mV | 712948 | +35.9841 % | 36.86 C |
 
 Earlier, less precisely: about 52 mV at the coax and about 50 mV at the
 pin, both near raw 713352 to 713426.  Those are consistent with the
 first row and add nothing to the slope, since the count has barely
 moved.
 
-### What the three say
+### What the four say
 
 The third reading settles what the pair could not, by breaking the
 thing that made the pair ambiguous.  It was taken at 39.86 C, the
-hottest of the three and nearly four degrees above the second, and its
+hottest of the four and nearly four degrees above the second, and its
 voltage came out in the middle -- exactly where its count puts it.  Had
 temperature been driving the pin, the hottest point would have been the
 most extreme, and it is not.
 
-Fitting all three:
+The fourth was taken as a prediction rather than a measurement: its
+count of 712948 put the pin at 54.70 mV before the meter was read, and
+the meter said 54.77.  No reading is more than 0.12 mV off the line.
+
+Fitting all four:
 
 | Against | Slope | R^2 |
 | ------- | ----- | --- |
-| Raw count | -6.19 uV/count | 0.999 |
-| Temperature | -0.58 mV/C | 0.225 |
+| Raw count | -6.25 uV/count | 0.998 |
+| Temperature | -0.69 mV/C | 0.281 |
 
 The count explains the pin; the temperature does not.  The correlation
 of r = 0.79 across the whole log is real but is the count and the
 temperature drifting together over a day, not a causal path from the
 sensor to the pin.
 
-So the slope stands at **6.19 uV per count** over a 767 count span,
+So the slope stands at **6.25 uV per count** over a 767 count span,
 against 9.5 uV per count for a full -5 V to +5 V drive and 0.13 uV per
 count for a sliver.  The sliver mapping is out by a factor of 48 and is
 finished: the pin moves like something driven across volts.
 
-Two things from the pair survive into the triple.
+Two things from the pair survive into the rest.
 
 The sign is still backwards -- count up, voltage down -- and now
-consistently so across three points, which makes it a property of the
+consistently so across four points, which makes it a property of the
 path rather than noise in a pair.  Something inverts between the DAC
 and the pin.
 
@@ -115,8 +120,8 @@ And the absolute level is still wrong, in a way the confirmed slope
 makes worse rather than better.  At 36 percent the specification
 mapping puts the pin at +1.80 V; it reads 52 mV.  A divider scaling
 1.8 V to 50 mV would scale the slope by the same 36x, and the slope is
-not scaled: extrapolating 6.19 uV/count across the 20 bit range gives a
-6.49 V span, which is the right order for a real EFC drive and the
+not scaled: extrapolating 6.25 uV/count across the 20 bit range gives a
+6.55 V span, which is the right order for a real EFC drive and the
 wrong answer for the level measured on it.  Whatever explains 52 mV has
 to leave the slope alone, which rules out a plain divider.
 
@@ -169,7 +174,7 @@ Under the measured mapping there is far less: single-digit nanohertz
 per hertz of range, most of a year at best.
 
 These differ by more than an order of magnitude.  The third reading
-decides between them: at 6.19 uV per count the pin moves microvolts per
+decides between them: at 6.25 uV per count the pin moves microvolts per
 count, not tenths of a microvolt, and it does so independently of
 temperature, so the **specification mapping is the one to use** and the
 decade of headroom stands.  It is still a slope measured over 767 of
