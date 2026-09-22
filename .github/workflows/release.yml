@@ -19,14 +19,10 @@ jobs:
     with:
       # serialport needs libudev on Linux.
       build-deps: "libudev-dev"
-      # Same version as rust-toolchain.toml, which is what actually
-      # decides: rustup honours that file on every cargo call, so
-      # without this the job installed stable and then built with the
-      # pinned toolchain anyway -- two downloads for one compiler.  Now
-      # that rust-build-deb takes the input, say it, so the published
-      # package is built by a toolchain this repo names rather than by
-      # whatever stable was that week.  Keep it equal to the file.
-      toolchain: "1.98.1"
+      # No toolchain input: rust-build-deb reads the channel out of
+      # rust-toolchain.toml itself now, so the published package is still
+      # built by the compiler this repo names, without the version having
+      # to be kept equal in two places.
 
   trigger-apt-repo:
     needs: deb
