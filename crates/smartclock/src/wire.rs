@@ -11,6 +11,7 @@
 //! implicit, since a client reading JSON has no type to consult.
 
 use jiff::Timestamp;
+use jiff::civil::Date;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -125,8 +126,17 @@ pub struct Reading {
 
     /// Antenna position.
     pub position: Option<Position>,
-    /// The receiver's date, with any rollover recorded.
+    /// The receiver's date exactly as it reported it, with any
+    /// rollover recorded beside it.
     pub date: Option<ReceiverDate>,
+    /// That date with the rollover applied.
+    ///
+    /// Computed here rather than left to each client, for the reason
+    /// the fault list is: it is arithmetic over a constant the receiver
+    /// does not know, and every client repeating it is every client
+    /// getting a chance to repeat it differently.  Equal to `date.raw`
+    /// on a receiver whose calendar is right.
+    pub date_corrected: Option<Date>,
     /// UTC as the receiver reports it, as of the last fast poll.
     pub time: Option<TimeOfDay>,
     /// Diagnostic log entry count.
@@ -188,6 +198,7 @@ impl From<&Snapshot> for Reading {
             holdover_present_s: s.holdover_present.map(|v| v.as_secs()),
             position: s.position,
             date: s.date,
+            date_corrected: s.date.map(|d| d.corrected()),
             time: s.time,
             log_count: s.log_count,
             screen: s.screen.clone(),

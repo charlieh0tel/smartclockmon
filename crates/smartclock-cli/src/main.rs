@@ -398,17 +398,24 @@ fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
     match device.date(today) {
         Ok(date) => match date.rollover() {
             Some(slip) => {
-                line("date", &format!("{}  WRONG", date.raw()));
+                // Corrected first: almost every receiver of this
+                // vintage is behind by whole epochs, so this is the
+                // ordinary case rather than a fault, and its time of
+                // day and outputs are unaffected either way.  The raw
+                // date stays beside it because the correction is
+                // computed against the host clock and is only as good
+                // as that clock is.
                 line(
-                    "",
+                    "date",
                     &format!(
-                        "{} after {} GPS week rollover(s), {} days",
+                        "{}  ({} GPS epoch{} applied, {} days; reported {})",
                         date.corrected(),
                         slip.epochs,
-                        slip.days()
+                        if slip.epochs == 1 { "" } else { "s" },
+                        slip.days(),
+                        date.raw()
                     ),
                 );
-                line("", "time of day, 1 PPS and 10 MHz are unaffected");
             }
             None => line("date", &date.raw().to_string()),
         },
@@ -679,17 +686,24 @@ fn render(info: &serde_json::Value, r: &Reading) {
     match r.date.as_ref() {
         Some(date) => match date.rollover() {
             Some(slip) => {
-                line("date", &format!("{}  WRONG", date.raw()));
+                // Corrected first: almost every receiver of this
+                // vintage is behind by whole epochs, so this is the
+                // ordinary case rather than a fault, and its time of
+                // day and outputs are unaffected either way.  The raw
+                // date stays beside it because the correction is
+                // computed against the host clock and is only as good
+                // as that clock is.
                 line(
-                    "",
+                    "date",
                     &format!(
-                        "{} after {} GPS week rollover(s), {} days",
+                        "{}  ({} GPS epoch{} applied, {} days; reported {})",
                         date.corrected(),
                         slip.epochs,
-                        slip.days()
+                        if slip.epochs == 1 { "" } else { "s" },
+                        slip.days(),
+                        date.raw()
                     ),
                 );
-                line("", "time of day, 1 PPS and 10 MHz are unaffected");
             }
             None => line("date", &date.raw().to_string()),
         },

@@ -783,19 +783,31 @@ fn time_and_place(frame: &mut Frame, area: Rect, app: &App) {
     match s.date {
         Some(date) => match date.rollover() {
             Some(slip) => {
-                // The receiver's calendar is wrong by whole GPS epochs.
-                // Its time of day and outputs are fine, so this is a
-                // warning rather than an alarm, but it must not be
-                // quietly corrected out of sight.
+                // Nearly every receiver of this vintage is behind by
+                // whole GPS epochs, so this is the normal condition and
+                // not a fault: its time of day and its outputs are
+                // unaffected.  Shown corrected, therefore, with the
+                // correction noted rather than shouted -- a warning
+                // that is always lit is not a warning, and this strip
+                // is where real faults have to be noticed.
+                //
+                // The raw date stays visible because the correction is
+                // ours, not the receiver's: it is computed against the
+                // host clock, and a reader should be able to see what
+                // the instrument actually said.
+                lines.push(field("date", date.corrected().to_string(), Style::new()));
+                // On its own line rather than appended: the pane is
+                // narrow when the terminal is, and one long line loses
+                // its tail exactly where the provenance is.
                 lines.push(field(
-                    "date",
-                    format!("{}  WRONG", date.raw()),
-                    Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
-                ));
-                lines.push(field(
-                    "actually",
-                    format!("{}  ({} rollover)", date.corrected(), slip.epochs),
-                    Style::new().fg(Color::Yellow),
+                    "reported",
+                    format!(
+                        "{}  (+{} GPS epoch{})",
+                        date.raw(),
+                        slip.epochs,
+                        if slip.epochs == 1 { "" } else { "s" }
+                    ),
+                    Style::new().fg(Color::DarkGray),
                 ));
             }
             None => lines.push(plain("date", date.raw().to_string())),

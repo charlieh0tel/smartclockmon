@@ -11,6 +11,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+jiff = "0.2.37"
 smartclock = { path = "../smartclock" }
 
 [dev-dependencies]

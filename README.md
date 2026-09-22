@@ -54,6 +54,15 @@ browser view shows too.
 
     smartclock-web                 # http://127.0.0.1:9980/
 
+The GPS week rollover is treated as the ordinary condition it is.
+Firmware predating the 2019 wrap reports a date 1024 weeks behind, and
+nearly every receiver of this vintage does, so the clients show the
+corrected date with the correction noted quietly rather than raising a
+warning that would be lit permanently on a healthy instrument.  What
+the receiver actually said stays visible beside it, because the
+correction is arithmetic done here against the host clock, not
+something the receiver reported.
+
 The browser view is read-only and is not the monitor in a window: it
 draws what a terminal cannot, which is mainly a polar sky plot and
 history you can drag to zoom.

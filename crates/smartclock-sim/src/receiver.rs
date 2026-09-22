@@ -42,6 +42,26 @@ pub const MAX_ERRORS: usize = 32;
 const QUEUE_OVERFLOW_CODE: i32 = -350;
 const QUEUE_OVERFLOW_MESSAGE: &str = "Queue overflow";
 
+/// Today, less one GPS epoch, as firmware predating the 2019 wrap
+/// reports it.
+///
+/// Derived rather than hardcoded.  A fixed date is only exactly one
+/// epoch behind on one day of the year, and the rollover check accepts
+/// only whole multiples -- so a constant here quietly stopped
+/// exercising the rollover path the day after it was written, which is
+/// precisely the path the date display exists for.
+fn rolled_back_date() -> jiff::civil::Date {
+    const EPOCH_DAYS: i32 = 1024 * 7;
+    // UTC, as the receiver reports and as the daemon's rollover check
+    // compares against.  The local date differs from it for part of
+    // every day, and on those hours the offset is not a whole epoch, so
+    // the check correctly declines to call it a rollover.
+    jiff::Timestamp::now()
+        .to_zoned(jiff::tz::TimeZone::UTC)
+        .date()
+        .saturating_sub(jiff::Span::new().days(EPOCH_DAYS))
+}
+
 /// How many diagnostic log entries the simulated receiver holds.  The
 /// real one tops out at 222.
 const LOG_ENTRIES: i64 = 222;
@@ -477,7 +497,10 @@ impl Receiver {
             CommandId::PositionAvg | CommandId::PositionActual | CommandId::PositionHoldLast => {
                 Answer::line("N,+37,+22,+3.02770E+001,W,+122,+5,+3.48160E+001,+4.35100E+001")
             }
-            CommandId::Date => Answer::line("+2007,+2,+4"),
+            CommandId::Date => {
+                let d = rolled_back_date();
+                Answer::line(format!("{:+},{:+},{:+}", d.year(), d.month(), d.day()))
+            }
             CommandId::Time => Answer::line("+20,+4,+31"),
             CommandId::LogCount => Answer::line(format!("{:+}", self.log_entries)),
             // The count is a compare-and-swap: the instrument refuses

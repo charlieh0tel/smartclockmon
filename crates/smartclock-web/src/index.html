@@ -237,8 +237,27 @@ async function poll() {
   const utc = s.time
     ? `${pad(s.time.hour)}:${pad(s.time.minute)}:${pad(s.time.second)}`
     : "--";
+  // The date beside the time of day, corrected.  Almost every receiver
+  // of this vintage is behind by whole GPS epochs, so that is the
+  // normal condition rather than a fault; it used to raise a pill in
+  // the strip, which meant an amber warning permanently lit on a
+  // healthy instrument.  The correction is noted under the value, and
+  // the raw date is in the tooltip, because the arithmetic is ours and
+  // done against the host clock rather than anything the receiver said.
+  //
+  // Only claimed when the corrected date is actually to hand.  A
+  // daemon older than this page does not send one, and labelling its
+  // raw date as corrected would be the one thing worse than showing
+  // the raw date: saying it has been fixed when it has not.
+  const epochs = s.date_corrected ? (s.date?.rollover?.epochs ?? 0) : 0;
+  const dateKey = epochs
+    ? `date, +${epochs} GPS epoch${epochs === 1 ? "" : "s"}`
+    : s.date?.rollover
+      ? "date, as the receiver reports it"
+      : "date";
   const stats = [
     ["receiver UTC", utc],
+    [dateKey, s.date_corrected ?? s.date?.raw ?? "--", s.date?.raw],
     ["mode", s.mode ?? "--"],
     ["TFOM / FFOM", `${s.tfom ?? "--"} / ${s.ffom ?? "--"}`],
     ["EFC", s.efc === null || s.efc === undefined ? "--" : fmt(s.efc, 3) + "%"],
@@ -254,8 +273,9 @@ async function poll() {
       : `<span class="muted" id="age">oldest field ${Math.max(0, oldest).toFixed(0)}s</span>`) +
     stats
       .map(
-        ([k, v]) =>
-          `<span class="stat"><span class="v">${esc(v)}</span><span class="k">${k}</span></span>`,
+        ([k, v, hint]) =>
+          `<span class="stat"${hint ? ` title="the receiver reports ${esc(hint)}"` : ""}>` +
+          `<span class="v">${esc(v)}</span><span class="k">${esc(k)}</span></span>`,
       )
       .join("") +
     (s.hardware_faults?.length
@@ -274,9 +294,7 @@ async function poll() {
     (s.screen?.satellites_suspect
       ? `<span class="pill stale">satellite table disagrees with its own counts</span>`
       : "") +
-    (s.date?.rollover
-      ? `<span class="pill stale">date ${esc(s.date.rollover.epochs)} epoch(s) behind, ${esc(s.date.raw)}</span>`
-      : "");
+    "";
 
   sky(s.screen);
 }
