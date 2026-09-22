@@ -122,6 +122,14 @@ const RANGES = [
 ];
 // The sky plot's dimensions, in pixels.
 const MARGIN = 20;      // room for the cardinal labels and a rim dot
+
+// The sky grid is drawn darker than the data and lighter than a panel
+// border.  It was --line, which is the 1px border colour: right for
+// separating boxes, far too dim for lines somebody reads an angle off.
+// The horizon is the boundary of the plot, so it is stronger than the
+// elevation rings inside it.
+const SKY_GRID = "#39414f";
+const SKY_HORIZON = "#515b6b";
 const DOT_MIN = 4;      // a satellite with no signal reading
 const DOT_RANGE = 7;    // added at the strongest signal in the frame
 
@@ -278,18 +286,21 @@ function sky(screen) {
   const c = $("sky"), ctx = c.getContext("2d");
   const w = c.width, h = c.height, cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - MARGIN;
   ctx.clearRect(0, 0, w, h);
-  ctx.strokeStyle = "#2b3038";
-  ctx.fillStyle = "#8b929c";
+  ctx.fillStyle = "#c2c8d2";
   ctx.font = "11px ui-monospace, monospace";
   ctx.textAlign = "center";
 
-  for (const elev of [0, 30, 60]) {
+  // Elevation rings at 30 degree steps, the horizon last and brighter
+  // so the edge of the plot reads as an edge.
+  for (const elev of [60, 30, 0]) {
+    ctx.strokeStyle = elev === 0 ? SKY_HORIZON : SKY_GRID;
     ctx.beginPath();
-    ctx.arc(cx, cy, r * (90 - elev) / 90, 0, 2 * Math.PI);
+    ctx.arc(cx, cy, (r * (90 - elev)) / 90, 0, 2 * Math.PI);
     ctx.stroke();
   }
+  ctx.strokeStyle = SKY_GRID;
   for (const [deg, name] of [[0, "N"], [90, "E"], [180, "S"], [270, "W"]]) {
-    const a = (deg - 90) * Math.PI / 180;
+    const a = ((deg - 90) * Math.PI) / 180;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
