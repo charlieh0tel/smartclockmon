@@ -9,21 +9,20 @@ jobs:
   ci:
     # The shared definition, so this repo's CI matches the others.
     #
-    #   toolchain      not what pins the compiler -- rust-toolchain.toml
-    #   fmt-toolchain  does that, and wins over anything a workflow
-    #                  installs, because rustup honours the file on every
-    #                  cargo call in the repo.  These say the same
-    #                  version so each job pre-installs what it will
-    #                  actually use, instead of fetching a stable and a
-    #                  nightly for the file to override.  Keep them equal
-    #                  to the file: the version lives in two places and
-    #                  nothing checks that they agree.
+    #   fmt-toolchain  empty, not nightly.  rust-toolchain.toml pins the
+    #                  compiler and the workflow now reads the channel out
+    #                  of it, so the version no longer lives in two places;
+    #                  emptying this makes the fmt job resolve the same way
+    #                  instead of fetching a nightly for rustfmt alone.
+    #   audit          off here, not because auditing does not matter, but
+    #                  because audit.yml already does it on the schedule a
+    #                  called workflow cannot have -- see the note there.
     #   check-args     --all-targets, or clippy never sees the tests,
     #                  which are the larger half of this workspace
     uses: charlieh0tel/deb-workflows/.github/workflows/rust-ci.yml@v1
     with:
       # serialport needs libudev on Linux.
       build-deps: "libudev-dev"
-      toolchain: "1.98.1"
-      fmt-toolchain: "1.98.1"
+      fmt-toolchain: ""
+      audit: false
       check-args: "--workspace --all-targets --all-features"
