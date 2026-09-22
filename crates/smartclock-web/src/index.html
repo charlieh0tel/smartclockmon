@@ -414,7 +414,16 @@ const TICK_COUNT_WEIGHT = 0.3;
 function niceScale(min, max, target) {
   if (!isFinite(min) || !isFinite(max)) return null;
   // A series that never moved still needs an axis with room around it.
-  if (min === max) {
+  //
+  // "Never moved" cannot be exact equality.  A constant column still
+  // arrives with a spread: SQLite averages each bucket, and summing
+  // the same number repeatedly in floating point does not give it back
+  // exactly.  Oven current held at 104.9 came through spanning 2e-14,
+  // which is not flat by `===`, so the step came out at 1e-15 and the
+  // axis read 104.900000000000020.  The learned tempco, which really
+  // is constant on this hardware, would do the same.
+  const noise = Math.max(Math.abs(min), Math.abs(max)) * 1e-9;
+  if (max - min <= noise) {
     const pad = Math.max(Math.abs(min) * 0.05, 1);
     min -= pad;
     max += pad;
