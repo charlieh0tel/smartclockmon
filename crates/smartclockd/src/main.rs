@@ -236,6 +236,7 @@ fn main() -> Result<()> {
         policy,
         audit: Audit::new(audit_tx),
         cadence: cadence.clone(),
+        generation: 0,
     }));
 
     // Writing the log is a subscriber, so a slow or failing write
@@ -287,9 +288,13 @@ fn main() -> Result<()> {
                     let attached = journal_handle
                         .latest()
                         .is_some_and(|s| s.freshness != Freshness::Disconnected);
-                    let (identity, dialect) = {
+                    let (identity, dialect, generation) = {
                         let current = server::lock_or_poisoned(&journal_info);
-                        (current.identity.clone(), current.dialect)
+                        (
+                            current.identity.clone(),
+                            current.dialect,
+                            current.generation,
+                        )
                     };
                     // And the receiver the rows will be filed under has
                     // to be the one now attached, not merely some
@@ -299,7 +304,7 @@ fn main() -> Result<()> {
                     if let (true, true, Some(receiver)) =
                         (attached, settled, log.current_receiver())
                     {
-                        journal.pass(&journal_handle, dialect, receiver, &mut log);
+                        journal.pass(&journal_handle, dialect, receiver, generation, &mut log);
                     }
                 }
                 let snapshot = match writes.recv_timeout(AUDIT_POLL) {
@@ -387,6 +392,7 @@ fn supervise(
             let mut current = server::lock_or_poisoned(&info);
             current.identity = identity.clone();
             current.dialect = device.dialect();
+            current.generation += 1;
         }
 
         // The socket opens only once a receiver has answered, so a

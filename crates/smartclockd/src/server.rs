@@ -133,6 +133,15 @@ pub(crate) struct Info {
     pub cadence: Cadence,
     /// Where to record commands that were not scheduled polls.
     pub audit: Audit,
+    /// How many times a receiver has been opened, counting from one.
+    ///
+    /// A connection is the boundary across which nothing is known: the
+    /// unit may have been power cycled, swapped, or talked to by
+    /// somebody else while the link was down.  Anything that should be
+    /// done once per connection rather than once per receiver watches
+    /// this, because the identity alone cannot tell a reconnection to
+    /// the same unit from never having disconnected.
+    pub generation: u64,
 }
 
 /// Bind the socket.
@@ -935,6 +944,7 @@ mod socket_tests {
                 policy: Policy::default(),
                 audit: Audit::new(audit_tx),
                 cadence: smartclock::task::Cadence::default(),
+                generation: 1,
             }));
 
             let name_owned = socket.clone();

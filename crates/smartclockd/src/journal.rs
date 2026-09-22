@@ -154,13 +154,20 @@ const UNPARSED: i32 = i32::MIN;
 /// Copies the error queue and the diagnostic log into the database.
 #[derive(Debug, Default)]
 pub(crate) struct Journal {
-    /// Which receiver [`Journal::copied`] describes.
+    /// Which connection this state describes.
     ///
-    /// The span means nothing without it.  Kept across passes but not
-    /// across receivers: a unit swapped for one with a longer log would
-    /// otherwise have its first two hundred entries judged copied on
-    /// the strength of the previous unit's progress, and never read.
-    receiver: Option<i64>,
+    /// Reset per connection, not per receiver.  A connection is the
+    /// boundary across which nothing is known: the unit may have been
+    /// power cycled, swapped, or reconfigured by somebody else while
+    /// the link was down, and carrying state over it is assuming
+    /// continuity across a gap nobody observed.  That assumption is
+    /// exactly what let a copied-log span survive a receiver swap, so
+    /// a unit exchanged for one with a longer log had its first two
+    /// hundred entries judged copied on the previous unit's progress.
+    ///
+    /// Re-deriving costs one query against the database and one read
+    /// of five filter registers, which a reconnect can afford.
+    connection: Option<u64>,
     /// The inclusive span of diagnostic log entry numbers already
     /// copied, or `None` before the first pass for this receiver.
     ///
@@ -187,8 +194,15 @@ impl Journal {
     /// Errors are reported rather than propagated: the journal is a
     /// side errand of the thread that writes snapshots, and a receiver
     /// that will not answer these must not stop that thread.
-    pub(crate) fn pass(&mut self, handle: &Handle, dialect: Dialect, receiver: i64, log: &mut Log) {
-        if self.receiver != Some(receiver) {
+    pub(crate) fn pass(
+        &mut self,
+        handle: &Handle,
+        dialect: Dialect,
+        receiver: i64,
+        connection: u64,
+        log: &mut Log,
+    ) {
+        if self.connection != Some(connection) {
             // Resume where the database says this receiver got to,
             // rather than from nothing: at sixteen entries a minute a
             // full log takes a quarter of an hour, so a daemon
@@ -201,7 +215,7 @@ impl Journal {
                     None
                 }
             };
-            self.receiver = Some(receiver);
+            self.connection = Some(connection);
             self.stuck = None;
             self.filters_read = false;
         }
