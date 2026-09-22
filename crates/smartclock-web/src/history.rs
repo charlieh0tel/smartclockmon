@@ -17,13 +17,20 @@ use rusqlite::OpenFlags;
 ///
 /// Named here rather than taken from the query string, so a request
 /// cannot ask for arbitrary SQL.
+///
+/// The order is deliberate and doing two jobs: it is the order of the
+/// menu on the page, and the order of the stack, so that ticking a
+/// series does not reshuffle the plots already drawn.  The four the
+/// oscillator's behaviour is read from come first, in the order they
+/// are usually read in -- what the clock is actually doing, what the
+/// loop is doing about it, and the two things that move it.
 pub(crate) const PLOTTABLE: [&str; 8] = [
+    "time_interval_s",
     "efc_percent",
-    "efc_dac",
     "temperature_c",
     "oven_current",
+    "efc_dac",
     "oven_tempco",
-    "time_interval_s",
     "tfom",
     "ffom",
 ];

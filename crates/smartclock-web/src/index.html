@@ -161,7 +161,8 @@ let span = view.has("range") ? Number(view.get("range")) || null : 3600;
 let zoom = null;          // [from, to] once the user has dragged
 // Several series, stacked, sharing one time axis.  `column` singular is
 // still read so an older bookmark still opens on what it named.
-let columns = (view.get("columns") ?? view.get("column") ?? "efc_percent,temperature_c")
+let columns = (view.get("columns") ?? view.get("column") ??
+  "time_interval_s,efc_percent,temperature_c,oven_current")
   .split(",")
   .filter(Boolean);
 
