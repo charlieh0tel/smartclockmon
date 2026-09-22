@@ -56,12 +56,20 @@ browser view shows too.
 
 The browser view is read-only and is not the monitor in a window: it
 draws what a terminal cannot, which is mainly a polar sky plot and
-history you can drag to zoom, with any two series overlaid on separate
-axes.  EFC against temperature is the one that earns its keep -- see
-`docs/efc.md` for what that comparison is trying to settle.  The chart
-library comes from a CDN, pinned with an integrity hash, so the page
-needs internet even though the daemon does not; the page says so rather
-than showing an empty frame if it cannot be fetched.
+history you can drag to zoom.
+
+Any number of series can be stacked, and they share a time axis by
+construction rather than by appearance: one request buckets them all in
+the same pass, so their x values are the same values, and separate
+requests -- which would each compute their own bucket boundaries from
+their own end time -- could not promise that.  The cursor moves across
+the stack together and a drag on any plot zooms all of them.  EFC
+against internal temperature is the pairing that earns its keep; see
+`docs/efc.md` for what that comparison settled.
+
+The chart library comes from a CDN, pinned with an integrity hash, so
+the page needs internet even though the daemon does not; the page says
+so rather than showing an empty frame if it cannot be fetched.
 
 The exporter answers a scrape from whatever the daemon last polled, so
 scraping costs the receiver nothing and cannot compete with the poll

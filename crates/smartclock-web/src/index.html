@@ -79,13 +79,12 @@
 
 <div class="panel">
   <div class="controls">
-    <select id="column"></select>
-    <label><input type="checkbox" id="compare"> against internal temp</label>
+    <span id="columns"></span>
     <span class="grow"></span>
     <span id="ranges"></span>
     <button id="reset" title="Back to the last hour">reset</button>
   </div>
-  <div id="chart"></div>
+  <div id="charts"></div>
   <div id="note"></div>
 </div>
 
@@ -157,10 +156,18 @@ const scaled = (values, c) =>
 // than a description of how to click to it.
 const view = new URLSearchParams(location.search);
 
-let chart = null;
+let charts = [];
 let span = view.has("range") ? Number(view.get("range")) || null : 3600;
 let zoom = null;          // [from, to] once the user has dragged
-let column = view.get("column") ?? "efc_percent";
+// Several series, stacked, sharing one time axis.  `column` singular is
+// still read so an older bookmark still opens on what it named.
+let columns = (view.get("columns") ?? view.get("column") ?? "efc_percent,temperature_c")
+  .split(",")
+  .filter(Boolean);
+
+// uPlot ties charts together by a shared key: hovering one moves the
+// cursor on all of them, which is most of what makes a stack readable.
+const SYNC = haveUplot ? uPlot.sync("smartclock") : null;
 
 const $ = (id) => document.getElementById(id);
 // Total: never rejects, never hangs.  A rejected fetch anywhere in the
@@ -357,11 +364,18 @@ function sky(screen) {
 
 // ---------------------------------------------------------------- charts
 
-async function fetchSeries(col, from, to) {
-  const q = new URLSearchParams({ column: col, points: 1500 });
+async function fetchSeries(cols, from, to) {
+  const q = new URLSearchParams({ columns: cols.join(","), points: 1500 });
   if (from) q.set("from", Math.round(from));
   if (to) q.set("to", Math.round(to));
   return getJson("/api/history?" + q);
+}
+
+// How tall each chart is, given how many there are.  One gets the room
+// it always had; a stack divides a similar budget, with a floor below
+// which a plot stops being readable.
+function plotHeight(count) {
+  return count === 1 ? 420 : Math.max(150, Math.round(560 / count));
 }
 
 let generation = 0;
@@ -372,13 +386,20 @@ async function draw() {
       "The chart library did not load. It comes from a CDN, so this page needs internet access; the readings above do not.";
     return;
   }
+  if (!columns.length) {
+    for (const c of charts) c.destroy();
+    charts = [];
+    $("charts").innerHTML = "";
+    $("note").textContent = "nothing selected";
+    return;
+  }
   let to = null, from = null;
   if (zoom) { [from, to] = zoom; }
   else if (span) { to = Date.now() / 1000; from = to - span; }
 
-  let main = await fetchSeries(column, from, to);
-  // A later draw has started; this one's data belongs to a column or a
-  // range nobody is looking at any more.
+  let got = await fetchSeries(columns, from, to);
+  // A later draw has started; this one's data belongs to a selection or
+  // a range nobody is looking at any more.
   if (mine !== generation) return;
 
   // How far back the log goes is only knowable once it has been asked,
@@ -386,96 +407,124 @@ async function draw() {
   // server's default hour and the extent, the second asks for the
   // extent.  Without this the button quietly showed the last hour --
   // the range it names is the one range it did not fetch.
-  if (!span && !zoom && main.first && main.last > main.first) {
-    from = main.first;
-    to = main.last;
-    main = await fetchSeries(column, from, to);
+  if (!span && !zoom && got.first && got.last > got.first) {
+    got = await fetchSeries(columns, got.first, got.last);
     if (mine !== generation) return;
   }
-  if (main.error) { $("note").textContent = main.error; return; }
-  $("note").textContent = main.at.length ? "" : "no readings in this range";
+  if (got.error) { $("note").textContent = got.error; return; }
+  $("note").textContent = got.at.length ? "" : "no readings in this range";
 
-  const series = [
-    {},
-    { label: "min", stroke: "#0e7490", width: 1, points: { show: false } },
-    { label: "max", stroke: "#0e7490", width: 1, points: { show: false } },
-    { label: label(column), stroke: "#38bdf8", width: 1.5, points: { show: false } },
-  ];
-  const data = [
-    main.at,
-    scaled(main.min, column),
-    scaled(main.max, column),
-    scaled(main.mean, column),
-  ];
-  // Wide enough for the longest label this column can produce.  The
-  // default gutter silently clips instead of overflowing, which turned
-  // an EFC of 712,793 into an axis reading 12,793 -- a plausible number,
-  // wrong by seven hundred thousand.
-  const widest = Math.max(
-    ...scaled(main.mean, column)
-      .filter((v) => v !== null)
-      .map((v) => v.toLocaleString().length),
-    4,
-  );
-  const axes = [
-    { stroke: "#8b929c", grid: { stroke: "#2b3038" }, ticks: { stroke: "#2b3038" } },
-    {
-      stroke: "#38bdf8",
-      grid: { stroke: "#2b3038" },
-      ticks: { stroke: "#2b3038" },
-      size: 30 + widest * 8,
-    },
-  ];
+  for (const c of charts) c.destroy();
+  charts = [];
+  $("charts").innerHTML = "";
 
-  // The comparison the whole EFC question turns on: does the control
-  // voltage follow the oven, or the sky?
-  if ($("compare").checked && column !== "temperature_c") {
-    const other = await fetchSeries("temperature_c", main.from, main.to);
-    if (mine !== generation) return;
-    // Only overlay a series bucketed the same way, or uPlot draws a
-    // silently misaligned comparison -- on the one chart where the
-    // comparison is the whole point.
-    if (!other.error && other.mean?.length === main.at.length) {
-      series.push({ label: "temperature, C", stroke: "#fbbf24", width: 1.5, scale: "t", points: { show: false } });
-      data.push(other.mean);
-      axes.push({ scale: "t", side: 1, stroke: "#fbbf24", grid: { show: false } });
-    }
-  }
+  const height = plotHeight(got.plots.length);
+  got.plots.forEach((plot, n) => {
+    const col = plot.column;
+    const mean = scaled(plot.mean, col);
+    // Wide enough for the longest label this column can produce.  The
+    // default gutter silently clips instead of overflowing, which
+    // turned an EFC of 712,793 into an axis reading 12,793 -- a
+    // plausible number, wrong by seven hundred thousand.
+    const widest = Math.max(
+      ...mean.filter((v) => v !== null).map((v) => v.toLocaleString().length),
+      4,
+    );
+    // Only the bottom chart carries the time labels.  Repeating them
+    // under every plot costs the height that makes the stack worth
+    // having, and says the axes might differ when the whole point is
+    // that they cannot.
+    const last = n === got.plots.length - 1;
+    const host = document.createElement("div");
+    $("charts").appendChild(host);
 
-  const opts = {
-    width: $("chart").clientWidth || 800,
-    height: 420,
-    series,
-    axes,
-    scales: { x: { time: true } },
-    cursor: { drag: { x: true, y: false } },
-    hooks: {
-      // setSelect, not setScale.  setScale also fires when uPlot sets
-      // the scale from the data it was just given, which is every
-      // draw: the hook then decided the user had zoomed, latched the
-      // range, unlit every preset button and -- because the background
-      // refresh is skipped while zoomed -- stopped the history
-      // updating for the life of the page.  setSelect fires only for a
-      // drag.
-      setSelect: [(u) => {
-        if (u.select.width <= 0) return;
-        zoom = [
-          u.posToVal(u.select.left, "x"),
-          u.posToVal(u.select.left + u.select.width, "x"),
-        ];
-        span = null;
-        buttons();
-        load();
-      }],
-    },
-  };
-  if (chart) chart.destroy();
-  chart = new uPlot(opts, data, $("chart"));
-  chart.over.addEventListener("dblclick", () => {
-    zoom = null;
-    buttons();
-    load();
+    const opts = {
+      width: $("charts").clientWidth || 800,
+      height,
+      title: label(col),
+      series: [
+        {},
+        { label: "min", stroke: "#0e7490", width: 1, points: { show: false } },
+        { label: "max", stroke: "#0e7490", width: 1, points: { show: false } },
+        { label: label(col), stroke: "#38bdf8", width: 1.5, points: { show: false } },
+      ],
+      axes: [
+        {
+          stroke: "#8b929c",
+          grid: { stroke: "#2b3038" },
+          ticks: { stroke: "#2b3038" },
+          show: last,
+        },
+        {
+          stroke: "#38bdf8",
+          grid: { stroke: "#2b3038" },
+          ticks: { stroke: "#2b3038" },
+          size: 30 + widest * 8,
+        },
+      ],
+      scales: { x: { time: true } },
+      legend: { show: last },
+      cursor: {
+        drag: { x: true, y: false },
+        // Every chart moves together, which is what makes reading one
+        // value across the stack possible at all.
+        sync: { key: SYNC.key, setSeries: false },
+      },
+      hooks: {
+        // setSelect, not setScale.  setScale also fires when uPlot sets
+        // the scale from the data it was just given, which is every
+        // draw: the hook then decided the user had zoomed, latched the
+        // range, unlit every preset button and -- because the
+        // background refresh is skipped while zoomed -- stopped the
+        // history updating for the life of the page.  setSelect fires
+        // only for a drag.
+        setSelect: [(u) => {
+          if (u.select.width <= 0) return;
+          zoom = [
+            u.posToVal(u.select.left, "x"),
+            u.posToVal(u.select.left + u.select.width, "x"),
+          ];
+          span = null;
+          buttons();
+          load();
+        }],
+      },
+    };
+    const chart = new uPlot(
+      opts,
+      [got.at, scaled(plot.min, col), scaled(plot.max, col), mean],
+      host,
+    );
+    chart.over.addEventListener("dblclick", () => {
+      zoom = null;
+      buttons();
+      load();
+    });
+    charts.push(chart);
   });
+}
+
+// The series menu, built from what the server says it can serve rather
+// than from a copy here that can drift out of step with PLOTTABLE.
+function pickers(plottable) {
+  $("columns").innerHTML = plottable
+    .map(
+      (c) =>
+        `<label><input type="checkbox" data-col="${c}"` +
+        `${columns.includes(c) ? " checked" : ""}> ${esc(label(c))}</label>`,
+    )
+    .join(" ");
+  for (const box of $("columns").querySelectorAll("input")) {
+    box.onchange = () => {
+      const col = box.dataset.col;
+      // Kept in the menu's order rather than the order they were
+      // ticked, so the stack does not reshuffle as it is built.
+      columns = plottable.filter(
+        (c) => (c === col ? box.checked : columns.includes(c)),
+      );
+      load();
+    };
+  }
 }
 
 let pending = null;
@@ -583,14 +632,11 @@ async function loadJournal() {
         .filter(Boolean)
         .join("  --  ");
 
-  const first = await fetchSeries(column, null, null);
-  $("column").innerHTML = (first.columns ?? [column])
-    .map((c) => `<option value="${c}">${label(c)}</option>`)
-    .join("");
-  $("column").value = column;
-  $("compare").checked = view.get("compare") === "1";
-  $("column").onchange = () => { column = $("column").value; load(); };
-  $("compare").onchange = load;
+  // One request before the first draw, to learn what may be plotted.
+  // Asked of the server rather than listed here, so the menu cannot
+  // drift from the columns the query will actually accept.
+  const first = await fetchSeries(columns, null, null);
+  pickers(first.plottable ?? columns);
   $("reset").onclick = () => { zoom = null; span = 3600; buttons(); load(); };
 
   buttons();

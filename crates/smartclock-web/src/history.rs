@@ -28,6 +28,13 @@ pub(crate) const PLOTTABLE: [&str; 8] = [
     "ffom",
 ];
 
+/// The most series one request will bucket together.
+///
+/// Each adds three aggregates to the same query and a chart to the
+/// page; past a handful the page is taller than a screen and the point
+/// of stacking them -- seeing them against one another -- is lost.
+const MAX_SERIES: usize = 6;
+
 /// Fewest buckets worth drawing, and the most a chart can show.
 ///
 /// The upper bound is about three times the pixels across a wide
@@ -41,12 +48,29 @@ const MAX_POINTS: usize = 5000;
 /// `min` and `max` are kept because a mean alone hides the thing worth
 /// seeing.  A step that lasted a second inside a ten minute bucket
 /// moves the mean imperceptibly and the max completely.
-#[derive(Debug)]
-pub(crate) struct Bucket {
-    pub(crate) at: f64,
-    pub(crate) mean: Option<f64>,
-    pub(crate) min: Option<f64>,
-    pub(crate) max: Option<f64>,
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct Series {
+    /// The bucket centres, shared by every plot below.
+    ///
+    /// One array, not one per plot: it is what makes the stacked
+    /// charts line up, and sending it once says so.
+    pub(crate) at: Vec<f64>,
+    /// One per column asked for, in the order asked.
+    pub(crate) plots: Vec<Plot>,
+}
+
+/// One column's buckets, against [`Series::at`].
+///
+/// `min` and `max` are kept because a mean alone hides the thing worth
+/// seeing.  A step that lasted a second inside a ten minute bucket
+/// moves the mean imperceptibly and the max completely.
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct Plot {
+    /// Which column this is.
+    pub(crate) column: String,
+    pub(crate) mean: Vec<Option<f64>>,
+    pub(crate) min: Vec<Option<f64>>,
+    pub(crate) max: Vec<Option<f64>>,
 }
 
 /// The daemon's log, open for reading.
@@ -65,7 +89,21 @@ impl Log {
         Ok(Self { conn })
     }
 
-    /// Bucket `column` between two unix times into at most `points`.
+    /// Bucketed series for several columns at once, between two unix
+    /// times and into at most `points` buckets each.
+    ///
+    ///
+    /// One query rather than one per column, and that is a correctness
+    /// requirement rather than an optimisation.  Stacked charts are
+    /// only comparable if their x values are identical, and separate
+    /// queries do not guarantee that: each would compute its own
+    /// bucket boundaries from its own `to`, and two requests a second
+    /// apart land on a different grid.  Bucketing every column in the
+    /// same pass makes the alignment structural.
+    ///
+    /// Columns are checked against [`PLOTTABLE`] before reaching the
+    /// SQL, which is interpolated, so a request cannot name arbitrary
+    /// expressions.
     ///
     /// Rows where the fast tier did not run are left out: every
     /// plottable column is a fast-tier field, so such a row restates
@@ -74,18 +112,30 @@ impl Log {
     /// freshness flag.
     pub(crate) fn series(
         &self,
-        column: &str,
+        columns: &[String],
         from: i64,
         to: i64,
         points: usize,
-    ) -> Result<Vec<Bucket>> {
+    ) -> Result<Series> {
+        anyhow::ensure!(!columns.is_empty(), "no columns asked for");
         anyhow::ensure!(
-            PLOTTABLE.contains(&column),
-            "{column} is not a column this serves"
+            columns.len() <= MAX_SERIES,
+            "at most {MAX_SERIES} series at once"
         );
+        for column in columns {
+            anyhow::ensure!(
+                PLOTTABLE.contains(&column.as_str()),
+                "{column} is not a column this serves"
+            );
+        }
         let points = points.clamp(MIN_POINTS, MAX_POINTS) as i64;
         anyhow::ensure!(from <= to, "the range ends before it starts");
         let span = to.saturating_sub(from).max(1);
+        let aggregates = columns
+            .iter()
+            .map(|c| format!("AVG({c}), MIN({c}), MAX({c})"))
+            .collect::<Vec<_>>()
+            .join(", ");
         let sql = format!(
             // Divided by the span plus one so that a row landing exactly
             // on `to` falls in the last bucket rather than in one past
@@ -93,7 +143,7 @@ impl Log {
             // buckets, which is not what the caller asked for.
             "SELECT CAST((unixepoch(at) - ?1) * ?3 / (?4 + 1) AS INTEGER) AS bucket,
                     AVG(unixepoch(at)) AS at,
-                    AVG({column}), MIN({column}), MAX({column})
+                    {aggregates}
              FROM snapshot
              -- Compared as text, against the column itself, so the
              -- index on `at` can be used.  unixepoch(at) >= ? reads
@@ -110,15 +160,28 @@ impl Log {
              ORDER BY at"
         );
         let mut statement = self.conn.prepare(&sql)?;
-        let rows = statement.query_map((from, to, points, span), |row| {
-            Ok(Bucket {
-                at: row.get::<_, f64>(1)?,
-                mean: row.get(2)?,
-                min: row.get(3)?,
-                max: row.get(4)?,
+        let mut at = Vec::new();
+        let mut plots: Vec<Plot> = columns
+            .iter()
+            .map(|column| Plot {
+                column: column.clone(),
+                mean: Vec::new(),
+                min: Vec::new(),
+                max: Vec::new(),
             })
-        })?;
-        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+            .collect();
+        let mut rows = statement.query((from, to, points, span))?;
+        while let Some(row) = rows.next()? {
+            at.push(row.get::<_, f64>(1)?);
+            for (n, plot) in plots.iter_mut().enumerate() {
+                // Three aggregates per column, after bucket and at.
+                let base = 2 + n * 3;
+                plot.mean.push(row.get(base)?);
+                plot.min.push(row.get(base + 1)?);
+                plot.max.push(row.get(base + 2)?);
+            }
+        }
+        Ok(Series { at, plots })
     }
 
     /// The oldest and newest readings, so the page can offer a range

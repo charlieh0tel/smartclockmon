@@ -80,6 +80,54 @@ fn main() -> Result<()> {
     })
 }
 
+/// Percent-decode one query-string value.
+///
+/// The parser here splits the raw target on `&` and `=` and did no
+/// decoding at all, which was invisible while the only parameter that
+/// mattered was a single column name with nothing to encode.  A list
+/// broke it immediately: `URLSearchParams` writes the separator as
+/// `%2C`, so the server was handed one column called
+/// `efc_percent%2Ctemperature_c` and said, correctly, that it does not
+/// serve it.
+///
+/// Bytes rather than chars, because a percent escape encodes a byte and
+/// a multi-byte character arrives as several of them.  Anything that
+/// is not a well-formed escape is kept as written: a stray `%` in a
+/// value is not worth refusing a request over.
+fn decode(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'+' => {
+                // A literal plus is `%2B`; a bare one is a space in
+                // form encoding, and a space is not a column name.
+                out.push(b' ');
+                i += 1;
+            }
+            b'%' if i + 2 < bytes.len() => {
+                let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok();
+                match hex.and_then(|h| u8::from_str_radix(h, 16).ok()) {
+                    Some(byte) => {
+                        out.push(byte);
+                        i += 3;
+                    }
+                    None => {
+                        out.push(bytes[i]);
+                        i += 1;
+                    }
+                }
+            }
+            byte => {
+                out.push(byte);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 /// Wrap a result as JSON, reporting a failure as data rather than as an
 /// HTTP error: the page can then say what went wrong in the place the
 /// value would have been, instead of silently showing nothing.
@@ -166,24 +214,38 @@ fn journal(database: &Path) -> Result<serde_json::Value> {
 /// How much history a request that does not say gets.
 const DEFAULT_WINDOW: i64 = 3600;
 
-/// `?column=efc_percent&from=...&to=...&points=1500`
+/// `?columns=efc_percent,temperature_c&from=...&to=...&points=1500`
 ///
 /// Absolute unix times rather than a named window, so the page can ask
-/// for whatever range it has zoomed to.
+/// for whatever range it has zoomed to.  Several columns rather than
+/// one, so stacked charts share a bucketing and therefore an x axis;
+/// `column=` singular is still accepted, since a bookmarked link from
+/// before this predates the plural.
 fn series(database: &Path, query: &str) -> Result<serde_json::Value> {
-    let mut column = "efc_percent".to_owned();
+    let mut columns: Vec<String> = Vec::new();
     let (mut from, mut to, mut points) = (None, None, 1500usize);
     for pair in query.split('&') {
         let Some((key, value)) = pair.split_once('=') else {
             continue;
         };
         match key {
-            "column" => column = value.to_owned(),
+            // Split after decoding, not before: a `+` is a space by
+            // the time it gets here, and `%2C` is a comma.
+            "columns" | "column" => columns.extend(
+                decode(value)
+                    .split([',', ' '])
+                    .map(str::trim)
+                    .filter(|c| !c.is_empty())
+                    .map(str::to_owned),
+            ),
             "from" => from = value.parse::<i64>().ok(),
             "to" => to = value.parse::<i64>().ok(),
             "points" => points = value.parse().unwrap_or(1500),
             _ => {}
         }
+    }
+    if columns.is_empty() {
+        columns.push("efc_percent".to_owned());
     }
 
     let log = Log::open(database)?;
@@ -199,18 +261,59 @@ fn series(database: &Path, query: &str) -> Result<serde_json::Value> {
     // rather than the JSON error this function promises.
     let from = from.unwrap_or_else(|| to.saturating_sub(DEFAULT_WINDOW));
 
-    let buckets = log.series(&column, from, to, points)?;
+    let series = log.series(&columns, from, to, points)?;
     Ok(serde_json::json!({
-        "column": column,
         "from": from,
         "to": to,
         "first": first,
         "last": last,
-        "columns": PLOTTABLE,
-        // uPlot wants parallel arrays, not an array of points.
-        "at": buckets.iter().map(|b| b.at).collect::<Vec<_>>(),
-        "mean": buckets.iter().map(|b| b.mean).collect::<Vec<_>>(),
-        "min": buckets.iter().map(|b| b.min).collect::<Vec<_>>(),
-        "max": buckets.iter().map(|b| b.max).collect::<Vec<_>>(),
+        // What may be asked for, so the page builds its menu from the
+        // server rather than from a copy that can drift.
+        "plottable": PLOTTABLE,
+        // uPlot wants parallel arrays, not an array of points.  One
+        // `at` for all of them: that is the alignment, stated once.
+        "at": series.at,
+        "plots": series.plots,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode;
+
+    /// What a browser actually sends for a list.
+    ///
+    /// `URLSearchParams` encodes the separator, so the server saw one
+    /// column named `efc_percent%2Ctemperature_c` and refused it.  The
+    /// single-column parameter this replaced had nothing to encode,
+    /// which is why the missing decode went unnoticed.
+    #[test]
+    fn a_percent_encoded_list_decodes() {
+        assert_eq!(
+            decode("efc_percent%2Ctemperature_c"),
+            "efc_percent,temperature_c"
+        );
+    }
+
+    #[test]
+    fn a_plus_is_a_space_and_a_percent_2b_is_a_plus() {
+        assert_eq!(decode("one+two"), "one two");
+        assert_eq!(decode("one%2Btwo"), "one+two");
+    }
+
+    /// A malformed escape is kept rather than refused.  A stray percent
+    /// in a value is not worth failing a request over, and the column
+    /// check downstream rejects anything that is not a real column
+    /// anyway.
+    #[test]
+    fn a_broken_escape_survives() {
+        assert_eq!(decode("100%"), "100%");
+        assert_eq!(decode("%zz"), "%zz");
+        assert_eq!(decode("%2"), "%2");
+    }
+
+    #[test]
+    fn multibyte_characters_survive_the_round_trip() {
+        assert_eq!(decode("%C2%B5s"), "\u{b5}s");
+    }
 }
