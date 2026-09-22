@@ -371,6 +371,10 @@ async function fetchSeries(cols, from, to) {
   return getJson("/api/history?" + q);
 }
 
+// The closest two y ticks may sit, in pixels.  Low enough that a
+// 150 pixel plot still gets three or four labels rather than two.
+const Y_TICK_SPACE = 26;
+
 // How tall each chart is, given how many there are.  One gets the room
 // it always had; a stack divides a similar budget, with a floor below
 // which a plot stops being readable.
@@ -460,6 +464,14 @@ async function draw() {
           grid: { stroke: "#2b3038" },
           ticks: { stroke: "#2b3038" },
           size: 30 + widest * 8,
+          // How close two ticks may be, in pixels.  The default is
+          // loose enough that a short plot gets two labels: 1 PPS TI
+          // over a day spans about -70 to +120 ns, uPlot picked an
+          // increment of 100, and -100 is off the bottom -- so the
+          // axis read 100, 0, and nothing, with a third of the plot
+          // unlabelled below the zero line.  Stacked plots are short
+          // by construction, so the density has to suit them.
+          space: Y_TICK_SPACE,
         },
       ],
       scales: { x: { time: true } },
