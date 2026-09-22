@@ -66,6 +66,12 @@
   .uplot { width: 100% !important; }
   /* The journal is three tables of mostly text in one panel, so it
      scrolls on its own rather than pushing the chart off the screen. */
+  /* One readout for the whole stack, since the cursor is one cursor. */
+  #readout { display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: baseline;
+             min-height: 1.4em; font-size: 12px; font-variant-numeric: tabular-nums; }
+  #readout .w { color: var(--dim); }
+  #readout .k { color: var(--dim); }
+  #readout .v { color: var(--text); }
   #journal { max-height: 20rem; overflow-y: auto; }
   #journal table { font-variant-numeric: tabular-nums; }
   #journal td:first-child { color: var(--dim); white-space: nowrap; padding-right: 10px; }
@@ -85,6 +91,7 @@
     <button id="reset" title="Back to the last hour">reset</button>
   </div>
   <div id="charts"></div>
+  <div id="readout"></div>
   <div id="note"></div>
 </div>
 
@@ -372,9 +379,55 @@ async function fetchSeries(cols, from, to) {
   return getJson("/api/history?" + q);
 }
 
-// The closest two y ticks may sit, in pixels.  Low enough that a
-// 150 pixel plot still gets three or four labels rather than two.
-const Y_TICK_SPACE = 26;
+// A y scale that begins and ends on a labelled gridline.
+//
+// uPlot scales to the data and then places round ticks inside it, so
+// the top and bottom lines fall short by whatever the data happens to
+// need -- by a different amount on every plot, which across a stack
+// reads as ragged: a label at the top of one, none at the bottom of the
+// next.  Snapping the scale itself to the tick step fixes it, at the
+// cost of some empty space above and below the trace.
+//
+// Steps are 1, 2, 5 or 10 times a power of ten, so the labels are
+// numbers a person would choose.  2.5 is excluded deliberately: it is a
+// legitimate step and it produces axes like 35.925, which is not.
+const TICK_COUNT_WEIGHT = 0.3;
+
+function niceScale(min, max, target) {
+  if (!isFinite(min) || !isFinite(max)) return null;
+  // A series that never moved still needs an axis with room around it.
+  if (min === max) {
+    const pad = Math.max(Math.abs(min) * 0.05, 1);
+    min -= pad;
+    max += pad;
+  }
+  const span = max - min;
+  const mag = Math.pow(10, Math.floor(Math.log10(span / target)));
+  let best = null;
+  for (const m of [1, 2, 5, 10]) {
+    const step = m * mag;
+    const lo = Math.floor(min / step) * step;
+    const hi = Math.ceil(max / step) * step;
+    const n = Math.round((hi - lo) / step);
+    // Two lines is not an axis; nine is a grid.
+    if (n < 2 || n > 8) continue;
+    // Both matter and the balance is empirical.  Weighting the tick
+    // count heavily gave internal temperature an axis of 30 to 45 for
+    // data spanning 33.8 to 40.3 -- round, correctly bounded, and
+    // using less than half the plot.  At this weight the same data
+    // gets 32 to 42, which is still round and fills two thirds.
+    const score = Math.abs(n - target) * TICK_COUNT_WEIGHT + (hi - lo - span) / span;
+    if (!best || score < best.score) best = { lo, hi, step, n, score };
+  }
+  return best;
+}
+
+// How many gaps between labels suit a plot of this height.  About
+// forty pixels each: closer and the labels crowd, further and a short
+// plot ends up with two.
+function tickTarget(height) {
+  return Math.min(6, Math.max(3, Math.round(height / 40)));
+}
 
 // How tall each chart is, given how many there are.  One gets the room
 // it always had; a stack divides a similar budget, with a floor below
@@ -395,6 +448,7 @@ async function draw() {
     for (const c of charts) c.destroy();
     charts = [];
     $("charts").innerHTML = "";
+    $("readout").innerHTML = "";
     $("note").textContent = "nothing selected";
     return;
   }
@@ -427,12 +481,28 @@ async function draw() {
   got.plots.forEach((plot, n) => {
     const col = plot.column;
     const mean = scaled(plot.mean, col);
-    // Wide enough for the longest label this column can produce.  The
-    // default gutter silently clips instead of overflowing, which
-    // turned an EFC of 712,793 into an axis reading 12,793 -- a
-    // plausible number, wrong by seven hundred thousand.
+    const low = scaled(plot.min, col);
+    const high = scaled(plot.max, col);
+    // The scale has to cover the envelope, not just the mean: the
+    // min and max are drawn, and an axis that ends below them would
+    // clip the very excursions they exist to show.
+    const values = [...low, ...high, ...mean].filter((v) => v != null && isFinite(v));
+    const nice = values.length
+      ? niceScale(Math.min(...values), Math.max(...values), tickTarget(height))
+      : null;
+    const places = nice ? Math.max(0, -Math.floor(Math.log10(nice.step))) : 0;
+    const ticks = [];
+    if (nice) {
+      for (let i = 0; i <= nice.n; i++) ticks.push(nice.lo + i * nice.step);
+    }
+    // Wide enough for the longest label this axis will actually draw.
+    // Measured from the ticks rather than from the data, since a tick
+    // can be wider than every value under it.  The default gutter
+    // silently clips instead of overflowing, which turned an EFC of
+    // 712,793 into an axis reading 12,793 -- a plausible number, wrong
+    // by seven hundred thousand.
     const widest = Math.max(
-      ...mean.filter((v) => v !== null).map((v) => v.toLocaleString().length),
+      ...(ticks.length ? ticks : [0]).map((v) => tick(v, places).length),
       4,
     );
     // Only the bottom chart carries the time labels.  Repeating them
@@ -465,18 +535,26 @@ async function draw() {
           grid: { stroke: "#2b3038" },
           ticks: { stroke: "#2b3038" },
           size: 30 + widest * 8,
-          // How close two ticks may be, in pixels.  The default is
-          // loose enough that a short plot gets two labels: 1 PPS TI
-          // over a day spans about -70 to +120 ns, uPlot picked an
-          // increment of 100, and -100 is off the bottom -- so the
-          // axis read 100, 0, and nothing, with a third of the plot
-          // unlabelled below the zero line.  Stacked plots are short
-          // by construction, so the density has to suit them.
-          space: Y_TICK_SPACE,
+          // The ticks the scale was snapped to, so the lines and the
+          // range cannot disagree.
+          ...(nice
+            ? {
+                splits: () => ticks,
+                values: (u, vals) => vals.map((v) => tick(v, places)),
+              }
+            : {}),
         },
       ],
-      scales: { x: { time: true } },
-      legend: { show: last },
+      scales: {
+        x: { time: true },
+        ...(nice ? { y: { range: [nice.lo, nice.hi] } } : {}),
+      },
+      // No per-chart legend.  With the cursor synced there is one
+      // instant being pointed at, not one per plot, so the values
+      // belong in one row -- and `show: last` meant only the bottom
+      // plot had any readout at all, which is the opposite of what
+      // aligning them is for.
+      legend: { show: false },
       cursor: {
         drag: { x: true, y: false },
         // Every chart moves together, which is what makes reading one
@@ -491,6 +569,7 @@ async function draw() {
         // background refresh is skipped while zoomed -- stopped the
         // history updating for the life of the page.  setSelect fires
         // only for a drag.
+        setCursor: [() => readout()],
         setSelect: [(u) => {
           if (u.select.width <= 0) return;
           zoom = [
@@ -508,6 +587,9 @@ async function draw() {
       [got.at, scaled(plot.min, col), scaled(plot.max, col), mean],
       host,
     );
+    // Which column this chart is, so the shared readout can label it
+    // without reaching back into the request that built it.
+    chart.smartclockColumn = col;
     chart.over.addEventListener("dblclick", () => {
       zoom = null;
       buttons();
@@ -515,6 +597,43 @@ async function draw() {
     });
     charts.push(chart);
   });
+  // Say what the row is for before anything has been hovered, rather
+  // than leaving an empty strip that looks like a rendering fault.
+  readout();
+}
+
+// One tick label, at the precision its step implies.  Fixed places
+// rather than toLocaleString's default, or a step of 0.05 renders as
+// 35.9 and 36 and the axis looks unevenly spaced when it is not.
+function tick(v, places) {
+  return v.toLocaleString(undefined, {
+    minimumFractionDigits: places,
+    maximumFractionDigits: places,
+  });
+}
+
+// One value per series at the instant the cursor is on, plus the time
+// once.  Built here rather than left to uPlot because its legend is per
+// chart, and a stack sharing a cursor wants a readout that shares it
+// too.
+function readout() {
+  const el = $("readout");
+  if (!charts.length) { el.innerHTML = ""; return; }
+  // Synced, so whichever chart is under the pointer has the index and
+  // the rest agree; when the pointer leaves, none of them do.
+  const idx = charts.map((c) => c.cursor.idx).find((i) => i != null);
+  if (idx == null) {
+    el.innerHTML = `<span class="w">hover a plot for the values at that instant</span>`;
+    return;
+  }
+  const at = new Date(charts[0].data[0][idx] * 1000);
+  const cells = charts.map((c) => {
+    const v = c.data[3][idx];
+    const shown = v == null ? "--" : v.toLocaleString(undefined, { maximumFractionDigits: 3 });
+    return `<span><span class="k">${esc(label(c.smartclockColumn))}</span> ` +
+           `<span class="v">${esc(shown)}</span></span>`;
+  });
+  el.innerHTML = `<span class="v">${esc(at.toLocaleTimeString())}</span>` + cells.join("");
 }
 
 // The series menu, built from what the server says it can serve rather
