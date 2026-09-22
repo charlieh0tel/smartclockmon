@@ -1,3 +1,12 @@
+smartclockmon (0.6.4-1) unstable; urgency=low
+
+  * Spend the medium tier's wire time only on answers the daemon does
+    not already have, and poll it every 30 seconds rather than 10.  The
+    one-second history is no longer interrupted a third of the time.
+  * Explain a failure with its own error rather than the queue's oldest.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Tue, 22 Sep 2026 12:58:06 -0700
+
 smartclockmon (0.6.3-1) unstable; urgency=low
 
   * The GPS week rollover is shown as the ordinary condition it is.
