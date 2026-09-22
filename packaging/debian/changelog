@@ -1,3 +1,20 @@
+smartclockmon (0.6.2-1) unstable; urgency=low
+
+  * Fixed: the browser view's status strip stayed on "connecting..."
+    while the charts drew normally.  A tick-label formatter added in
+    0.6.1 was called `tick`, the same name as the status poller, and
+    JavaScript replaces one declaration with the other silently -- so
+    the page threw during startup after drawing the charts and before
+    filling in the live tiles.  A test now fails if any two top-level
+    functions in the page share a name.
+  * Fixed: the daemon recorded the receiver's alarm again on every
+    restart, because what it compared against lived only in memory.
+    It now compares against what was last written down, and a receiver
+    that was never alarming reads "clear" rather than "cleared at the
+    receiver", which says something the daemon never does.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Mon, 21 Sep 2026 22:40:22 -0700
+
 smartclockmon (0.6.1-1) unstable; urgency=low
 
   * The browser view stacks any number of series on one time axis, and
