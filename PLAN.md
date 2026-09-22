@@ -856,30 +856,26 @@ Things that are not decided, as distinct from the defects below.
    has ever been on the line, so its behaviour is unobserved.  Until
    one is, `evidence = "firmware"` is as far as those entries can go.
 
-2. **Whether the learned oscillator tempco is learned at all, and
-   whether it is applied while locked.**
-   `:DIAGnostic:ROSCillator:TCOefficient?` has read exactly -33.65
-   every time it has been asked, now across 46 hours and seven degrees
-   of internal temperature.  That is evidence for a stored calibration
-   rather than a value the receiver revises, but a learned parameter
-   might update only over days or across a holdover.
+2. ~~**Whether the learned oscillator tempco is learned at all.**~~
+   Closed.  Kusters' 1996 design paper, now in `third_party/`, answers
+   it: aging constants live in RAM and are relearned at every power-up,
+   temperature constants live in EPROM because a crystal's temperature
+   response does not drift while the box is unpowered.  A -33.65 that
+   never moves is the design working, not a value failing to update.
 
-   Its units are no longer open: parts in 10^12 per degree C.  The EFC
-   count tracks internal temperature at +4.1x10^-11/C, the same size as
-   the reported -33.65x10^-12/C and opposite in sign, which is what a
-   correction should look like.  That figure also sits right at the
-   10811's <2.5x10^-9 over 0-71 C, so it is an oven working to
-   specification, not one failing.  See `docs/efc.md`.
+   The same paper places the temperature control loop in holdover and
+   the measurement of the response in lock, so the coefficient is not
+   applied as feedforward while locked.  The bench data agrees: the
+   reported temperature is quantised to 0.273 C, which is 30 counts,
+   and across 49 sustained steps the DAC moves +0.02 +/- 0.43 counts
+   where feedforward would step it thirty.
 
-   What remains open is whether the receiver applies the coefficient as
-   feedforward while locked, or only in holdover as the manual's
-   overview implies.  Feedforward computed from the *reported*
-   temperature is ruled out: that value is quantised to 0.273 C, which
-   is 30 counts, and across 49 sustained steps the DAC moves
-   +0.02 +/- 0.43 counts.  A term computed from a finer internal
-   reading would leave no such step and is not excluded.  The test that
-   would settle it is a deliberate holdover, where the loop is open and
-   nothing but feedforward could move the EFC with temperature.
+   Units settled as parts in 10^12 per degree C: the EFC count tracks
+   internal temperature at +4.1x10^-11/C against the reported
+   -33.65x10^-12/C, same size and opposite in sign as a correction
+   should be, and right at the 10811's <2.5x10^-9 over 0-71 C.  So the
+   diurnal EFC swing is the oven's normal residual being steered out,
+   not a failing oven.  See `docs/efc.md`.
 
 3. **What the receiver's `:STATus:<register>:ENABle` masks are set
    to.**  They decide which bits within a group reach the alarm, so

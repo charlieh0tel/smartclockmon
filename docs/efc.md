@@ -217,45 +217,76 @@ degree C**: the reported -33.65x10^-12/C against a measured
 correction should be.  The oscillator slows as it warms; the loop
 pushes the other way.
 
-The agreement is weaker evidence than it looks.  The receiver is told
-to spend its first 24 hours locked so it can learn its oscillator, and
-the natural way to learn a temperature coefficient is the regression we
-just did.  So the match confirms the units and little else -- we may
-simply have recomputed the receiver's own homework.
+The agreement is weaker evidence than it looks, and the design paper
+confirms why: the receiver measures its oscillator's temperature
+response while locked, against GPS, from the frequency corrections it
+is applying.  That is the regression we just did.  The match confirms
+the units, and otherwise we have recomputed the receiver's own
+homework.
 
-### Is it feedforward?
+### Is it feedforward?  No: it is a holdover loop
 
-The manual puts the compensation in holdover:
+A reasonable guess is that the receiver applies its temperature
+coefficient continuously as feedforward -- a term enabled only at the
+instant GPS drops would put a step into the EFC at the worst possible
+moment, where applying it always makes holdover entry bumpless.  It is
+good engineering and it is not what the receiver does.
 
-> In the absence of GPS, SmartClock operates in "holdover" mode, which
-> maintains precise time and frequency over an extended duration by
-> predicting and compensating for aging and temperature effects.
+Kusters' design paper puts the temperature loop squarely in holdover.
+Under **Holdover Operation**:
 
-and the learning in lock.  But it never says the temperature term is
-switched off while locked, and there is a reason it might not be: a
-term enabled only at the instant GPS drops puts a step into the EFC at
-the worst possible moment, where applying it always makes the entry to
-holdover bumpless and the closed loop simply absorbs it.
+> During the loss of the reference, HP SmartClock uses all of the data
+> learned previously about the oscillator to control the oscillator
+> [...] A control loop tracks temperature changes in the module and
+> computes the correct offsets for the oscillator to remove temperature
+> effects.
 
-That predicts something checkable.  The reported temperature is
-quantised to 0.273 C, and 0.273 C is 30 counts.  If the receiver
-computed a feedforward term from that reading, every quantisation step
-would kick the DAC by 30 counts at once.
+and the measurement of that response squarely in lock:
 
-Aligning on the 49 sustained steps in the log -- those where the level
-held for a minute either side, rather than dithering across a boundary
--- the mean DAC change ten seconds after a step is **+0.02 +/- 0.43
-counts**.  Thirty counts is excluded by some seventy standard errors.
-The DAC eases through a temperature step; it does not jump.
+> While locked to the GPS system, HP SmartClock employs enhanced
+> learning to measure the aging and environmental response of the
+> internal reference source.
 
-So there is no feedforward keyed to the reported value.  This does not
-rule out a term computed from a finer internal reading than the one
-published over SCPI, which would produce no step to find.
+So: measure while locked, apply while in holdover.  The diurnal swing
+we see in the EFC while locked is not the receiver compensating.  It is
+the thing being compensated -- the oven's residual, arriving at the
+phase detector and being steered out by the GPS loop, which is also
+precisely the signal the receiver is measuring in order to learn.
 
-The clean test is holdover: with the loop open, any movement of the EFC
-with temperature has to be feedforward, because nothing else is left to
-cause it.  That means initiating holdover deliberately, which is a
-decision about the bench and not about this document.
+The bench data agrees independently.  The reported temperature is
+quantised to 0.273 C, and 0.273 C is 30 counts, so a feedforward term
+computed from that reading would kick the DAC 30 counts at each
+boundary.  Aligning on the 49 sustained steps in the log -- those where
+the level held for a minute either side, rather than dithering across a
+boundary -- the mean DAC change ten seconds after a step is
+**+0.02 +/- 0.43 counts**.  Thirty is excluded by some seventy standard
+errors.  The DAC eases through a temperature step; it does not jump.
+
+The paper's Fig. 13 shows the same thing from the other end: an EFC
+trace with a clear diurnal ripple, and the caption attributes it to
+room temperature with the climate control switched off at night.  That
+ripple is present during the locked learning period, not only in the
+holdover days.
+
+### Why the coefficient never changes
+
+`:DIAGnostic:ROSCillator:TCOefficient?` has returned exactly -33.65
+every time it has ever been asked.  That looked like a stored constant
+masquerading as a learned one.  The paper says it is both, and says
+where it lives:
+
+> Constants related to the aging of the oscillator are stored in RAM
+> and are redetermined each time the receiver is turned on.  Constants
+> related to temperature performance are stored on EPROM, since
+> temperature performance does not substantially change during periods
+> when the oscillator is not powered.
+
+So the two kinds of constant are kept differently on purpose.  Aging is
+volatile and relearned from scratch at every power-up; temperature
+performance is not, because a crystal's response to temperature is a
+property of the crystal and does not drift while the box is off.  A
+tempco that sits still across days is the design working, not a value
+that failed to update.
 
 ## Where the unit stands
 

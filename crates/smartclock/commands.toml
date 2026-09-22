@@ -1866,7 +1866,7 @@ doc = "Oscillator EFC as a raw 20-bit value; relative percent is value / 2^20 * 
 [[command]]
 id = "oven_tempco"
 class = "query"
-doc = "Oscillator temperature coefficient as the receiver has learned it."
+doc = "Oscillator temperature coefficient, in parts in 10^12 per degree C.  Measured against GPS while locked, kept in EPROM, and applied during holdover; it is expected to sit still for long stretches."
 
   [command.dialect.hp58503]
   scpi = ":DIAGnostic:ROSCillator:TCOefficient?"

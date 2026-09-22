@@ -23,3 +23,9 @@ Hewlett-Packard / Agilent / Symmetricom
   58503a-01.pdf              58503A product note
   10811-variants-90027-1.pdf 10811 oscillator variants
   HP-10811AB-Manual.pdf      10811A/B oscillator manual
+  smartclock-dec96a9.pdf     J. A. Kusters, "The Global Positioning
+                             System and HP SmartClock", Hewlett-Packard
+                             Journal, December 1996, article 9.  The
+                             design paper for SmartClock itself: what
+                             the receiver learns, when, and where it
+                             keeps it.
