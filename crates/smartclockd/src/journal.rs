@@ -178,6 +178,14 @@ pub(crate) struct Journal {
     copied: Option<(i64, i64)>,
     /// An entry that will not come, and how many times it has not.
     stuck: Option<(i64, u32)>,
+    /// Whether the receiver's own diagnostic log may be erased once it
+    /// has been copied out.
+    ///
+    /// Off unless asked for.  Erasing is irreversible and non-volatile,
+    /// and a log is evidence on a unit somebody is investigating; a
+    /// daemon that wipes it as a side effect of starting would be a
+    /// nasty surprise.
+    clear_when_full: bool,
     /// Whether this receiver's transition filters have been recorded.
     ///
     /// Once per connection rather than once per pass: they are
@@ -189,6 +197,12 @@ pub(crate) struct Journal {
 }
 
 impl Journal {
+    /// Permit erasing the receiver's log once it is safely copied.
+    pub(crate) fn clearing_when_full(mut self) -> Self {
+        self.clear_when_full = true;
+        self
+    }
+
     /// Take whatever the receiver has been keeping to itself.
     ///
     /// Errors are reported rather than propagated: the journal is a
@@ -414,6 +428,7 @@ impl Journal {
         // Committed even when the walk stopped early, so that the work
         // a cut-short pass did is not done again by the next one.
         self.copied = Some((low, high));
+        self.clear_if_full(handle, dialect, log, count);
         if fresh > 0 {
             eprintln!(
                 "smartclockd: copied {fresh} diagnostic log entries; {} of {count} now held",
@@ -421,6 +436,68 @@ impl Journal {
             );
         }
         Ok(())
+    }
+
+    /// Erase the receiver's diagnostic log, once it is safe to.
+    ///
+    /// Triggered by a condition rather than scheduled, which is what
+    /// keeps it from happening twice: the receiver's own
+    /// log-almost-full bit has to be set, and clearing is what unsets
+    /// it.  A link that flaps therefore cannot erase repeatedly, and
+    /// there is no state to remember that it has already happened.
+    ///
+    /// Three things have to hold, and the third is the instrument's.
+    /// The operator asked for it.  Every entry from one to `count` is
+    /// in the database, checked for gaps rather than counted.  And the
+    /// count passed with the command still matches, or the receiver
+    /// refuses with -222 -- which is what stops an entry that arrived
+    /// between the copy and the clear from being erased unread.
+    fn clear_if_full(&mut self, handle: &Handle, dialect: Dialect, log: &mut Log, count: i64) {
+        if !self.clear_when_full {
+            return;
+        }
+        let Some(receiver) = log.current_receiver() else {
+            return;
+        };
+        // Nothing here propagates.  Erasing the receiver's log is a
+        // side errand of copying it, and a failure to decide whether to
+        // erase must not be reported as a failure to copy -- still less
+        // abandon the pass that was doing the copying.
+        let full = match ask(handle, dialect, CommandId::OperCondition, None)
+            .and_then(|line| Ok(u16::try_from(parse::int(&line)?)?))
+        {
+            Ok(bits) => OperationCondition::from_bits(bits).log_almost_full(),
+            Err(e) => {
+                eprintln!("smartclockd: could not read the operation condition: {e:#}");
+                return;
+            }
+        };
+        if !full {
+            return;
+        }
+        match log.log_complete(receiver, count) {
+            Ok(true) => {}
+            Ok(false) => {
+                eprintln!(
+                    "smartclockd: the receiver's log is nearly full but this one holds \
+                     fewer than its {count} entries; not clearing until the copy is complete"
+                );
+                return;
+            }
+            Err(e) => {
+                eprintln!("smartclockd: could not check the copied log: {e:#}");
+                return;
+            }
+        }
+        // The count is the guard, not a courtesy: without it the clear
+        // would take an entry written since the copy finished.
+        match send(handle, dialect, CommandId::LogClear, Some(count)) {
+            Ok(()) => eprintln!(
+                "smartclockd: cleared the receiver's diagnostic log; all {count} entries \
+                 are held here and it can record again"
+            ),
+            Err(e) => eprintln!("smartclockd: could not clear the receiver's log: {e:#}"),
+        }
     }
 
     /// Read one diagnostic log entry and record it, reporting whether
@@ -465,21 +542,41 @@ fn wanted(low: i64, high: i64, count: i64, budget: usize) -> Vec<i64> {
         .collect()
 }
 
-/// Send one logical query and return its single reply line.
+/// Send one logical command that answers with nothing.
 ///
-/// Through the dialect table rather than with the SCPI written out
-/// here, so these queries are spelled the way every other one is and a
-/// receiver whose tree differs is handled in the one place that knows
-/// about it.
-fn ask(handle: &Handle, dialect: Dialect, id: CommandId, argument: Option<i64>) -> Result<String> {
+/// Separate from [`ask`] because a control command is silent when it
+/// succeeds, and demanding a reply line from one turns every success
+/// into a parse failure: the clear below was sent, accepted, and
+/// reported as an error.
+fn send(handle: &Handle, dialect: Dialect, id: CommandId, argument: Option<i64>) -> Result<()> {
+    let reply = handle.request_within(scpi(dialect, id, argument)?, TIMEOUT)?;
+    anyhow::ensure!(
+        reply.lines.iter().all(|line| line.trim().is_empty()),
+        "{id:?} answered {:?}, which it should not",
+        reply.lines
+    );
+    Ok(())
+}
+
+/// The SCPI for one logical operation, with its argument if it takes
+/// one.
+///
+/// Through the dialect table rather than with the string written out
+/// here, so these are spelled the way every other command is and a
+/// receiver whose tree differs is handled where that is known about.
+fn scpi(dialect: Dialect, id: CommandId, argument: Option<i64>) -> Result<String> {
     let spec = dialect
         .spec(id)
         .ok_or_else(|| anyhow::anyhow!("{} does not have {id:?}", dialect.name()))?;
-    let scpi = match argument {
+    Ok(match argument {
         Some(value) => format!("{} {value}", spec.scpi),
         None => spec.scpi.to_owned(),
-    };
-    let reply = handle.request_within(scpi, TIMEOUT)?;
+    })
+}
+
+/// Send one logical query and return its single reply line.
+fn ask(handle: &Handle, dialect: Dialect, id: CommandId, argument: Option<i64>) -> Result<String> {
+    let reply = handle.request_within(scpi(dialect, id, argument)?, TIMEOUT)?;
     Ok(reply.one_line("a single line")?.to_owned())
 }
 

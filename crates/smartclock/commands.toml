@@ -1052,13 +1052,20 @@ doc = "One diagnostic log entry."
 [[command]]
 id = "log_clear"
 class = "control"
-doc = "Clear the diagnostic log."
+doc = """Clear the diagnostic log.  The entry count may be given, and \
+should be: the receiver refuses with -222 if it does not match, which \
+makes the clear a compare-and-swap against an entry arriving between \
+reading the log and erasing it."""
+argument = { kind = "integer", min = 1, max = 222 }
 
   [command.dialect.hp58503]
   scpi = ":DIAGnostic:LOG:CLEar"
   response = "none"
   models = ["58503A", "58503B", "59551A"]
-  cite = "097-59551-02 5-32"
+  cite = "097-59551-02 5-33"
+  # Manual, not hardware, though the count form has been sent to a
+  # 58503A once by hand: the flag means the read-only probe confirmed
+  # it, and the probe cannot send a control command.
   evidence = "manual"
   [command.dialect.z3801]
   scpi = ":DIAGnostic:LOG:CLEar"

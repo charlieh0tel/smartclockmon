@@ -18,8 +18,9 @@ and a TUI client.  A GUI is possible later but is not planned.
 | 7 | Generated command matrix, deployment notes | done; protocol notes not written |
 | 8 | Prometheus exporter, browser view | done |
 | 9 | The receiver's own records: error queue, diagnostic log, condition registers | done |
+| 10 | Adoption per connection: event registers, transition filters, optional log clear | done |
 
-159 tests, none needing hardware.  `make ci` is what CI runs; `make
+170 tests, none needing hardware.  `make ci` is what CI runs; `make
 test-hw` is the hardware-only set and CI never runs it.
 
 Installed from the package and running as a service against the
@@ -347,21 +348,42 @@ that was already there.  Entries are stored by content rather than by
 number, because clearing the log restarts the numbering and the same
 number then means a different entry.
 
-**Condition registers, not event registers.**  The hardware condition
-register was the only one read.  The operation, holdover and powerup
-condition registers are now read with it, which is free of side effects:
-a condition register is live and holds nothing.  Their *event* registers
-are deliberately left alone.  An event register latches a transition and
-is cleared by reading it, so a logger reading one takes the transition
-away from anything else watching and, through the summary bits, retracts
-the receiver's own alarm.  Catching transitions is not worth silently
-disarming the front panel.
+**Condition registers, and then the event registers too.**  The
+hardware condition register was the only one read.  The operation,
+holdover and powerup condition registers joined it, which is free of
+side effects: a condition register is live and holds nothing.
 
-`:STATus:QUEStionable:CONDition?` is skipped for a different reason: its
-only condition bit is the one the user sets themselves, and the bit that
-carries information -- Time Reset, the receiver having found its clock
-disagreed with the satellites -- is event-only.  There is no
-side-effect-free way to read it.  097-59551-02 5-39.
+The event registers were left alone at first, on the grounds that
+reading one clears it and so retracts the receiver's own alarm.  That
+was reversed once the manual was read properly.  097-59551-02 5-40 says
+the Alarm Condition register "is cleared as a result of the clearing of
+all of the event registers" -- so the alarm goes out because the events
+were cleared, not because `*CLS` touched it.  The hazard belongs to
+reading events at all, and `*CLS` is merely redundant with doing so:
+draining the error queue already clears the queue, and reading the
+events already clears the events, which is everything `*CLS` does.  It
+is never sent.
+
+So the choice was never whether to clear but how often to read, and
+that one knob sets both the temporal resolution and how fast the alarm
+is acknowledged.  Reading won, at the medium tier's ten seconds,
+because Time Reset is worth it: the receiver stepping its own clock
+after a long holdover invalidates every interval measurement across the
+step, it is event-only -- no condition carries it, 097-59551-02 5-39 --
+and it is therefore visible in an event register or nowhere.  The
+consequence is that this daemon, not the front panel, now holds the
+record that something happened, which is why each non-zero read becomes
+a row with its bits named rather than an integer.
+
+The transition filters are recorded beside the events, because the
+events are uninterpretable without them.  A filter decides which
+transitions latch; this 58503A answers positive 127 / 2 / 5087 / 15 / 7
+with every negative filter at zero, so faults latch appearing and never
+clearing.  A reader who did not know that would take a missing
+clear-event as evidence a fault persisted.  The filters are
+non-volatile and the only documented reset is `:SYSTem:PRESet`, which
+is on the never-send list, so they are read and never written: a
+logger should stay read-only on configuration.
 
 All of this runs on the thread that owns the database, reaching the
 receiver through the ordinary request queue, rather than in the poll
@@ -369,6 +391,27 @@ schedule.  It is the only arrangement with no window in which an entry
 has been taken from the receiver and not yet written down: reading is
 what removes it, and a channel between the read and the write is a gap
 a shutdown can lose it in.
+
+And it runs **per connection**, not per receiver.  A connection is the
+boundary across which nothing is known -- the unit may have been power
+cycled, swapped, or reconfigured by somebody else while the link was
+down -- so carrying state across one assumes continuity over a gap
+nobody observed.  That assumption is exactly what let a copied-log span
+survive a receiver swap and judge two hundred of the new unit's entries
+already copied.  The daemon counts connections and the journal resets
+when the count moves; re-deriving costs one database query for the log
+span and one read of the filters.
+
+Erasing the receiver's log is the one thing that is neither per
+connection nor per receiver but **condition-triggered**: it happens
+when the copy here is complete and gap-free and the receiver's own
+log-almost-full bit is set.  Clearing unsets that bit, so it cannot
+happen twice and needs no state remembering that it already did -- a
+flapping link cannot erase repeatedly.  It is gated behind
+`--adopt-log` regardless, because erasing is irreversible and
+non-volatile, and the entry count is passed with the command so the
+receiver refuses with -222 if an entry arrived between the copy and the
+clear.
 
 ### Rows belong to a receiver, not to a file
 
@@ -417,7 +460,7 @@ Tiers, to be measured against hardware before being fixed:
 | ~10 s | `:SYST:STAT?` (satellite table, health line), holdover duration and uncertainty |
 | ~60 s | position, date, diagnostic log count, learned oscillator tempco |
 |       | The receiver's UTC is on the fast tier, not with the date: a clock read once a minute and shown as a clock is wrong for the other fifty-nine seconds. |
-| ~60 s | the error queue and any new diagnostic log entries, off the schedule; see below |
+| ~10 s | the five event registers, the error queue, and any new diagnostic log entries, off the schedule; see below |
 
 A control request arriving on the socket must be able to preempt a
 scheduled status screen read.

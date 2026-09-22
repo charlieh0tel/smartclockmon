@@ -46,6 +46,13 @@ const QUEUE_OVERFLOW_MESSAGE: &str = "Queue overflow";
 /// real one tops out at 222.
 const LOG_ENTRIES: i64 = 222;
 
+/// Where the instrument starts saying its log is nearly full.
+const LOG_ALMOST_FULL_AT: i64 = 200;
+
+/// What the instrument writes as entry one after a clear, in its own
+/// rolled-back calendar.
+const CLEARED_ENTRY: &str = "\"Log 001:20050728.00:00:00: Log cleared\"";
+
 /// One diagnostic log entry in the receiver's own format:
 /// `"Log NNN: YYYYMMDD.HH:MM:SS: <message>"`.  097-59551-02 5-34.
 ///
@@ -101,6 +108,12 @@ pub struct Receiver {
     base: Base,
     /// Errors waiting to be read, oldest first.
     errors: VecDeque<(i32, String)>,
+    /// How many diagnostic log entries are held.  Falls to one when
+    /// the log is cleared, as the instrument's does.
+    log_entries: i64,
+    /// Whether the log has been cleared, so entry one reads as the
+    /// receiver's own "Log cleared" marker rather than as history.
+    log_cleared: bool,
     /// Event registers, latched until read.
     ///
     /// Modelled rather than answered from the conditions, because the
@@ -171,6 +184,8 @@ impl Default for Receiver {
             },
             errors: VecDeque::new(),
             events: Events::default(),
+            log_entries: LOG_ENTRIES,
+            log_cleared: false,
         }
     }
 }
@@ -283,9 +298,17 @@ impl Receiver {
         const LOCKED: u16 = 1 << 1;
         const POSITION_HOLD: u16 = 1 << 3;
         const REFERENCE_VALID: u16 = 1 << 4;
+        const LOG_ALMOST_FULL: u16 = 1 << 6;
         let mut bits = POWERUP_SUMMARY | POSITION_HOLD;
         if !self.holdover {
             bits |= LOCKED | REFERENCE_VALID;
+        }
+        // Derived from how full the log actually is, so clearing it
+        // changes the bit.  Answering from a constant would let the
+        // daemon's clear-when-full logic loop for ever against a
+        // receiver that never stopped saying it was full.
+        if self.log_entries >= LOG_ALMOST_FULL_AT {
+            bits |= LOG_ALMOST_FULL;
         }
         bits
     }
@@ -411,18 +434,38 @@ impl Receiver {
             }
             CommandId::Date => Answer::line("+2007,+2,+4"),
             CommandId::Time => Answer::line("+20,+4,+31"),
-            CommandId::LogCount => Answer::line(format!("{:+}", LOG_ENTRIES)),
+            CommandId::LogCount => Answer::line(format!("{:+}", self.log_entries)),
+            // The count is a compare-and-swap: the instrument refuses
+            // if it does not match, which is what stops an entry
+            // written since the reader last looked from being erased
+            // unread.
+            CommandId::LogClear => {
+                let claimed = argument.parse::<i64>().ok();
+                if claimed.is_some_and(|c| c != self.log_entries) {
+                    self.reject(-222, "Data out of range")
+                } else {
+                    self.log_entries = 1;
+                    self.log_cleared = true;
+                    Answer::silent()
+                }
+            }
             // Without an entry number this is the newest entry, with
             // one it is that entry; the oldest has its own command.
             CommandId::LogRead => {
-                let entry = argument.parse::<i64>().unwrap_or(LOG_ENTRIES);
-                if (1..=LOG_ENTRIES).contains(&entry) {
-                    Answer::line(log_entry(entry))
-                } else {
+                let entry = argument.parse::<i64>().unwrap_or(self.log_entries);
+                if !(1..=self.log_entries).contains(&entry) {
                     self.reject(-222, "Data out of range")
+                } else if self.log_cleared {
+                    Answer::line(CLEARED_ENTRY.to_owned())
+                } else {
+                    Answer::line(log_entry(entry))
                 }
             }
-            CommandId::LogOldest => Answer::line(log_entry(1)),
+            CommandId::LogOldest => Answer::line(if self.log_cleared {
+                CLEARED_ENTRY.to_owned()
+            } else {
+                log_entry(1)
+            }),
             CommandId::OperCondition => Answer::line(format!("{:+}", self.operation_bits())),
             CommandId::HoldoverCondition => Answer::line(format!("{:+}", u16::from(self.holdover))),
             CommandId::PowerupCondition => Answer::line("+7"),

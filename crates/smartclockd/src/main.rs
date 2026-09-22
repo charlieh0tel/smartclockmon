@@ -109,6 +109,20 @@ struct Cli {
     #[arg(long, env = "SMARTCLOCKD_ALLOW_DANGEROUS")]
     allow_dangerous: bool,
 
+    /// Erase the receiver's own diagnostic log once every entry has
+    /// been copied into this one.
+    ///
+    /// Off by default, and deliberately.  The receiver's log holds 222
+    /// entries and then stops recording, so a unit left alone has
+    /// usually stopped logging long ago -- clearing it is the only way
+    /// to get it recording again.  But erasing is irreversible and
+    /// non-volatile, and on a unit somebody is investigating that log
+    /// is evidence.  Nothing is erased until the copy here is complete
+    /// and gap-free, and the count is passed with the command so the
+    /// receiver refuses if an entry arrived in between.
+    #[arg(long, env = "SMARTCLOCKD_ADOPT_LOG")]
+    adopt_log: bool,
+
     /// Permit raw SCPI the command table does not recognise.  An
     /// unrecognised command is treated as control, or as dangerous if
     /// it resembles one that can strand the link.
@@ -250,10 +264,20 @@ fn main() -> Result<()> {
     // interrupting one.
     let journal_handle = Handle::new(requests_tx.clone(), shared.clone());
     let journal_info = Arc::clone(&info);
+    let adopt_log = cli.adopt_log;
+    if adopt_log {
+        eprintln!(
+            "smartclockd: the receiver's diagnostic log will be erased once it is \
+             nearly full and every entry is held here"
+        );
+    }
     thread::Builder::new()
         .name("smartclockd-log".to_owned())
         .spawn(move || {
             let mut journal = Journal::default();
+            if adopt_log {
+                journal = journal.clearing_when_full();
+            }
             let mut recorded: Option<String> = None;
             // Soon after startup rather than immediately: the first
             // pass wants a receiver that has answered, and the errors

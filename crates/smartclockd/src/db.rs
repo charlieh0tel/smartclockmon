@@ -621,6 +621,22 @@ impl Log {
         )?)
     }
 
+    /// Whether every entry from 1 to `count` is held for one receiver.
+    ///
+    /// The precondition for erasing the receiver's copy.  Counting rows
+    /// is not enough: a duplicate could make the total right while a
+    /// gap hides inside it, so this checks that the distinct entry
+    /// numbers run from one to `count` without interruption.
+    pub(crate) fn log_complete(&self, receiver: i64, count: i64) -> Result<bool> {
+        let (rows, lowest, highest): (i64, Option<i64>, Option<i64>) = self.conn.query_row(
+            "SELECT COUNT(DISTINCT entry), MIN(entry), MAX(entry)
+             FROM receiver_log WHERE receiver_id = ?1",
+            params![receiver],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+        Ok(rows == count && lowest == Some(1) && highest == Some(count))
+    }
+
     /// Which receiver rows written now belong to.
     pub(crate) fn current_receiver(&self) -> Option<i64> {
         self.current

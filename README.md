@@ -60,14 +60,38 @@ otherwise looks like a remarkably steady oscillator: every other value
 stays exactly where it was.  A reading the receiver declined is left out
 rather than exported as zero.
 
-The daemon also copies out what the receiver writes down for itself.
-Its error queue is drained once a minute and every entry recorded, which
-matters because reading an entry removes it and a queue left alone
-eventually discards what it holds; its diagnostic log, 222 entries deep
-and no deeper, is copied entry by entry into the same database, newest
-first and then backwards through whatever was already there.  Neither
-survives being left where it is, and between them they are the
-receiver's own account of its faults.
+The daemon also copies out what the receiver writes down for itself, on
+every connection rather than once per unit, because a connection is the
+boundary across which nothing is known.  Its error queue is drained and
+every entry recorded -- reading an entry is what removes it, the queue
+holds thirty and discards the newest when it overflows, so errors
+raised while the daemon was down are both the ones nobody else will
+read and the first to be lost.  Its diagnostic log, 222 entries deep
+and no deeper, is copied entry by entry, newest first and then
+backwards through whatever was already there, resuming from the
+database so a restart does not start over.
+
+It also reads the five event registers every ten seconds.  These are
+the only place a transition between two condition polls appears, and
+the only place some things appear at all -- Time Reset, the receiver
+quietly stepping its own clock because it disagreed with the
+satellites, shows up nowhere else and invalidates every interval
+measurement taken across it.  **Reading an event register clears it,
+and the receiver's Alarm LED and BITE output go inactive as a
+consequence**, because the alarm summarises those registers.  There is
+no non-destructive read, so the daemon becomes what holds the record
+that something happened: each non-zero read is a row with its bits
+named.  The transition filters are recorded beside them, because
+without those the events cannot be read back -- this receiver latches
+faults appearing and never clearing, so a missing clear-event means
+only that nobody enabled the transition, not that the fault persisted.
+
+`--adopt-log` lets the daemon erase the receiver's log once every entry
+is copied here and the receiver says it is nearly full.  Off by
+default: erasing is irreversible and non-volatile, and on a unit
+somebody is investigating that log is evidence.  The entry count is
+passed with the command, so the receiver refuses if one arrived in
+between.
 
 Every row says which receiver it came from.  A `receiver` table holds
 one row per unit that has written to the file, keyed on the serial from
