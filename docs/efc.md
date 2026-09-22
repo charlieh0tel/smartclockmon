@@ -74,6 +74,17 @@ at the oscillator, the same two points each time.
 | 2026-09-22 01:35 | 52.58 mV | 713269 | +36.0453 % | 39.86 C |
 | 2026-09-22 19:56 | 54.77 mV | 712948 | +35.9841 % | 36.86 C |
 
+The temperature column is the receiver's internal sensor: the air
+inside the case, not the crystal.  The crystal sits in an oven with its
+own control loop holding it at a fixed temperature, so ambient has no
+direct path to the EFC the oscillator needs -- if it had one, the oven
+would not be doing its job.  The column is here to test the
+*measurement*, not the oscillator: a tempco in the meter, the leads or
+whatever divides the pin down would move the reading with ambient and
+fake a slope.  What residual ambient sensitivity a working oven leaves
+is a thousandth of the outside swing, far below anything four points
+could see.
+
 Earlier, less precisely: about 52 mV at the coax and about 50 mV at the
 pin, both near raw 713352 to 713426.  Those are consistent with the
 first row and add nothing to the slope, since the count has barely
@@ -102,7 +113,9 @@ Fitting all four:
 The count explains the pin; the temperature does not.  The correlation
 of r = 0.79 across the whole log is real but is the count and the
 temperature drifting together over a day, not a causal path from the
-sensor to the pin.
+sensor to the pin.  Nor should the count itself track ambient closely:
+what the loop is steering out is crystal aging and GPS phase, and an
+oven that let the room through would be a fault in the oven.
 
 So the slope stands at **6.25 uV per count** over a 767 count span,
 against 9.5 uV per count for a full -5 V to +5 V drive and 0.13 uV per
@@ -144,8 +157,10 @@ above is measuring the wrong thing.
 
 The temperature fell 1.365 C over the same interval, so the count and
 the temperature moved together and the pair cannot say which drove the
-voltage.  A tempco of 3.5 mV/C in the measurement path would account for
-the whole 4.73 mV with no relationship to the DAC at all.  Across the
+voltage.  Not through the oscillator -- the oven stands between
+ambient and the crystal -- but through the measurement: a tempco of
+3.5 mV/C anywhere in the path from pin to meter would account for the
+whole 4.73 mV with no relationship to the DAC at all.  Across the
 whole log the two correlate at r = 0.79, so this is not a remote
 possibility.
 
