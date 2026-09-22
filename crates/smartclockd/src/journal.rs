@@ -147,6 +147,11 @@ pub(crate) struct Journal {
     /// watching, and then backwards through the history that was
     /// already there.
     copied: Option<(i64, i64)>,
+    /// Which run of the log's numbering `copied` describes.
+    ///
+    /// Clearing the log restarts the entry numbers at one, so a span
+    /// is only meaningful alongside the generation it was taken in.
+    generation: i64,
     /// An entry that will not come, and how many times it has not.
     stuck: Option<(i64, u32)>,
     /// Whether the receiver's own diagnostic log may be erased once it
@@ -193,7 +198,14 @@ impl Journal {
             // full log takes a quarter of an hour, so a daemon
             // restarted more often than that re-read the newest
             // entries for ever and never reached the oldest.
-            self.copied = match log.log_span(receiver) {
+            self.generation = match log.log_generation(receiver) {
+                Ok(generation) => generation,
+                Err(e) => {
+                    eprintln!("smartclockd: could not read the log generation: {e:#}");
+                    0
+                }
+            };
+            self.copied = match log.log_span(receiver, self.generation) {
                 Ok(span) => span,
                 Err(e) => {
                     eprintln!("smartclockd: could not read the copied log span: {e:#}");
@@ -307,6 +319,19 @@ impl Journal {
         if count < 1 {
             return Ok(());
         }
+        // An entry count below the highest entry held means the log
+        // was cleared: those entries no longer exist and the receiver
+        // is numbering from one again, so what follows belongs to a new
+        // generation rather than overwriting the old one's history.
+        if cleared(self.copied, count) {
+            self.generation += 1;
+            self.copied = None;
+            eprintln!(
+                "smartclockd: the diagnostic log was cleared; \
+                 recording what follows as generation {}",
+                self.generation
+            );
+        }
         let (mut low, mut high) = seed(self.copied, count);
         let mut fresh = 0usize;
         for entry in wanted(low, high, count, ENTRIES_PER_PASS) {
@@ -397,7 +422,7 @@ impl Journal {
         if !full {
             return;
         }
-        match log.log_complete(receiver, count) {
+        match log.log_complete(receiver, self.generation, count) {
             Ok(true) => {}
             Ok(false) => {
                 eprintln!(
@@ -434,19 +459,28 @@ impl Journal {
         let line = ask(handle, dialect, CommandId::LogRead, Some(entry))?;
         let text = parse::string(&line).unwrap_or(line.as_str());
         let (stamp, message) = split_entry(text);
-        log.record_log_entry(entry, stamp, message)
+        log.record_log_entry(self.generation, entry, stamp, message)
     }
+}
+
+/// Whether the log has been cleared since the held span was taken.
+///
+/// An entry count below the highest entry already held is the evidence:
+/// the receiver cannot have lost entries any other way, so it is
+/// numbering from one again and what is held describes entries that no
+/// longer exist.
+fn cleared(copied: Option<(i64, i64)>, count: i64) -> bool {
+    matches!(copied, Some((_, high)) if high > count)
 }
 
 /// The span to start this pass from.
 ///
-/// An entry count below the highest entry already held means the log
-/// was cleared and is being numbered again from one, so what is held
-/// describes entries that no longer exist.  An empty span at the top
-/// makes the walk begin at the newest entry and work down.
+/// An empty span at the top makes the walk begin at the newest entry
+/// and work down, which is where a cleared log and a first pass both
+/// start.
 fn seed(copied: Option<(i64, i64)>, count: i64) -> (i64, i64) {
     match copied {
-        Some((low, high)) if high <= count => (low, high),
+        Some(span) if !cleared(copied, count) => span,
         _ => (count + 1, count),
     }
 }
@@ -535,6 +569,7 @@ fn split_entry(text: &str) -> (Option<&str>, &str) {
 
 #[cfg(test)]
 mod tests {
+    use super::cleared;
     use super::seed;
     use super::split_entry;
     use super::wanted;
@@ -587,6 +622,21 @@ mod tests {
         let (entries, span) = pass(Some((1, 222)), 222, 16);
         assert!(entries.is_empty());
         assert_eq!(span, (1, 222));
+    }
+
+    #[test]
+    fn a_shorter_log_than_we_hold_is_a_clear() {
+        // What the generation counter turns on.  Nothing else can take
+        // entries away from the receiver, so a count below the highest
+        // entry held is the clear, and everything read after it belongs
+        // to a new run of the numbering.
+        assert!(cleared(Some((1, 222)), 2));
+        assert!(cleared(Some((200, 222)), 199));
+        // Not a clear: the log grew, or stood still, or nothing is held
+        // to compare against.
+        assert!(!cleared(Some((1, 222)), 222));
+        assert!(!cleared(Some((1, 222)), 223));
+        assert!(!cleared(None, 0));
     }
 
     #[test]

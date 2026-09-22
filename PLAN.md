@@ -917,18 +917,23 @@ Eighteen of the nineteen midnight stamps in that log are a power-on or
 a preset.  Entry 4 carries the real time in its message, which is how
 the receiver reports a time it did not have when the entry was written.
 
-The consequence is that `smartclock-web`'s journal, which orders by
-`COALESCE(stamp, at) DESC`, interleaves every boot session: each
-power-on sorts to the start of its stale day regardless of when it
-happened.  Ordering by `entry` is correct within one generation of the
-log and wrong across a clear, which restarts the numbering, and
-ordering by `at` is correct across a clear and wrong within the bulk
-copy of history, which was not fetched in entry order.
+The stamp is therefore not an ordering key, and schema 7 stops using
+it as one.  Ordering by `entry` alone is right within one run of the
+numbering and wrong across a clear, which restarts it; ordering by `at`
+is right across a clear and wrong within the bulk copy of history,
+which is not fetched in entry order.  `receiver_log.generation` counts
+the clears, so `(generation, entry)` is the receiver's own sequence and
+orders the whole log.
 
-No ordering over the columns we store is right in both directions.
-Fixing it properly means recording which generation of the log an entry
-belongs to -- a schema change, and so a decision rather than a
-tidy-up.
+Existing databases have their generations inferred on migration:
+within a generation the receiver issues each entry number once, so
+walking a unit's rows in the order they were read and starting a new
+generation wherever a number comes round again recovers the
+boundaries.
+
+The stamps themselves are still what the receiver wrote, rollover and
+all, and this entry stands as the reason not to read them as wall
+clocks.
 
 What the September 2026 reviews found is either fixed or, where a
 decision went the other way, recorded as a decision above.

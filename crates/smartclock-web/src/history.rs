@@ -216,16 +216,18 @@ impl Log {
     pub(crate) fn journal(&self, limit: usize) -> Result<Journal> {
         let limit = limit.min(MAX_JOURNAL) as i64;
         Ok(Journal {
-            // Ordered by the receiver's own clock, not by when we
-            // copied each entry out.  The backfill walks newest to
-            // oldest, so copy order is reverse chronology; and the
-            // entry number restarts at one whenever the log is
-            // cleared, so that is no better.  The calendar runs across
-            // a clear, which leaves its own stamp as the only key that
-            // orders the whole log.
+            // Ordered by generation and then entry number, which is
+            // the receiver's own sequence.  Not by stamp: before the
+            // first GPS lock the receiver stamps entries with elapsed
+            // time since boot on a stale date, so every power-on sorts
+            // to the start of that day and boot sessions interleave.
+            // Not by copy time either: the backfill walks newest to
+            // oldest, so copy order is reverse chronology.  The entry
+            // number restarts at one on a clear, which is what the
+            // generation counts.
             entries: self.stream(
                 "SELECT at, entry, stamp, message FROM receiver_log
-                 ORDER BY COALESCE(stamp, at) DESC",
+                 ORDER BY generation DESC, entry DESC",
                 limit,
                 |row| {
                     Ok(Entry {

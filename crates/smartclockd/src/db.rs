@@ -8,6 +8,8 @@
 //! Retention is unbounded for now, so the timestamp index is what keeps
 //! the table queryable as it grows.
 
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::Path;
 
 use anyhow::Context as _;
@@ -19,7 +21,7 @@ use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Snapshot;
 
 /// Bumped when the tables change shape.
-const SCHEMA: i64 = 6;
+const SCHEMA: i64 = 7;
 
 /// The daemon's write connection.
 #[derive(Debug)]
@@ -44,7 +46,7 @@ impl Log {
         // one poll interval, which is not worth an fsync per row.
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
-        let log = Self {
+        let mut log = Self {
             conn,
             current: None,
         };
@@ -52,7 +54,7 @@ impl Log {
         Ok(log)
     }
 
-    fn migrate(&self) -> Result<()> {
+    fn migrate(&mut self) -> Result<()> {
         // The metadata table first and alone, because the version it
         // holds decides whether this database may be touched at all.
         // Creating the rest before reading it meant a database from a
@@ -247,11 +249,19 @@ impl Log {
                 stamp   TEXT,
                 message TEXT    NOT NULL,
                 receiver_id INTEGER REFERENCES receiver(id),
-                -- By content and by unit, not by entry number: a
-                -- cleared log starts numbering again, and two receivers
-                -- number their logs independently, so neither the
-                -- number nor the text is unique on its own.
-                UNIQUE (receiver_id, entry, stamp, message)
+                -- Which run of the log's numbering this entry belongs
+                -- to.  Clearing the log restarts the numbering at one,
+                -- so the entry number alone orders a generation and
+                -- says nothing across one; without this there is no
+                -- ordering over the stored columns that is right both
+                -- within a generation and across a clear.  The stamp
+                -- cannot stand in: before the first GPS lock it is
+                -- elapsed time since boot on a stale date.
+                generation INTEGER NOT NULL DEFAULT 0,
+                -- Within one unit and one generation an entry number
+                -- is the receiver's own key, and re-reading an entry
+                -- must not duplicate it.
+                UNIQUE (receiver_id, generation, entry)
             );
 
             -- Every command a client asked for.  Not a complete record
@@ -300,6 +310,7 @@ impl Log {
                 ))?;
             }
         }
+        self.adopt_log_generations()?;
         self.conn.execute(
             "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema', ?1)",
             params![SCHEMA.to_string()],
@@ -315,6 +326,88 @@ impl Log {
     }
 
     /// Whether a table already has a column, for migrating in place.
+    /// Give a pre-schema-7 `receiver_log` its generation column.
+    ///
+    /// The column cannot simply be added: the old table's uniqueness
+    /// was over the entry's content, and the new one is over
+    /// `(receiver, generation, entry)`, which SQLite will not alter in
+    /// place.  So the table is rebuilt.
+    ///
+    /// Existing rows have their generation inferred.  Within one
+    /// generation the receiver numbers each entry once, so walking a
+    /// receiver's rows in the order they were read and starting a new
+    /// generation whenever an entry number comes round again recovers
+    /// the boundaries.  It is not guesswork about times: a repeated
+    /// entry number is what a clear leaves behind.
+    fn adopt_log_generations(&mut self) -> Result<()> {
+        if self.has_column("receiver_log", "generation")? {
+            return Ok(());
+        }
+        let rows: Vec<(i64, Option<i64>, i64)> = self
+            .conn
+            .prepare(
+                "SELECT id, receiver_id, entry FROM receiver_log
+                 ORDER BY receiver_id, at, id",
+            )?
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+            .collect::<std::result::Result<_, _>>()?;
+        let mut generation = HashMap::new();
+        let mut seen: HashMap<Option<i64>, HashSet<i64>> = HashMap::new();
+        let mut current: HashMap<Option<i64>, i64> = HashMap::new();
+        for (id, receiver, entry) in rows {
+            let entries = seen.entry(receiver).or_default();
+            if !entries.insert(entry) {
+                entries.clear();
+                entries.insert(entry);
+                *current.entry(receiver).or_default() += 1;
+            }
+            generation.insert(id, current.get(&receiver).copied().unwrap_or(0));
+        }
+        let tx = self.conn.transaction()?;
+        tx.execute_batch(
+            r#"
+            CREATE TABLE receiver_log_new (
+                id      INTEGER PRIMARY KEY,
+                at      TEXT    NOT NULL,
+                entry   INTEGER NOT NULL,
+                stamp   TEXT,
+                message TEXT    NOT NULL,
+                receiver_id INTEGER REFERENCES receiver(id),
+                generation INTEGER NOT NULL DEFAULT 0,
+                UNIQUE (receiver_id, generation, entry)
+            );
+            "#,
+        )?;
+        {
+            let mut insert = tx.prepare(
+                "INSERT OR IGNORE INTO receiver_log_new
+                     (id, at, entry, stamp, message, receiver_id, generation)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            )?;
+            let mut read =
+                tx.prepare("SELECT id, at, entry, stamp, message, receiver_id FROM receiver_log")?;
+            let mut found = read.query([])?;
+            while let Some(row) = found.next()? {
+                let id: i64 = row.get(0)?;
+                insert.execute(params![
+                    id,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<i64>>(5)?,
+                    generation.get(&id).copied().unwrap_or(0),
+                ])?;
+            }
+        }
+        tx.execute_batch(
+            "DROP TABLE receiver_log;
+             ALTER TABLE receiver_log_new RENAME TO receiver_log;",
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
     fn has_column(&self, table: &str, column: &str) -> Result<bool> {
         let mut statement = self.conn.prepare(&format!("PRAGMA table_info({table})"))?;
         let mut names = statement.query_map([], |row| row.get::<_, String>(1))?;
@@ -600,22 +693,40 @@ impl Log {
     /// written.
     pub(crate) fn record_log_entry(
         &mut self,
+        generation: i64,
         entry: i64,
         stamp: Option<&str>,
         message: &str,
     ) -> Result<bool> {
         let written = self.conn.execute(
-            "INSERT OR IGNORE INTO receiver_log (at, entry, stamp, message, receiver_id)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT OR IGNORE INTO receiver_log
+                 (at, entry, stamp, message, receiver_id, generation)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 jiff::Timestamp::now().to_string(),
                 entry,
                 stamp,
                 message,
                 self.current,
+                generation,
             ],
         )?;
         Ok(written > 0)
+    }
+
+    /// The newest generation of one receiver's log that we hold.
+    ///
+    /// Zero when nothing is held, so a first pass and a log never
+    /// cleared agree.
+    pub(crate) fn log_generation(&self, receiver: i64) -> Result<i64> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT MAX(generation) FROM receiver_log WHERE receiver_id = ?1",
+                params![receiver],
+                |row| row.get::<_, Option<i64>>(0),
+            )?
+            .unwrap_or(0))
     }
 
     /// The span of diagnostic log entry numbers already held for one
@@ -631,10 +742,11 @@ impl Log {
     /// is held: an entry the receiver would not give up leaves a gap
     /// that only a full re-walk fills.  Those are logged when they
     /// happen.
-    pub(crate) fn log_span(&self, receiver: i64) -> Result<Option<(i64, i64)>> {
+    pub(crate) fn log_span(&self, receiver: i64, generation: i64) -> Result<Option<(i64, i64)>> {
         Ok(self.conn.query_row(
-            "SELECT MIN(entry), MAX(entry) FROM receiver_log WHERE receiver_id = ?1",
-            params![receiver],
+            "SELECT MIN(entry), MAX(entry) FROM receiver_log
+             WHERE receiver_id = ?1 AND generation = ?2",
+            params![receiver, generation],
             |row| {
                 Ok(row
                     .get::<_, Option<i64>>(0)?
@@ -649,11 +761,11 @@ impl Log {
     /// is not enough: a duplicate could make the total right while a
     /// gap hides inside it, so this checks that the distinct entry
     /// numbers run from one to `count` without interruption.
-    pub(crate) fn log_complete(&self, receiver: i64, count: i64) -> Result<bool> {
+    pub(crate) fn log_complete(&self, receiver: i64, generation: i64, count: i64) -> Result<bool> {
         let (rows, lowest, highest): (i64, Option<i64>, Option<i64>) = self.conn.query_row(
             "SELECT COUNT(DISTINCT entry), MIN(entry), MAX(entry)
-             FROM receiver_log WHERE receiver_id = ?1",
-            params![receiver],
+             FROM receiver_log WHERE receiver_id = ?1 AND generation = ?2",
+            params![receiver, generation],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )?;
         Ok(rows == count && lowest == Some(1) && highest == Some(count))
@@ -732,6 +844,69 @@ mod tests {
     }
 
     #[test]
+    fn an_old_log_is_split_into_generations_by_its_repeated_numbers() {
+        // Schema 6 had no generation column, so a database that lived
+        // across a clear holds two runs of entry numbers in one table
+        // with nothing to tell them apart.  The boundary is recoverable
+        // without guessing at times: within a generation the receiver
+        // issues each entry number once, so a number coming round again
+        // is where the clear was.
+        //
+        // The rows are written in the order the backfill reads them --
+        // newest down to oldest, then the new log upwards from one --
+        // because that is the order the migration has to cope with.
+        let path = scratch("generations");
+        let old = Connection::open(&path).expect("make an old database");
+        old.execute_batch(
+            r#"
+            CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            INSERT INTO meta VALUES ('schema', '6');
+            CREATE TABLE receiver (
+                id INTEGER PRIMARY KEY, serial TEXT UNIQUE NOT NULL,
+                manufacturer TEXT, model TEXT, firmware TEXT,
+                first_seen TEXT, last_seen TEXT
+            );
+            INSERT INTO receiver (id, serial) VALUES (1, 'A');
+            CREATE TABLE receiver_log (
+                id INTEGER PRIMARY KEY, at TEXT NOT NULL, entry INTEGER NOT NULL,
+                stamp TEXT, message TEXT NOT NULL,
+                receiver_id INTEGER REFERENCES receiver(id),
+                UNIQUE (receiver_id, entry, stamp, message)
+            );
+            INSERT INTO receiver_log (at, entry, stamp, message, receiver_id) VALUES
+                ('2026-09-01T00:00:03Z', 3, '20050528.00:02:00', 'GPS valid', 1),
+                ('2026-09-01T00:00:04Z', 2, '20050528.00:00:28', 'Position hold', 1),
+                ('2026-09-01T00:00:05Z', 1, '20050528.00:00:00', 'Power on',   1),
+                ('2026-09-02T00:00:01Z', 1, '20050530.00:00:00', 'Power on',   1),
+                ('2026-09-02T00:00:02Z', 2, '20050530.00:00:31', 'Position hold', 1);
+            "#,
+        )
+        .expect("write the old shape");
+        drop(old);
+
+        let log = Log::open(&path).expect("migrate it");
+        let rows: Vec<(i64, i64)> = log
+            .conn
+            .prepare("SELECT generation, entry FROM receiver_log ORDER BY generation, entry")
+            .expect("prepare")
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .expect("query")
+            .collect::<std::result::Result<_, _>>()
+            .expect("collect");
+        assert_eq!(rows, vec![(0, 1), (0, 2), (0, 3), (1, 1), (1, 2)]);
+        // Nothing was dropped on the way through.
+        assert_eq!(log.journal_counts().expect("count them").1, 5);
+        assert_eq!(log.log_generation(1).expect("the newest generation"), 1);
+        assert_eq!(log.log_span(1, 0).expect("the old span"), Some((1, 3)));
+        assert_eq!(log.log_span(1, 1).expect("the new span"), Some((1, 2)));
+        // The old generation's three entries must not make the new
+        // one's two look like a complete log of five.
+        assert!(log.log_complete(1, 1, 2).expect("complete"));
+        assert!(!log.log_complete(1, 1, 3).expect("not complete"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
     fn a_diagnostic_log_entry_is_not_recorded_twice() {
         // The copy walks the log whenever the entry count is in doubt,
         // so it re-reads entries it already holds as a matter of
@@ -741,18 +916,45 @@ mod tests {
         let mut log = Log::open(&path).expect("open the database");
         log.note_receiver("HEWLETT-PACKARD,58503A,A,3704-C")
             .expect("note the receiver");
-        let entry = |log: &mut Log, n, stamp, message| {
-            log.record_log_entry(n, Some(stamp), message)
+        let entry = |log: &mut Log, generation, n, stamp, message| {
+            log.record_log_entry(generation, n, Some(stamp), message)
                 .expect("record an entry")
         };
 
-        assert!(entry(&mut log, 7, "20050727.06:17:34", "Holdover started"));
-        assert!(!entry(&mut log, 7, "20050727.06:17:34", "Holdover started"));
-        // A cleared log numbers again from one, so the same number with
-        // different text is a different entry and must be kept.
-        assert!(entry(&mut log, 7, "20050728.06:17:34", "Holdover started"));
-        assert!(entry(&mut log, 7, "20050727.06:17:34", "Holdover ended"));
-        assert_eq!(log.journal_counts().expect("count them").1, 3);
+        assert!(entry(
+            &mut log,
+            0,
+            7,
+            "20050727.06:17:34",
+            "Holdover started"
+        ));
+        assert!(!entry(
+            &mut log,
+            0,
+            7,
+            "20050727.06:17:34",
+            "Holdover started"
+        ));
+        // Within a generation the entry number is the receiver's own
+        // key, so a re-read that disagrees about the text is still the
+        // same entry and must not make a second row.
+        assert!(!entry(
+            &mut log,
+            0,
+            7,
+            "20050728.06:17:34",
+            "Holdover ended"
+        ));
+        // A cleared log numbers again from one.  That is a different
+        // entry, and the generation is what says so.
+        assert!(entry(
+            &mut log,
+            1,
+            7,
+            "20050728.06:17:34",
+            "Holdover started"
+        ));
+        assert_eq!(log.journal_counts().expect("count them").1, 2);
         let _ = std::fs::remove_file(&path);
     }
 
