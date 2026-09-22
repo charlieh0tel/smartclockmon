@@ -858,8 +858,33 @@ Things that are not decided, as distinct from the defects below.
 2. **What the receiver's `:STATus:<register>:ENABle` masks are set
    to.**  They decide which bits within a group reach the alarm, so
    they are what would say which events the receiver itself considers
-   alarm-worthy.  Read-only and harmless; not in the command table yet,
-   so reading them needs the daemon stopped.
+   alarm-worthy.
+
+   The reason recorded here for not having read them -- that it needs
+   the daemon stopped -- was wrong.  `smartclock-cli --socket query`
+   sends arbitrary SCPI through the running daemon; what stopped it is
+   that an unrecognised command is treated as control, and
+   `--allow-raw` is off.  The five queries are in the command table as
+   of this commit, so they are now an ordinary read.  Nothing has been
+   sent yet.
+
+   `097-59551-02` 5-87 and 5-88 give the factory defaults, which are
+   worth having either way:
+
+   | Register | ENABle | PTRansition |
+   | -------- | ------ | ----------- |
+   | `OPERation` | 36 | 127 |
+   | `OPERation:HARDware` | 8191 | 5119 |
+   | `OPERation:HOLDover` | 8 | 15 |
+   | `OPERation:POWerup` | 7 | 7 |
+   | `QUEStionable` | 3 | 2 |
+
+   with `*SRE` 136, `*ESE` 0 and every `NTRansition` 0.  All
+   non-volatile.  This unit matches on every one we have read: `*SRE`
+   136, `*ESE` 0, NTR all 0, and PTR 127 / 5087 / 15 / 7 / 2.  The lone
+   difference is hardware PTR 5087 against a default of 5119, which is
+   bit 5 -- documented "not used" in figure 5-1, so it signifies
+   nothing.
 
 3. **Whether the socket protocol should be written down.**  It was to
    wait for a second client.  There are four -- the monitor, the CLI,
@@ -879,18 +904,31 @@ its cost yet.
 
 **The receiver's log timestamps are not monotonic across a power
 cycle.**  Its clock restarts at midnight on a stale date and runs free
-until the first lock, so entries written in that window carry times
-that did not happen.  Entry 212 of the development unit's log also
-embeds a timestamp in its message that does not reconcile with its own
-header stamp.  Anything ordering by `stamp` should know this; anything
-ordering by `entry` has the worse problem that the numbering restarts
-on a clear.
+until the first lock, so a log entry's stamp in that window is elapsed
+time since boot wearing the costume of a wall clock.  The development
+unit's log shows it plainly:
 
-**The pinned toolchain version lives in three files** --
-`rust-toolchain.toml`, `ci.yml` and `release.yml` -- and nothing checks
-that they agree.  Only the first decides what actually compiles; the
-other two exist so the jobs install the version they will use rather
-than fetching one to be overridden.
+    3  20050528.00:01:08  Position hold mode started
+    4  20050528.00:02:00  GPS reference valid at 20050529.04:09:25
+    5  20050528.00:00:00  Power on
+    6  20050528.00:00:28  Position hold mode started
+
+Eighteen of the nineteen midnight stamps in that log are a power-on or
+a preset.  Entry 4 carries the real time in its message, which is how
+the receiver reports a time it did not have when the entry was written.
+
+The consequence is that `smartclock-web`'s journal, which orders by
+`COALESCE(stamp, at) DESC`, interleaves every boot session: each
+power-on sorts to the start of its stale day regardless of when it
+happened.  Ordering by `entry` is correct within one generation of the
+log and wrong across a clear, which restarts the numbering, and
+ordering by `at` is correct across a clear and wrong within the bulk
+copy of history, which was not fetched in entry order.
+
+No ordering over the columns we store is right in both directions.
+Fixing it properly means recording which generation of the log an entry
+belongs to -- a schema change, and so a decision rather than a
+tidy-up.
 
 What the September 2026 reviews found is either fixed or, where a
 decision went the other way, recorded as a decision above.

@@ -65,14 +65,38 @@ a full -5 V to +5 V drive and 0.13 uV for a sliver.  The pin moves like
 something driven across volts, so the unit does not need periodic
 manual retrimming.
 
+**The inverted sign is the oscillator's own.**  Count up, voltage
+down, across all four points.  Nothing inverts between the DAC and the
+pin; the 10811's EFC input is specified inverting (`HP-10811AB-Manual`
+section 2-13):
+
+> As the EFC voltage goes positive the output frequency will go lower.
+> Conversely, as the EFC voltage goes negative, the output frequency
+> will go higher.
+
+The chain closes: count up drives the pin down, and the pin down raises
+the frequency.  Independently, the count rises as the case warms, which
+is the direction needed to correct an oscillator whose coefficient is
+negative.  The receiver's count is a monotonic frequency command.
+
+**The slope is a designed round number.**  6.250 +/- 0.175 uV per
+reported count.  Four of the twenty bits are dither, so a 16-bit DAC
+LSB is 16 counts, or 100 uV exactly, and full scale is
+65536 x 100 uV = **6.5536 V**.  The measured span is 6.553 +/- 0.184 V.
+
 **The absolute level is still unexplained.**  At 36 percent the
 specification mapping puts the pin at +1.80 V; it reads 52 mV, some 36
 times less.  A divider scaling 1.8 V to 50 mV would scale the slope by
-the same 36x, and the slope is not scaled: 6.25 uV/count across 2^20
-counts is a 6.55 V span.  Whatever explains 52 mV has to leave the
-slope alone, which rules out a plain divider.  The sign is inverted
-too -- count up, voltage down -- consistently across all four points,
-so something inverts between the DAC and the pin.
+the same 36x, and the slope is not scaled.  Whatever explains 52 mV has
+to leave the slope alone, which rules out a plain divider.
+
+Extrapolating the fit, the pin reaches 0 V at count 721,700 +/- 20,200,
+or **+37.7 +/- 3.9 percent** reported -- so the reported percentage is
+offset from the pin voltage, and this unit, at +36.0 percent, is
+sitting within a few millivolts of the oscillator's electrical centre.
+That is an extrapolation across 720,000 counts from a fit spanning 767,
+and the quoted error is the slope's alone; treat it as an indication of
+where zero lies, not a measurement of it.
 
 ## What the count does with ambient
 
@@ -142,10 +166,17 @@ still across days is the design working, not a value failing to update.
 
 ## Where the unit stands
 
-Under the specification mapping, 36.06 percent of +/- 2.0x10^-7 is
-7.2x10^-8 used with about 1.3x10^-7 left -- on the order of a decade of
-headroom at typical aging.  Under the sliver mapping there would be
-single-digit nanohertz per hertz of range, most of a year at best.
+Reading the reported percentage as position in the pull range,
+36.06 percent of +/- 2.0x10^-7 is 7.2x10^-8 used with about 1.3x10^-7
+left -- on the order of a decade of headroom at typical aging.  Under
+the sliver mapping there would be single-digit nanohertz per hertz of
+range, most of a year at best.
+
+The offset above argues for more headroom still, not less.  If the pin
+is 0 V near +37.7 percent, this unit at +36.0 percent has pulled only
+about 1.7 percentage points, some 3x10^-9, and has most of the range in
+both directions.  Both readings are comfortable and the difference
+between them does not matter yet, so the conservative one is quoted.
 
 The measured 6.25 uV per count settles it for the specification
 mapping.  That slope is measured over 767 of 2^20 counts and

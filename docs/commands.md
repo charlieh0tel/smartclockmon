@@ -7,7 +7,7 @@ to regenerate; a test fails if this file and the table disagree.
 
 | Tree | Commands | Hardware | Firmware | Manual |
 | ---- | -------- | -------- | -------- | ------ |
-| 58503A/B, 59551A | 124 | 91 | 0 | 33 |
+| 58503A/B, 59551A | 129 | 91 | 0 | 38 |
 | Z3801A, Z3816A | 56 | 0 | 55 | 1 |
 
 **H** means the receiver answered it.  **F** means every keyword
@@ -17,7 +17,7 @@ it was transcribed from a manual and nothing more.
 
 | Class | Commands | Gate |
 | ----- | -------- | ---- |
-| Query | 92 | none |
+| Query | 97 | none |
 | Control | 24 | `--allow-control` |
 | Dangerous | 8 | `--allow-dangerous` |
 
@@ -133,6 +133,11 @@ anything reaching the receiver.
 | holdover negative transition | Query | `:STATus:OPERation:HOLDover:NTRansition?` H |  |
 | powerup positive transition | Query | `:STATus:OPERation:POWerup:PTRansition?` H |  |
 | powerup negative transition | Query | `:STATus:OPERation:POWerup:NTRansition?` H |  |
+| oper enable | Query | `:STATus:OPERation:ENABle?` M |  |
+| hardware enable | Query | `:STATus:OPERation:HARDware:ENABle?` M |  |
+| holdover enable | Query | `:STATus:OPERation:HOLDover:ENABle?` M |  |
+| powerup enable | Query | `:STATus:OPERation:POWerup:ENABle?` M |  |
+| quest enable | Query | `:STATus:QUEStionable:ENABle?` M |  |
 | lifetime count | Query | `:DIAGnostic:LIFetime:COUNt?` H | `:DIAGnostic:LIFetime:COUNt?` F |
 | diag test | Control | `:DIAGnostic:TEST?` M |  |
 | diag test result | Query | `:DIAGnostic:TEST:RESult?` H |  |

@@ -1383,6 +1383,66 @@ doc = "Which powerup conditions latch an event on a negative transition."
   evidence = "hardware"
 
 [[command]]
+id = "oper_enable"
+class = "query"
+doc = "Which operation events reach the alarm."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:ENABle?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "manual"
+
+[[command]]
+id = "hardware_enable"
+class = "query"
+doc = "Which hardware events reach the operation summary."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:HARDware:ENABle?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "manual"
+
+[[command]]
+id = "holdover_enable"
+class = "query"
+doc = "Which holdover events reach the operation summary."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:HOLDover:ENABle?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "manual"
+
+[[command]]
+id = "powerup_enable"
+class = "query"
+doc = "Which powerup events reach the operation summary."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:POWerup:ENABle?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "manual"
+
+[[command]]
+id = "quest_enable"
+class = "query"
+doc = "Which questionable events reach the alarm."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:QUEStionable:ENABle?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "manual"
+
+[[command]]
 id = "lifetime_count"
 class = "query"
 doc = "Total powered-on time."
