@@ -19,6 +19,7 @@ use std::time::Instant;
 use crate::error::Error;
 use crate::error::Result;
 use crate::transport::Transport;
+use crate::types::ErrorEntry;
 
 /// The prompt that ends an exchange.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,6 +96,16 @@ pub struct Session<T: Transport> {
     config: Config,
     /// Bytes read but not yet consumed by a reply.
     buf: String,
+    /// Errors drained while explaining a failure that were not that
+    /// failure's own.
+    ///
+    /// The queue is first in, first out, so a command that fails while
+    /// something unread is already in it is explained by the wrong
+    /// entry unless the whole queue is taken.  Taking it recovers the
+    /// attribution and leaves these, which belong to nobody in
+    /// particular and would otherwise be silently consumed.  A caller
+    /// that cares takes them with [`Session::take_stray_errors`].
+    strays: Vec<ErrorEntry>,
 }
 
 impl<T: Transport> Session<T> {
@@ -105,6 +116,7 @@ impl<T: Transport> Session<T> {
             transport,
             config,
             buf: String::new(),
+            strays: Vec::new(),
         }
     }
 
@@ -190,6 +202,20 @@ impl<T: Transport> Session<T> {
 
     /// Send a command, turning an error prompt into an [`Error::Device`]
     /// by reading the receiver's error queue.
+    ///
+    /// The whole queue, not one entry.  It is first in, first out, so
+    /// reading once returns the *oldest* unread error, which is this
+    /// command's only if the queue was empty beforehand.  It often is,
+    /// because the daemon drains it periodically -- but when it is not,
+    /// a routine refusal was reported as whatever unrelated thing the
+    /// receiver had raised earlier, and that earlier error was consumed
+    /// in the process.  Observed against a simulator seeded with a
+    /// spontaneous -313: the next -230 refusal reported itself as -313.
+    ///
+    /// Draining makes the last entry this command's, which is right
+    /// unless the receiver raised something spontaneously during the
+    /// exchange.  Anything older is kept in [`Session::strays`] rather
+    /// than dropped.
     pub fn query(&mut self, command: &str) -> Result<Reply> {
         let reply = self.send_raw(command)?;
         let Prompt::Error(prompt) = &reply.prompt else {
@@ -197,16 +223,56 @@ impl<T: Transport> Session<T> {
         };
         let prompt = prompt.clone();
 
-        // The error prompt says only that something failed.  The queue
-        // says what, and reading it also clears it, which keeps the next
-        // command from inheriting a stale error prompt.
-        let detail = self.send_raw(":SYSTem:ERRor?")?;
-        match detail.lines.first().map(|l| parse_error(l)) {
-            Some(Some((code, message))) if code != 0 => Err(Error::Device { code, message }),
-            // Either the queue was empty or it did not parse; both mean
-            // the receiver and its queue have drifted out of step.
-            _ => Err(Error::UnexplainedError { prompt }),
+        let mut own = None;
+        for _ in 0..MAX_QUEUE_DRAIN {
+            let detail = self.send_raw(":SYSTem:ERRor?")?;
+            // Either the queue is empty or it did not parse.  Both end
+            // the drain; the second also means the receiver and its
+            // queue have drifted out of step, which the caller learns
+            // from the unexplained error below if nothing was read.
+            let Some(Some((code, message))) = detail.lines.first().map(|l| parse_error(l)) else {
+                break;
+            };
+            if code == 0 {
+                break;
+            }
+            // Whatever was held is older than what just arrived, so it
+            // cannot be this command's.
+            if let Some(older) = own.replace(ErrorEntry { code, message }) {
+                self.remember_stray(older);
+            }
         }
+        match own {
+            Some(entry) => Err(Error::Device {
+                code: entry.code,
+                message: entry.message,
+            }),
+            None => Err(Error::UnexplainedError { prompt }),
+        }
+    }
+
+    /// Take the errors drained while explaining other failures.
+    ///
+    /// Empty almost always.  Non-empty means the receiver had raised
+    /// something nobody had read when a command happened to fail, and
+    /// these are those: real errors, correctly detached from the
+    /// command that merely uncovered them.
+    pub fn take_stray_errors(&mut self) -> Vec<ErrorEntry> {
+        std::mem::take(&mut self.strays)
+    }
+
+    /// Keep a stray, bounded.
+    ///
+    /// Nothing obliges a caller to collect them, and a receiver
+    /// refusing everything could otherwise grow this without limit in
+    /// a daemon meant to run for months.  The oldest go first: the
+    /// earliest error is usually the one that explains the rest, but
+    /// not at the cost of the memory of a process nobody is watching.
+    fn remember_stray(&mut self, entry: ErrorEntry) {
+        if self.strays.len() >= MAX_STRAY_ERRORS {
+            self.strays.remove(0);
+        }
+        self.strays.push(entry);
     }
 
     /// Read until a prompt closes the reply, returning the body before
@@ -276,6 +342,16 @@ fn split_prompt(buf: &str) -> Option<(&str, Prompt)> {
     };
     Some((body, prompt))
 }
+
+/// How many entries one explanation will take from the queue.
+///
+/// The receiver's queue holds thirty, 097-59551-02 5-31, so this ends
+/// a drain that is not converging rather than bounding a real queue.
+const MAX_QUEUE_DRAIN: usize = 32;
+
+/// How many unattributed errors to keep for a caller that may never
+/// ask.
+const MAX_STRAY_ERRORS: usize = 32;
 
 /// Parse `:SYSTem:ERRor?`, documented as `<code>,"<description>"`.
 fn parse_error(line: &str) -> Option<(i32, String)> {

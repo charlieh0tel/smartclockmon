@@ -10,7 +10,7 @@ Phases 0 to 10 are done; see **Phases** at the end for what each turned
 out to involve, **Open questions** for what is undecided and **Known
 defects** for what is wrong and unfixed.
 
-171 tests, none needing hardware.  `make ci` is what CI runs; `make
+178 tests, none needing hardware.  `make ci` is what CI runs; `make
 test-hw` is the hardware-only set and CI never runs it.
 
 Installed from the package and running as a service against the
@@ -886,16 +886,6 @@ Things that are not decided, as distinct from the defects below.
 
 Known, unfixed, and each here because the fix is not obviously worth
 its cost yet.
-
-**An error is attributed to the command that found it, not the command
-that caused it.**  `Session::query` turns an error prompt into a typed
-error by reading one entry from the receiver's error queue -- but the
-queue is FIFO, so what comes back is the *oldest* unread error, which
-need not be the one the failing command raised.  Observed deliberately:
-a simulator seeded with a spontaneous -313 reported it as the
-explanation for a later, unrelated -230.  Draining the queue every ten
-seconds keeps it nearly always empty and so nearly always right, which
-is why this has not been chased further.
 
 **The receiver's log timestamps are not monotonic across a power
 cycle.**  Its clock restarts at midnight on a stale date and runs free

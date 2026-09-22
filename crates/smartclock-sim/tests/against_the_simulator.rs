@@ -598,3 +598,40 @@ fn a_steady_stream_of_refreshes_does_not_starve_the_slow_tier() {
     drop(handle);
     joiner.join().expect("the device thread");
 }
+
+/// A command is explained by its own error, not by whatever was in the
+/// queue before it.
+///
+/// The queue is first in, first out, so reading one entry returns the
+/// oldest unread error.  With something already waiting, a routine
+/// refusal used to report itself as that older error -- and consume it,
+/// so the real one was never seen at all.  Both halves are checked
+/// here: the right code comes back, and the older error is still
+/// available rather than gone.
+#[test]
+fn an_error_is_attributed_to_the_command_that_caused_it() {
+    let mut receiver = Receiver::default();
+    // Something the receiver raised on its own, unread.
+    receiver.queue_error(-313, "Calibration memory lost");
+    let mut device = device(receiver);
+
+    // Present holdover error does not exist while locked; the receiver
+    // refuses with -230.  That refusal, not the -313, is what this
+    // command means.
+    let refused = device
+        .session()
+        .query(":SYNChronization:HOLDover:TUNCertainty:PRESent?")
+        .expect_err("locked, so this is refused");
+    assert!(
+        format!("{refused}").contains("-230"),
+        "explained by the wrong error: {refused}"
+    );
+
+    let strays = device.session().take_stray_errors();
+    assert_eq!(strays.len(), 1, "the older error should be kept, not eaten");
+    assert_eq!(strays[0].code, -313);
+    assert!(
+        device.session().take_stray_errors().is_empty(),
+        "taking them should clear them"
+    );
+}

@@ -75,6 +75,11 @@ fn a_reply_split_across_reads_is_reassembled() {
 
 #[test]
 fn an_error_prompt_becomes_a_device_error_from_the_queue() {
+    // The queue is read until it says it is empty, so the exchange is
+    // two queries even when it held one error.  Reading exactly one
+    // would be right only if the queue were known empty beforehand,
+    // which is the assumption that made a routine refusal report itself
+    // as whatever unrelated thing the receiver had raised earlier.
     let mut s = session(&[
         ("tx", ":BOGUS?\r\n"),
         ("rx", ":BOGUS?\r\nE-113> "),
@@ -83,6 +88,8 @@ fn an_error_prompt_becomes_a_device_error_from_the_queue() {
             "rx",
             ":SYSTem:ERRor?\r\n-113,\"Undefined header\"\r\nscpi> ",
         ),
+        ("tx", ":SYSTem:ERRor?\r\n"),
+        ("rx", ":SYSTem:ERRor?\r\n+0,\"No error\"\r\nscpi> "),
     ]);
     match s.query(":BOGUS?") {
         Err(Error::Device { code, message }) => {
@@ -91,6 +98,38 @@ fn an_error_prompt_becomes_a_device_error_from_the_queue() {
         }
         other => panic!("expected a device error, got {other:?}"),
     }
+    assert!(s.take_stray_errors().is_empty(), "nothing else was in it");
+}
+
+#[test]
+fn an_older_error_in_the_queue_does_not_explain_this_command() {
+    // The receiver had raised -313 on its own and nobody had read it.
+    // A later command fails with -113.  The queue hands back -313
+    // first, being first in; this command is explained by the last
+    // entry, and the -313 is kept rather than consumed.
+    let mut s = session(&[
+        ("tx", ":BOGUS?\r\n"),
+        ("rx", ":BOGUS?\r\nE-113> "),
+        ("tx", ":SYSTem:ERRor?\r\n"),
+        (
+            "rx",
+            ":SYSTem:ERRor?\r\n-313,\"Calibration memory lost\"\r\nscpi> ",
+        ),
+        ("tx", ":SYSTem:ERRor?\r\n"),
+        (
+            "rx",
+            ":SYSTem:ERRor?\r\n-113,\"Undefined header\"\r\nscpi> ",
+        ),
+        ("tx", ":SYSTem:ERRor?\r\n"),
+        ("rx", ":SYSTem:ERRor?\r\n+0,\"No error\"\r\nscpi> "),
+    ]);
+    match s.query(":BOGUS?") {
+        Err(Error::Device { code, .. }) => assert_eq!(code, -113),
+        other => panic!("expected the command's own error, got {other:?}"),
+    }
+    let strays = s.take_stray_errors();
+    assert_eq!(strays.len(), 1);
+    assert_eq!(strays[0].code, -313);
 }
 
 #[test]

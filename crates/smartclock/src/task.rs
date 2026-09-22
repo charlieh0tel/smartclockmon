@@ -493,6 +493,24 @@ impl<T: Transport> DeviceTask<T> {
             .expect("at least one tier")
     }
 
+    /// Report any error the receiver had raised that nobody had read.
+    ///
+    /// These turn up when a command fails while the queue already held
+    /// something: explaining the failure drains the queue, and what was
+    /// in it first was not the failure's doing.  They are real errors
+    /// from the receiver and the only place they would otherwise go is
+    /// nowhere, so they are said out loud.  The daemon's periodic drain
+    /// catches these in the ordinary case; this is the path where a
+    /// failure got to them first.
+    fn report_strays(&mut self) {
+        for stray in self.device.session().take_stray_errors() {
+            eprintln!(
+                "smartclock: the receiver had also raised {} {}, unread before now",
+                stray.code, stray.message
+            );
+        }
+    }
+
     /// Clear the line if the last exchange left the receiver talking.
     ///
     /// Anything that reads a reply has to do this first, a poll and a
@@ -517,6 +535,7 @@ impl<T: Transport> DeviceTask<T> {
         let now = Timestamp::now();
         let mut snapshot = self.shared.latest().unwrap_or_else(|| Snapshot::new(now));
         let outcome = self.device.poll(tier, &mut snapshot, now);
+        self.report_strays();
         // Measured from when the tier was due, not from when its poll
         // finished, or the period becomes cadence plus wire time and
         // the sampling of a drifting oscillator is uneven.  Clamped
@@ -610,6 +629,7 @@ impl<T: Transport> DeviceTask<T> {
                     return None;
                 }
                 let outcome = self.device.session().query(&scpi);
+                self.report_strays();
                 // A failed command leaves the receiver's reply still
                 // travelling, and whatever reads next would take it as
                 // its own answer: a TFOM reported as an FFOM, oven
