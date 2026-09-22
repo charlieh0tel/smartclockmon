@@ -419,10 +419,23 @@ impl<T: Transport> Device<T> {
         into.alarm = Some(self.alarm_condition()?);
         into.operation = Some(self.operation_condition()?);
         into.holdover_state = Some(self.holdover_condition()?);
-        into.powerup = Some(self.powerup_condition()?);
-        into.holdover_duration = Some(self.holdover_duration()?);
+        let holdover = self.holdover_duration()?;
+        into.holdover_duration = Some(holdover);
         into.holdover_predicted = self.holdover_predicted()?;
-        into.holdover_present = self.holdover_present()?;
+        // Only asked for while it exists.  Present holdover error is
+        // refused with -230 whenever the receiver is locked, and a
+        // refusal is not free: the session reads the error queue to
+        // explain it, so a question we already know the answer to cost
+        // two round trips of a tier that is against its wire budget,
+        // on every medium poll, for the life of the daemon.  It also set
+        // the command-error bit in the standard event status register
+        // each time, which made that register a record of our own
+        // manners rather than of the receiver's.
+        into.holdover_present = if holdover.active {
+            self.holdover_present()?
+        } else {
+            None
+        };
         into.screen = Some(self.screen()?);
         Ok(())
     }
@@ -434,6 +447,12 @@ impl<T: Transport> Device<T> {
         into.date = Some(date);
         into.log_count = Some(self.log_count()?);
         into.oven_tempco = self.oven_tempco()?;
+        // All three of its bits are set during startup and then stay,
+        // so asking on every medium poll spent a round trip to be told
+        // what it said last time.  The medium tier is the one against
+        // its budget; this belongs with the other things that barely
+        // move.
+        into.powerup = Some(self.powerup_condition()?);
         Ok(())
     }
 }

@@ -89,9 +89,16 @@ struct Cli {
     #[arg(long, env = "SMARTCLOCKD_FAST", default_value_t = 1.0)]
     fast: f64,
 
-    /// Seconds between status screen polls.  The screen is about 1.8 KB,
-    /// close to a second of wire time at 19200, so this cannot be small.
-    #[arg(long, env = "SMARTCLOCKD_MEDIUM", default_value_t = 10.0)]
+    /// Seconds between status screen polls.
+    ///
+    /// The screen is about 1.8 KB, close to a second of wire time at
+    /// 19200, and the tier carries a dozen other queries besides -- so
+    /// a medium poll occupies the line for around three seconds, during
+    /// which the one-second tier cannot run at all.  At ten seconds
+    /// that cost fell on nearly a third of the fast tier's samples.
+    /// Thirty spends the same three seconds a third as often, for a sky
+    /// plot and a holdover detail that are twenty seconds older.
+    #[arg(long, env = "SMARTCLOCKD_MEDIUM", default_value_t = 30.0)]
     medium: f64,
 
     /// Seconds between position and date polls.

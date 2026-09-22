@@ -84,7 +84,9 @@ fn every_tier_polls_into_a_snapshot() {
 #[test]
 fn a_value_the_receiver_declines_reads_as_absent_not_as_a_failure() {
     // Present holdover error does not exist while locked; the receiver
-    // answers -230, and that must not fail the whole tier.
+    // answers -230, and that must not fail the whole tier.  It is not
+    // asked for while locked either -- see below -- so this covers the
+    // tolerance rather than the asking.
     let mut device = device(Receiver::default());
     let mut snapshot = Snapshot::new(jiff::Timestamp::now());
     device
@@ -92,6 +94,60 @@ fn a_value_the_receiver_declines_reads_as_absent_not_as_a_failure() {
         .expect("the medium tier");
     assert_eq!(snapshot.holdover_present, None);
     assert!(snapshot.holdover_predicted.is_some());
+}
+
+#[test]
+fn a_question_with_a_known_answer_is_not_asked() {
+    // Present holdover error exists only in holdover.  Asking while
+    // locked is answered with -230, and a refusal is not free: the
+    // session reads the error queue to explain it, so a question whose
+    // answer is already known cost two round trips of the tier that is
+    // against its wire budget, on every medium poll, for ever.
+    //
+    // Checked by the error queue rather than by timing: a refusal
+    // leaves an entry behind, so a queue still empty after a medium
+    // poll is the evidence that nothing was refused.
+    let mut locked = device(Receiver::default());
+    let mut snapshot = Snapshot::new(jiff::Timestamp::now());
+    locked
+        .poll(Tier::Medium, &mut snapshot, jiff::Timestamp::now())
+        .expect("the medium tier");
+    let queue = locked
+        .session()
+        .query(":SYSTem:ERRor?")
+        .expect("read the error queue");
+    assert_eq!(
+        queue.lines,
+        vec!["+0,\"No error\"".to_owned()],
+        "a locked receiver should have been asked nothing it would refuse"
+    );
+
+    // In holdover it is a real question, and gets asked.
+    let mut holding = device(Receiver::faulty());
+    let mut snapshot = Snapshot::new(jiff::Timestamp::now());
+    holding
+        .poll(Tier::Medium, &mut snapshot, jiff::Timestamp::now())
+        .expect("the medium tier");
+    assert!(
+        snapshot.holdover_present.is_some(),
+        "in holdover the value exists and should be read"
+    );
+}
+
+#[test]
+fn the_powerup_register_is_read_on_the_slow_tier() {
+    // Its three bits are set during startup and then stay, so it does
+    // not belong on the tier that is short of wire time.
+    let mut device = device(Receiver::default());
+    let mut snapshot = Snapshot::new(jiff::Timestamp::now());
+    device
+        .poll(Tier::Medium, &mut snapshot, jiff::Timestamp::now())
+        .expect("the medium tier");
+    assert!(snapshot.powerup.is_none(), "not the medium tier's work");
+    device
+        .poll(Tier::Slow, &mut snapshot, jiff::Timestamp::now())
+        .expect("the slow tier");
+    assert!(snapshot.powerup.is_some());
 }
 
 #[test]

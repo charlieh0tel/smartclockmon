@@ -464,8 +464,8 @@ Tiers, to be measured against hardware before being fixed:
 | Tier  | Contents                                                    |
 | ----- | ----------------------------------------------------------- |
 | ~1 s  | `:SYNC:TINT?`, `:SYNC:TFOM?`, `:SYNC:FFOM?`, `:DIAG:ROSC:EFC:REL?`, `:STAT:OPER:HARD:COND?`, `:SYNC:STATE?`, `:PTIM:TIME?` |
-| ~10 s | `:SYST:STAT?` (satellite table, health line), holdover duration and uncertainty, `*STB?` and the operation, holdover and powerup condition registers |
-| ~60 s | position, date, diagnostic log count, learned oscillator tempco |
+| ~30 s | `:SYST:STAT?` (satellite table, health line), holdover duration and uncertainty, `*STB?` and the operation and holdover condition registers |
+| ~60 s | position, date, diagnostic log count, learned oscillator tempco, the powerup condition register |
 |       | The receiver's UTC is on the fast tier, not with the date: a clock read once a minute and shown as a clock is wrong for the other fifty-nine seconds. |
 | ~10 s | the error queue and any new diagnostic log entries, off the schedule; see below |
 

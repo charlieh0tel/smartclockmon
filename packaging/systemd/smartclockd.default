@@ -13,9 +13,12 @@
 #SMARTCLOCKD_DATABASE=/var/lib/smartclockd/snapshots.sqlite
 #SMARTCLOCKD_SOCKET=/run/smartclockd/socket
 
-# Seconds between polls of each tier.
+# Seconds between polls of each tier.  A medium poll reads the status
+# screen and holds the serial line for about three seconds, during
+# which the fast tier cannot run; lower this and the one-second history
+# gets correspondingly patchier.
 #SMARTCLOCKD_FAST=1.0
-#SMARTCLOCKD_MEDIUM=10.0
+#SMARTCLOCKD_MEDIUM=30.0
 #SMARTCLOCKD_SLOW=60.0
 
 # What clients may send.  true or false; empty is rejected.
