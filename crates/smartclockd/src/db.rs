@@ -11,6 +11,7 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
+use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -22,6 +23,17 @@ use smartclock::snapshot::Snapshot;
 
 /// Bumped when the tables change shape.
 const SCHEMA: i64 = 7;
+
+/// How long to wait for another writer before giving up on a statement.
+///
+/// The same five seconds rusqlite already sets on every connection it
+/// opens, stated here because the daemon depends on it and a default
+/// is somebody else's to change.  It matters only when a second writer
+/// exists -- a maintenance `sqlite3` at the prompt, a repair, an
+/// operator deleting a row -- since the daemon is otherwise the only
+/// one and WAL readers never block it.  Without the wait, such a write
+/// costs the daemon whichever snapshot it collided with.
+const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The daemon's write connection.
 #[derive(Debug)]
@@ -46,6 +58,7 @@ impl Log {
         // one poll interval, which is not worth an fsync per row.
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
+        conn.busy_timeout(BUSY_TIMEOUT)?;
         let mut log = Self {
             conn,
             current: None,
@@ -840,6 +853,37 @@ mod tests {
                 "{column} should have been added"
             );
         }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_write_waits_for_another_writer_rather_than_failing() {
+        // The daemon is normally the only writer and WAL readers never
+        // block it, so this is for the exceptions: a maintenance
+        // prompt, a repair, an operator deleting a row.  Without a busy
+        // timeout the daemon's next insert fails the instant somebody
+        // else holds the lock, and a snapshot is lost to a write that
+        // took a millisecond.
+        //
+        // This passes on rusqlite's default too, which is the same five
+        // seconds.  It is here to hold the behaviour still if that
+        // default ever moves, not because the default is wrong.
+        let path = scratch("busy");
+        let mut log = Log::open(&path).expect("open the database");
+
+        let other = Connection::open(&path).expect("a second writer");
+        other
+            .execute_batch("BEGIN IMMEDIATE")
+            .expect("take the write lock");
+        let releasing = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            other.execute_batch("COMMIT").expect("release the lock");
+        });
+
+        log.record_error(-100, "written while another writer held the lock")
+            .expect("the write should wait for the lock, not fail on it");
+        releasing.join().expect("the releasing thread");
+        assert_eq!(log.journal_counts().expect("count them").0, 1);
         let _ = std::fs::remove_file(&path);
     }
 

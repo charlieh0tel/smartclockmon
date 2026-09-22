@@ -14,8 +14,12 @@ use serde::Serialize;
 use crate::snapshot::Snapshot;
 use crate::wire::Reading;
 
-/// Bumped when the message shapes change.  Daemon and clients are
-/// upgraded separately, so both ends check it.
+/// Bumped when the message shapes change.
+///
+/// Checked by the daemon, which is enough: every exchange begins with a
+/// client's request, so a mismatch in either direction is refused
+/// before anything is acted on, and the client is told which version
+/// the daemon speaks rather than failing to parse a reply.
 pub const VERSION: u32 = 1;
 
 /// A message from a client.

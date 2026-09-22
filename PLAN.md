@@ -10,15 +10,14 @@ Phases 0 to 10 are done; see **Phases** at the end for what each turned
 out to involve, **Open questions** for what is undecided and **Known
 defects** for what is wrong and unfixed.
 
-180 tests, none needing hardware.  `make ci` is what CI runs; `make
+183 tests, none needing hardware.  `make ci` is what CI runs; `make
 test-hw` is the hardware-only set and CI never runs it.
 
 Installed from the package and running as a service against the
 development unit, logging to `/var/lib/smartclockd/snapshots.sqlite`.
-`docs/running.md` is the deployment note.  The socket protocol is still
-undocumented, and that excuse has expired: it was going to wait until
-something other than the monitor spoke it, and four things now do.  See
-the open list at the end.
+`docs/running.md` is the deployment note.  The socket protocol is
+documented in `smartclock::protocol`, where it is defined, and gets no
+document of its own; the reasoning is under **Decisions**.
 
 Two adversarial reviews in September 2026.  The first -- four Claude
 reviewers and one Codex run over the whole tree -- found about forty
@@ -91,6 +90,31 @@ status registers are IEEE 488.2.
 Revisit `scpi` at phase 4 for the simulator, where implementing an
 instrument is the actual task.  Even there the prompt, echo and status
 screen -- the parts worth emulating -- are what it does not model.
+
+### No separate document for the socket protocol
+
+Four programs speak it -- the monitor, the CLI, the exporter and the
+browser view -- which was going to be the trigger for writing a
+specification.  It is not worth one.
+
+All four are built from this tree, in this language, and ship in one
+package, so they cannot drift apart: the wire type is checked by the
+compiler, which is a stronger specification than prose and cannot go
+stale.  `smartclock::wire::Reading` is deliberately not `Snapshot` for
+exactly this reason, so an internal rename is a compile error rather
+than a silent protocol change.  What prose would add is a second
+description of the same thing, to be forgotten at the first rename.
+
+The parts a type cannot express are written where they belong, in
+`smartclock::protocol`: newline-delimited JSON over a local socket, a
+multiplexed stream where snapshots arrive unsolicited so every request
+carries an id its reply echoes, and a `VERSION` the daemon refuses a
+mismatch on.
+
+This holds as long as the socket is internal.  A client outside this
+tree -- another language, another repository, anyone else's -- makes it
+an interface rather than an implementation detail, and then it needs
+writing down and a stability commitment to go with it.
 
 ### The daemon owns the port
 
@@ -886,12 +910,7 @@ Things that are not decided, as distinct from the defects below.
    bit 5 -- documented "not used" in figure 5-1, so it signifies
    nothing.
 
-3. **Whether the socket protocol should be written down.**  It was to
-   wait for a second client.  There are four -- the monitor, the CLI,
-   the exporter and the browser view -- and they share the wire type
-   rather than a specification, which is not the same thing.
-
-4. **Whether acknowledging from the monitor is wanted.**  Reading an
+3. **Whether acknowledging from the monitor is wanted.**  Reading an
    event register would say which bit latched rather than which group,
    and clears the alarm as it does so.  That makes it exactly the right
    implementation of a deliberate acknowledgement and exactly the wrong
