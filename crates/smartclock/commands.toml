@@ -1242,6 +1242,138 @@ doc = "Questionable event register."
   evidence = "hardware"
 
 [[command]]
+id = "powerup_event"
+class = "query"
+doc = "Powerup event register."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:POWerup:EVENt?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-50"
+  evidence = "manual"
+
+[[command]]
+id = "oper_positive_transition"
+class = "query"
+doc = "Which operation conditions latch an event on a positive transition."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:PTRansition?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "hardware"
+
+[[command]]
+id = "oper_negative_transition"
+class = "query"
+doc = "Which operation conditions latch an event on a negative transition."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:NTRansition?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "hardware"
+
+[[command]]
+id = "quest_positive_transition"
+class = "query"
+doc = "Which questionable conditions latch an event on a positive transition."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:QUEStionable:PTRansition?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "hardware"
+
+[[command]]
+id = "quest_negative_transition"
+class = "query"
+doc = "Which questionable conditions latch an event on a negative transition."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:QUEStionable:NTRansition?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "hardware"
+
+[[command]]
+id = "hardware_positive_transition"
+class = "query"
+doc = "Which hardware conditions latch an event on a positive transition."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:HARDware:PTRansition?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "hardware"
+
+[[command]]
+id = "hardware_negative_transition"
+class = "query"
+doc = "Which hardware conditions latch an event on a negative transition."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:HARDware:NTRansition?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "hardware"
+
+[[command]]
+id = "holdover_positive_transition"
+class = "query"
+doc = "Which holdover conditions latch an event on a positive transition."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:HOLDover:PTRansition?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "hardware"
+
+[[command]]
+id = "holdover_negative_transition"
+class = "query"
+doc = "Which holdover conditions latch an event on a negative transition."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:HOLDover:NTRansition?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "hardware"
+
+[[command]]
+id = "powerup_positive_transition"
+class = "query"
+doc = "Which powerup conditions latch an event on a positive transition."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:POWerup:PTRansition?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "hardware"
+
+[[command]]
+id = "powerup_negative_transition"
+class = "query"
+doc = "Which powerup conditions latch an event on a negative transition."
+
+  [command.dialect.hp58503]
+  scpi = ":STATus:OPERation:POWerup:NTRansition?"
+  response = "int"
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-48"
+  evidence = "hardware"
+
+[[command]]
 id = "lifetime_count"
 class = "query"
 doc = "Total powered-on time."

@@ -7,7 +7,7 @@ to regenerate; a test fails if this file and the table disagree.
 
 | Tree | Commands | Hardware | Firmware | Manual |
 | ---- | -------- | -------- | -------- | ------ |
-| 58503A/B, 59551A | 113 | 81 | 0 | 32 |
+| 58503A/B, 59551A | 124 | 91 | 0 | 33 |
 | Z3801A, Z3816A | 56 | 0 | 55 | 1 |
 
 **H** means the receiver answered it.  **F** means every keyword
@@ -17,7 +17,7 @@ it was transcribed from a manual and nothing more.
 
 | Class | Commands | Gate |
 | ----- | -------- | ---- |
-| Query | 81 | none |
+| Query | 92 | none |
 | Control | 24 | `--allow-control` |
 | Dangerous | 8 | `--allow-dangerous` |
 
@@ -122,6 +122,17 @@ anything reaching the receiver.
 | powerup condition | Query | `:STATus:OPERation:POWerup:CONDition?` H | `:STATus:OPERation:POWerup:CONDition?` F |
 | quest condition | Query | `:STATus:QUEStionable:CONDition?` H | `:STATus:QUEStionable:CONDition?` F |
 | quest event | Query | `:STATus:QUEStionable:EVENt?` H |  |
+| powerup event | Query | `:STATus:OPERation:POWerup:EVENt?` M |  |
+| oper positive transition | Query | `:STATus:OPERation:PTRansition?` H |  |
+| oper negative transition | Query | `:STATus:OPERation:NTRansition?` H |  |
+| quest positive transition | Query | `:STATus:QUEStionable:PTRansition?` H |  |
+| quest negative transition | Query | `:STATus:QUEStionable:NTRansition?` H |  |
+| hardware positive transition | Query | `:STATus:OPERation:HARDware:PTRansition?` H |  |
+| hardware negative transition | Query | `:STATus:OPERation:HARDware:NTRansition?` H |  |
+| holdover positive transition | Query | `:STATus:OPERation:HOLDover:PTRansition?` H |  |
+| holdover negative transition | Query | `:STATus:OPERation:HOLDover:NTRansition?` H |  |
+| powerup positive transition | Query | `:STATus:OPERation:POWerup:PTRansition?` H |  |
+| powerup negative transition | Query | `:STATus:OPERation:POWerup:NTRansition?` H |  |
 | lifetime count | Query | `:DIAGnostic:LIFetime:COUNt?` H | `:DIAGnostic:LIFetime:COUNt?` F |
 | diag test | Control | `:DIAGnostic:TEST?` M |  |
 | diag test result | Query | `:DIAGnostic:TEST:RESult?` H |  |

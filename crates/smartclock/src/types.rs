@@ -186,6 +186,20 @@ impl HoldoverWaitReason {
     }
 }
 
+/// The names of the bits set in `bits`, in register order.
+///
+/// Shared by every status register here.  A register stored as a bare
+/// integer is unreadable without the manual open beside it, and the bit
+/// table belongs with the receiver rather than copied into whatever
+/// happens to be displaying it.
+fn named_bits(bits: u16, table: &[(u16, &'static str)]) -> Vec<&'static str> {
+    table
+        .iter()
+        .filter(|(bit, _)| bits & (1 << bit) != 0)
+        .map(|(_, name)| *name)
+        .collect()
+}
+
 /// Bits of `:STATus:OPERation:HARDware:CONDition?`.
 ///
 /// Bits 6 and 7 are the ones that matter for an ageing oscillator: they
@@ -240,6 +254,27 @@ const HARDWARE_FAULTS: [(u16, HardwareFault); 12] = [
 ];
 
 impl HardwareCondition {
+    /// The names of the faults asserted, for recording or display.
+    pub fn named_bits(self) -> Vec<&'static str> {
+        named_bits(
+            self.0,
+            &[
+                (0, "selftest failure"),
+                (1, "+15V supply out of tolerance"),
+                (2, "-15V supply out of tolerance"),
+                (3, "+5V supply out of tolerance"),
+                (4, "oven supply out of tolerance"),
+                (6, "EFC near full scale"),
+                (7, "EFC at full scale"),
+                (8, "GPS 1 PPS failure"),
+                (9, "GPS failure"),
+                (10, "time interval measurement failed"),
+                (11, "EEPROM write failed"),
+                (12, "internal reference failure"),
+            ],
+        )
+    }
+
     /// Wrap a raw register value.
     pub fn from_bits(bits: u16) -> Self {
         Self(bits)
@@ -289,6 +324,19 @@ impl HardwareFault {
 pub struct HoldoverCondition(u16);
 
 impl HoldoverCondition {
+    /// The names of the bits set, for recording or display.
+    pub fn named_bits(self) -> Vec<&'static str> {
+        named_bits(
+            self.0,
+            &[
+                (0, "holding"),
+                (1, "waiting to recover"),
+                (2, "recovering"),
+                (3, "exceeding the duration threshold"),
+            ],
+        )
+    }
+
     /// Wrap a raw register value.
     pub fn from_bits(bits: u16) -> Self {
         Self(bits)
@@ -330,6 +378,22 @@ impl HoldoverCondition {
 pub struct OperationCondition(u16);
 
 impl OperationCondition {
+    /// The names of the bits set, for recording or display.
+    pub fn named_bits(self) -> Vec<&'static str> {
+        named_bits(
+            self.0,
+            &[
+                (0, "powerup summary"),
+                (1, "locked to GPS"),
+                (2, "holdover summary"),
+                (3, "position hold"),
+                (4, "1 PPS reference valid"),
+                (5, "hardware summary"),
+                (6, "diagnostic log almost full"),
+            ],
+        )
+    }
+
     /// Wrap a raw register value.
     pub fn from_bits(bits: u16) -> Self {
         Self(bits)
@@ -374,6 +438,18 @@ impl OperationCondition {
 pub struct PowerupCondition(u16);
 
 impl PowerupCondition {
+    /// The names of the bits set, for recording or display.
+    pub fn named_bits(self) -> Vec<&'static str> {
+        named_bits(
+            self.0,
+            &[
+                (0, "first satellite tracked"),
+                (1, "oscillator oven warm"),
+                (2, "date and time valid"),
+            ],
+        )
+    }
+
     /// Wrap a raw register value.
     pub fn from_bits(bits: u16) -> Self {
         Self(bits)
@@ -402,6 +478,60 @@ impl PowerupCondition {
     /// powerup.
     pub fn date_time_valid(self) -> bool {
         self.0 & (1 << 2) != 0
+    }
+}
+
+/// Bits of `:STATus:QUEStionable:CONDition?` and its event register.
+///
+/// Two bits, and they are nothing alike.  Bit 1 is whatever the user
+/// last set with `:STATus:QUEStionable:CONDition:USER`, which is the
+/// only bit in the whole status tree a user can drive directly and
+/// carries no information we did not put there.
+///
+/// Bit 0 is the reason this type exists.  Time Reset says the receiver
+/// stepped its own clock because its time disagreed with the
+/// satellites, which 097-59551-02 5-39 notes "could occur after an
+/// extensive holdover period".  It is event-only -- there is no
+/// corresponding condition, so it appears in the event register or
+/// nowhere -- and it marks the one thing that invalidates every
+/// interval measurement taken across it.  A frequency reference that
+/// silently steps its own time and does not say so is the failure this
+/// whole log exists to be able to rule out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuestionableStatus(u16);
+
+impl QuestionableStatus {
+    /// The names of the bits set, for recording or display.
+    pub fn named_bits(self) -> Vec<&'static str> {
+        named_bits(
+            self.0,
+            &[
+                (0, "time reset to match the satellites"),
+                (1, "user reported"),
+            ],
+        )
+    }
+
+    /// Wrap a raw register value.
+    pub fn from_bits(bits: u16) -> Self {
+        Self(bits)
+    }
+
+    /// The raw register value.
+    pub fn bits(self) -> u16 {
+        self.0
+    }
+
+    /// Bit 0: the receiver stepped its clock to match the satellites.
+    ///
+    /// Event-only, so this is never true of a condition register read.
+    pub fn time_reset(self) -> bool {
+        self.0 & 1 != 0
+    }
+
+    /// Bit 1: the bit a user set for themselves.
+    pub fn user_reported(self) -> bool {
+        self.0 & (1 << 1) != 0
     }
 }
 
