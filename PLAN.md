@@ -6,28 +6,19 @@ and a TUI client.  A GUI is possible later but is not planned.
 
 ## Status
 
-| Phase | | |
-| ----- | - | - |
-| 0 | Workspace, command table, CI | done |
-| 1 | Transport, session framing, CLI | done |
-| 2 | Types, parsers, screen scraper, `diagnose` | done |
-| 3 | `Device`, `Snapshot`, `DeviceTask`, `smartclockd` | done |
-| 4 | Simulated receiver | done |
-| 5 | The monitor, with history graphs | done |
-| 6 | Control commands, audit trail, raw console | done |
-| 7 | Generated command matrix, deployment notes | done; protocol notes not written |
-| 8 | Prometheus exporter, browser view | done |
-| 9 | The receiver's own records: error queue, diagnostic log, condition registers | done |
-| 10 | Adoption per connection: event registers, transition filters, optional log clear | done |
+Phases 0 to 10 are done; see **Phases** at the end for what each turned
+out to involve, **Open questions** for what is undecided and **Known
+defects** for what is wrong and unfixed.
 
-170 tests, none needing hardware.  `make ci` is what CI runs; `make
+171 tests, none needing hardware.  `make ci` is what CI runs; `make
 test-hw` is the hardware-only set and CI never runs it.
 
 Installed from the package and running as a service against the
 development unit, logging to `/var/lib/smartclockd/snapshots.sqlite`.
-`docs/running.md` is the deployment note; the socket protocol is still
-undocumented, and stays that way until something other than the monitor
-speaks it, since one client and one server agreeing is not a protocol.
+`docs/running.md` is the deployment note.  The socket protocol is still
+undocumented, and that excuse has expired: it was going to wait until
+something other than the monitor spoke it, and four things now do.  See
+the open list at the end.
 
 Two adversarial reviews in September 2026.  The first -- four Claude
 reviewers and one Codex run over the whole tree -- found about forty
@@ -52,7 +43,8 @@ real monitor can be driven against it end to end.
 ## Goals
 
 - Read-only monitoring of a 58503A first; control commands later.
-- Diagnose the development unit's suspected EFC / OCXO problem.
+- Diagnose the development unit's suspected EFC / OCXO problem.  Done,
+  and the answer was no: see **EFC diagnosis**.
 - Unattended long-term logging of EFC and holdover state for drift
   analysis, independent of whether anyone is watching.
 - Support the wider SmartClock family, notably the Z3801A.
@@ -105,8 +97,10 @@ screen -- the parts worth emulating -- are what it does not model.
 `smartclockd` runs as a systemd system service and holds the serial
 port open for as long as it runs.  Nothing else can open it,
 so every other component is a client of the daemon.  This follows from
-wanting multi-day EFC history on a unit that may be dying: collection
-cannot depend on a TUI being up.
+wanting multi-day EFC history on a unit that might have been dying:
+collection cannot depend on a TUI being up.  The unit turned out to
+look healthy, which the history is what established -- so the reasoning
+held even though its premise did not.
 
 Within the daemon, a single `DeviceTask` thread owns the `Session`, and
 therefore the fd.  It is the only thing that ever issues a command.
@@ -298,10 +292,11 @@ Two consequences worth building in:
   `:SYNC:HOLD:INIT` triggers a fast-tier and holdover refresh.
 - **Audit trail beside the telemetry.**  Every non-scheduled command is
   recorded: timestamp, command text, response, classification, and an
-  optional client-supplied label, which is untrusted and best-effort.  Being able to ask "what did I do to it, and what did
-  EFC do afterwards" against a single database is the strongest argument
-  for routing commands through the daemon rather than letting clients
-  open the port.
+  optional client-supplied label, which is untrusted and best-effort.
+  Being able to ask "what did I do to it, and what did EFC do
+  afterwards" against a single database is the strongest argument for
+  routing commands through the daemon rather than letting clients open
+  the port.
 
 ### Disconnection is a first-class state
 
@@ -710,9 +705,22 @@ goldens, so phases 2 and 3 do not block on hardware.
 
 ## EFC diagnosis
 
-The development unit is in holdover with its antenna connected and may
-be failing.  An OCXO aged past the range its EFC DAC can pull presents
-exactly this way, and the receiver reports it directly.
+The development unit was thought to be failing: an OCXO aged past the
+range its EFC DAC can pull presents as a unit stuck in holdover, and
+the receiver reports that directly.
+
+The evidence has since gone the other way.  It is locked, with a valid
+reference, and has stayed locked for every sample since the log began
+carrying the condition registers.  Its own diagnostic log, once copied
+out, shows nineteen holdover-and-relock cycles across two days in March
+2025 and nothing since -- a pattern that reads as GPS reception rather
+than a crystal, since an oscillator drifting out of range does not
+recover nineteen times.  And the EFC measurement below settles the
+mapping in favour of the specification, which leaves about a decade of
+tuning headroom rather than the year the pessimistic reading implied.
+
+So the section stands as the record of a diagnosis, and the diagnosis
+is currently "not the oscillator, on this evidence".
 
 `:STATus:OPERation:HARDware:CONDition?` bits:
 
@@ -820,44 +828,92 @@ failure without anyone having to predict the shape of the next one.
 
 ## Phases
 
-Done, and what each turned out to involve:
+What each turned out to involve, which is the part worth keeping.
 
-| # | Deliverable | Notes |
-| - | ----------- | ----- |
-| 0 | Workspace, TOML command table with `build.rs` codegen, fixtures, Makefile CI | 113 commands; evidence became three-valued rather than a boolean |
+| # | Deliverable | What it turned out to involve |
+| - | ----------- | ----------------------------- |
+| 0 | Workspace, TOML command table with `build.rs` codegen, fixtures, Makefile CI | evidence became three-valued rather than a boolean |
 | 1 | `transport`, `session`, `smartclock-cli` | the manuals had the prompt wrong, and an abandoned reply desynchronised everything after it |
 | 2 | `types`, `parse`, screen scraper, `diagnose` | the scraper had to read by label, not column; the manuals' own ASCII does not line up |
 | 3 | `Device`, `Snapshot`, `DeviceTask`, `smartclockd`, systemd unit, deb | reconnection meant handing the request channel back out of the task |
+| 4 | `smartclock-sim`, in process and over TCP | TCP rather than a pseudo-terminal, which would have been Unix-only |
 | 5 | `smartclockmon`, dashboard and history graphs | columns carry min and max as well as mean, or quantization steps vanish into a ramp |
 | 6 | `Control` handle, daemon flags, audit trail, raw console | flags replaced the nonce; the classifier could not match a caller-supplied argument |
-| 4 | `smartclock-sim`, in process and over TCP | TCP rather than a pseudo-terminal, which would have been Unix-only |
 | 7 | `docs/commands.md`, generated | a test compares it against the table, so it cannot drift |
-
-Still to do:
-
-| # | Deliverable |
-| - | ----------- |
-| 7 | Notes on the socket protocol, and on deployment.  The command matrix is done and generated; these two are not written.  The protocol notes wait on a second client existing, since one client that shares the wire type needs no prose.  The deployment notes wait on the service actually being installed, so they describe what happened rather than what was expected. |
+| 8 | `smartclock-exporter`, `smartclock-web` | a scrape must cost the receiver nothing, so both read what the daemon already polled |
+| 9 | The receiver's own records: error queue, diagnostic log, condition registers | reading is what removes an entry, so the read and the write have to share a thread |
+| 10 | Adoption per connection; the alarm watched, not taken | the event registers turned out to be the wrong answer twice before `*STB?` was the right one |
 
 Suggest a commit at each phase boundary.
 
 ## Open questions
 
-1. Which other SmartClock variants are on hand, so their dialects can be
-   entered from the manuals rather than discovered later.  The Z3801A
-   tree is in the table but has never met hardware.
-2. Whether the receiver drives the oscillator's whole -5 V to +5 V input
-   or a sliver of it.  See `docs/efc.md`: one paired reading is
-   recorded, and a second once the count has moved settles it.
-3. Which other SmartClock variants are on hand.  No Z3801A has ever
-   been on the line, so that half of the command table has its
-   spellings corroborated but its behaviour unobserved.
+Things that are not decided, as distinct from the defects below.
+
+1. **Whether any other SmartClock variant is on hand.**  The Z3801A
+   half of the command table has its spellings corroborated against the
+   firmware's own keyword table, so they are right; no such receiver
+   has ever been on the line, so its behaviour is unobserved.  Until
+   one is, `evidence = "firmware"` is as far as those entries can go.
+
+2. **Whether the learned oscillator tempco is learned at all.**
+   `:DIAGnostic:ROSCillator:TCOefficient?` has read exactly -33.65
+   every time it has been asked, across the phase 7 sweep and 2124
+   samples spanning six degrees of internal temperature.  That is
+   evidence for a stored calibration rather than a value the receiver
+   revises, but six hours is not long enough to be sure; a learned
+   parameter might update over days, or only across a holdover.  The
+   log is accumulating the answer.
+
+3. **What the receiver's `:STATus:<register>:ENABle` masks are set
+   to.**  They decide which bits within a group reach the alarm, so
+   they are what would say which events the receiver itself considers
+   alarm-worthy.  Read-only and harmless; not in the command table yet,
+   so reading them needs the daemon stopped.
+
+4. **Whether the socket protocol should be written down.**  It was to
+   wait for a second client.  There are four -- the monitor, the CLI,
+   the exporter and the browser view -- and they share the wire type
+   rather than a specification, which is not the same thing.
+
+5. **Whether acknowledging from the monitor is wanted.**  Reading an
+   event register would say which bit latched rather than which group,
+   and clears the alarm as it does so.  That makes it exactly the right
+   implementation of a deliberate acknowledgement and exactly the wrong
+   thing to do on a timer.  Nothing needs it yet.
 
 ## Known defects
 
-None outstanding from the September 2026 review.  What it found is
-either fixed or, where a decision went the other way, recorded as a
-decision above.
+Known, unfixed, and each here because the fix is not obviously worth
+its cost yet.
+
+**An error is attributed to the command that found it, not the command
+that caused it.**  `Session::query` turns an error prompt into a typed
+error by reading one entry from the receiver's error queue -- but the
+queue is FIFO, so what comes back is the *oldest* unread error, which
+need not be the one the failing command raised.  Observed deliberately:
+a simulator seeded with a spontaneous -313 reported it as the
+explanation for a later, unrelated -230.  Draining the queue every ten
+seconds keeps it nearly always empty and so nearly always right, which
+is why this has not been chased further.
+
+**The receiver's log timestamps are not monotonic across a power
+cycle.**  Its clock restarts at midnight on a stale date and runs free
+until the first lock, so entries written in that window carry times
+that did not happen.  Entry 212 of the development unit's log also
+embeds a timestamp in its message that does not reconcile with its own
+header stamp.  Anything ordering by `stamp` should know this; anything
+ordering by `entry` has the worse problem that the numbering restarts
+on a clear.
+
+**The pinned toolchain version lives in three files** --
+`rust-toolchain.toml`, `ci.yml` and `release.yml` -- and nothing checks
+that they agree.  Only the first decides what actually compiles; the
+other two exist so the jobs install the version they will use rather
+than fetching one to be overridden.
+
+What the September 2026 reviews found is either fixed or, where a
+decision went the other way, recorded as a decision above.
 
 Two things are deliberately not defended against, because the threat
 model is a careless operator on a single-operator machine and not an

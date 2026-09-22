@@ -23,6 +23,29 @@ Check it took:
     sudo -u smartclockd sqlite3 /var/lib/smartclockd/snapshots.sqlite \
         "select count(*), max(at) from snapshot;"
 
+## What the daemon does to the receiver
+
+Reads, and with one opt-in exception nothing else.  Worth knowing
+because two of the reads would otherwise be surprising, and one thing
+it deliberately does *not* read.
+
+It drains the receiver's error queue.  Reading an entry is what removes
+it, so this is destructive by nature -- but the queue holds thirty and
+discards the newest when it overflows, so an unread queue loses errors
+anyway, and nothing else was ever going to read them.
+
+It copies the receiver's diagnostic log out, entry by entry, and
+optionally clears it; see `SMARTCLOCKD_ADOPT_LOG` below.
+
+It does **not** read the event registers, and so does not touch the
+front-panel Alarm LED or the BITE output.  Reading an event register
+clears it, which clears the alarm that summarises it.  That lamp is
+yours: the daemon watches the same state through `*STB?`, which reports
+it in real time and changes nothing, and the alarm stays lit until you
+clear it at the instrument.  What the daemon saw is recorded and shown
+in the monitor's header and the browser's status strip, so clearing the
+lamp does not lose the history.
+
 ## Configuring
 
 Everything is in `/etc/default/smartclockd`; the unit names none of it.
@@ -41,6 +64,17 @@ the simulator.
 
 Booleans are enabled with `true`; an empty value is refused rather than
 read as off.
+
+`SMARTCLOCKD_ADOPT_LOG` is the one setting that changes the receiver
+rather than the daemon, and it is off by default.  The receiver's own
+diagnostic log holds 222 entries and then stops recording, so a unit
+that has been running a long time has usually stopped logging; turning
+this on erases that log once every entry of it is safely copied here
+and the receiver reports it nearly full, which gets it recording again.
+It is irreversible, and on a unit somebody is investigating that log is
+evidence.  Nothing is erased unless the copy is complete and gap-free,
+and the entry count is sent with the command so the receiver refuses if
+an entry arrived in between.
 
 A configuration mistake fails the unit instead of looping.  systemd
 cannot check the file itself, since `Condition=` and `Assert=` do not

@@ -22,3 +22,10 @@
 #SMARTCLOCKD_ALLOW_CONTROL=false
 #SMARTCLOCKD_ALLOW_DANGEROUS=false
 #SMARTCLOCKD_ALLOW_RAW=false
+
+# Erase the receiver's own diagnostic log once every entry of it is
+# copied here and the receiver reports it nearly full.  Irreversible.
+# Its log holds 222 entries and then stops recording, so this is what
+# gets a long-running unit logging again -- but on a unit somebody is
+# investigating, that log is evidence.
+#SMARTCLOCKD_ADOPT_LOG=false
