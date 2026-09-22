@@ -719,8 +719,7 @@ recover nineteen times.  And the EFC measurement below settles the
 mapping in favour of the specification, which leaves about a decade of
 tuning headroom rather than the year the pessimistic reading implied.
 
-So the section stands as the record of a diagnosis, and the diagnosis
-is currently "not the oscillator, on this evidence".
+The diagnosis is "not the oscillator, on this evidence".
 
 `:STATus:OPERation:HARDware:CONDition?` bits:
 
@@ -856,39 +855,18 @@ Things that are not decided, as distinct from the defects below.
    has ever been on the line, so its behaviour is unobserved.  Until
    one is, `evidence = "firmware"` is as far as those entries can go.
 
-2. ~~**Whether the learned oscillator tempco is learned at all.**~~
-   Closed.  Kusters' 1996 design paper, now in `third_party/`, answers
-   it: aging constants live in RAM and are relearned at every power-up,
-   temperature constants live in EPROM because a crystal's temperature
-   response does not drift while the box is unpowered.  A -33.65 that
-   never moves is the design working, not a value failing to update.
-
-   The same paper places the temperature control loop in holdover and
-   the measurement of the response in lock, so the coefficient is not
-   applied as feedforward while locked.  The bench data agrees: the
-   reported temperature is quantised to 0.273 C, which is 30 counts,
-   and across 49 sustained steps the DAC moves +0.02 +/- 0.43 counts
-   where feedforward would step it thirty.
-
-   Units settled as parts in 10^12 per degree C: the EFC count tracks
-   internal temperature at +4.1x10^-11/C against the reported
-   -33.65x10^-12/C, same size and opposite in sign as a correction
-   should be, and right at the 10811's <2.5x10^-9 over 0-71 C.  So the
-   diurnal EFC swing is the oven's normal residual being steered out,
-   not a failing oven.  See `docs/efc.md`.
-
-3. **What the receiver's `:STATus:<register>:ENABle` masks are set
+2. **What the receiver's `:STATus:<register>:ENABle` masks are set
    to.**  They decide which bits within a group reach the alarm, so
    they are what would say which events the receiver itself considers
    alarm-worthy.  Read-only and harmless; not in the command table yet,
    so reading them needs the daemon stopped.
 
-4. **Whether the socket protocol should be written down.**  It was to
+3. **Whether the socket protocol should be written down.**  It was to
    wait for a second client.  There are four -- the monitor, the CLI,
    the exporter and the browser view -- and they share the wire type
    rather than a specification, which is not the same thing.
 
-5. **Whether acknowledging from the monitor is wanted.**  Reading an
+4. **Whether acknowledging from the monitor is wanted.**  Reading an
    event register would say which bit latched rather than which group,
    and clears the alarm as it does so.  That makes it exactly the right
    implementation of a deliberate acknowledgement and exactly the wrong
