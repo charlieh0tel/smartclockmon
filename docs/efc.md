@@ -113,9 +113,11 @@ Fitting all four:
 The count explains the pin; the temperature does not.  The correlation
 of r = 0.79 across the whole log is real but is the count and the
 temperature drifting together over a day, not a causal path from the
-sensor to the pin.  Nor should the count itself track ambient closely:
-what the loop is steering out is crystal aging and GPS phase, and an
-oven that let the room through would be a fault in the oven.
+sensor to the pin.
+
+The count itself is a different matter, and does track ambient closely;
+see "What the count does with ambient" below.  That is the oven's
+normal residual, not a failure of it.
 
 So the slope stands at **6.25 uV per count** over a 767 count span,
 against 9.5 uV per count for a full -5 V to +5 V drive and 0.13 uV per
@@ -178,6 +180,82 @@ shown the count moving the pin with the temperature held still; a
 thermally distant third point shows the pin ignoring a four degree
 excursion and following the count anyway, which is the same conclusion
 from the opposite direction and is harder to argue with.
+
+## What the count does with ambient
+
+The pin follows the count and not the room.  The count, though, does
+follow the room, and closely: over 46 hours and 137,333 samples, with
+the aging trend removed, the DAC count correlates with the internal
+temperature at r = +0.88.
+
+This is worth being careful about, because the obvious reading of it is
+alarming and wrong.  The crystal is in an oven with its own control
+loop.  If the room reached the crystal, the oven would not be doing its
+job.
+
+It has not.  The coupling is about **+109 counts per degree C**, and
+the count is a frequency knob: 2^20 counts span +/- 2.0x10^-7, so that
+is
+
+    109 counts/C  x  1.907x10^-4 %/count  x  2.0x10^-9 per %
+        = 4.1x10^-11 per C
+
+The 10811 specification is <2.5x10^-9 over 0 C to 71 C, an average of
+about 3.5x10^-11 per C.  The measured residual sits right at it.  An
+oven that had stopped working would show the crystal's raw coefficient,
+which is two to three orders larger.  What we are seeing is an oven
+doing its job to specification and the GPS loop cleaning up what is
+left.
+
+### This decodes the reported tempco
+
+`:DIAGnostic:ROSCillator:TCOefficient?` returns -33.65 on this unit and
+has never moved.  It is undocumented -- discovered, not in the manual --
+so its units were an open question.  They are **parts in 10^12 per
+degree C**: the reported -33.65x10^-12/C against a measured
++4.1x10^-11/C, the same size, and opposite in sign exactly as a
+correction should be.  The oscillator slows as it warms; the loop
+pushes the other way.
+
+The agreement is weaker evidence than it looks.  The receiver is told
+to spend its first 24 hours locked so it can learn its oscillator, and
+the natural way to learn a temperature coefficient is the regression we
+just did.  So the match confirms the units and little else -- we may
+simply have recomputed the receiver's own homework.
+
+### Is it feedforward?
+
+The manual puts the compensation in holdover:
+
+> In the absence of GPS, SmartClock operates in "holdover" mode, which
+> maintains precise time and frequency over an extended duration by
+> predicting and compensating for aging and temperature effects.
+
+and the learning in lock.  But it never says the temperature term is
+switched off while locked, and there is a reason it might not be: a
+term enabled only at the instant GPS drops puts a step into the EFC at
+the worst possible moment, where applying it always makes the entry to
+holdover bumpless and the closed loop simply absorbs it.
+
+That predicts something checkable.  The reported temperature is
+quantised to 0.273 C, and 0.273 C is 30 counts.  If the receiver
+computed a feedforward term from that reading, every quantisation step
+would kick the DAC by 30 counts at once.
+
+Aligning on the 49 sustained steps in the log -- those where the level
+held for a minute either side, rather than dithering across a boundary
+-- the mean DAC change ten seconds after a step is **+0.02 +/- 0.43
+counts**.  Thirty counts is excluded by some seventy standard errors.
+The DAC eases through a temperature step; it does not jump.
+
+So there is no feedforward keyed to the reported value.  This does not
+rule out a term computed from a finer internal reading than the one
+published over SCPI, which would produce no step to find.
+
+The clean test is holdover: with the loop open, any movement of the EFC
+with temperature has to be feedforward, because nothing else is left to
+cause it.  That means initiating holdover deliberately, which is a
+decision about the bench and not about this document.
 
 ## Where the unit stands
 
