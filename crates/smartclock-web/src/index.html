@@ -502,7 +502,7 @@ async function draw() {
     // 712,793 into an axis reading 12,793 -- a plausible number, wrong
     // by seven hundred thousand.
     const widest = Math.max(
-      ...(ticks.length ? ticks : [0]).map((v) => tick(v, places).length),
+      ...(ticks.length ? ticks : [0]).map((v) => tickLabel(v, places).length),
       4,
     );
     // Only the bottom chart carries the time labels.  Repeating them
@@ -540,7 +540,7 @@ async function draw() {
           ...(nice
             ? {
                 splits: () => ticks,
-                values: (u, vals) => vals.map((v) => tick(v, places)),
+                values: (u, vals) => vals.map((v) => tickLabel(v, places)),
               }
             : {}),
         },
@@ -605,7 +605,13 @@ async function draw() {
 // One tick label, at the precision its step implies.  Fixed places
 // rather than toLocaleString's default, or a step of 0.05 renders as
 // 35.9 and 36 and the axis looks unevenly spaced when it is not.
-function tick(v, places) {
+//
+// Not `tick`: that name was already taken by the status-strip poller
+// above, and a second declaration of it silently replaced the first --
+// so boot called this with no arguments, threw on undefined, and left
+// the strip reading "connecting..." for ever while the charts drew
+// fine.
+function tickLabel(v, places) {
   return v.toLocaleString(undefined, {
     minimumFractionDigits: places,
     maximumFractionDigits: places,

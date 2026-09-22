@@ -279,7 +279,52 @@ fn series(database: &Path, query: &str) -> Result<serde_json::Value> {
 
 #[cfg(test)]
 mod tests {
+    use super::PAGE;
     use super::decode;
+
+    /// No two top-level functions in the page share a name.
+    ///
+    /// JavaScript lets a second `function f()` replace the first
+    /// without a word, and the page has no linter to say otherwise: it
+    /// is a string in this binary.  That cost an evening once.  A tick
+    /// formatter called `tick` silently replaced the status strip's
+    /// poller, also called `tick`, so boot invoked the formatter with
+    /// no arguments, threw on undefined, and left the strip reading
+    /// "connecting..." while every chart drew correctly -- a failure
+    /// that looked like a daemon problem and was not.
+    #[test]
+    fn the_page_declares_each_function_once() {
+        let mut seen: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+        for line in PAGE.lines() {
+            // Top level only: a nested function is scoped and may
+            // legitimately reuse a name.
+            let Some(rest) = line
+                .strip_prefix("function ")
+                .or_else(|| line.strip_prefix("async function "))
+            else {
+                continue;
+            };
+            let Some(name) = rest.split('(').next() else {
+                continue;
+            };
+            *seen.entry(name.trim()).or_default() += 1;
+        }
+        let repeated: Vec<&str> = seen
+            .iter()
+            .filter(|(_, n)| **n > 1)
+            .map(|(name, _)| *name)
+            .collect();
+        assert!(
+            repeated.is_empty(),
+            "declared more than once in index.html: {repeated:?}"
+        );
+        // And the guard is worth nothing if the scan found nothing.
+        assert!(
+            seen.len() > 10,
+            "only found {} functions to check",
+            seen.len()
+        );
+    }
 
     /// What a browser actually sends for a list.
     ///
