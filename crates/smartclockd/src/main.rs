@@ -278,7 +278,15 @@ fn main() -> Result<()> {
             // The alarm as last written down, so only changes are
             // recorded.  A row per poll would be the snapshot table
             // again; a row per change is the history worth reading.
+            //
+            // Seeded from the database on first use rather than
+            // starting empty, or every restart writes a row saying the
+            // alarm is what it already was -- two of them showed up in
+            // one evening's upgrades.  What matters is whether it has
+            // changed since it was last recorded, which outlives this
+            // process.
             let mut last_alarm: Option<smartclock::types::AlarmCondition> = None;
+            let mut alarm_seeded = false;
             if adopt_log {
                 journal = journal.clearing_when_full();
             }
@@ -361,20 +369,20 @@ fn main() -> Result<()> {
                 // the first row of every run attributed to no receiver
                 // at all.  It costs a string compare per row.
                 note_attached(&mut log, &mut recorded, &journal_info);
-                if let Some(alarm) = snapshot.alarm
-                    && snapshot.alarm != last_alarm
-                {
-                    let named = alarm.named_bits();
-                    let decoded = if named.is_empty() {
-                        "cleared at the receiver".to_owned()
-                    } else {
-                        named.join(", ")
-                    };
-                    match log.record_event("alarm", alarm.bits(), &decoded) {
-                        Ok(()) => eprintln!("smartclockd: receiver alarm now {decoded}"),
-                        Err(e) => eprintln!("smartclockd: could not record an alarm change: {e}"),
+                if let Some(alarm) = snapshot.alarm {
+                    if !alarm_seeded && let Some(receiver) = log.current_receiver() {
+                        match log.last_alarm(receiver) {
+                            Ok(bits) => {
+                                last_alarm = bits.map(smartclock::types::AlarmCondition::from_bits);
+                            }
+                            Err(e) => eprintln!("smartclockd: could not read the last alarm: {e}"),
+                        }
+                        alarm_seeded = true;
                     }
-                    last_alarm = snapshot.alarm;
+                    if snapshot.alarm != last_alarm {
+                        record_alarm(&mut log, alarm, last_alarm);
+                        last_alarm = snapshot.alarm;
+                    }
                 }
                 if let Err(e) = log.record(&snapshot) {
                     eprintln!("smartclockd: could not record a snapshot: {e}");
@@ -481,6 +489,32 @@ fn supervise(
                 }
             }
         }
+    }
+}
+
+/// Write down a change in the receiver's alarm.
+///
+/// The wording distinguishes a fault going away from never having been
+/// there.  "Cleared at the receiver" says something the daemon did not
+/// do -- it never clears the alarm -- and saying that about the first
+/// observation of a quiet receiver would be a small lie about how it
+/// got that way.
+fn record_alarm(
+    log: &mut db::Log,
+    alarm: smartclock::types::AlarmCondition,
+    previous: Option<smartclock::types::AlarmCondition>,
+) {
+    let named = alarm.named_bits();
+    let decoded = if !named.is_empty() {
+        named.join(", ")
+    } else if previous.is_some_and(|p| !p.is_clear()) {
+        "cleared at the receiver".to_owned()
+    } else {
+        "clear".to_owned()
+    };
+    match log.record_event("alarm", alarm.bits(), &decoded) {
+        Ok(()) => eprintln!("smartclockd: receiver alarm now {decoded}"),
+        Err(e) => eprintln!("smartclockd: could not record an alarm change: {e}"),
     }
 }
 

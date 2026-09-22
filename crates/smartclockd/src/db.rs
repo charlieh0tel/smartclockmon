@@ -530,6 +530,26 @@ impl Log {
         Ok(())
     }
 
+    /// The alarm as last recorded for one receiver, if ever.
+    ///
+    /// Read at startup so a restart does not write a row saying the
+    /// alarm is what it already was.  The comparison the daemon makes
+    /// is against what is written down, not against what this process
+    /// happens to remember, and those differ every time it restarts.
+    pub(crate) fn last_alarm(&self, receiver: i64) -> Result<Option<u16>> {
+        let bits: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT bits FROM receiver_event
+                 WHERE receiver_id = ?1 AND register = 'alarm'
+                 ORDER BY id DESC LIMIT 1",
+                params![receiver],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(bits.and_then(|b| u16::try_from(b).ok()))
+    }
+
     /// Record a change in the receiver's alarm condition.
     pub(crate) fn record_event(&mut self, register: &str, bits: u16, decoded: &str) -> Result<()> {
         self.conn.execute(
