@@ -1,3 +1,53 @@
+smartclockmon (0.6.0-1) unstable; urgency=low
+
+  * The daemon adopts a receiver on every connection rather than once
+    per unit.  A connection is the boundary across which nothing is
+    known -- the unit may have been power cycled, swapped, or
+    reconfigured while the link was down -- so the error queue is
+    drained, the transition filters re-read and the diagnostic log copy
+    resumed from the database each time one is made.
+  * It watches the receiver's alarm without taking it.  Reading an
+    event register clears it, which clears the alarm condition register
+    that summarises it, which puts out the front-panel Alarm LED and
+    sets the BITE output inactive.  So no event register is read.  The
+    daemon polls *STB? instead, which reports the same latched state in
+    real time and changes nothing.  The lamp stays lit until you clear
+    it at the receiver.
+  * Nothing writes to the receiver.  No *CLS, no transition filters
+    set, no alarm driven or cleared.  The one exception is opt-in and
+    described below.
+  * The receiver stepping its own clock to match the satellites is now
+    visible.  It invalidates every interval measurement taken across
+    the step and appears in no condition register; it shows as CLOCK
+    STEPPED in the monitor's header, a pill in the browser's status
+    strip, and smartclock_time_reset.
+  * What the receiver records about itself is shown in the monitor, on
+    `l`, and in the browser: its diagnostic log, alarm transitions, and
+    its error queue.  The log is ordered by the receiver's own clock,
+    since its entry numbers restart whenever it is cleared and the
+    order it was copied in is reverse chronology.
+  * New: --adopt-log erases the receiver's diagnostic log once every
+    entry is held here and the receiver says it is nearly full.  Off by
+    default.  The log holds 222 entries and then stops recording, so a
+    unit left alone has usually stopped logging long ago -- the
+    development receiver had recorded nothing since March 2025.  The
+    entry count is sent with the command, so the receiver refuses if
+    one arrived between the copy and the clear.
+  * The transition filters are recorded beside the alarm, because
+    without them it cannot be read back.  This receiver latches faults
+    appearing and never clearing, so a missing clear means only that
+    nobody enabled that transition.
+  * Readers tolerate a log older than themselves.  The monitor and the
+    browser view can be upgraded before the daemon is restarted, or
+    pointed at an archived file; a table that does not exist yet reads
+    as empty rather than failing the request.
+  * Upgrade note: the log moves to schema 6, migrating in place.  An
+    earlier smartclockd refuses a migrated log and exits 2, so a
+    downgrade leaves the service stopped with the data intact.
+    Recovery is forward, not back.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Mon, 21 Sep 2026 20:39:06 -0700
+
 smartclockmon (0.5.0-1) unstable; urgency=low
 
   * The daemon now records what the receiver keeps about itself.  Its
