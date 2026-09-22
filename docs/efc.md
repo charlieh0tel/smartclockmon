@@ -71,13 +71,56 @@ at the oscillator, the same two points each time.
 | ---------- | ------- | --- | -------- | ----------- |
 | 2026-09-20 22:41 | 50.77 mV | 713587 | +36.1061 % | 37.40 C |
 | 2026-09-21 01:52 | 55.5 mV  | 712820 | +35.9597 % | 36.04 C |
+| 2026-09-22 01:35 | 52.58 mV | 713269 | +36.0453 % | 39.86 C |
 
 Earlier, less precisely: about 52 mV at the coax and about 50 mV at the
 pin, both near raw 713352 to 713426.  Those are consistent with the
 first row and add nothing to the slope, since the count has barely
 moved.
 
-### What the pair says, and what it does not
+### What the three say
+
+The third reading settles what the pair could not, by breaking the
+thing that made the pair ambiguous.  It was taken at 39.86 C, the
+hottest of the three and nearly four degrees above the second, and its
+voltage came out in the middle -- exactly where its count puts it.  Had
+temperature been driving the pin, the hottest point would have been the
+most extreme, and it is not.
+
+Fitting all three:
+
+| Against | Slope | R^2 |
+| ------- | ----- | --- |
+| Raw count | -6.19 uV/count | 0.999 |
+| Temperature | -0.58 mV/C | 0.225 |
+
+The count explains the pin; the temperature does not.  The correlation
+of r = 0.79 across the whole log is real but is the count and the
+temperature drifting together over a day, not a causal path from the
+sensor to the pin.
+
+So the slope stands at **6.19 uV per count** over a 767 count span,
+against 9.5 uV per count for a full -5 V to +5 V drive and 0.13 uV per
+count for a sliver.  The sliver mapping is out by a factor of 48 and is
+finished: the pin moves like something driven across volts.
+
+Two things from the pair survive into the triple.
+
+The sign is still backwards -- count up, voltage down -- and now
+consistently so across three points, which makes it a property of the
+path rather than noise in a pair.  Something inverts between the DAC
+and the pin.
+
+And the absolute level is still wrong, in a way the confirmed slope
+makes worse rather than better.  At 36 percent the specification
+mapping puts the pin at +1.80 V; it reads 52 mV.  A divider scaling
+1.8 V to 50 mV would scale the slope by the same 36x, and the slope is
+not scaled: extrapolating 6.19 uV/count across the 20 bit range gives a
+6.49 V span, which is the right order for a real EFC drive and the
+wrong answer for the level measured on it.  Whatever explains 52 mV has
+to leave the slope alone, which rules out a plain divider.
+
+### What the pair said, and what it did not
 
 Between those two rows the count fell 765 and the pin rose 4.73 mV.
 That is **6.2 uV per count**, against 9.5 uV per count if the receiver
@@ -105,30 +148,18 @@ Note also that the receiver's reported temperature is quantised to
 0.273 C -- ten distinct values in 9000 samples -- so "the temperature
 did not change" only ever means "it did not cross a step".
 
-### The measurement that would settle it
+### The measurement that settled it
 
-Separating the DAC from the temperature needs a pair taken while the
-temperature is flat and the count is not.  The log has those: windows
-where the reported temperature holds one quantisation step for ten
-minutes while the count moves 300 to 400.  Over such a window the
-predictions are far enough apart to decide it:
+The plan here was a pair taken during a thermally quiet window, chosen
+so the count moved and the temperature did not.  What arrived instead
+was better and required no waiting: a third point at a temperature well
+outside the range of the first two.  A thermally flat pair would have
+shown the count moving the pin with the temperature held still; a
+thermally distant third point shows the pin ignoring a four degree
+excursion and following the count anyway, which is the same conclusion
+from the opposite direction and is harder to argue with.
 
-| If the pin follows | Change over ~375 counts |
-| ------------------ | ----------------------- |
-| The DAC, at full-span sensitivity | about 3.6 mV |
-| Temperature only | at most 0.95 mV, bounded by the 0.273 C step |
-
-So: two readings ten to fifteen minutes apart during a thermally quiet
-stretch.  The daemon records the count and the temperature, so this
-needs the two meter readings and nothing else.
-
-The absolute level remains unexplained either way.  At 36 percent the
-specification mapping puts the pin at +1.80 V and it reads tens of
-millivolts, and a slope near the full-span figure makes that harder to
-explain rather than easier: a divider that scaled 1.8 V down to 50 mV
-would scale the slope down with it, and it is not scaled down.
-
-## Where the unit stands, conditionally
+## Where the unit stands
 
 Under the specification mapping, 36.06 percent of +/- 2.0x10^-7 is
 7.2x10^-8 used with about 1.3x10^-7 left, on the order of a decade of
@@ -137,14 +168,17 @@ headroom at typical aging.
 Under the measured mapping there is far less: single-digit nanohertz
 per hertz of range, most of a year at best.
 
-These differ by more than an order of magnitude, so the earlier claim of
-a decade of headroom should not be relied on until the measurement above
-is done.  The second paired reading leans towards the specification
-mapping -- the pin moves microvolts per count, not tenths of a
-microvolt -- but leans is all it does while the temperature confound
-stands.  What does hold regardless is the receiver's own judgement: the
-hardware condition register has neither the near-full-scale nor the
-full-scale EFC bit set, and its health monitor reports EFC OK.  The
+These differ by more than an order of magnitude.  The third reading
+decides between them: at 6.19 uV per count the pin moves microvolts per
+count, not tenths of a microvolt, and it does so independently of
+temperature, so the **specification mapping is the one to use** and the
+decade of headroom stands.  It is still a slope measured over 767 of
+2^20 counts and extrapolated, so it says the receiver drives volts
+rather than millivolts; it does not certify linearity across the range
+nobody has driven it over.  What holds regardless is the receiver's own
+judgement: the hardware condition register has neither the
+near-full-scale nor the full-scale EFC bit set, and its health monitor
+reports EFC OK.  The
 receiver does not think the oscillator is near its limit.
 
 ## What is still unmeasured
