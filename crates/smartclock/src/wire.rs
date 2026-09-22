@@ -19,6 +19,7 @@ use crate::screen::Screen;
 use crate::snapshot::Freshness;
 use crate::snapshot::Polled;
 use crate::snapshot::Snapshot;
+use crate::types::AlarmCondition;
 use crate::types::EfcPercent;
 use crate::types::Ffom;
 use crate::types::HardwareCondition;
@@ -70,6 +71,23 @@ pub struct Reading {
     pub hardware_faults: Vec<String>,
     /// Why the receiver has not left holdover.
     pub holdover_waiting: Option<HoldoverWaitReason>,
+
+    /// The alarm condition register, raw.
+    ///
+    /// Carried whole, unlike the other registers, because this is the
+    /// one a client is most likely to want to reason about itself: it
+    /// is what the front-panel lamp is showing.
+    pub alarm: Option<AlarmCondition>,
+    /// Which status groups have something latched, named.
+    pub alarm_summary: Vec<String>,
+    /// Whether the receiver has anything latched at all.
+    pub alarming: Option<bool>,
+    /// The receiver reset its clock to match the satellites.
+    ///
+    /// The questionable group holds only this and a bit no one here
+    /// sets, so the group summary names it exactly.  A step in the time
+    /// output invalidates every interval measurement across it.
+    pub time_reset: Option<bool>,
 
     /// Locked to GPS, from the operation condition register.
     ///
@@ -146,6 +164,13 @@ impl From<&Snapshot> for Reading {
                 .map(|h| h.faults().map(|f| f.describe().to_owned()).collect())
                 .unwrap_or_default(),
             holdover_waiting: s.holdover_waiting,
+            alarm: s.alarm,
+            alarm_summary: s
+                .alarm
+                .map(|a| a.named_bits().into_iter().map(str::to_owned).collect())
+                .unwrap_or_default(),
+            alarming: s.alarm.map(|a| !a.is_clear()),
+            time_reset: s.alarm.map(AlarmCondition::questionable),
             locked: s.operation.map(OperationCondition::locked),
             position_hold: s.operation.map(OperationCondition::position_hold),
             reference_valid: s.operation.map(OperationCondition::reference_valid),

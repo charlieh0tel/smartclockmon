@@ -19,6 +19,7 @@ use crate::session::Session;
 use crate::snapshot::Snapshot;
 use crate::snapshot::Tier;
 use crate::transport::Transport;
+use crate::types::AlarmCondition;
 use crate::types::Datum;
 use crate::types::EfcPercent;
 use crate::types::Ffom;
@@ -204,6 +205,15 @@ impl<T: Transport> Device<T> {
     pub fn hardware_condition(&mut self) -> Result<HardwareCondition> {
         self.register(CommandId::HardwareCondition)
             .map(HardwareCondition::from_bits)
+    }
+
+    /// The alarm condition register, which `*STB?` reads.
+    ///
+    /// Non-destructive, unlike every event register, which is the whole
+    /// reason it is what gets polled: it reports which groups have
+    /// latched something without taking the latch away.
+    pub fn alarm_condition(&mut self) -> Result<AlarmCondition> {
+        self.register(CommandId::Stb).map(AlarmCondition::from_bits)
     }
 
     /// The operation condition register.
@@ -406,6 +416,7 @@ impl<T: Transport> Device<T> {
         // logger has no business doing.  What survives a poll here is
         // the receiver's steady state, which is what the history is
         // for.
+        into.alarm = Some(self.alarm_condition()?);
         into.operation = Some(self.operation_condition()?);
         into.holdover_state = Some(self.holdover_condition()?);
         into.powerup = Some(self.powerup_condition()?);

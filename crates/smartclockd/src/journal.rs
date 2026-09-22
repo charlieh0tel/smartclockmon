@@ -14,6 +14,17 @@
 //! is the only way the receiver's own account of its faults outlives
 //! the receiver.
 //!
+//! The event registers are deliberately not among them.  Reading one
+//! clears it, which clears the alarm condition register, which puts the
+//! front-panel lamp out -- and the lamp is the operator's, to be
+//! cleared by them and not by a logger taking a copy behind their back.
+//! What the daemon watches instead is `*STB?`, which reads the same
+//! latched state in real time and changes nothing; it is polled with
+//! the other condition registers rather than here.  The cost is that it
+//! names the group and not the bit, which for the questionable group is
+//! no cost at all: it holds Time Reset and the user-reported bit, and
+//! nothing here sets the latter.
+//!
 //! This runs on the thread that owns the database rather than in the
 //! poll schedule, so the write follows the read with nothing between
 //! them: reading an error queue entry is what removes it, and a channel
@@ -31,32 +42,11 @@ use smartclock::command::CommandId;
 use smartclock::command::Dialect;
 use smartclock::parse;
 use smartclock::task::Handle;
-use smartclock::types::HardwareCondition;
-use smartclock::types::HoldoverCondition;
 use smartclock::types::OperationCondition;
-use smartclock::types::PowerupCondition;
-use smartclock::types::QuestionableStatus;
 use std::time::Duration;
 use std::time::Instant;
 
 use crate::db::Log;
-
-/// The event registers, and the short name each is recorded under.
-///
-/// Five, and deliberately not `*ESR?`.  That one's informative bits are
-/// command errors, and this daemon's own polling sets them constantly:
-/// the medium tier tolerates a -230 from the present-holdover-error
-/// query every ten seconds, so the semantic-error bit would be
-/// permanently lit by us.  The one thing worth having there is Power
-/// Cycled, which the powerup condition register and the diagnostic
-/// log's own "Power on" entry both already give.
-const EVENT_REGISTERS: [(CommandId, &str); 5] = [
-    (CommandId::OperEvent, "operation"),
-    (CommandId::QuestEvent, "questionable"),
-    (CommandId::HardwareEvent, "hardware"),
-    (CommandId::HoldoverEvent, "holdover"),
-    (CommandId::PowerupEvent, "powerup"),
-];
 
 /// The transition filters, read once per connection so the events
 /// captured beside them can be read back.
@@ -87,25 +77,6 @@ const FILTER_REGISTERS: [(CommandId, CommandId, &str); 5] = [
         "powerup",
     ),
 ];
-
-/// Name the bits of whichever register this is.
-fn describe(register: &str, bits: u16) -> String {
-    let named = match register {
-        "operation" => OperationCondition::from_bits(bits).named_bits(),
-        "questionable" => QuestionableStatus::from_bits(bits).named_bits(),
-        "hardware" => HardwareCondition::from_bits(bits).named_bits(),
-        "holdover" => HoldoverCondition::from_bits(bits).named_bits(),
-        "powerup" => PowerupCondition::from_bits(bits).named_bits(),
-        _ => Vec::new(),
-    };
-    if named.is_empty() {
-        // A bit the manual does not name is still worth a row; the raw
-        // value is stored beside this.
-        format!("unnamed bits in {register}")
-    } else {
-        named.join(", ")
-    }
-}
 
 /// How long a journal query waits before being given up on.
 ///
@@ -240,9 +211,6 @@ impl Journal {
                 Err(e) => eprintln!("smartclockd: could not read the transition filters: {e:#}"),
             }
         }
-        if let Err(e) = self.read_events(handle, dialect, log, deadline) {
-            eprintln!("smartclockd: could not read the event registers: {e:#}");
-        }
         if let Err(e) = self.drain_errors(handle, dialect, log, deadline) {
             eprintln!("smartclockd: could not read the error queue: {e:#}");
         }
@@ -283,52 +251,6 @@ impl Journal {
             }
         }
         Ok(complete)
-    }
-
-    /// Read the event registers, recording any that were not empty.
-    ///
-    /// Destructive, like the error queue and for the same reason: the
-    /// register latches until read and reading is what clears it.  The
-    /// receiver's Alarm LED and BITE output go inactive as a
-    /// consequence, since the alarm summarises these registers -- so
-    /// this daemon, not the front panel, is now what holds the record
-    /// that something happened.
-    fn read_events(
-        &mut self,
-        handle: &Handle,
-        dialect: Dialect,
-        log: &mut Log,
-        deadline: Instant,
-    ) -> Result<()> {
-        for (id, register) in EVENT_REGISTERS {
-            if Instant::now() >= deadline {
-                return Ok(());
-            }
-            // Per register, because one the receiver will not answer
-            // must not hide the four it would: the questionable
-            // register is where a silent clock step shows up, and
-            // losing it because the powerup register refused is the
-            // wrong trade.  Complained about once per pass, which is
-            // loud enough to notice and quiet enough to live with.
-            let bits = match ask(handle, dialect, id, None).and_then(|line| {
-                let value = parse::int(&line)?;
-                u16::try_from(value)
-                    .map_err(|_| anyhow::anyhow!("{value} is not a 16 bit register"))
-            }) {
-                Ok(bits) => bits,
-                Err(e) => {
-                    eprintln!("smartclockd: could not read the {register} event register: {e:#}");
-                    continue;
-                }
-            };
-            if bits == 0 {
-                continue;
-            }
-            let decoded = describe(register, bits);
-            log.record_event(register, bits, &decoded)?;
-            eprintln!("smartclockd: {register} event: {decoded}");
-        }
-        Ok(())
     }
 
     /// Read the error queue empty, recording what it held.

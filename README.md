@@ -75,20 +75,26 @@ and no deeper, is copied entry by entry, newest first and then
 backwards through whatever was already there, resuming from the
 database so a restart does not start over.
 
-It also reads the five event registers every ten seconds.  These are
-the only place a transition between two condition polls appears, and
-the only place some things appear at all -- Time Reset, the receiver
-quietly stepping its own clock because it disagreed with the
-satellites, shows up nowhere else and invalidates every interval
-measurement taken across it.  **Reading an event register clears it,
-and the receiver's Alarm LED and BITE output go inactive as a
-consequence**, because the alarm summarises those registers.  There is
-no non-destructive read, so the daemon becomes what holds the record
-that something happened: each non-zero read is a row with its bits
-named.  The transition filters are recorded beside them, because
-without those the events cannot be read back -- this receiver latches
-faults appearing and never clearing, so a missing clear-event means
-only that nobody enabled the transition, not that the fault persisted.
+It watches the receiver's alarm without taking it.  The event
+registers hold the transitions worth knowing about -- Time Reset among
+them, the receiver quietly stepping its own clock because it disagreed
+with the satellites, which invalidates every interval measurement
+across the step and appears in no condition register.  But reading an
+event register clears it, and clearing the events extinguishes the
+front-panel Alarm LED and the BITE output, because the alarm
+summarises them.  **That lamp belongs to whoever is standing at the
+instrument**, so the daemon never reads an event register.
+
+It polls `*STB?` instead, the alarm condition register, which reports
+the same latched state in real time and changes nothing.  The cost is
+that it names the group rather than the bit -- except for the
+questionable group, which holds only Time Reset and a bit nothing here
+sets, so that one names itself.  Changes are recorded as they happen
+and shown in the monitor's header, the browser's status strip and
+`smartclock_alarm`; the lamp stays lit until you clear it at the
+receiver.  The transition filters are recorded too, because this unit
+latches faults appearing and never clearing, so a missing clear means
+only that nobody enabled that transition.
 
 `--adopt-log` lets the daemon erase the receiver's log once every entry
 is copied here and the receiver says it is nearly full.  Off by

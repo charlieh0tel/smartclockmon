@@ -115,6 +115,21 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
         "Hardware condition register; 0 is healthy",
         r.hardware.map(|h| f64::from(h.bits())),
     );
+    maybe(
+        &mut out,
+        "alarm",
+        "1 while the receiver has something latched in a status group; \
+         this is what its front-panel Alarm LED is showing",
+        r.alarming.map(|v| f64::from(u8::from(v))),
+    );
+    maybe(
+        &mut out,
+        "time_reset",
+        "1 once the receiver has stepped its own clock to match the satellites, \
+         which invalidates interval measurements taken across the step; \
+         stays set until the alarm is cleared at the receiver",
+        r.time_reset.map(|v| f64::from(u8::from(v))),
+    );
     // The condition registers, as the booleans they decode to.  A
     // register exported as a number would need the manual and a
     // bitwise expression in every alert that used it.

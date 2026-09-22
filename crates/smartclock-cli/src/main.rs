@@ -313,6 +313,16 @@ fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
 
     println!("\nStatus");
     show(
+        "alarm",
+        device.alarm_condition().map(|a| {
+            if a.is_clear() {
+                "clear".to_owned()
+            } else {
+                format!("{} (clear it at the receiver)", a.named_bits().join(", "))
+            }
+        }),
+    );
+    show(
         "operation",
         device.operation_condition().map(|op| {
             format!(
@@ -592,6 +602,16 @@ fn render(info: &serde_json::Value, r: &Reading) {
     );
 
     println!("\nStatus");
+    show_opt(
+        "alarm",
+        r.alarm.map(|a| {
+            if a.is_clear() {
+                "clear".to_owned()
+            } else {
+                format!("{} (clear it at the receiver)", a.named_bits().join(", "))
+            }
+        }),
+    );
     show_opt(
         "operation",
         r.locked.map(|_| {

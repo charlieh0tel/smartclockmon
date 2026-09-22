@@ -341,12 +341,33 @@ fn header(frame: &mut Frame, area: Rect, app: &App) {
         ),
         None => ("WAITING", Style::new().fg(Color::DarkGray)),
     };
-    let line = Line::from(vec![
+    let mut spans = vec![
         Span::styled(format!("[{state}]"), style),
         Span::raw("  "),
         Span::raw(app.attachment.describe()),
-    ]);
-    frame.render_widget(Paragraph::new(line).block(block("smartclockmon")), area);
+    ];
+    // The receiver's own alarm, which latches and stays latched until
+    // someone clears it at the front panel.  Put in the header rather
+    // than a pane because it is the one thing that should be seen
+    // whatever else is on screen, and because the daemon deliberately
+    // does not clear it: what is shown here is what the lamp is showing.
+    if let Some(snapshot) = app.snapshot.as_ref() {
+        if snapshot.time_reset == Some(true) {
+            spans.push(Span::styled(
+                "  [CLOCK STEPPED]",
+                Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ));
+        } else if snapshot.alarming == Some(true) {
+            spans.push(Span::styled(
+                format!("  [ALARM: {}]", snapshot.alarm_summary.join(", ")),
+                Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            ));
+        }
+    }
+    frame.render_widget(
+        Paragraph::new(Line::from(spans)).block(block("smartclockmon")),
+        area,
+    );
 }
 
 /// How many times its own cadence a tier may lag before its pane is

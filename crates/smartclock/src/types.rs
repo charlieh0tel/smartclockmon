@@ -535,6 +535,81 @@ impl QuestionableStatus {
     }
 }
 
+/// Bits of the alarm condition register, which `*STB?` reads.
+///
+/// The receiver's own summary of which status groups have something
+/// latched, and the thing behind the front-panel lamp: the LED is lit
+/// when this register `AND`ed with the alarm enable register (`*SRE`) is
+/// non-zero.  097-59551-02 5-44, figure 5-2.
+///
+/// Worth having because it is **real time and non-destructive**.  Every
+/// other route to "has something been latched" is an event register,
+/// and reading one of those clears it -- which clears this, which puts
+/// the lamp out.  This is the one read that leaves the alarm alone, so
+/// it is how the daemon watches without taking the operator's
+/// indicator away from them.
+///
+/// What it costs is granularity: it names the group, not the bit.  For
+/// the questionable group that distinction does not exist, since it
+/// holds only Time Reset and the user-reported bit -- so while nothing
+/// sets the user bit, this register alone says whether the receiver has
+/// stepped its own clock.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AlarmCondition(u16);
+
+impl AlarmCondition {
+    /// Wrap a raw register value.
+    pub fn from_bits(bits: u16) -> Self {
+        Self(bits)
+    }
+
+    /// The raw register value.
+    pub fn bits(self) -> u16 {
+        self.0
+    }
+
+    /// Bit 3: something is latched in the questionable group.
+    ///
+    /// Which, while nothing sets the user-reported bit, means the
+    /// receiver reset its time to match the satellites.
+    pub fn questionable(self) -> bool {
+        self.0 & (1 << 3) != 0
+    }
+
+    /// Bit 5: a command error.  Ours, usually.
+    pub fn command_error(self) -> bool {
+        self.0 & (1 << 5) != 0
+    }
+
+    /// Bit 6: at least one reason to alarm.
+    pub fn master(self) -> bool {
+        self.0 & (1 << 6) != 0
+    }
+
+    /// Bit 7: something is latched in the operation group.
+    pub fn operation(self) -> bool {
+        self.0 & (1 << 7) != 0
+    }
+
+    /// Whether anything is latched at all.
+    pub fn is_clear(self) -> bool {
+        self.0 == 0
+    }
+
+    /// The names of the bits set, for recording or display.
+    pub fn named_bits(self) -> Vec<&'static str> {
+        named_bits(
+            self.0,
+            &[
+                (3, "questionable"),
+                (5, "command error"),
+                (6, "alarm"),
+                (7, "operation"),
+            ],
+        )
+    }
+}
+
 /// Which vertical datum a height is referenced to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Datum {

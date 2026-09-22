@@ -19,7 +19,7 @@ use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Snapshot;
 
 /// Bumped when the tables change shape.
-const SCHEMA: i64 = 5;
+const SCHEMA: i64 = 6;
 
 /// The daemon's write connection.
 #[derive(Debug)]
@@ -106,6 +106,7 @@ impl Log {
                 oven_current         REAL,
                 oven_tempco          REAL,
                 efc_dac              INTEGER,
+                alarm_bits           INTEGER,
                 operation_bits       INTEGER,
                 holdover_bits        INTEGER,
                 powerup_bits         INTEGER,
@@ -168,16 +169,19 @@ impl Log {
                 last_seen    TEXT NOT NULL
             );
 
-            -- Every non-zero read of an event register.
+            -- Every change in the receiver's alarm condition register.
             --
-            -- Unlike a condition, an event is gone once read: the
-            -- register latches a transition and reading it clears it,
-            -- so these rows are the only record that the transition
-            -- happened at all.  That is also why the daemon is now what
-            -- acknowledges the receiver's alarm -- the Alarm LED and
-            -- the BITE output go inactive when the event registers
-            -- clear, which is a side effect of this reading, not a
-            -- decision taken separately.
+            -- The snapshot table carries the same register sampled
+            -- every poll, which answers "what was it at 14:02" but
+            -- makes "when did it change" a scan.  These rows are the
+            -- changes alone, which is what anyone reading a history
+            -- actually wants and what the monitor and the browser show.
+            --
+            -- The register itself is read with *STB?, which is real
+            -- time and non-destructive.  The event registers behind it
+            -- are deliberately never read: reading one clears it, which
+            -- clears the alarm, which puts out a lamp that belongs to
+            -- whoever is standing at the instrument.
             CREATE TABLE IF NOT EXISTS receiver_event (
                 id      INTEGER PRIMARY KEY,
                 at      TEXT    NOT NULL,
@@ -274,6 +278,7 @@ impl Log {
             ("medium_at", "TEXT"),
             ("slow_at", "TEXT"),
             ("oven_tempco", "REAL"),
+            ("alarm_bits", "INTEGER"),
             ("operation_bits", "INTEGER"),
             ("holdover_bits", "INTEGER"),
             ("powerup_bits", "INTEGER"),
@@ -324,14 +329,14 @@ impl Log {
             "INSERT INTO snapshot (
                 at, freshness, mode, tfom, ffom, time_interval_s, efc_percent,
                 hardware_bits, holdover_waiting, temperature_c, oven_current, oven_tempco,
-                efc_dac, operation_bits, holdover_bits, powerup_bits,
+                efc_dac, alarm_bits, operation_bits, holdover_bits, powerup_bits,
                 holdover_active, holdover_elapsed_s,
                 holdover_predicted_s, holdover_present_s, tracking, not_tracking,
                 date_raw, time_utc, rollover_epochs, log_count, last_error,
                 fast_at, medium_at, slow_at, receiver_id
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
                        ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29,
-                       ?30, ?31)",
+                       ?30, ?31, ?32)",
             params![
                 snapshot.at.to_string(),
                 match snapshot.freshness {
@@ -350,6 +355,7 @@ impl Log {
                 snapshot.oven_current,
                 snapshot.oven_tempco,
                 snapshot.efc_dac,
+                snapshot.alarm.map(|r| i64::from(r.bits())),
                 snapshot.operation.map(|r| i64::from(r.bits())),
                 snapshot.holdover_state.map(|r| i64::from(r.bits())),
                 snapshot.powerup.map(|r| i64::from(r.bits())),
@@ -524,11 +530,7 @@ impl Log {
         Ok(())
     }
 
-    /// Record one non-zero read of an event register.
-    ///
-    /// Every read is a row: an event register that reads non-zero has
-    /// already been cleared by the reading, so declining to write it
-    /// loses it for good.
+    /// Record a change in the receiver's alarm condition.
     pub(crate) fn record_event(&mut self, register: &str, bits: u16, decoded: &str) -> Result<()> {
         self.conn.execute(
             "INSERT INTO receiver_event (at, register, bits, decoded, receiver_id)

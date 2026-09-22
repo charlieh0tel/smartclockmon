@@ -238,6 +238,16 @@ async function poll() {
     (s.hardware_faults?.length
       ? `<span class="pill down">${s.hardware_faults.map(esc).join(", ")}</span>`
       : "") +
+    // The receiver's own alarm, which is latched and stays latched
+    // until cleared at the front panel.  Named separately where it is
+    // a clock step, since that invalidates the measurements either
+    // side of it and is not just another fault.
+    (s.time_reset
+      ? `<span class="pill down">receiver reset its clock to match GPS</span>`
+      : "") +
+    (s.alarming && !s.time_reset
+      ? `<span class="pill stale">receiver alarm: ${(s.alarm_summary ?? []).map(esc).join(", ")}</span>`
+      : "") +
     (s.screen?.satellites_suspect
       ? `<span class="pill stale">satellite table disagrees with its own counts</span>`
       : "") +

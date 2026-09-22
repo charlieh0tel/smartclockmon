@@ -348,32 +348,44 @@ that was already there.  Entries are stored by content rather than by
 number, because clearing the log restarts the numbering and the same
 number then means a different entry.
 
-**Condition registers, and then the event registers too.**  The
-hardware condition register was the only one read.  The operation,
+**Condition registers, and never the event registers.**  This went
+back and forth twice and the third answer is the right one.
+
+The hardware condition register was the only one read.  The operation,
 holdover and powerup condition registers joined it, which is free of
-side effects: a condition register is live and holds nothing.
+side effects.  The event registers were then added too, on the grounds
+that Time Reset -- the receiver stepping its own clock after a long
+holdover, which invalidates every interval measurement across the step
+-- is event-only and appears nowhere else.  097-59551-02 5-39.
 
-The event registers were left alone at first, on the grounds that
-reading one clears it and so retracts the receiver's own alarm.  That
-was reversed once the manual was read properly.  097-59551-02 5-40 says
-the Alarm Condition register "is cleared as a result of the clearing of
-all of the event registers" -- so the alarm goes out because the events
-were cleared, not because `*CLS` touched it.  The hazard belongs to
-reading events at all, and `*CLS` is merely redundant with doing so:
-draining the error queue already clears the queue, and reading the
-events already clears the events, which is everything `*CLS` does.  It
-is never sent.
+That was wrong, because reading an event register clears it, clearing
+the events clears the alarm condition register that summarises them,
+and that puts out the front-panel Alarm LED and sets the BITE output
+inactive.  At a ten second cadence the lamp would never be seen lit.
+The lamp belongs to whoever is at the instrument.
 
-So the choice was never whether to clear but how often to read, and
-that one knob sets both the temporal resolution and how fast the alarm
-is acknowledged.  Reading won, at the medium tier's ten seconds,
-because Time Reset is worth it: the receiver stepping its own clock
-after a long holdover invalidates every interval measurement across the
-step, it is event-only -- no condition carries it, 097-59551-02 5-39 --
-and it is therefore visible in an event register or nowhere.  The
-consequence is that this daemon, not the front panel, now holds the
-record that something happened, which is why each non-zero read becomes
-a row with its bits named rather than an integer.
+What resolves it is that there *is* a non-destructive read, which the
+first pass missed: `*STB?` returns the alarm condition register, and
+5-44 says its bits "are updated in real time -- there is no latching or
+buffering" and "Reading/Querying the Alarm Condition Register does not
+change its contents".  It reports which groups have something latched
+without taking the latch.  So the daemon polls that with the other
+condition registers and reads no event register at all.
+
+The cost is granularity: it names the group, not the bit.  For the
+questionable group there is no such cost -- it holds Time Reset and the
+user-reported bit, and nothing here sets the latter, so the group
+summary names the bit exactly.  The thing the detour was for turns out
+to be available without the detour.
+
+Two consequences.  `*CLS` is not sent, and neither is anything else
+that writes to the receiver: a logger stays read-only, and the operator
+clears the alarm at the panel.  And the detail behind a summary -- which
+bit of the operation group latched -- is available whenever somebody
+wants it, by reading the event register, which is the same act as
+acknowledging.  That is worth building when there is a reason to
+acknowledge from the monitor; it is not worth doing behind the
+operator's back on a timer.
 
 The transition filters are recorded beside the events, because the
 events are uninterpretable without them.  A filter decides which
@@ -457,10 +469,10 @@ Tiers, to be measured against hardware before being fixed:
 | Tier  | Contents                                                    |
 | ----- | ----------------------------------------------------------- |
 | ~1 s  | `:SYNC:TINT?`, `:SYNC:TFOM?`, `:SYNC:FFOM?`, `:DIAG:ROSC:EFC:REL?`, `:STAT:OPER:HARD:COND?`, `:SYNC:STATE?`, `:PTIM:TIME?` |
-| ~10 s | `:SYST:STAT?` (satellite table, health line), holdover duration and uncertainty |
+| ~10 s | `:SYST:STAT?` (satellite table, health line), holdover duration and uncertainty, `*STB?` and the operation, holdover and powerup condition registers |
 | ~60 s | position, date, diagnostic log count, learned oscillator tempco |
 |       | The receiver's UTC is on the fast tier, not with the date: a clock read once a minute and shown as a clock is wrong for the other fifty-nine seconds. |
-| ~10 s | the five event registers, the error queue, and any new diagnostic log entries, off the schedule; see below |
+| ~10 s | the error queue and any new diagnostic log entries, off the schedule; see below |
 
 A control request arriving on the socket must be able to preempt a
 scheduled status screen read.

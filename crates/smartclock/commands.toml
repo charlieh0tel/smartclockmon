@@ -177,13 +177,15 @@ doc = "Service request enable register."
 [[command]]
 id = "stb"
 class = "query"
-doc = "Status byte register."
+doc = """Alarm condition register: which status groups have something \
+latched.  Real time and non-destructive -- reading it changes nothing, \
+which is what makes it the way to watch the alarm without taking it."""
 
   [command.dialect.hp58503]
   scpi = "*STB?"
-  response = "int"
+  response = "bits:AlarmCondition"
   models = ["58503A", "58503B", "59551A"]
-  cite = "097-59551-02 5-48"
+  cite = "097-59551-02 5-44"
   evidence = "hardware"
   [command.dialect.z3801]
   scpi = "*STB?"

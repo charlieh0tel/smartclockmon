@@ -46,6 +46,10 @@ const QUEUE_OVERFLOW_MESSAGE: &str = "Queue overflow";
 /// real one tops out at 222.
 const LOG_ENTRIES: i64 = 222;
 
+/// The alarm enable register as a 58503A reports it: questionable
+/// summary and operation summary, which is the documented preset.
+const ALARM_ENABLE: u16 = (1 << 3) | (1 << 7);
+
 /// Where the instrument starts saying its log is nearly full.
 const LOG_ALMOST_FULL_AT: i64 = 200;
 
@@ -255,6 +259,34 @@ impl Receiver {
         }
     }
 
+    /// The alarm condition register: which groups have something
+    /// latched.
+    ///
+    /// Summarises the event registers, so it goes out by itself when
+    /// they are read -- which is the property that makes reading them
+    /// take the operator's lamp away, and the reason the daemon polls
+    /// this instead.
+    fn alarm_bits(&self) -> u16 {
+        const QUESTIONABLE: u16 = 1 << 3;
+        const MASTER: u16 = 1 << 6;
+        const OPERATION: u16 = 1 << 7;
+        let mut bits = 0;
+        if self.events.questionable != 0 {
+            bits |= QUESTIONABLE;
+        }
+        if self.events.operation != 0
+            || self.events.hardware != 0
+            || self.events.holdover != 0
+            || self.events.powerup != 0
+        {
+            bits |= OPERATION;
+        }
+        if bits & ALARM_ENABLE != 0 {
+            bits |= MASTER;
+        }
+        bits
+    }
+
     /// Read one event register and clear it, as the instrument does.
     fn take_event(&mut self, which: fn(&mut Events) -> &mut u16) -> u16 {
         std::mem::take(which(&mut self.events))
@@ -336,7 +368,20 @@ impl Receiver {
                 self.errors.clear();
                 Answer::silent()
             }
-            "*TST?" | "*ESR?" | "*ESE?" | "*SRE?" | "*STB?" => Answer::line("+0"),
+            "*TST?" | "*ESR?" | "*ESE?" => Answer::line("+0"),
+            // The alarm enable register, at the value a 58503A reports
+            // from the factory: questionable and operation summaries
+            // enabled, command errors not -- which is why a receiver
+            // does not alarm on the -230 it returns for a value that
+            // does not exist in its current state.
+            "*SRE?" => Answer::line(format!("{:+}", ALARM_ENABLE)),
+            // The alarm condition register.  Derived from the latched
+            // events rather than answered as a constant: it is what
+            // the front-panel lamp is showing, and a simulator that
+            // always says zero cannot exercise an alarm at all.  Real
+            // time and non-destructive, so reading it must not clear
+            // the events it summarises.
+            "*STB?" => Answer::line(format!("{:+}", self.alarm_bits())),
             _ => return None,
         })
     }
@@ -477,7 +522,11 @@ impl Receiver {
             CommandId::AntennaDelay => Answer::line(real(0.0)),
             CommandId::TimeValid | CommandId::LedGpslock => Answer::line("1"),
             CommandId::LedHoldover => Answer::line(u8::from(self.holdover).to_string()),
-            CommandId::LedAlarm => Answer::line("0"),
+            // Lit when the alarm condition and the alarm enable
+            // register overlap.  097-59551-02 figure 5-2.
+            CommandId::LedAlarm => {
+                Answer::line(u8::from(self.alarm_bits() & ALARM_ENABLE != 0).to_string())
+            }
             CommandId::LifetimeCount => Answer::line("+36302"),
 
             // Control commands are accepted and change what they say
@@ -565,6 +614,37 @@ mod tests {
         receiver.raise_event("hardware", 1 << 7);
         let reply = receiver.respond(":STATus:OPERation:HARDware:EVENt?");
         assert_eq!(reply.lines, vec![format!("+{}", (1 << 6) | (1 << 7))]);
+    }
+
+    /// Reading the alarm condition does not clear it, and reading the
+    /// events does.
+    ///
+    /// The distinction the whole design turns on: `*STB?` is how the
+    /// daemon watches the alarm without taking it, and an event read is
+    /// what would take it.
+    #[test]
+    fn the_alarm_survives_being_read_and_dies_when_the_events_are_taken() {
+        let mut receiver = Receiver::default();
+        receiver.raise_event("questionable", 1);
+
+        let alarm = || "+72".to_owned(); // questionable summary + master
+        assert_eq!(receiver.respond("*STB?").lines, vec![alarm()]);
+        assert_eq!(
+            receiver.respond("*STB?").lines,
+            vec![alarm()],
+            "reading the alarm condition must not clear it"
+        );
+        assert_eq!(receiver.respond(":LED:ALARm?").lines, vec!["1".to_owned()]);
+
+        // Now take the event, which is what the daemon deliberately
+        // does not do.
+        receiver.respond(":STATus:QUEStionable:EVENt?");
+        assert_eq!(
+            receiver.respond("*STB?").lines,
+            vec!["+0".to_owned()],
+            "clearing the events clears the alarm"
+        );
+        assert_eq!(receiver.respond(":LED:ALARm?").lines, vec!["0".to_owned()]);
     }
 
     /// The condition register is not cleared by reading it.

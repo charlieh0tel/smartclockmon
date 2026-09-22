@@ -12,6 +12,7 @@ use serde::Serialize;
 
 use crate::rollover::ReceiverDate;
 use crate::screen::Screen;
+use crate::types::AlarmCondition;
 use crate::types::EfcPercent;
 use crate::types::Ffom;
 use crate::types::HardwareCondition;
@@ -93,6 +94,14 @@ pub struct Snapshot {
     /// as of the poll, not of the moment it is drawn.
     pub time: Option<TimeOfDay>,
 
+    /// The alarm condition register: which status groups have
+    /// something latched, and so what the front panel is showing.
+    ///
+    /// Read rather than the event registers themselves, because this
+    /// one is non-destructive.  Reading an event register clears it,
+    /// which clears this, which puts the operator's lamp out; this
+    /// watches the same state and leaves it for them.
+    pub alarm: Option<AlarmCondition>,
     /// The operation condition register.
     pub operation: Option<OperationCondition>,
     /// The holdover condition register.
@@ -225,6 +234,7 @@ impl Snapshot {
             hardware: None,
             holdover_waiting: None,
             time: None,
+            alarm: None,
             operation: None,
             holdover_state: None,
             powerup: None,

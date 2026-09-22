@@ -275,6 +275,10 @@ fn main() -> Result<()> {
         .name("smartclockd-log".to_owned())
         .spawn(move || {
             let mut journal = Journal::default();
+            // The alarm as last written down, so only changes are
+            // recorded.  A row per poll would be the snapshot table
+            // again; a row per change is the history worth reading.
+            let mut last_alarm: Option<smartclock::types::AlarmCondition> = None;
             if adopt_log {
                 journal = journal.clearing_when_full();
             }
@@ -357,6 +361,21 @@ fn main() -> Result<()> {
                 // the first row of every run attributed to no receiver
                 // at all.  It costs a string compare per row.
                 note_attached(&mut log, &mut recorded, &journal_info);
+                if let Some(alarm) = snapshot.alarm
+                    && snapshot.alarm != last_alarm
+                {
+                    let named = alarm.named_bits();
+                    let decoded = if named.is_empty() {
+                        "cleared at the receiver".to_owned()
+                    } else {
+                        named.join(", ")
+                    };
+                    match log.record_event("alarm", alarm.bits(), &decoded) {
+                        Ok(()) => eprintln!("smartclockd: receiver alarm now {decoded}"),
+                        Err(e) => eprintln!("smartclockd: could not record an alarm change: {e}"),
+                    }
+                    last_alarm = snapshot.alarm;
+                }
                 if let Err(e) = log.record(&snapshot) {
                     eprintln!("smartclockd: could not record a snapshot: {e}");
                 }
