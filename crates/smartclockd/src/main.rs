@@ -135,9 +135,18 @@ const FIRST_JOURNAL: Duration = Duration::from_secs(5);
 
 /// How often they are read after that.
 ///
-/// The error queue is one query when it is empty, which is nearly
-/// always, so this costs almost nothing on a healthy receiver.
-const JOURNAL_EVERY: Duration = Duration::from_secs(60);
+/// Matched to the medium tier rather than to the minute it used to be,
+/// because reading the event registers is now part of a pass and an
+/// event register is the only thing that catches a transition between
+/// two condition polls.  Reading them a minute apart would collapse a
+/// minute of transitions into one bitmask and lose the timing that is
+/// the whole reason to read them.
+///
+/// The cost when nothing has happened is seven short queries: five
+/// event registers, the error queue, and the diagnostic log count.  The
+/// error queue and the log answer in one reply each when empty and
+/// unchanged, which is nearly always.
+const JOURNAL_EVERY: Duration = Duration::from_secs(10);
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -167,7 +176,7 @@ fn main() -> Result<()> {
     // First line in the journal, so "which build is running" is
     // answerable from the logs alone rather than by finding the binary.
     eprintln!("smartclockd: version {}", smartclock::VERSION);
-    let (errors, entries) = log.journal_counts()?;
+    let (errors, entries, events) = log.journal_counts()?;
     // Said at startup rather than left to be discovered in SQL: a log
     // holding two units' history is a thing to know before reading any
     // trend out of it.
@@ -185,7 +194,8 @@ fn main() -> Result<()> {
     }
     eprintln!(
         "smartclockd: log at {} holds {} snapshots, {} commands, \
-         {errors} receiver errors and {entries} diagnostic log entries",
+         {errors} receiver errors, {entries} diagnostic log entries \
+         and {events} register events",
         cli.database.display(),
         log.count()?,
         log.audit_count()?

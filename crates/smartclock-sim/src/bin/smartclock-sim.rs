@@ -24,6 +24,17 @@ fn main() -> std::io::Result<()> {
     // Errors the receiver is to have raised by itself, as
     // `--queue-error -313,"Calibration memory lost"`.  Seeded per
     // client, since each client gets its own receiver.
+    // Events to have already latched, as `--raise-event questionable,1`
+    // -- the bit that says the receiver stepped its own clock.
+    let events: Vec<(String, u16)> = std::env::args()
+        .skip_while(|a| a != "--raise-event")
+        .skip(1)
+        .take(1)
+        .filter_map(|a| {
+            let (register, bits) = a.split_once(',')?;
+            Some((register.trim().to_owned(), bits.trim().parse().ok()?))
+        })
+        .collect();
     let queued: Vec<(i32, String)> = std::env::args()
         .skip_while(|a| a != "--queue-error")
         .skip(1)
@@ -55,6 +66,9 @@ fn main() -> std::io::Result<()> {
         };
         for (code, message) in &queued {
             receiver.queue_error(*code, message);
+        }
+        for (register, bits) in &events {
+            receiver.raise_event(register, *bits);
         }
         thread::spawn(move || {
             if let Err(e) = serve(stream, SimTransport::new(receiver)) {

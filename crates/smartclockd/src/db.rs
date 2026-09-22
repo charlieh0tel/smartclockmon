@@ -19,7 +19,7 @@ use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Snapshot;
 
 /// Bumped when the tables change shape.
-const SCHEMA: i64 = 4;
+const SCHEMA: i64 = 5;
 
 /// The daemon's write connection.
 #[derive(Debug)]
@@ -166,6 +166,50 @@ impl Log {
                 firmware     TEXT,
                 first_seen   TEXT NOT NULL,
                 last_seen    TEXT NOT NULL
+            );
+
+            -- Every non-zero read of an event register.
+            --
+            -- Unlike a condition, an event is gone once read: the
+            -- register latches a transition and reading it clears it,
+            -- so these rows are the only record that the transition
+            -- happened at all.  That is also why the daemon is now what
+            -- acknowledges the receiver's alarm -- the Alarm LED and
+            -- the BITE output go inactive when the event registers
+            -- clear, which is a side effect of this reading, not a
+            -- decision taken separately.
+            CREATE TABLE IF NOT EXISTS receiver_event (
+                id      INTEGER PRIMARY KEY,
+                at      TEXT    NOT NULL,
+                -- Which register, as the short names used in the code:
+                -- operation, questionable, hardware, holdover, powerup.
+                register TEXT   NOT NULL,
+                bits    INTEGER NOT NULL,
+                -- The bits named, so a row can be read without the
+                -- manual and without this daemon's bit tables.
+                decoded TEXT    NOT NULL,
+                receiver_id INTEGER REFERENCES receiver(id)
+            );
+            CREATE INDEX IF NOT EXISTS receiver_event_at ON receiver_event(at);
+
+            -- The transition filters in force when those events were
+            -- captured.
+            --
+            -- Kept because the events cannot be read without them.  A
+            -- filter selects which condition transitions latch, and
+            -- this receiver ships with every negative filter at zero:
+            -- faults latch appearing and never clearing.  Without this
+            -- table, the absence of a clear-event looks like evidence a
+            -- fault persisted, when it only means nobody enabled the
+            -- transition that would have recorded its end.
+            CREATE TABLE IF NOT EXISTS receiver_filter (
+                receiver_id INTEGER NOT NULL REFERENCES receiver(id),
+                register    TEXT    NOT NULL,
+                -- Which transitions latch: positive, negative.
+                positive    INTEGER,
+                negative    INTEGER,
+                at          TEXT    NOT NULL,
+                PRIMARY KEY (receiver_id, register)
             );
 
             -- Entries taken from the receiver's error queue.  Reading
@@ -480,6 +524,53 @@ impl Log {
         Ok(())
     }
 
+    /// Record one non-zero read of an event register.
+    ///
+    /// Every read is a row: an event register that reads non-zero has
+    /// already been cleared by the reading, so declining to write it
+    /// loses it for good.
+    pub(crate) fn record_event(&mut self, register: &str, bits: u16, decoded: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO receiver_event (at, register, bits, decoded, receiver_id)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                jiff::Timestamp::now().to_string(),
+                register,
+                i64::from(bits),
+                decoded,
+                self.current,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Record the transition filters a receiver is running, so the
+    /// events captured beside them can be interpreted.
+    ///
+    /// Replaces rather than appends: these are configuration, not
+    /// history, and a receiver whose filters changed will show the
+    /// change in `at`.
+    pub(crate) fn record_filter(
+        &mut self,
+        register: &str,
+        positive: Option<i64>,
+        negative: Option<i64>,
+    ) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO receiver_filter
+                 (receiver_id, register, positive, negative, at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                self.current,
+                register,
+                positive,
+                negative,
+                jiff::Timestamp::now().to_string(),
+            ],
+        )?;
+        Ok(())
+    }
+
     /// Record one of the receiver's diagnostic log entries.
     ///
     /// Entries are re-read whenever their number is in doubt, so this
@@ -535,14 +626,18 @@ impl Log {
         self.current
     }
 
-    /// How many error queue entries and diagnostic log entries are
-    /// held.
-    pub(crate) fn journal_counts(&self) -> Result<(i64, i64)> {
+    /// How many error queue entries, diagnostic log entries and
+    /// register events are held.
+    pub(crate) fn journal_counts(&self) -> Result<(i64, i64, i64)> {
+        let count = |table: &str| -> Result<i64> {
+            Ok(self
+                .conn
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))?)
+        };
         Ok((
-            self.conn
-                .query_row("SELECT COUNT(*) FROM receiver_error", [], |r| r.get(0))?,
-            self.conn
-                .query_row("SELECT COUNT(*) FROM receiver_log", [], |r| r.get(0))?,
+            count("receiver_error")?,
+            count("receiver_log")?,
+            count("receiver_event")?,
         ))
     }
 

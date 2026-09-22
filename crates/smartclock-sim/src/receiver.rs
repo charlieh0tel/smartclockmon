@@ -101,12 +101,32 @@ pub struct Receiver {
     base: Base,
     /// Errors waiting to be read, oldest first.
     errors: VecDeque<(i32, String)>,
+    /// Event registers, latched until read.
+    ///
+    /// Modelled rather than answered from the conditions, because the
+    /// difference is the whole character of an event register: it holds
+    /// a transition until somebody takes it, and taking it is what
+    /// clears it.  A simulator that answered these from the current
+    /// condition would return the same value for ever and hide every
+    /// bug in code that assumes reading empties them.
+    events: Events,
     /// Refuse every command the receiver would otherwise answer.
     ///
     /// A receiver that says no to everything is not a broken link, and
     /// the daemon has to tell the two apart: see
     /// [`Receiver::refusing`].
     refuse_everything: bool,
+}
+
+/// The latched event registers, by the same short names the daemon
+/// records them under.
+#[derive(Debug, Clone, Copy, Default)]
+struct Events {
+    operation: u16,
+    questionable: u16,
+    hardware: u16,
+    holdover: u16,
+    powerup: u16,
 }
 
 /// The values drift moves around.
@@ -150,6 +170,7 @@ impl Default for Receiver {
                 time_interval: -4.8e-9,
             },
             errors: VecDeque::new(),
+            events: Events::default(),
         }
     }
 }
@@ -217,6 +238,27 @@ impl Receiver {
             Some(spec) => self.answer(spec.id, argument),
             None => self.reject(-113, "Undefined header"),
         }
+    }
+
+    /// Read one event register and clear it, as the instrument does.
+    fn take_event(&mut self, which: fn(&mut Events) -> &mut u16) -> u16 {
+        std::mem::take(which(&mut self.events))
+    }
+
+    /// Latch an event, as a transition would.
+    ///
+    /// Public so a test can make something happen and then check that
+    /// reading it once returns it and reading it twice does not.
+    pub fn raise_event(&mut self, register: &str, bits: u16) {
+        let field = match register {
+            "operation" => &mut self.events.operation,
+            "questionable" => &mut self.events.questionable,
+            "hardware" => &mut self.events.hardware,
+            "holdover" => &mut self.events.holdover,
+            "powerup" => &mut self.events.powerup,
+            _ => return,
+        };
+        *field |= bits;
     }
 
     /// Put an error in the queue that no command of ours caused.
@@ -314,9 +356,35 @@ impl Receiver {
             CommandId::Temperature => Answer::line(real(self.temperature)),
             CommandId::OvenCurrent => Answer::line(real(104.9)),
             CommandId::OvenTempco => Answer::line(real(-33.65)),
-            CommandId::HardwareCondition | CommandId::HardwareEvent => {
-                Answer::line(format!("{:+}", self.hardware))
+            CommandId::HardwareCondition => Answer::line(format!("{:+}", self.hardware)),
+            // Reading an event register is what clears it.
+            CommandId::OperEvent => {
+                Answer::line(format!("{:+}", self.take_event(|e| &mut e.operation)))
             }
+            CommandId::QuestEvent => {
+                Answer::line(format!("{:+}", self.take_event(|e| &mut e.questionable)))
+            }
+            CommandId::HardwareEvent => {
+                Answer::line(format!("{:+}", self.take_event(|e| &mut e.hardware)))
+            }
+            CommandId::HoldoverEvent => {
+                Answer::line(format!("{:+}", self.take_event(|e| &mut e.holdover)))
+            }
+            CommandId::PowerupEvent => {
+                Answer::line(format!("{:+}", self.take_event(|e| &mut e.powerup)))
+            }
+            // The factory transition filters this 58503A reports: every
+            // condition bit latches on assertion, none on release.
+            CommandId::OperPositiveTransition => Answer::line("+127"),
+            CommandId::QuestPositiveTransition => Answer::line("+2"),
+            CommandId::HardwarePositiveTransition => Answer::line("+5087"),
+            CommandId::HoldoverPositiveTransition => Answer::line("+15"),
+            CommandId::PowerupPositiveTransition => Answer::line("+7"),
+            CommandId::OperNegativeTransition
+            | CommandId::QuestNegativeTransition
+            | CommandId::HardwareNegativeTransition
+            | CommandId::HoldoverNegativeTransition
+            | CommandId::PowerupNegativeTransition => Answer::line("+0"),
             CommandId::HoldoverWaiting => Answer::line(if self.holdover { "GPS" } else { "NONE" }),
             CommandId::HoldoverDuration => Answer::line(format!(
                 "{},{}",
@@ -355,12 +423,8 @@ impl Receiver {
                 }
             }
             CommandId::LogOldest => Answer::line(log_entry(1)),
-            CommandId::OperCondition | CommandId::OperEvent => {
-                Answer::line(format!("{:+}", self.operation_bits()))
-            }
-            CommandId::HoldoverCondition | CommandId::HoldoverEvent => {
-                Answer::line(format!("{:+}", u16::from(self.holdover)))
-            }
+            CommandId::OperCondition => Answer::line(format!("{:+}", self.operation_bits())),
+            CommandId::HoldoverCondition => Answer::line(format!("{:+}", u16::from(self.holdover))),
             CommandId::PowerupCondition => Answer::line("+7"),
             CommandId::SatTracking => Answer::line("+3,+4,+16,+26,+28,+31"),
             CommandId::SatTrackingCount => Answer::line("+6"),
@@ -420,4 +484,53 @@ fn split(command: &str) -> (&str, &str) {
 
 fn eq(a: &str, b: &str) -> bool {
     a.eq_ignore_ascii_case(b)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Receiver;
+
+    /// Reading an event register is what clears it.
+    ///
+    /// The distinguishing property of an event register, and the one a
+    /// simulator answering from the current condition would hide: the
+    /// daemon would look correct while re-recording the same transition
+    /// on every pass for ever.
+    #[test]
+    fn an_event_is_returned_once_and_then_gone() {
+        let mut receiver = Receiver::default();
+        // Bit 0 of the questionable register: the receiver stepped its
+        // own clock to match the satellites.
+        receiver.raise_event("questionable", 1);
+
+        let first = receiver.respond(":STATus:QUEStionable:EVENt?");
+        assert_eq!(first.lines, vec!["+1".to_owned()]);
+
+        let second = receiver.respond(":STATus:QUEStionable:EVENt?");
+        assert_eq!(
+            second.lines,
+            vec!["+0".to_owned()],
+            "the read should have cleared it"
+        );
+    }
+
+    /// Events latch, so two transitions before a read arrive together.
+    #[test]
+    fn events_accumulate_until_they_are_read() {
+        let mut receiver = Receiver::default();
+        receiver.raise_event("hardware", 1 << 6);
+        receiver.raise_event("hardware", 1 << 7);
+        let reply = receiver.respond(":STATus:OPERation:HARDware:EVENt?");
+        assert_eq!(reply.lines, vec![format!("+{}", (1 << 6) | (1 << 7))]);
+    }
+
+    /// The condition register is not cleared by reading it.
+    #[test]
+    fn a_condition_survives_being_read() {
+        let mut receiver = Receiver::default();
+        let first = receiver.respond(":STATus:OPERation:CONDition?");
+        let second = receiver.respond(":STATus:OPERation:CONDition?");
+        assert_eq!(first.lines, second.lines);
+        assert_ne!(first.lines, vec!["+0".to_owned()]);
+    }
 }

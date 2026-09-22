@@ -31,10 +31,81 @@ use smartclock::command::CommandId;
 use smartclock::command::Dialect;
 use smartclock::parse;
 use smartclock::task::Handle;
+use smartclock::types::HardwareCondition;
+use smartclock::types::HoldoverCondition;
+use smartclock::types::OperationCondition;
+use smartclock::types::PowerupCondition;
+use smartclock::types::QuestionableStatus;
 use std::time::Duration;
 use std::time::Instant;
 
 use crate::db::Log;
+
+/// The event registers, and the short name each is recorded under.
+///
+/// Five, and deliberately not `*ESR?`.  That one's informative bits are
+/// command errors, and this daemon's own polling sets them constantly:
+/// the medium tier tolerates a -230 from the present-holdover-error
+/// query every ten seconds, so the semantic-error bit would be
+/// permanently lit by us.  The one thing worth having there is Power
+/// Cycled, which the powerup condition register and the diagnostic
+/// log's own "Power on" entry both already give.
+const EVENT_REGISTERS: [(CommandId, &str); 5] = [
+    (CommandId::OperEvent, "operation"),
+    (CommandId::QuestEvent, "questionable"),
+    (CommandId::HardwareEvent, "hardware"),
+    (CommandId::HoldoverEvent, "holdover"),
+    (CommandId::PowerupEvent, "powerup"),
+];
+
+/// The transition filters, read once per connection so the events
+/// captured beside them can be read back.
+const FILTER_REGISTERS: [(CommandId, CommandId, &str); 5] = [
+    (
+        CommandId::OperPositiveTransition,
+        CommandId::OperNegativeTransition,
+        "operation",
+    ),
+    (
+        CommandId::QuestPositiveTransition,
+        CommandId::QuestNegativeTransition,
+        "questionable",
+    ),
+    (
+        CommandId::HardwarePositiveTransition,
+        CommandId::HardwareNegativeTransition,
+        "hardware",
+    ),
+    (
+        CommandId::HoldoverPositiveTransition,
+        CommandId::HoldoverNegativeTransition,
+        "holdover",
+    ),
+    (
+        CommandId::PowerupPositiveTransition,
+        CommandId::PowerupNegativeTransition,
+        "powerup",
+    ),
+];
+
+/// Name the bits of whichever register this is.
+fn describe(register: &str, bits: u16) -> String {
+    let named = match register {
+        "operation" => OperationCondition::from_bits(bits).named_bits(),
+        "questionable" => QuestionableStatus::from_bits(bits).named_bits(),
+        "hardware" => HardwareCondition::from_bits(bits).named_bits(),
+        "holdover" => HoldoverCondition::from_bits(bits).named_bits(),
+        "powerup" => PowerupCondition::from_bits(bits).named_bits(),
+        _ => Vec::new(),
+    };
+    if named.is_empty() {
+        // A bit the manual does not name is still worth a row; the raw
+        // value is stored beside this.
+        format!("unnamed bits in {register}")
+    } else {
+        named.join(", ")
+    }
+}
 
 /// How long a journal query waits before being given up on.
 ///
@@ -100,6 +171,14 @@ pub(crate) struct Journal {
     copied: Option<(i64, i64)>,
     /// An entry that will not come, and how many times it has not.
     stuck: Option<(i64, u32)>,
+    /// Whether this receiver's transition filters have been recorded.
+    ///
+    /// Once per connection rather than once per pass: they are
+    /// configuration, they are non-volatile, and reading them every ten
+    /// seconds would spend ten queries saying nothing changed.  Once
+    /// per connection still catches someone else having changed them
+    /// while the daemon was away, which is the only way they move.
+    filters_read: bool,
 }
 
 impl Journal {
@@ -124,14 +203,104 @@ impl Journal {
             };
             self.receiver = Some(receiver);
             self.stuck = None;
+            self.filters_read = false;
         }
         let deadline = Instant::now() + PASS_BUDGET;
+        if !self.filters_read {
+            match self.read_filters(handle, dialect, log) {
+                Ok(complete) => self.filters_read = complete,
+                Err(e) => eprintln!("smartclockd: could not read the transition filters: {e:#}"),
+            }
+        }
+        if let Err(e) = self.read_events(handle, dialect, log, deadline) {
+            eprintln!("smartclockd: could not read the event registers: {e:#}");
+        }
         if let Err(e) = self.drain_errors(handle, dialect, log, deadline) {
             eprintln!("smartclockd: could not read the error queue: {e:#}");
         }
         if let Err(e) = self.copy_log(handle, dialect, log, deadline) {
             eprintln!("smartclockd: could not read the diagnostic log: {e:#}");
         }
+    }
+
+    /// Read and record which transitions latch an event.
+    ///
+    /// Without these the events are unreadable: a filter says whether a
+    /// fault clearing was ever eligible to be recorded, and this
+    /// receiver ships with every negative filter at zero.
+    /// Returns whether every filter was read, so a receiver that
+    /// refused them is asked again on the next pass rather than being
+    /// recorded as having none.  A NULL here would read as "looked and
+    /// found nothing", which is a different and wronger claim.
+    fn read_filters(&mut self, handle: &Handle, dialect: Dialect, log: &mut Log) -> Result<bool> {
+        let mut complete = true;
+        for (positive, negative, register) in FILTER_REGISTERS {
+            let read = |id| -> Option<i64> {
+                ask(handle, dialect, id, None)
+                    .ok()
+                    .and_then(|line| parse::int(&line).ok())
+            };
+            let (positive, negative) = (read(positive), read(negative));
+            if positive.is_none() || negative.is_none() {
+                complete = false;
+                continue;
+            }
+            log.record_filter(register, positive, negative)?;
+            if negative == Some(0) {
+                eprintln!(
+                    "smartclockd: {register} events latch on assertion only \
+                     (positive {}, negative 0), so a fault clearing is not recorded",
+                    positive.unwrap_or_default()
+                );
+            }
+        }
+        Ok(complete)
+    }
+
+    /// Read the event registers, recording any that were not empty.
+    ///
+    /// Destructive, like the error queue and for the same reason: the
+    /// register latches until read and reading is what clears it.  The
+    /// receiver's Alarm LED and BITE output go inactive as a
+    /// consequence, since the alarm summarises these registers -- so
+    /// this daemon, not the front panel, is now what holds the record
+    /// that something happened.
+    fn read_events(
+        &mut self,
+        handle: &Handle,
+        dialect: Dialect,
+        log: &mut Log,
+        deadline: Instant,
+    ) -> Result<()> {
+        for (id, register) in EVENT_REGISTERS {
+            if Instant::now() >= deadline {
+                return Ok(());
+            }
+            // Per register, because one the receiver will not answer
+            // must not hide the four it would: the questionable
+            // register is where a silent clock step shows up, and
+            // losing it because the powerup register refused is the
+            // wrong trade.  Complained about once per pass, which is
+            // loud enough to notice and quiet enough to live with.
+            let bits = match ask(handle, dialect, id, None).and_then(|line| {
+                let value = parse::int(&line)?;
+                u16::try_from(value)
+                    .map_err(|_| anyhow::anyhow!("{value} is not a 16 bit register"))
+            }) {
+                Ok(bits) => bits,
+                Err(e) => {
+                    eprintln!("smartclockd: could not read the {register} event register: {e:#}");
+                    continue;
+                }
+            };
+            if bits == 0 {
+                continue;
+            }
+            let decoded = describe(register, bits);
+            log.record_event(register, bits, &decoded)?;
+            eprintln!("smartclockd: {register} event: {decoded}");
+        }
+        Ok(())
     }
 
     /// Read the error queue empty, recording what it held.
