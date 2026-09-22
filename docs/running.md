@@ -76,6 +76,16 @@ evidence.  Nothing is erased unless the copy is complete and gap-free,
 and the entry count is sent with the command so the receiver refuses if
 an entry arrived in between.
 
+Nothing on the receiver will tell you the log has filled.  "Log Almost
+Full" is bit 6 of the operation group, and the factory default for
+`:STATus:OPERation:ENABle` is 36 -- bits 2 and 5, Holdover Summary and
+Hardware Summary (`097-59551-02` 5-88).  Bit 6 is not among them, so
+the condition never reaches the alarm and the front panel stays dark
+while the log quietly stops recording.  The development unit filled in
+March 2025 and lost eighteen months that way.  `smartclockd` reads the
+condition register directly, where the enable mask does not apply, and
+surfaces it.
+
 A configuration mistake fails the unit instead of looping.  systemd
 cannot check the file itself, since `Condition=` and `Assert=` do not
 see `EnvironmentFile` variables, so the enforcement is by exit code: the
