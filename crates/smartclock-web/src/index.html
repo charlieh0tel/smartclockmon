@@ -501,7 +501,11 @@ const JOURNAL = [
   ["entries", "receiver log"],
   ["errors", "error queue"],
 ];
-let stream = view.get("journal") ?? "events";
+// Chosen on first draw as the first stream that has anything, unless
+// the URL names one.  Defaulting to a fixed tab meant landing on an
+// empty "transitions" and reading "nothing recorded" with a hundred
+// log entries one tab away.
+let stream = view.get("journal");
 
 // The receiver's calendar can be behind by whole GPS epochs, so its own
 // stamps are shown as written and never silently corrected -- the
@@ -518,6 +522,9 @@ const local = (iso) => {
 };
 
 function drawJournal(journal) {
+  if (stream === null || !(journal[stream] ?? []).length) {
+    stream = JOURNAL.map(([key]) => key).find((key) => journal[key]?.length) ?? "events";
+  }
   $("journal-tabs").innerHTML = JOURNAL.map(
     ([key, name]) =>
       `<button data-stream="${key}" class="${key === stream ? "on" : ""}">${name}` +
@@ -525,10 +532,19 @@ function drawJournal(journal) {
   ).join(" ");
   for (const button of $("journal-tabs").querySelectorAll("button")) {
     button.onclick = () => {
+      // Deliberate, so an empty tab the operator chose stays chosen
+      // rather than being redirected by the rule above.
       stream = button.dataset.stream;
-      drawJournal(journal);
+      $("journal-tabs")
+        .querySelectorAll("button")
+        .forEach((b) => b.classList.toggle("on", b.dataset.stream === stream));
+      showStream(journal);
     };
   }
+  showStream(journal);
+}
+
+function showStream(journal) {
   const list = journal[stream] ?? [];
   $("journal").innerHTML = list.length
     ? `<table><tbody>${list
