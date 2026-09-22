@@ -1,3 +1,28 @@
+smartclockmon (0.6.3-1) unstable; urgency=low
+
+  * The GPS week rollover is shown as the ordinary condition it is.
+    Firmware predating the 2019 wrap reports a date 1024 weeks behind
+    and nearly every receiver of this vintage does, so the clients now
+    show the corrected date with the correction noted quietly, instead
+    of a red WRONG in the monitor and a permanently lit warning in the
+    browser strip.  A warning that is always on teaches you to ignore
+    the place real faults appear.
+  * What the receiver actually reported stays visible beside it.  The
+    correction is arithmetic done by the daemon against the host clock,
+    not something the instrument said, and a reader should be able to
+    see which of the two is being trusted.
+  * The corrected date is computed once by the daemon rather than by
+    each client.  A client older than the daemon is unaffected; a page
+    newer than its daemon says the date is as reported rather than
+    claiming a correction it did not receive.
+  * Fixed: a column that never changes got an axis built from floating
+    point noise.  Averaging a constant per bucket does not return it
+    exactly, so oven current held at 104.9 spanned 2e-14 and the axis
+    read 104.900000000000020.  The learned tempco, which really is
+    constant, would have done the same.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Mon, 21 Sep 2026 23:13:20 -0700
+
 smartclockmon (0.6.2-1) unstable; urgency=low
 
   * Fixed: the browser view's status strip stayed on "connecting..."
