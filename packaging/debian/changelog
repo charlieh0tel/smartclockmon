@@ -1,3 +1,42 @@
+smartclockmon (0.6.1-1) unstable; urgency=low
+
+  * The browser view stacks any number of series on one time axis, and
+    defaults to the four the oscillator is read from: 1 PPS TI, EFC,
+    internal temperature and oven current.  Over a day those four tell
+    the story between them -- temperature climbing and falling, EFC
+    following it almost shape for shape, and oven current mirrored
+    against both.
+  * The plots share their time axis by construction rather than by
+    appearance: one request buckets every column in the same pass, so
+    their x values are the same values.  Separate requests would each
+    derive their own bucket boundaries from their own end time and land
+    on a different grid -- charts that look aligned and are not.  The
+    cursor moves across the stack together and a drag on any plot zooms
+    all of them.
+  * The two-series overlay is replaced by that rather than removed:
+    tick both and they stack.
+  * The sky plot's grid was drawn in the colour used for 1px panel
+    borders, far too dim for lines a bearing is read off.  The rings
+    and the cardinal cross are legible now, with the horizon stronger
+    than the rings inside it.
+  * Fixed: short plots got too few y-axis labels.  1 PPS TI over a day
+    spans about -70 to +120 ns, and the axis read 100, 0 and nothing,
+    leaving a third of the plot unlabelled below the zero line.
+  * Fixed: the history endpoint never URL-decoded its query values.
+    Harmless while the only parameter was one column name with nothing
+    to encode; a list broke it at once, since a browser writes the
+    separator as %2C.
+  * One value readout for the whole stack rather than a legend on the
+    bottom plot only: with the cursor synced there is one instant being
+    pointed at, so hovering any plot shows the time once and a value
+    for every series.
+  * Y axes begin and end on a labelled gridline.  uPlot scales to the
+    data and puts round ticks inside it, so the top and bottom lines
+    fell short by a different amount on every plot; the scale is now
+    snapped to the tick step.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Mon, 21 Sep 2026 22:00:39 -0700
+
 smartclockmon (0.6.0-1) unstable; urgency=low
 
   * The daemon adopts a receiver on every connection rather than once
