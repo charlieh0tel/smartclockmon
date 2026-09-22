@@ -1700,6 +1700,7 @@ dependencies = [
  "clap",
  "jiff",
  "rusqlite",
+ "serde",
  "serde_json",
  "smartclock",
  "smartclock-http",

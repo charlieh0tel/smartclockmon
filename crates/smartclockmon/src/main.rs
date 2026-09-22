@@ -75,6 +75,10 @@ fn run(
 ) -> Result<()> {
     let mut due = Instant::now();
     while !app.quitting {
+        if app.view == View::Journal && Instant::now() >= due {
+            app.refresh_journal();
+            due = Instant::now() + HISTORY_REFRESH;
+        }
         if app.view == View::History && Instant::now() >= due {
             let columns = terminal.size().map_or(80, |s| usize::from(s.width));
             app.refresh_history(columns);
@@ -125,7 +129,15 @@ fn run(
                     KeyCode::Char('g') | KeyCode::Tab => {
                         app.view = match app.view {
                             View::Dashboard => View::History,
-                            View::History => View::Dashboard,
+                            View::History => View::Journal,
+                            View::Journal => View::Dashboard,
+                        };
+                        due = Instant::now();
+                    }
+                    KeyCode::Char('l') => {
+                        app.view = match app.view {
+                            View::Journal => View::Dashboard,
+                            _ => View::Journal,
                         };
                         due = Instant::now();
                     }

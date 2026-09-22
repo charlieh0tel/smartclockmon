@@ -125,6 +125,58 @@ pub(crate) struct History {
     pub(crate) rows: usize,
 }
 
+/// The most notes one read will return.
+const MAX_JOURNAL: usize = 500;
+
+/// Which of the receiver's records a note came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Source {
+    /// The receiver's own diagnostic log.
+    Log,
+    /// A transition latched in an event register.
+    Event,
+    /// An entry from the error queue.
+    Error,
+}
+
+impl Source {
+    /// A short tag for the column that says where a note came from.
+    pub(crate) fn tag(self) -> &'static str {
+        match self {
+            Self::Log => "log",
+            Self::Event => "event",
+            Self::Error => "error",
+        }
+    }
+}
+
+/// One thing the receiver recorded about itself.
+#[derive(Debug, Clone)]
+pub(crate) struct Note {
+    /// When the daemon read it, on the host clock.
+    ///
+    /// The sort key, and only that.  Ordering the three records against
+    /// each other needs one clock, and this is the only one they share:
+    /// a diagnostic log entry carries the receiver's calendar, which on
+    /// this firmware is 1024 weeks behind, so comparing those against
+    /// host timestamps puts every entry from the receiver's log after
+    /// every event regardless of when either happened.
+    pub(crate) at: String,
+    /// What to show, which is the receiver's own stamp where it has
+    /// one.
+    ///
+    /// Separate from the sort key because the two answer different
+    /// questions.  An entry the receiver timestamped is better
+    /// displayed by its own clock -- that is the string that appears in
+    /// the instrument and the one worth searching for -- while the
+    /// order it belongs in is the order we learned it.
+    pub(crate) stamp: String,
+    /// What it says.
+    pub(crate) text: String,
+    /// Which record it came from.
+    pub(crate) source: Source,
+}
+
 /// A read-only view of the daemon's log.
 #[derive(Debug)]
 pub(crate) struct Log {
@@ -140,6 +192,98 @@ impl Log {
         )
         .with_context(|| format!("opening {} read-only", path.display()))?;
         Ok(Self { conn })
+    }
+
+    /// The receiver's own record-keeping.
+    ///
+    /// Grouped, not interleaved.  The three records run on two clocks:
+    /// events and errors are stamped when the daemon read them, while
+    /// a diagnostic log entry carries the receiver's own calendar,
+    /// 1024 weeks behind on this firmware.  Merging them into one
+    /// chronology needs a common clock, and the only one available --
+    /// when we read it -- puts the log in the order it was *copied*,
+    /// which for a backfill that walks newest-to-oldest is precisely
+    /// backwards.  So each record keeps its own order and they are
+    /// shown in sequence: what has happened recently first, then the
+    /// receiver's own history in its own sequence.
+    pub(crate) fn journal(&self, limit: usize) -> Result<Vec<Note>> {
+        let limit = limit.min(MAX_JOURNAL) as i64;
+        let mut notes = Vec::new();
+        // The receiver's own stamp where there is one: an entry it
+        // timestamped itself is better dated by the receiver than by
+        // when we happened to copy it out, even though that clock can
+        // be behind by whole GPS epochs.
+        // Events and errors share the host clock, so these two do
+        // merge, newest first.
+        let mut recent = self.stream(
+            "SELECT at, at, decoded FROM receiver_event",
+            limit,
+            Source::Event,
+        )?;
+        recent.extend(self.stream(
+            "SELECT at, at, code || ' ' || message FROM receiver_error",
+            limit,
+            Source::Error,
+        )?);
+        recent.sort_by(|a, b| b.at.cmp(&a.at));
+        notes.extend(recent);
+
+        // Then the receiver's log on the receiver's own clock.  Not by
+        // entry number, which restarts at one whenever the log is
+        // cleared and would bury everything since the last clear at the
+        // bottom; and not by when we copied it, which for a backfill
+        // walking newest-to-oldest is exactly backwards.  The calendar
+        // keeps running across a clear, so its own stamp is the only
+        // key that orders the whole log correctly.
+        //
+        // Imperfect around a power cycle, where the clock restarts at
+        // midnight on a stale date until the first lock.  Those entries
+        // sort early; the entry numbers in the web view disambiguate.
+        notes.extend(self.ordered(
+            "SELECT at, COALESCE(stamp, at), message FROM receiver_log
+             ORDER BY COALESCE(stamp, at) DESC LIMIT ?1",
+            limit,
+            Source::Log,
+        )?);
+        notes.truncate(limit as usize);
+        Ok(notes)
+    }
+
+    /// One stream, empty if this log predates it.
+    ///
+    /// A reader is not a writer and must not require the file be as new
+    /// as itself: the monitor can be upgraded before the daemon is
+    /// restarted, or pointed at an archived log, and either should show
+    /// what is there rather than refusing the lot.
+    fn stream(&self, select: &str, limit: i64, source: Source) -> Result<Vec<Note>> {
+        self.ordered(
+            &format!("{select} ORDER BY id DESC LIMIT ?1"),
+            limit,
+            source,
+        )
+    }
+
+    /// As [`Log::stream`], for a query that states its own ordering.
+    fn ordered(&self, sql: &str, limit: i64, source: Source) -> Result<Vec<Note>> {
+        let mut statement = match self.conn.prepare(sql) {
+            Ok(statement) => statement,
+            Err(rusqlite::Error::SqliteFailure(_, Some(ref why)))
+                if why.contains("no such table") =>
+            {
+                return Ok(Vec::new());
+            }
+            Err(e) => return Err(e.into()),
+        };
+        Ok(statement
+            .query_map([limit], |row| {
+                Ok(Note {
+                    at: row.get(0)?,
+                    stamp: row.get(1)?,
+                    text: row.get(2)?,
+                    source,
+                })
+            })?
+            .collect::<std::result::Result<_, _>>()?)
     }
 
     /// Read the series a graph needs.

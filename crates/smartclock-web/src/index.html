@@ -64,6 +64,15 @@
   #note { color: var(--warn); }
   footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
   .uplot { width: 100% !important; }
+  /* The journal is three tables of mostly text in one panel, so it
+     scrolls on its own rather than pushing the chart off the screen. */
+  #journal { max-height: 20rem; overflow-y: auto; }
+  #journal table { font-variant-numeric: tabular-nums; }
+  #journal td:first-child { color: var(--dim); white-space: nowrap; padding-right: 10px; }
+  #journal-tabs button.on { background: var(--line); color: var(--fg); }
+  /* The panel heading sits on the controls row here, so it drops the
+     bottom margin the standalone headings keep. */
+  .controls h2 { margin: 0; }
 </style>
 
 <div class="panel full" id="status"><span class="muted">connecting...</span></div>
@@ -84,6 +93,15 @@
   <h2>Sky</h2>
   <canvas id="sky" width="320" height="320"></canvas>
   <table id="sats"><tbody class="muted"><tr><td>waiting...</td></tr></tbody></table>
+</div>
+
+<div class="panel full">
+  <div class="controls">
+    <h2>What the receiver recorded</h2>
+    <span class="grow"></span>
+    <span id="journal-tabs"></span>
+  </div>
+  <div id="journal"><span class="muted">waiting...</span></div>
 </div>
 
 <footer id="about"></footer>
@@ -461,6 +479,63 @@ function buttons() {
   }
 }
 
+// ------------------------------------------------- the receiver's journal
+
+// Three streams the snapshot table does not carry and no chart can
+// show: what the receiver wrote in its own diagnostic log, the
+// transitions taken from its event registers, and what its error queue
+// held.  Tabbed rather than stacked because they are read one at a
+// time and the panel would otherwise own the page.
+const JOURNAL = [
+  ["events", "transitions"],
+  ["entries", "receiver log"],
+  ["errors", "error queue"],
+];
+let stream = view.get("journal") ?? "events";
+
+// The receiver's calendar can be behind by whole GPS epochs, so its own
+// stamps are shown as written and never silently corrected -- the
+// correction belongs where the rollover is known, not here.
+const rows = {
+  events: (r) => [local(r.at), `${esc(r.decoded)} <span class="muted">(${esc(r.register)} ${r.bits})</span>`],
+  entries: (r) => [esc(r.stamp) || local(r.at), `<span class="muted">#${r.entry}</span> ${esc(r.message)}`],
+  errors: (r) => [local(r.at), `<span class="muted">${r.code}</span> ${esc(r.message)}`],
+};
+
+const local = (iso) => {
+  const at = new Date(iso);
+  return isNaN(at) ? esc(iso) : esc(at.toLocaleString());
+};
+
+function drawJournal(journal) {
+  $("journal-tabs").innerHTML = JOURNAL.map(
+    ([key, name]) =>
+      `<button data-stream="${key}" class="${key === stream ? "on" : ""}">${name}` +
+      ` (${journal[key]?.length ?? 0})</button>`,
+  ).join(" ");
+  for (const button of $("journal-tabs").querySelectorAll("button")) {
+    button.onclick = () => {
+      stream = button.dataset.stream;
+      drawJournal(journal);
+    };
+  }
+  const list = journal[stream] ?? [];
+  $("journal").innerHTML = list.length
+    ? `<table><tbody>${list
+        .map((r) => `<tr><td>${rows[stream](r)[0]}</td><td>${rows[stream](r)[1]}</td></tr>`)
+        .join("")}</tbody></table>`
+    : `<span class="muted">nothing recorded</span>`;
+}
+
+async function loadJournal() {
+  const journal = await getJson("/api/journal");
+  if (journal.error) {
+    $("journal").innerHTML = `<span class="muted">${esc(journal.error)}</span>`;
+    return;
+  }
+  drawJournal(journal);
+}
+
 // ------------------------------------------------------------------ boot
 
 (async function () {
@@ -484,6 +559,10 @@ function buttons() {
   buttons();
   await draw();
   await tick();
+  await loadJournal();
+  // Slower than the chart: the receiver writes to its log in events per
+  // day, not per second, and this is a whole-table redraw.
+  setInterval(loadJournal, 60000);
   setInterval(tick, 1000);
   // History moves slowly next to the live tiles; redrawing it every
   // second would fight with the cursor for no gain.

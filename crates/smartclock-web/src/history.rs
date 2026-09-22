@@ -134,4 +134,142 @@ impl Log {
             _ => (0.0, 0.0),
         })
     }
+
+    /// The receiver's own record-keeping, newest first.
+    ///
+    /// Two streams shown together because they answer the same
+    /// question from different sides: the diagnostic log is what the
+    /// receiver thought worth writing down, and the event rows are
+    /// transitions it latched and we took.  Neither is in the snapshot
+    /// table and neither can be plotted, so they would otherwise be
+    /// invisible to anyone not holding a SQL prompt.
+    pub(crate) fn journal(&self, limit: usize) -> Result<Journal> {
+        let limit = limit.min(MAX_JOURNAL) as i64;
+        Ok(Journal {
+            // Ordered by the receiver's own clock, not by when we
+            // copied each entry out.  The backfill walks newest to
+            // oldest, so copy order is reverse chronology; and the
+            // entry number restarts at one whenever the log is
+            // cleared, so that is no better.  The calendar runs across
+            // a clear, which leaves its own stamp as the only key that
+            // orders the whole log.
+            entries: self.stream(
+                "SELECT at, entry, stamp, message FROM receiver_log
+                 ORDER BY COALESCE(stamp, at) DESC",
+                limit,
+                |row| {
+                    Ok(Entry {
+                        at: row.get(0)?,
+                        entry: row.get(1)?,
+                        stamp: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                        message: row.get(3)?,
+                    })
+                },
+            )?,
+            events: self.stream(
+                "SELECT at, register, bits, decoded FROM receiver_event ORDER BY id DESC",
+                limit,
+                |row| {
+                    Ok(Event {
+                        at: row.get(0)?,
+                        register: row.get(1)?,
+                        bits: row.get(2)?,
+                        decoded: row.get(3)?,
+                    })
+                },
+            )?,
+            errors: self.stream(
+                "SELECT at, code, message FROM receiver_error ORDER BY id DESC",
+                limit,
+                |row| {
+                    Ok(ReceiverError {
+                        at: row.get(0)?,
+                        code: row.get(1)?,
+                        message: row.get(2)?,
+                    })
+                },
+            )?,
+        })
+    }
+
+    /// One journal stream, newest first, empty if this log predates it.
+    ///
+    /// A reader is not a writer and must not insist the file be as new
+    /// as itself.  The daemon refuses a database from a later schema,
+    /// because writing into one it does not understand could corrupt
+    /// the only copy of a receiver's history; a viewer pointed at an
+    /// older log, or at an archived one, should show what is there and
+    /// say nothing about the rest.  Anything else means an upgraded
+    /// web view breaks against a daemon not yet restarted.
+    fn stream<T, F>(&self, select: &str, limit: i64, read: F) -> Result<Vec<T>>
+    where
+        F: Fn(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+    {
+        let sql = format!("{select} LIMIT ?1");
+        let mut statement = match self.conn.prepare(&sql) {
+            Ok(statement) => statement,
+            Err(rusqlite::Error::SqliteFailure(_, Some(ref why)))
+                if why.contains("no such table") =>
+            {
+                return Ok(Vec::new());
+            }
+            Err(e) => return Err(e.into()),
+        };
+        Ok(statement
+            .query_map([limit], |row| read(row))?
+            .collect::<std::result::Result<_, _>>()?)
+    }
+}
+
+/// The most of each stream one request will return.
+const MAX_JOURNAL: usize = 200;
+
+/// What the receiver has recorded about itself.
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct Journal {
+    /// Its diagnostic log, as copied out.
+    pub(crate) entries: Vec<Entry>,
+    /// Transitions taken from its event registers.
+    pub(crate) events: Vec<Event>,
+    /// Entries taken from its error queue.
+    pub(crate) errors: Vec<ReceiverError>,
+}
+
+/// One diagnostic log entry.
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct Entry {
+    /// When it was copied out.
+    pub(crate) at: String,
+    /// The receiver's own entry number.
+    pub(crate) entry: i64,
+    /// Its own timestamp, as written -- on the receiver's calendar,
+    /// which may be behind by whole GPS epochs.
+    pub(crate) stamp: String,
+    /// What it says.
+    pub(crate) message: String,
+}
+
+/// One latched transition.
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct Event {
+    /// When it was read, which is within one journal pass of when it
+    /// happened.
+    pub(crate) at: String,
+    /// Which register it came from.
+    pub(crate) register: String,
+    /// The raw word.
+    pub(crate) bits: i64,
+    /// Its bits named.
+    pub(crate) decoded: String,
+}
+
+/// One entry from the error queue.
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct ReceiverError {
+    /// When it was read.  The queue carries no timestamps of its own.
+    pub(crate) at: String,
+    /// SCPI error code.
+    pub(crate) code: i64,
+    /// What the receiver called it.
+    pub(crate) message: String,
 }

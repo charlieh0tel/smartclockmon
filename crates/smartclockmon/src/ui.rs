@@ -33,6 +33,7 @@ use smartclock::wire::Reading;
 
 use crate::app::App;
 use crate::app::View;
+use crate::history::Source;
 use crate::history::Trace;
 
 /// Block elements for the trend, lightest first.
@@ -48,8 +49,86 @@ pub(crate) fn draw(frame: &mut Frame, app: &App) {
     match app.view {
         View::Dashboard => dashboard(frame, app),
         View::History => history(frame, app),
+        View::Journal => journal(frame, app),
     }
 }
+
+/// What the receiver has recorded about itself.
+///
+/// Three records shown as one list -- its diagnostic log, the
+/// transitions taken from its event registers, and its error queue --
+/// because the operator wants to know what the receiver has been
+/// saying, not which mechanism said it.  None of this is in the
+/// snapshot table and none of it can be plotted, so without a pane it
+/// is visible only to somebody holding a SQL prompt.
+fn journal(frame: &mut Frame, app: &App) {
+    let area = frame.area();
+    let rows: Vec<Row> = app
+        .journal
+        .iter()
+        .map(|note| {
+            let colour = match note.source {
+                Source::Log => Color::Gray,
+                Source::Event => Color::Cyan,
+                Source::Error => Color::Yellow,
+            };
+            Row::new(vec![
+                Cell::from(stamp(&note.stamp)).style(Style::new().fg(Color::DarkGray)),
+                Cell::from(note.source.tag()).style(Style::new().fg(colour)),
+                Cell::from(note.text.clone()),
+            ])
+        })
+        .collect();
+
+    let title = if let Some(error) = &app.history_error {
+        format!(" Journal -- {error} ")
+    } else if app.journal.is_empty() {
+        " Journal -- nothing recorded yet ".to_owned()
+    } else {
+        // Not "newest first": events and errors are, the receiver's
+        // log follows in its own entry order, and claiming one
+        // chronology across two clocks would be a lie.
+        format!(
+            " Journal -- {} notes: events, then the receiver's log ",
+            app.journal.len()
+        )
+    };
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(STAMP_WIDTH as u16),
+            Constraint::Length(5),
+            Constraint::Min(20),
+        ],
+    )
+    .block(Block::bordered().title(title));
+    frame.render_widget(table, area);
+}
+
+/// As much of a timestamp as is worth a column.
+///
+/// Two formats arrive here and they need opposite treatment.  A host
+/// timestamp is `2026-09-21T13:46:42.366174805Z`, where the fraction is
+/// noise and the `T` is a separator.  The receiver's own is
+/// `20050727.06:17:34`, where the dot separates the date from the time
+/// -- so cutting at the first dot, which is right for the first, threw
+/// away the whole time of day for the second.
+///
+/// The receiver's stamps are shown as written.  They come from a
+/// calendar 1024 weeks behind, and correcting them here would put a
+/// date on screen that appears nowhere in the instrument and cannot be
+/// searched for.
+fn stamp(at: &str) -> String {
+    let shown = match at.split_once('T') {
+        Some((date, time)) => format!("{date} {}", time.split('.').next().unwrap_or(time)),
+        None => at.to_owned(),
+    };
+    shown.chars().take(STAMP_WIDTH).collect()
+}
+
+/// Width of the timestamp column.
+const STAMP_WIDTH: usize = 19;
 
 /// Graphs over a longer span, read from the daemon's log.
 ///
@@ -790,7 +869,7 @@ fn footer(frame: &mut Frame, area: Rect, app: &App) {
     let keys = if app.console_open {
         "Enter send  Esc close"
     } else {
-        "q quit  g graphs  w window  c command"
+        "q quit  g next view  l journal  w window  c command"
     };
     let mut spans = vec![Span::styled(keys, Style::new().fg(Color::DarkGray))];
     if let Some(error) = app.snapshot.as_ref().and_then(|s| s.polled.any_error()) {

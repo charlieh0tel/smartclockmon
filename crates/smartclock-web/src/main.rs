@@ -74,6 +74,7 @@ fn main() -> Result<()> {
             "/api/snapshot" => json(cache.snapshot(&socket)),
             "/api/info" => json(cache.info(&socket)),
             "/api/history" => json(series(&database, query)),
+            "/api/journal" => json(journal(&database)),
             _ => Response::not_found(),
         }
     })
@@ -145,6 +146,21 @@ impl Cache {
     fn info(&self, socket: &Path) -> Result<serde_json::Value> {
         Self::get(&self.info, || Ok(Daemon::connect(socket)?.info()?))
     }
+}
+
+/// How many of each journal stream the page is given.
+///
+/// Enough to see a pattern, few enough that the page stays a page.
+/// The whole of the receiver's log is 222 entries, so this shows most
+/// of one without paging.
+const JOURNAL_ROWS: usize = 100;
+
+/// The receiver's own record-keeping: its diagnostic log, the
+/// transitions taken from its event registers, and its error queue.
+fn journal(database: &Path) -> Result<serde_json::Value> {
+    Ok(serde_json::to_value(
+        Log::open(database)?.journal(JOURNAL_ROWS)?,
+    )?)
 }
 
 /// How much history a request that does not say gets.

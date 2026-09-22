@@ -36,8 +36,12 @@ Run by hand, it holds the port and everything else is a client of it:
 
     smartclockmon --socket /tmp/smartclockd.sock
 
-In the monitor, `g` switches to the graphs, `w` cycles their span, `c`
-opens a command line, `q` quits.
+In the monitor, `g` cycles the views, `l` jumps to the journal, `w`
+cycles the graph span, `c` opens a command line, `q` quits.  The
+journal is what the receiver has recorded about itself -- its
+diagnostic log, the transitions taken from its event registers, and its
+error queue -- none of which is in the snapshot table or can be
+plotted, and all of which the browser view shows too.
 
     smartclock-exporter            # http://127.0.0.1:9979/metrics
 

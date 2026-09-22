@@ -23,6 +23,12 @@ use crate::source::Policy;
 /// for; this is the live view.
 const TREND_LEN: usize = 240;
 
+/// How many of the receiver's notes to hold for the journal view.
+///
+/// The whole of its diagnostic log is 222 entries, so this shows all of
+/// one with room for the events and errors beside it.
+const JOURNAL_LEN: usize = 300;
+
 /// Which screen is showing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum View {
@@ -30,6 +36,8 @@ pub(crate) enum View {
     Dashboard,
     /// Graphs over a longer span, read from the daemon's log.
     History,
+    /// What the receiver has recorded about itself.
+    Journal,
 }
 
 /// Monitor state.
@@ -55,6 +63,8 @@ pub(crate) struct App {
     pub(crate) history: History,
     /// Why the history is unavailable, if it is.
     pub(crate) history_error: Option<String>,
+    /// What the receiver recorded about itself, newest first.
+    pub(crate) journal: Vec<crate::history::Note>,
     /// Where console commands go.
     pub(crate) console: Console,
     /// What the daemon says this client may do.
@@ -88,6 +98,7 @@ impl App {
             view: View::Dashboard,
             window: Window::Hour,
             log: None,
+            journal: Vec::new(),
             history: History::default(),
             history_error: None,
             console,
@@ -148,6 +159,22 @@ impl App {
         match log.read(self.window, columns) {
             Ok(history) => {
                 self.history = history;
+                self.history_error = None;
+            }
+            Err(e) => self.history_error = Some(e.to_string()),
+        }
+    }
+
+    /// Re-read the receiver's own records.
+    ///
+    /// Shares `history_error` with the graphs: both read the same file
+    /// through the same handle, so a failure of one is a failure of the
+    /// other and two separate messages would say the same thing twice.
+    pub(crate) fn refresh_journal(&mut self) {
+        let Some(log) = &self.log else { return };
+        match log.journal(JOURNAL_LEN) {
+            Ok(journal) => {
+                self.journal = journal;
                 self.history_error = None;
             }
             Err(e) => self.history_error = Some(e.to_string()),
