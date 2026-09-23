@@ -42,8 +42,14 @@ macro_rules! bounded_u8 {
     };
 }
 
-bounded_u8!(Tfom, 1, 9, "time figure of merit");
-bounded_u8!(Ffom, 0, 9, "frequency figure of merit");
+// Each TFOM step is a decade of time error, 0 being under a nanosecond
+// and 9 over a tenth of a second (097-59551-02 5-24).  The 58503A and
+// 59551A use only 9 down to 3, which is a fact about those models and
+// not about the field, so the bound is the field's.
+bounded_u8!(Tfom, 0, 9, "time figure of merit");
+// FFOM is defined over 0 to 3 alone: stabilized, stabilizing, unlocked,
+// and one more (097-59551-02 5-25).
+bounded_u8!(Ffom, 0, 3, "frequency figure of merit");
 bounded_u8!(Prn, 1, 32, "PRN");
 
 /// Oscillator electronic frequency control, as a percentage of its

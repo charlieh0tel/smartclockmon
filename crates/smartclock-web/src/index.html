@@ -183,7 +183,7 @@ let zoom = null;          // [from, to] once the user has dragged
 // Several series, stacked, sharing one time axis.  `column` singular is
 // still read so an older bookmark still opens on what it named.
 let columns = (view.get("columns") ?? view.get("column") ??
-  "time_interval_s,efc_percent,temperature_c,oven_current")
+  "time_interval_s,efc_percent,temperature_c,tfom,ffom,tracking")
   .split(",")
   .filter(Boolean);
 
@@ -447,6 +447,23 @@ const TICK_COUNT_WEIGHT = 0.3;
 // channels, and grow if a receiver ever exceeds the pin.
 const COUNTS = { tracking: 8, not_tracking: 12, tfom: 9, ffom: 3 };
 
+// Tracked and not tracked are one measurement split two ways: their
+// sum is the satellites the receiver knows about, so a chart apiece
+// hides the relationship that matters.  Drawn together, and only these
+// two -- a general grouping would have to answer what happens when a
+// temperature is paired with a count, and nothing needs that.
+const PAIRED = ["tracking", "not_tracking"];
+
+function pairCounts(plots) {
+  const first = plots.findIndex((p) => p.column === PAIRED[0]);
+  const second = plots.findIndex((p) => p.column === PAIRED[1]);
+  if (first < 0 || second < 0) return plots;
+  const partner = plots[second];
+  return plots
+    .filter((_, i) => i !== second)
+    .map((p) => (p.column === PAIRED[0] ? { ...p, partner } : p));
+}
+
 function countScale(max, pinned, target) {
   const top = Math.max(pinned, Math.ceil(max) || 0, 1);
   const most = Math.max(4, target + 3);
@@ -560,8 +577,9 @@ async function draw() {
   charts = [];
   $("charts").innerHTML = "";
 
-  const height = plotHeight(got.plots.length);
-  got.plots.forEach((plot, n) => {
+  const drawn = pairCounts(got.plots);
+  const height = plotHeight(drawn.length);
+  drawn.forEach((plot, n) => {
     const col = plot.column;
     const mean = scaled(plot.mean, col);
     const low = scaled(plot.min, col);
@@ -569,7 +587,10 @@ async function draw() {
     // The scale has to cover the envelope, not just the mean: the
     // min and max are drawn, and an axis that ends below them would
     // clip the very excursions they exist to show.
-    const values = [...low, ...high, ...mean].filter((v) => v != null && isFinite(v));
+    const mate = plot.partner ? scaled(plot.partner.mean, plot.partner.column) : null;
+    const values = [...low, ...high, ...mean, ...(mate ?? [])].filter(
+      (v) => v != null && isFinite(v),
+    );
     const nice = !values.length
       ? null
       : col in COUNTS
@@ -594,19 +615,27 @@ async function draw() {
     // under every plot costs the height that makes the stack worth
     // having, and says the axes might differ when the whole point is
     // that they cannot.
-    const last = n === got.plots.length - 1;
+    const last = n === drawn.length - 1;
     const host = document.createElement("div");
     $("charts").appendChild(host);
 
     const opts = {
       width: $("charts").clientWidth || 800,
       height,
-      title: label(col),
+      title: plot.partner ? `${label(col)} and ${label(plot.partner.column)}` : label(col),
       series: [
         {},
         { label: "min", stroke: "#0e7490", width: 1, points: { show: false } },
         { label: "max", stroke: "#0e7490", width: 1, points: { show: false } },
         { label: label(col), stroke: "#38bdf8", width: 1.5, points: { show: false } },
+        ...(plot.partner
+          ? [{
+              label: label(plot.partner.column),
+              stroke: "#fbbf24",
+              width: 1.5,
+              points: { show: false },
+            }]
+          : []),
       ],
       axes: [
         {
@@ -669,12 +698,13 @@ async function draw() {
     };
     const chart = new uPlot(
       opts,
-      [got.at, scaled(plot.min, col), scaled(plot.max, col), mean],
+      [got.at, scaled(plot.min, col), scaled(plot.max, col), mean, ...(mate ? [mate] : [])],
       host,
     );
     // Which column this chart is, so the shared readout can label it
     // without reaching back into the request that built it.
     chart.smartclockColumn = col;
+    chart.smartclockPartner = plot.partner ? plot.partner.column : null;
     chart.over.addEventListener("dblclick", () => {
       zoom = null;
       buttons();
@@ -718,11 +748,18 @@ function readout() {
     return;
   }
   const at = new Date(charts[0].data[0][idx] * 1000);
-  const cells = charts.map((c) => {
-    const v = c.data[3][idx];
-    const shown = v == null ? "--" : v.toLocaleString(undefined, { maximumFractionDigits: 3 });
-    return `<span><span class="k">${esc(label(c.smartclockColumn))}</span> ` +
-           `<span class="v">${esc(shown)}</span></span>`;
+  const show = (v) =>
+    v == null ? "--" : v.toLocaleString(undefined, { maximumFractionDigits: 3 });
+  const cells = charts.flatMap((c) => {
+    const one = (col, v) =>
+      `<span><span class="k">${esc(label(col))}</span> ` +
+      `<span class="v">${esc(show(v))}</span></span>`;
+    // A paired chart carries its partner in the fifth series, and it
+    // needs its own cell: one number under a two-line plot would leave
+    // the reader guessing which line it belonged to.
+    return c.smartclockPartner
+      ? [one(c.smartclockColumn, c.data[3][idx]), one(c.smartclockPartner, c.data[4][idx])]
+      : [one(c.smartclockColumn, c.data[3][idx])];
   });
   el.innerHTML = `<span class="v">${esc(at.toLocaleTimeString())}</span>` + cells.join("");
 }

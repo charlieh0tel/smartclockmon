@@ -43,10 +43,10 @@ pub(crate) const PLOTTABLE: [&str; 10] = [
 
 /// The most series one request will bucket together.
 ///
-/// Each adds three aggregates to the same query and a chart to the
-/// page; past a handful the page is taller than a screen and the point
-/// of stacking them -- seeing them against one another -- is lost.
-const MAX_SERIES: usize = 6;
+/// Enough to tick every plottable column at once.  Each adds three
+/// aggregates to the same query, which is cheap; the cost is page
+/// height, and that is the reader's to judge rather than ours.
+const MAX_SERIES: usize = 10;
 
 /// Fewest buckets worth drawing, and the most a chart can show.
 ///
@@ -238,12 +238,23 @@ impl Log {
         // with a straight line -- which reads as a receiver sitting
         // perfectly steady for the hours it was in fact unplugged.  A
         // null in the gap makes the line break instead.
+        //
+        // Only for a hole several buckets wide, though.  The medium
+        // tier holds the line for about three seconds and the fast tier
+        // cannot run meanwhile, so at an hour's zoom -- buckets of
+        // about two seconds -- every one of those stalls empties a
+        // bucket, and breaking on each drew every trace as a dashed
+        // line at the daemon's own polling rhythm.  The threshold
+        // scales with the view: a few buckets is seconds at an hour and
+        // hours at a month, which is the right shape, because what
+        // counts as a gap is relative to what is being looked at.
+        const GAP_BUCKETS: i64 = 4;
         let mut previous: Option<i64> = None;
         let bucket_width = (span as f64 + 1.0) / points as f64;
         while let Some(row) = rows.next()? {
             let bucket: i64 = row.get(0)?;
             let when: f64 = row.get(1)?;
-            if previous.is_some_and(|last| bucket > last + 1) {
+            if previous.is_some_and(|last| bucket > last + GAP_BUCKETS) {
                 at.push(when - bucket_width);
                 for plot in &mut plots {
                     plot.mean.push(None);
