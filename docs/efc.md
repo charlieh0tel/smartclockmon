@@ -38,11 +38,15 @@ at that moment.
 | 2026-09-21 01:52 | 55.5 mV  | 712820 | +35.9597 % | 36.04 C |
 | 2026-09-22 01:35 | 52.58 mV | 713269 | +36.0453 % | 39.86 C |
 | 2026-09-22 19:56 | 54.77 mV | 712948 | +35.9841 % | 36.86 C |
+| 2026-09-23 02:25 | 55.35 mV | 712853 | +35.9657 % | 35.22 C |
+
+The fifth row was taken minutes after a ninety-second holdover, at the
+coldest case temperature of the five.
 
 | Against | Slope | R^2 |
 | ------- | ----- | --- |
-| Raw count | -6.25 uV/count | 0.998 |
-| Temperature | -0.69 mV/C | 0.281 |
+| Raw count | -6.28 +/- 0.14 uV/count | 0.9986 |
+| Temperature | -0.74 mV/C | 0.406 |
 
 No reading is more than 0.12 mV off the count fit.  The third row was
 taken four degrees hotter than the second and came out in the middle,
@@ -60,7 +64,7 @@ step".)
 
 Two consequences.
 
-**The sliver mapping is dead.**  6.25 uV per count, against 9.5 uV for
+**The sliver mapping is dead.**  6.28 uV per count, against 9.5 uV for
 a full -5 V to +5 V drive and 0.13 uV for a sliver.  The pin moves like
 something driven across volts, so the unit does not need periodic
 manual retrimming.
@@ -79,10 +83,11 @@ the frequency.  Independently, the count rises as the case warms, which
 is the direction needed to correct an oscillator whose coefficient is
 negative.  The receiver's count is a monotonic frequency command.
 
-**The slope is a designed round number.**  6.250 +/- 0.175 uV per
+**The slope is a designed round number.**  6.279 +/- 0.135 uV per
 reported count.  Four of the twenty bits are dither, so a 16-bit DAC
 LSB is 16 counts, or 100 uV exactly, and full scale is
-65536 x 100 uV = **6.5536 V**.  The measured span is 6.553 +/- 0.184 V.
+65536 x 100 uV = **6.5536 V**.  The measured span is 6.584 +/- 0.142 V,
+which is that value to within a quarter of a standard error.
 
 **The absolute level is still unexplained.**  At 36 percent the
 specification mapping puts the pin at +1.80 V; it reads 52 mV, some 36
@@ -90,8 +95,8 @@ times less.  A divider scaling 1.8 V to 50 mV would scale the slope by
 the same 36x, and the slope is not scaled.  Whatever explains 52 mV has
 to leave the slope alone, which rules out a plain divider.
 
-Extrapolating the fit, the pin reaches 0 V at count 721,700 +/- 20,200,
-or **+37.7 +/- 3.9 percent** reported -- so the reported percentage is
+Extrapolating the fit, the pin reaches 0 V at count 721,700 +/- 15,500,
+or **+37.7 +/- 3.0 percent** reported -- so the reported percentage is
 offset from the pin voltage, and this unit, at +36.0 percent, is
 sitting within a few millivolts of the oscillator's electrical centre.
 That is an extrapolation across 720,000 counts from a fit spanning 767,
@@ -178,7 +183,7 @@ about 1.7 percentage points, some 3x10^-9, and has most of the range in
 both directions.  Both readings are comfortable and the difference
 between them does not matter yet, so the conservative one is quoted.
 
-The measured 6.25 uV per count settles it for the specification
+The measured 6.28 uV per count settles it for the specification
 mapping.  That slope is measured over 767 of 2^20 counts and
 extrapolated, so it establishes that the receiver drives volts rather
 than millivolts; it does not certify linearity across a range nobody

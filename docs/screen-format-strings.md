@@ -1,9 +1,16 @@
 # Status screen format strings
 
-The Z3801A and the 58503A do not share a firmware build, but the
-layout, the field widths and the set of variant strings are the same,
-and this enumerates them exactly rather than leaving them to be guessed
-from the handful of screens in the manuals.
+The Z3801A and the 58503A do not share a firmware build.  The layout
+and the field widths are the same, and this enumerates the strings
+exactly rather than leaving them to be guessed from the handful of
+screens in the manuals.
+
+The string sets are *not* the same, and every entry below is read out
+of Z3801A firmware unless marked otherwise.  A 58503A running 3704-C
+displays `10MHZ STABLE`, in capitals, once the PLL has settled --
+where the Z3801A firmware has no occurrence of `MHZ` in any casing.
+Treat the lists as the Z3801A's, corroborated on a 58503A where a
+note says so.
 
 ## Frame
 
@@ -48,15 +55,36 @@ tracked group from the untracked one.  Cell contents:
 Appended to the mode marked `>>`.  Long and short forms are chosen by
 available width:
 
-    : stabilizing frequency
+    : stabilizing frequency          FFOM 1
+
+Once the PLL has settled the suffix goes, and FFOM reads 0.  A 58503A
+shows `10MHZ STABLE` at that point; the Z3801A firmware has no such
+string.
+
+Why it is in holdover.  These are the same distinctions
+`:SYNChronization:HOLDover:WAITing?` answers with `GPS`, `LIMit` and
+`HARDware`, and the first of them is the one the register bits do not
+make: a manual holdover is what sets Holding, bit 0:
+
     : manually initiated
     : GPS 1PPS CLK invalid
+    : EXT 1PPS CLK invalid
+    : 1PPS TI exceeds hold threshold
+    : internal hardware problem
+
+The ladder up to lock, in the order a receiver climbs it:
+
     : OCXO warm-up
     : GPS acquisition
     : coarse freq adj            : coarse frequency adjustment
     : fine freq adj              : fine frequency adjustment
     : phase alignment
     : leap second determination
+
+A 58503A recovering from a ninety-second antenna outage was watched
+through `fine freq adj` and into `stabilizing frequency`, so the
+58503A uses this set despite the strings being read out of Z3801A
+firmware.
 
 ## Synchronization status
 
