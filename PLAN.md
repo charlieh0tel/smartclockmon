@@ -969,6 +969,21 @@ Things that are not decided, as distinct from the defects below.
 Known, unfixed, and each here because the fix is not obviously worth
 its cost yet.
 
+**A receiver swapped without breaking the link is not noticed.**
+`*IDN?` is read once, when the port is opened, and nothing re-reads it
+while the link stays up.  Swap the cable between two receivers quickly
+enough that no command fails and the daemon keeps the old identity, so
+the new unit's rows are filed under the old one -- silently, and
+exactly defeating the per-row attribution they exist for.
+
+In practice the fast tier sends a command every second, so a swap
+almost always breaks a read and is caught.  Almost always is not a
+property to put a database on: **stop the daemon before moving the
+cable between units.**
+
+Not fixed by choice.  The fix is cheap -- ask `*IDN?` on the slow tier
+and compare -- and can be done if swapping ever becomes routine.
+
 **The receiver's log timestamps are not monotonic across a power
 cycle.**  Its clock restarts at midnight on a stale date and runs free
 until the first lock, so a log entry's stamp in that window is elapsed
