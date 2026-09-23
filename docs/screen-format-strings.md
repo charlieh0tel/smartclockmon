@@ -1,16 +1,17 @@
 # Status screen format strings
 
-The Z3801A and the 58503A do not share a firmware build.  The layout
-and the field widths are the same, and this enumerates the strings
-exactly rather than leaving them to be guessed from the handful of
-screens in the manuals.
+The Z3801A and the 58503A do not share a firmware build, but the
+layout, the field widths and the set of variant strings are the same,
+and this enumerates them exactly rather than leaving them to be guessed
+from the handful of screens in the manuals.
 
-The string sets are *not* the same, and every entry below is read out
-of Z3801A firmware unless marked otherwise.  A 58503A running 3704-C
-displays `10MHZ STABLE`, in capitals, once the PLL has settled --
-where the Z3801A firmware has no occurrence of `MHZ` in any casing.
-Treat the lists as the Z3801A's, corroborated on a 58503A where a
-note says so.
+This is the screen `:SYSTem:STATus?` returns over serial, and nothing
+else.  The 58503A could be ordered with a front panel display, which
+the Z3801A and Z3805A never had; it is separate hardware driven by its
+own strings, much shorter and in capitals, and none of them are below.
+A 58503A reading `10MHZ STABLE` on its panel is not evidence about
+this screen.  Its strings would come from a 58503A firmware image,
+which is not in `third_party/`.
 
 ## Frame
 
@@ -57,9 +58,7 @@ available width:
 
     : stabilizing frequency          FFOM 1
 
-Once the PLL has settled the suffix goes, and FFOM reads 0.  A 58503A
-shows `10MHZ STABLE` at that point; the Z3801A firmware has no such
-string.
+Once the PLL has settled the suffix goes and FFOM reads 0.
 
 Why it is in holdover.  These are the same distinctions
 `:SYNChronization:HOLDover:WAITing?` answers with `GPS`, `LIMit` and
@@ -82,9 +81,9 @@ The ladder up to lock, in the order a receiver climbs it:
     : leap second determination
 
 A 58503A recovering from a ninety-second antenna outage was watched
-through `fine freq adj` and into `stabilizing frequency`, so the
-58503A uses this set despite the strings being read out of Z3801A
-firmware.
+through `fine freq adj` and into `stabilizing frequency` -- on its
+front panel, not on this screen, so it corroborates the ladder and its
+order but not the exact spellings.
 
 ## Synchronization status
 
