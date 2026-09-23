@@ -151,6 +151,25 @@ fn the_powerup_register_is_read_on_the_slow_tier() {
 }
 
 #[test]
+fn one_refusal_does_not_cost_the_rest_of_the_tier() {
+    // A receiver that has never had a fix refuses its date with -230.
+    // A bare `?` on that line meant the slow tier never completed once
+    // on a cold Z3805A: the log count, the tempco and the powerup
+    // register sit after the date, and all three reported themselves
+    // missing when they had simply never been asked.
+    let mut device = device(Receiver::cold());
+    let mut snapshot = Snapshot::new(jiff::Timestamp::now());
+    device
+        .poll(Tier::Slow, &mut snapshot, jiff::Timestamp::now())
+        .expect("the slow tier must finish");
+    assert!(
+        snapshot.log_count.is_some(),
+        "the log count sits after the date and must still be read"
+    );
+    assert!(snapshot.powerup.is_some(), "so does the powerup register");
+}
+
+#[test]
 fn a_faulty_receiver_reports_its_faults() {
     let mut device = device(Receiver::faulty());
     let condition = device.hardware_condition().expect("hardware");

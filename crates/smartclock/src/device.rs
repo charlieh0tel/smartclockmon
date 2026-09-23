@@ -412,7 +412,7 @@ impl<T: Transport> Device<T> {
         into.mode = absent_if_unsupported(self.mode())?;
         into.tfom = absent_if_unsupported(self.tfom())?;
         into.ffom = absent_if_unsupported(self.ffom())?;
-        into.time_interval = self.time_interval()?;
+        into.time_interval = absent_if_unsupported(self.time_interval())?.flatten();
         into.efc = absent_if_unsupported(self.efc())?;
         into.hardware = absent_if_unsupported(self.hardware_condition())?;
         into.holdover_waiting = absent_if_unsupported(self.holdover_waiting())?;
@@ -424,9 +424,9 @@ impl<T: Transport> Device<T> {
         // Temperature and oven current sit here rather than on the fast
         // tier: they move slowly, and the fast tier is already close to
         // its budget.
-        into.temperature = self.temperature()?;
-        into.oven_current = self.oven_current()?;
-        into.efc_dac = self.efc_dac()?;
+        into.temperature = absent_if_unsupported(self.temperature())?.flatten();
+        into.oven_current = absent_if_unsupported(self.oven_current())?.flatten();
+        into.efc_dac = absent_if_unsupported(self.efc_dac())?.flatten();
         // The subgroup condition registers.  A condition register is
         // read in real time and holds nothing, so sampling one every
         // ten seconds misses transitions -- the event registers catch
@@ -439,7 +439,7 @@ impl<T: Transport> Device<T> {
         into.holdover_state = absent_if_unsupported(self.holdover_condition())?;
         let holdover = self.holdover_duration()?;
         into.holdover_duration = Some(holdover);
-        into.holdover_predicted = self.holdover_predicted()?;
+        into.holdover_predicted = absent_if_unsupported(self.holdover_predicted())?.flatten();
         // Only asked for while it exists.  Present holdover error is
         // refused with -230 whenever the receiver is locked, and a
         // refusal is not free: the session reads the error queue to
@@ -459,12 +459,18 @@ impl<T: Transport> Device<T> {
     }
 
     fn poll_slow(&mut self, into: &mut Snapshot, now: Timestamp) -> Result<()> {
-        into.position = self.position()?;
+        // Every one of these is wrapped, including the two that already
+        // return an Option.  A receiver that has never had a fix
+        // refuses its date with -230, and a bare `?` on that line meant
+        // the slow tier never completed once on a cold Z3805A -- so the
+        // log count, the tempco and the powerup register below it were
+        // never read either, and reported themselves missing when they
+        // were merely unreached.
+        into.position = absent_if_unsupported(self.position())?.flatten();
         let today = now.to_zoned(jiff::tz::TimeZone::UTC).date();
-        let date = self.date(today)?;
-        into.date = Some(date);
+        into.date = absent_if_unsupported(self.date(today))?;
         into.log_count = absent_if_unsupported(self.log_count())?;
-        into.oven_tempco = self.oven_tempco()?;
+        into.oven_tempco = absent_if_unsupported(self.oven_tempco())?.flatten();
         // All three of its bits are set during startup and then stay,
         // so asking on every medium poll spent a round trip to be told
         // what it said last time.  The medium tier is the one against

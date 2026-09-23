@@ -153,6 +153,15 @@ pub struct Receiver {
     /// the daemon has to tell the two apart: see
     /// [`Receiver::refusing`].
     refuse_everything: bool,
+    /// Whether the receiver has ever had a fix.
+    ///
+    /// Until it has, everything derived from GPS -- the date, the time,
+    /// the position, the time interval -- is refused with -230, and
+    /// there is no way to hurry it.  A cold unit is not a broken one,
+    /// and it is the state a receiver spends its first minutes in, so
+    /// it is the state most likely to be met and least likely to be
+    /// tested against.
+    no_fix: bool,
 }
 
 /// The latched event registers, by the same short names the daemon
@@ -201,6 +210,7 @@ impl Default for Receiver {
             dialect: Dialect::Hp58503,
             ticks: 0,
             refuse_everything: false,
+            no_fix: false,
             base: Base {
                 efc_raw: 713_587,
                 temperature: 37.40,
@@ -223,6 +233,23 @@ impl Receiver {
             hardware: 1 << 6,
             efc_raw: 1_040_000,
             holdover: true,
+            ..Self::default()
+        }
+        .settle()
+    }
+
+    /// A receiver that has never had a fix, as one is for its first
+    /// minutes from cold and for as long as it cannot see the sky.
+    ///
+    /// Everything derived from GPS is refused with -230.  A poll must
+    /// come back with the rest of the tier regardless: on a real
+    /// Z3805A a bare `?` on the date meant the slow tier never
+    /// completed once, so the log count, the oscillator tempco and the
+    /// powerup register -- which sit after it -- reported themselves
+    /// missing when they had never been asked.
+    pub fn cold() -> Self {
+        Self {
+            no_fix: true,
             ..Self::default()
         }
         .settle()
@@ -494,13 +521,20 @@ impl Receiver {
                 accepted: true,
             },
             CommandId::StatusScreenLines => Answer::line(format!("{:+}", SCREEN.lines().count())),
+            CommandId::PositionAvg | CommandId::PositionActual | CommandId::PositionHoldLast
+                if self.no_fix =>
+            {
+                self.reject(-230, "Data corrupt or stale")
+            }
             CommandId::PositionAvg | CommandId::PositionActual | CommandId::PositionHoldLast => {
                 Answer::line("N,+37,+22,+3.02770E+001,W,+122,+5,+3.48160E+001,+4.35100E+001")
             }
+            CommandId::Date if self.no_fix => self.reject(-230, "Data corrupt or stale"),
             CommandId::Date => {
                 let d = rolled_back_date();
                 Answer::line(format!("{:+},{:+},{:+}", d.year(), d.month(), d.day()))
             }
+            CommandId::Time if self.no_fix => self.reject(-230, "Data corrupt or stale"),
             CommandId::Time => Answer::line("+20,+4,+31"),
             CommandId::LogCount => Answer::line(format!("{:+}", self.log_entries)),
             // The count is a compare-and-swap: the instrument refuses

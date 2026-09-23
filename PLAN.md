@@ -10,7 +10,7 @@ Phases 0 to 10 are done; see **Phases** at the end for what each turned
 out to involve, **Open questions** for what is undecided and **Known
 defects** for what is wrong and unfixed.
 
-190 tests, none needing hardware.  `make ci` is what CI runs; `make
+192 tests, none needing hardware.  `make ci` is what CI runs; `make
 test-hw` is the hardware-only set and CI never runs it.
 
 Installed from the package and running as a service against the
