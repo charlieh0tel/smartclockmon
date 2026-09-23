@@ -1,3 +1,14 @@
+smartclockmon (0.6.5-1) unstable; urgency=low
+
+  * Schema 7.  Record which generation of the receiver's diagnostic log
+    each entry belongs to.  Clearing the log restarts its entry numbers,
+    which had left the copied-span and completeness checks reading
+    across two runs at once, and the journal ordering its entries by a
+    stamp that is elapsed time since boot until the first GPS lock.
+    Existing databases have their generations inferred on upgrade.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Tue, 22 Sep 2026 18:31:09 -0700
+
 smartclockmon (0.6.4-1) unstable; urgency=low
 
   * Spend the medium tier's wire time only on answers the daemon does
