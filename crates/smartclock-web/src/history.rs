@@ -24,15 +24,21 @@ use rusqlite::OpenFlags;
 /// oscillator's behaviour is read from come first, in the order they
 /// are usually read in -- what the clock is actually doing, what the
 /// loop is doing about it, and the two things that move it.
-pub(crate) const PLOTTABLE: [&str; 8] = [
+///
+/// `tracking` sits third because a receiver losing satellites
+/// explains the two above it, and reading those without it invites
+/// blaming the oscillator for the sky.
+pub(crate) const PLOTTABLE: [&str; 10] = [
     "time_interval_s",
     "efc_percent",
+    "tracking",
     "temperature_c",
     "oven_current",
     "efc_dac",
     "oven_tempco",
     "tfom",
     "ffom",
+    "not_tracking",
 ];
 
 /// The most series one request will bucket together.

@@ -436,6 +436,29 @@ async function fetchSeries(cols, from, to) {
 // legitimate step and it produces axes like 35.925, which is not.
 const TICK_COUNT_WEIGHT = 0.3;
 
+// Columns that count things.  A count has no fractional value and
+// cannot be negative, so its axis starts at zero and steps in whole
+// numbers; the general rule would give a satellite count that never
+// moved off zero an axis from -1 to 1, with a tick at -0.5.
+// Each is pinned to the top of its range rather than fitted to the
+// data, so the axis does not rescale as the window moves and two
+// receivers can be read against one another.  TFOM runs 1 to 9 and
+// FFOM 0 to 3 by definition; the satellite counts are bounded by the
+// channels, and grow if a receiver ever exceeds the pin.
+const COUNTS = { tracking: 8, not_tracking: 12, tfom: 9, ffom: 3 };
+
+function countScale(max, pinned, target) {
+  const top = Math.max(pinned, Math.ceil(max) || 0, 1);
+  for (const step of [1, 2, 5, 10, 20, 50]) {
+    const hi = Math.ceil(top / step) * step;
+    const n = hi / step;
+    if (n >= 2 && n <= Math.max(4, target + 3)) {
+      return { lo: 0, hi, step, n };
+    }
+  }
+  return { lo: 0, hi: top, step: top, n: 1 };
+}
+
 function niceScale(min, max, target) {
   if (!isFinite(min) || !isFinite(max)) return null;
   // A series that never moved still needs an axis with room around it.
@@ -539,9 +562,11 @@ async function draw() {
     // min and max are drawn, and an axis that ends below them would
     // clip the very excursions they exist to show.
     const values = [...low, ...high, ...mean].filter((v) => v != null && isFinite(v));
-    const nice = values.length
-      ? niceScale(Math.min(...values), Math.max(...values), tickTarget(height))
-      : null;
+    const nice = !values.length
+      ? null
+      : col in COUNTS
+        ? countScale(Math.max(...values), COUNTS[col], tickTarget(height))
+        : niceScale(Math.min(...values), Math.max(...values), tickTarget(height));
     const places = nice ? Math.max(0, -Math.floor(Math.log10(nice.step))) : 0;
     const ticks = [];
     if (nice) {
