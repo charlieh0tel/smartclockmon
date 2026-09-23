@@ -694,6 +694,27 @@ fn ti_trend(app: &App, width: usize) -> String {
         .collect()
 }
 
+/// An exponent as superscript digits, for a decade axis label.
+///
+/// `10^-9` written as `10` and a raised `-9` rather than as `1e-9`,
+/// which is a programming language's spelling of a number and not a
+/// physicist's.
+fn superscript(exponent: i32) -> String {
+    const DIGITS: [char; 10] = [
+        '\u{2070}', '\u{00b9}', '\u{00b2}', '\u{00b3}', '\u{2074}', '\u{2075}', '\u{2076}',
+        '\u{2077}', '\u{2078}', '\u{2079}',
+    ];
+    let sign = if exponent < 0 { "\u{207b}" } else { "" };
+    let digits: String = exponent
+        .unsigned_abs()
+        .to_string()
+        .chars()
+        .filter_map(|c| c.to_digit(10))
+        .map(|d| DIGITS[d as usize])
+        .collect();
+    format!("{sign}{digits}")
+}
+
 /// The Allan deviation, on a view of its own.
 ///
 /// Both axes are decades, which is the only way this curve is read: the
@@ -753,7 +774,9 @@ fn stability(frame: &mut Frame, app: &App) {
     let y = bounds(&points.iter().map(|p| p.1).collect::<Vec<_>>());
     let decades = |range: [f64; 2]| {
         let (low, high) = (range[0] as i32, range[1] as i32);
-        (low..=high).map(|d| format!("1e{d}")).collect::<Vec<_>>()
+        (low..=high)
+            .map(|d| format!("10{}", superscript(d)))
+            .collect::<Vec<_>>()
     };
 
     let datasets = vec![
@@ -788,14 +811,14 @@ fn stability(frame: &mut Frame, app: &App) {
                     .style(axis)
                     .bounds(x)
                     .labels(decades(x))
-                    .title("tau (s)"),
+                    .title("τ, seconds"),
             )
             .y_axis(
                 Axis::default()
                     .style(axis)
                     .bounds(y)
                     .labels(decades(y))
-                    .title("sigma_y"),
+                    .title("σy"),
             ),
         rows[1],
     );
