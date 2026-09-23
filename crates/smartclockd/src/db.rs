@@ -469,8 +469,14 @@ impl Log {
                 snapshot.holdover_duration.map(|h| h.elapsed.as_secs()),
                 snapshot.holdover_predicted.map(|v| v.as_secs()),
                 snapshot.holdover_present.map(|v| v.as_secs()),
-                screen.and_then(|s| s.tracking),
-                screen.and_then(|s| s.not_tracking),
+                snapshot.tracking,
+                // The screen's `Not Tracking` is what is visible less
+                // what is tracked, which is how the two agree on
+                // hardware.
+                snapshot
+                    .visible
+                    .zip(snapshot.tracking)
+                    .map(|(visible, tracking)| visible.saturating_sub(tracking)),
                 snapshot.date.map(|d| d.raw().to_string()),
                 snapshot.time.map(|t| t.to_string()),
                 snapshot.date.and_then(|d| d.rollover()).map(|r| r.epochs),

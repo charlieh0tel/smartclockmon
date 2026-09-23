@@ -505,6 +505,7 @@ almost all of it:
 
 | step                                    | cost   |
 | --------------------------------------- | ------ |
+| satellite counts                        | 0.16 s |
 | oscillator temperature, current, DAC    | 0.13 s |
 | condition registers                     | 0.12 s |
 | holdover duration, predicted, present   | 0.16 s |
@@ -515,6 +516,13 @@ the fast tier now waits is the screen, rather than the 1.9 s the whole
 pass took -- an improvement, but a small one, because the screen is
 1574 bytes: 0.94 s of wire time and another 0.5 s of the receiver
 composing it.  Interleaving cannot help with a single read that long.
+
+The satellite counts do not come from the screen.  The command tree
+extracted from the firmware has no per-satellite node, so elevation,
+azimuth and signal strength are screen-only -- but the counts are
+queryable: `:GPS:SATellite:TRACking:COUNt?` equals the screen's
+`Tracking`, and `:GPS:SATellite:VISible:PREDicted:COUNt?` less that
+equals its `Not Tracking`, verified against a screen showing 7 and 2.
 
 A refresh moves the deadlines but not the step cursors: restarting a
 pass in flight discards the steps already read, and under a stream of

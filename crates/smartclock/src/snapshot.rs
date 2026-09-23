@@ -39,8 +39,8 @@ pub enum Tier {
     /// Short scalar queries: mode, figures of merit, interval, EFC and
     /// the hardware register.
     Fast,
-    /// The status screen, the oscillator readings, the condition
-    /// registers and the holdover detail.
+    /// The status screen, the satellite counts, the oscillator
+    /// readings, the condition registers and the holdover detail.
     Medium,
     /// Position, date and counters, which barely move.
     Slow,
@@ -86,6 +86,17 @@ pub struct Snapshot {
     pub time_interval: Option<Seconds>,
     /// Oscillator control voltage as a share of range.
     pub efc: Option<EfcPercent>,
+    /// Satellites being tracked.
+    ///
+    /// Read directly rather than scraped from the status screen, which
+    /// prints the same number: two short queries cost about 0.16 s,
+    /// where the screen costs 1.5 s.
+    pub tracking: Option<u32>,
+    /// Satellites the almanac predicts are visible.
+    ///
+    /// The screen's `Not Tracking` is this less [`Snapshot::tracking`],
+    /// which is how the two agree on hardware.
+    pub visible: Option<u32>,
     /// The hardware condition register.
     pub hardware: Option<HardwareCondition>,
     /// Why the receiver has not left holdover.
@@ -234,6 +245,8 @@ impl Snapshot {
             ffom: None,
             time_interval: None,
             efc: None,
+            tracking: None,
+            visible: None,
             hardware: None,
             holdover_waiting: None,
             time: None,

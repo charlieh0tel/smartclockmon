@@ -278,7 +278,8 @@ async function poll() {
     ["EFC raw", s.efc_raw ?? "--"],
     ["internal temp", s.temperature_c == null ? "--" : fmt(s.temperature_c, 2) + " C"],
     ["1 PPS TI", s.time_interval_ns === null ? "--" : fmt(s.time_interval_ns, 1) + " ns"],
-    ["tracking", s.screen?.tracking ?? "--"],
+    ["tracking", s.tracking == null ? "--" :
+      s.visible == null ? s.tracking : `${s.tracking} of ${s.visible} up`],
   ];
   $("status").innerHTML =
     `<span class="pill ${state[0]}">${state[1]}</span>` +

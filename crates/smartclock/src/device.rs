@@ -371,6 +371,15 @@ fn dialect_for(model: &str) -> Dialect {
     }
 }
 
+/// A satellite count as an unsigned number.
+///
+/// The receiver answers `+7`, parsed as a signed integer because that
+/// is what the response type says.  A negative count is not a reading
+/// the hardware can produce, so it is floored rather than refused.
+fn satellite_count(n: i64) -> u32 {
+    u32::try_from(n).unwrap_or(0)
+}
+
 /// Which vertical datum a model's heights use.
 ///
 /// The 58503A and 59551A report height above mean sea level; the 58503B
@@ -393,6 +402,8 @@ fn datum_for(model: &str) -> Datum {
 enum Step {
     /// Everything on the fast tier, read together.
     Fast,
+    /// The satellite counts.
+    Satellites,
     /// Oven temperature and current, and the EFC DAC.
     Oscillator,
     /// The subgroup condition registers.
@@ -418,6 +429,7 @@ const fn steps(tier: Tier) -> &'static [Step] {
     match tier {
         Tier::Fast => &[Step::Fast],
         Tier::Medium => &[
+            Step::Satellites,
             Step::Oscillator,
             Step::Registers,
             Step::Holdover,
@@ -477,6 +489,7 @@ impl<T: Transport> Device<T> {
         };
         match step_kind {
             Step::Fast => self.poll_fast(into)?,
+            Step::Satellites => self.poll_satellites(into)?,
             Step::Oscillator => self.poll_oscillator(into)?,
             Step::Registers => self.poll_registers(into)?,
             Step::Holdover => self.poll_holdover(into)?,
@@ -501,6 +514,19 @@ impl<T: Transport> Device<T> {
         into.hardware = absent_if_unsupported(self.hardware_condition())?;
         into.holdover_waiting = absent_if_unsupported(self.holdover_waiting())?;
         into.time = absent_if_unsupported(self.time())?;
+        Ok(())
+    }
+
+    /// The satellite counts, which the status screen also prints.
+    ///
+    /// Two short queries, about 0.16 s, against the 1.5 s the screen
+    /// costs.  `:GPS:SATellite:TRACking:COUNt?` is the screen's
+    /// `Tracking`, and `:GPS:SATellite:VISible:PREDicted:COUNt?` less
+    /// that is its `Not Tracking` -- checked against a screen showing
+    /// 7 and 2.
+    fn poll_satellites(&mut self, into: &mut Snapshot) -> Result<()> {
+        into.tracking = absent_if_unsupported(self.tracking_count())?.map(satellite_count);
+        into.visible = absent_if_unsupported(self.visible_count())?.map(satellite_count);
         Ok(())
     }
 
@@ -605,6 +631,7 @@ mod tests {
         // The screen is read on request, not on a schedule.
         for step in [
             Step::Fast,
+            Step::Satellites,
             Step::Oscillator,
             Step::Registers,
             Step::Holdover,
@@ -618,7 +645,7 @@ mod tests {
                 "{step:?}"
             );
         }
-        assert_eq!(scheduled.len(), 7);
+        assert_eq!(scheduled.len(), 8);
     }
 
     #[test]

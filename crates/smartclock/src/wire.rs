@@ -53,6 +53,10 @@ pub struct Reading {
     pub efc: Option<EfcPercent>,
     /// Oscillator control voltage, raw 20-bit value.
     pub efc_raw: Option<u32>,
+    /// Satellites being tracked.
+    pub tracking: Option<u32>,
+    /// Satellites the almanac predicts are visible.
+    pub visible: Option<u32>,
     /// Internal temperature, degrees Celsius.
     pub temperature_c: Option<f64>,
     /// Oven current, as the receiver reports it.
@@ -201,6 +205,8 @@ impl From<&Snapshot> for Reading {
             date_corrected: s.date.map(|d| d.corrected()),
             time: s.time,
             log_count: s.log_count,
+            tracking: s.tracking,
+            visible: s.visible,
             screen: s.screen.clone(),
             polled: s.polled.clone(),
         }

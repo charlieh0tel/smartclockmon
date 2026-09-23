@@ -82,6 +82,25 @@ fn every_tier_polls_into_a_snapshot() {
 }
 
 #[test]
+fn the_satellite_counts_come_from_queries_and_agree_with_the_screen() {
+    let now = jiff::Timestamp::now();
+    let mut snapshot = Snapshot::new(now);
+    let mut device = device(Receiver::default());
+    device
+        .poll(Tier::Medium, &mut snapshot, now)
+        .expect("medium");
+
+    let screen = snapshot.screen.as_ref().expect("a status screen");
+    assert_eq!(snapshot.tracking, screen.tracking);
+    // The screen prints what is visible but untracked; the query
+    // answers what is visible at all.
+    assert_eq!(
+        snapshot.visible.zip(snapshot.tracking).map(|(v, t)| v - t),
+        screen.not_tracking
+    );
+}
+
+#[test]
 fn a_pass_taken_a_step_at_a_time_reads_what_the_whole_pass_reads() {
     let now = jiff::Timestamp::now();
     let mut whole = Snapshot::new(now);
