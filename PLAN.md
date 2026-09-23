@@ -561,14 +561,20 @@ scheduled status screen read.
 ### Allan deviation is computed over segments, not over a series
 
 `:SYNChronization:TINTerval?` is a phase reading, so a run of them is
-what the Allan deviation is defined over.  This measures the receiver
-against GPS, not the oscillator: while locked the disciplining loop is
-inside the loop being measured, so the short taus show the loop and the
-measurement noise.  Only holdover isolates the crystal, and holdover
-ends a run rather than continuing it.
+what the Allan deviation is defined over.  What it is the phase *of*
+is worth being exact about: the interval measured is between the 1 PPS
+from the GPS receiver and a 1 PPS derived from the OCXO -- "the time
+difference between the 1-pps signal from the GPS engine to a similar
+signal derived from the reference source" (`smartclock-dec96a9`,
+Enhanced Learning).
+
+The GPS receiver's 1 PPS is generated from its own crystal and is
+quantized to it.  While locked, the OCXO is steered to follow that
+1 PPS.  So the curve is of the pair and of the loop between them, and
+not of the OCXO alone.
 
 The estimator is the overlapping one, and gaps are handled by counting
-only the triples that exist rather than by filling anything in.  That
+only the second differences that exist rather than by filling anything in.  That
 stays unbiased so long as what is missing is unrelated to what was
 being measured -- readings lost to a daemon restart are; readings lost
 *because* the receiver was misbehaving would not be, and no estimator
@@ -581,7 +587,7 @@ Four things about gaps that are easy to get wrong, and were:
   the phase, and the estimator would read that step as enormous
   instability at every tau spanning it.  The run is cut into segments
   on the recorded mode and holdover flag, and on any absence longer
-  than ten nominal intervals; triples never cross a cut, and the
+  than ten nominal intervals; second differences never cross a cut, and the
   segments are pooled so a broken run is still usable.
 - **A hole must stay a hole.** Readings go on a grid indexed by time
   rather than into a list, so a missing reading is an empty slot and
@@ -606,9 +612,9 @@ Four things about gaps that are easy to get wrong, and were:
 A curve carries the count of readings, holes and segments with it,
 because a curve alone cannot be judged: one drawn from a run that is
 mostly holes looks exactly like one drawn from a clean day.  Points
-below ten triples are not emitted, and the sweep stops at a third of
-the longest segment, so the curve ends where the data does rather than
-trailing into noise.
+below ten second differences are not emitted, and the sweep stops at a
+third of the longest segment, so the curve ends where the data does
+rather than trailing into noise.
 
 Long ranges are gridded more coarsely rather than refused, which is a
 subsample and not an average -- averaging readings before the estimator

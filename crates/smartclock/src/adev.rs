@@ -1,14 +1,20 @@
 //! Overlapping Allan deviation from the receiver's 1 PPS time interval.
 //!
-//! `:SYNChronization:TINTerval?` is a phase reading: the offset between
-//! the receiver's 1 PPS and GPS, in seconds.  A run of them is a phase
-//! series `x(t)`, which is what the Allan deviation is defined over.
+//! `:SYNChronization:TINTerval?` is a phase reading, so a run of them
+//! is a phase series `x(t)`, which is what the Allan deviation is
+//! defined over.
 //!
-//! What this measures is the *receiver's* output against GPS, not the
-//! oscillator.  While locked the control loop is inside the loop being
-//! measured, so at short tau this reports the disciplining and the
-//! measurement noise rather than the crystal.  Only in holdover does it
-//! approach a statement about the oscillator alone.
+//! What it is the phase *of* is worth being exact about.  The interval
+//! measured is between the 1 PPS from the GPS receiver and a 1 PPS
+//! derived from the OCXO -- "the time difference between the 1-pps
+//! signal from the GPS engine to a similar signal derived from the
+//! reference source", in the words of the design paper
+//! (`smartclock-dec96a9`, Enhanced Learning).
+//!
+//! The GPS receiver's 1 PPS comes from its own crystal and is
+//! quantized to it.  While locked, the OCXO is steered to follow that
+//! 1 PPS.  So the curve is of the pair and of the loop between them,
+//! and not of the OCXO alone.
 //!
 //! The estimator is the overlapping one, which uses every available
 //! triple rather than every third sample and so has far more degrees of
@@ -20,9 +26,9 @@
 //!                  2 N tau^2
 //! ```
 //!
-//! with `tau = m * tau0` and `N` the number of triples that existed.
+//! with `tau = m * tau0` and `N` the number of differences that existed.
 //!
-//! Gaps are handled by counting only the triples that exist rather than
+//! Gaps are handled by counting only the differences that exist rather than
 //! by filling anything in.  That leaves the estimate unbiased so long as
 //! what is missing is unrelated to what was being measured -- readings
 //! lost to a daemon restart are; readings lost *because* the receiver
@@ -52,20 +58,23 @@ pub struct Point {
     pub deviation: f64,
     /// How many second differences went into it.
     ///
-    /// Reported rather than hidden because it is the whole confidence
-    /// story: a point from nine triples and a point from nine thousand
-    /// are drawn the same size and mean very different things.
-    pub triples: usize,
+    /// Each is `x[i+2m] - 2 x[i+m] + x[i]`, so each needs three phase
+    /// readings present at the right spacing, which is what a gap
+    /// takes away.  Reported rather than hidden because it is the whole
+    /// confidence story: a point from nine differences and one from
+    /// nine thousand are drawn the same size and mean very different
+    /// things.
+    pub differences: usize,
 }
 
 /// The fewest second differences a point may be computed from.
 ///
 /// Below this the estimate is dominated by its own uncertainty -- the
 /// relative error of an overlapping estimate goes roughly as
-/// `1/sqrt(triples)` -- and plotting it invites reading a slope off
+/// `1/sqrt(differences)` -- and plotting it invites reading a slope off
 /// noise.  A short run therefore ends early rather than trailing off
 /// into points nobody should believe.
-const MIN_TRIPLES: usize = 10;
+const MIN_DIFFERENCES: usize = 10;
 
 /// How much of a gap in the timestamps ends a segment.
 ///
@@ -212,13 +221,13 @@ impl Run {
     /// Taus are spaced roughly logarithmically, because that is how the
     /// curve is read: a linear sweep spends every point at the noisy
     /// end and never reaches the interesting one.  The sweep stops at
-    /// the first tau with too few triples behind it rather than running
+    /// the first tau with too few differences behind it rather than running
     /// to some fraction of the run length, so the curve ends where the
     /// data does.
     pub fn curve(&self) -> Vec<Point> {
         let longest = self.grids.iter().map(Vec::len).max().unwrap_or(0);
         let mut points = Vec::new();
-        for m in multipliers(longest) {
+        for m in multipliers(longest, self.tau0) {
             match self.at(m) {
                 Some(point) => points.push(point),
                 None => break,
@@ -230,7 +239,7 @@ impl Run {
     /// The deviation at one averaging time, or `None` if too little of
     /// the run supports it.
     ///
-    /// Segments are pooled: each contributes the triples it has, and
+    /// Segments are pooled: each contributes the differences it has, and
     /// the sum and the count run across all of them.  Pooling is what
     /// makes a broken run usable at all -- averaging each segment's own
     /// deviation would weight a two-minute fragment like a two-day run.
@@ -239,7 +248,7 @@ impl Run {
             return None;
         }
         let mut total = 0.0;
-        let mut triples = 0usize;
+        let mut differences = 0usize;
         for grid in &self.grids {
             if grid.len() <= 2 * m {
                 continue;
@@ -250,17 +259,17 @@ impl Run {
                 };
                 let difference = c - 2.0 * b + a;
                 total += difference * difference;
-                triples += 1;
+                differences += 1;
             }
         }
-        if triples < MIN_TRIPLES {
+        if differences < MIN_DIFFERENCES {
             return None;
         }
         let tau = m as f64 * self.tau0;
         Some(Point {
             tau,
-            deviation: (total / (2.0 * triples as f64 * tau * tau)).sqrt(),
-            triples,
+            deviation: (total / (2.0 * differences as f64 * tau * tau)).sqrt(),
+            differences,
         })
     }
 
@@ -341,6 +350,39 @@ impl Curve {
     }
 }
 
+/// One sample per reading the receiver actually made.
+///
+/// `:SYNChronization:TINTerval?` is answered from a value the receiver
+/// updates on its own schedule, not when it is asked: measured on a
+/// 58503A, 397 of 400 distinct values were held for exactly ten
+/// one-second polls.  Polling faster than that returns the same number
+/// again, and a repeat is not a measurement.
+///
+/// Left in, the repeats destroy the short end of the curve rather than
+/// merely padding it: the second difference of a held value is zero,
+/// so every triple inside one update reads as perfect stability and
+/// `sigma_y` at the shortest taus is dragged towards nothing.
+///
+/// Two consecutive updates that happen to land on the same value are
+/// merged with them, which loses one sample and leaves a hole the
+/// estimator already knows how to skip.  At the resolution these are
+/// reported to -- 0.1 ns against a typical step of some nanoseconds --
+/// that is rare enough to prefer over keeping the repeats.
+/// Returns the indices to keep, so a caller holding anything alongside
+/// the readings -- the mode and holdover flag that decide where a run
+/// is cut -- can drop the same ones and stay in step.
+pub fn updates(samples: &[Sample]) -> Vec<usize> {
+    let mut keep: Vec<usize> = Vec::with_capacity(samples.len());
+    let mut held: Option<f64> = None;
+    for (i, sample) in samples.iter().enumerate() {
+        if held != Some(sample.interval) {
+            held = Some(sample.interval);
+            keep.push(i);
+        }
+    }
+    keep
+}
+
 /// The interval between readings, in seconds, taken from the readings
 /// themselves rather than from the configured cadence.
 ///
@@ -408,29 +450,74 @@ pub fn spacing(samples: &[Sample]) -> Option<f64> {
     Some(covariance / variance)
 }
 
-/// Averaging times to try, as multiples of the nominal spacing.
+/// Averaging times to offer, in seconds.
 ///
-/// Roughly four to a decade, on the 1-2-5 sequence that log axes are
-/// labelled with, so the points land where a reader expects tick marks
-/// rather than between them.
-fn multipliers(longest: usize) -> Vec<usize> {
-    let mut out = Vec::new();
-    let mut decade = 1usize;
+/// A ladder of times a person would choose, not of sample counts.
+/// Counting in samples put points at 100 and 500 seconds, which read
+/// back as 1.7 and 8.3 minutes -- arithmetic showing through the face
+/// of the instrument.  Within each unit the steps are the 1-2-5
+/// sequence that a log axis is labelled with, and each unit stops
+/// where the next begins.
+const LADDER: [f64; 24] = [
+    1.0,
+    2.0,
+    5.0,
+    10.0,
+    20.0,
+    50.0, // seconds
+    60.0,
+    120.0,
+    300.0,
+    600.0,
+    1200.0,
+    3000.0, // 1 to 50 minutes
+    3600.0,
+    7200.0,
+    18000.0,
+    36000.0,
+    72000.0, // 1 to 20 hours
+    86400.0,
+    172_800.0,
+    432_000.0,
+    864_000.0,
+    1_728_000.0,
+    4_320_000.0, // days
+    8_640_000.0,
+];
+
+/// The ladder as multiples of the sample spacing, for a run of
+/// `longest` grid places.
+///
+/// A rung the spacing cannot express -- anything under half a sample
+/// -- is dropped, and two rungs that round to the same multiple are
+/// kept once.  The reported tau is still the multiple times the
+/// spacing, never the rung: the rung chooses the measurement, it does
+/// not describe it.
+fn multipliers(longest: usize, tau0: f64) -> Vec<usize> {
     // Past a third of the run an overlapping estimate has too few
-    // independent triples to mean much whatever the count says, so the
-    // sweep never proposes one.
+    // independent differences to mean much whatever the count says, so
+    // the sweep never proposes one.
     let ceiling = longest / 3;
-    while decade <= ceiling {
-        for step in [1, 2, 5] {
-            let m = decade * step;
-            if m <= ceiling {
-                out.push(m);
-            }
+    let mut out: Vec<usize> = Vec::new();
+    for tau in LADDER {
+        if tau0 <= 0.0 {
+            break;
         }
-        decade = match decade.checked_mul(10) {
-            Some(next) => next,
-            None => break,
-        };
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "the ladder is small and positive, and m is checked below"
+        )]
+        let m = (tau / tau0).round() as usize;
+        if m == 0 {
+            continue;
+        }
+        if m > ceiling {
+            break;
+        }
+        if out.last() != Some(&m) {
+            out.push(m);
+        }
     }
     out
 }
@@ -440,6 +527,7 @@ mod tests {
     use super::Run;
     use super::Sample;
     use super::spacing;
+    use super::updates;
     use jiff::Timestamp;
 
     /// A run of `n` readings one second apart, from `f`.
@@ -485,6 +573,37 @@ mod tests {
         let (present, holes) = run.coverage();
         assert_eq!(present, count, "readings were dropped");
         assert_eq!(holes, 0);
+    }
+
+    #[test]
+    fn the_averaging_times_are_ones_a_person_would_choose() {
+        // Not 100 and 500 seconds, which read back as 1.7 and 8.3
+        // minutes.  A day of one-second readings should offer whole
+        // seconds, then whole minutes, then whole hours.
+        let day = Run::from_samples(&run(86_400, |i| 1e-9 * i as f64), 1.0, |_, _| false);
+        let taus: Vec<f64> = day.curve().iter().map(|p| p.tau).collect();
+        assert_eq!(
+            taus,
+            vec![
+                1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 60.0, 120.0, 300.0, 600.0, 1200.0, 3000.0, 3600.0,
+                7200.0, 18000.0,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_held_reading_counts_once() {
+        // The receiver updates its interval every ten seconds and
+        // answers with the held value in between.  Ten identical
+        // readings are one measurement, and counting them as ten puts
+        // second differences of zero into the short taus.
+        let held = run(100, |i| 1e-9 * (i / 10) as f64);
+        let keep = updates(&held);
+        assert_eq!(keep, (0..10).map(|i| i * 10).collect::<Vec<_>>());
+        let once: Vec<Sample> = keep.iter().map(|&i| held[i]).collect();
+        // And the spacing found is the receiver's, not the poll rate.
+        let tau0 = spacing(&once).expect("a spacing");
+        assert!((tau0 - 10.0).abs() < 1e-6, "tau0 {tau0}");
     }
 
     #[test]

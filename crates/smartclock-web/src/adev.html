@@ -120,12 +120,12 @@ function table(d) {
     return;
   }
   $("table").innerHTML =
-    "<thead><tr><th>tau</th><th>sigma_y</th><th>triples</th></tr></thead><tbody>" +
+    "<thead><tr><th>tau</th><th>sigma_y</th><th>differences</th></tr></thead><tbody>" +
     d.points
       .map(
         (p) =>
           `<tr><td>${esc(seconds(p.tau))}</td><td>${esc(decade(p.deviation))}</td>` +
-          `<td class="muted">${p.triples}</td></tr>`,
+          `<td class="muted">${p.differences}</td></tr>`,
       )
       .join("") +
     "</tbody>";

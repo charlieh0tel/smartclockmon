@@ -71,9 +71,11 @@ pays for it.  The satellite counts are queried directly and are on the
 one-second tier with everything else.
 
 Stability is its own view in both, `/adev` in the browser: the
-overlapping Allan deviation of the 1 PPS against GPS, on log axes.  It
-is the receiver that is measured and not the oscillator -- while locked
-the disciplining loop is inside what is being measured -- and the page
+overlapping Allan deviation of the interval between the 1 PPS from the
+GPS receiver and a 1 PPS divided down from the OCXO, on log axes.
+The GPS receiver's 1 PPS is quantized to its own crystal, and while
+locked the OCXO is steered to follow it, so the curve is of the pair
+and of the loop between them rather than of the OCXO alone; the page
 says so.  Gaps are not filled in: the run is cut where a relock, a
 holdover or an absence makes the phase either side incomparable, only
 the second differences that exist are counted, and the curve carries
