@@ -1,3 +1,29 @@
+smartclockmon (0.6.11-1) unstable; urgency=low
+
+  * Measure the Allan deviation from the receiver's own readings.  The
+    1 PPS time interval is updated every ten seconds and was being
+    counted once per one-second poll, which made the short averaging
+    times read as near-perfect stability.  Each reading now counts once.
+  * Offer averaging times a person would choose -- seconds, minutes,
+    hours, days on the 1-2-5 sequence -- rather than sample counts.
+  * Describe what the stability curve measures as the HP design paper
+    does: the interval between the GPS receiver's 1 PPS and a 1 PPS
+    divided from the OCXO.
+  * Put the status strip and one row of navigation on every browser
+    page, keep the last reading across page changes, and give the
+    charts the full width of the window.
+  * Show the satellite counts as one choice, "# sats", with the line
+    colours named in the chart title; lead the picker with the default
+    set; add hover text for the figures of merit from the manual; keep
+    the readout row from jumping.
+  * Draw the stability curve with uPlot on decade axes with minor
+    graduations, labelled with tau, sigma and powers of ten, with a
+    cursor readout and a reset.
+  * Record both GPS receivers' identification in full, and add the
+    Oncore command reference and related notes to third_party.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Wed, 23 Sep 2026 16:53:34 -0700
+
 smartclockmon (0.6.10-1) unstable; urgency=low
 
   * Stop polling the receiver's status screen.  It is 1574 bytes, about
