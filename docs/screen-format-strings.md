@@ -9,9 +9,19 @@ This is the screen `:SYSTem:STATus?` returns over serial, and nothing
 else.  The 58503A could be ordered with a front panel display, which
 the Z3801A and Z3805A never had; it is separate hardware driven by its
 own strings, much shorter and in capitals, and none of them are below.
-A 58503A reading `10MHZ STABLE` on its panel is not evidence about
-this screen.  Its strings would come from a 58503A firmware image,
-which is not in `third_party/`.
+A 58503A reading `10MHZ STABLE` on its panel says nothing about this
+screen -- captured from the same unit at the same moment, the mode line
+read `>> Locked to GPS` with no suffix at all.  The panel's strings
+would come from a 58503A firmware image, which is not in
+`third_party/`.
+
+Where the two do differ is narrower than a different string set.  The
+1 PPS markers are composed, `%s %s` over a label: the firmware holds
+`GPS 1PPS` and `1PPS CLK` separately, so a Z3801A reads
+`[ GPS 1PPS CLK Valid ]` where a 58503A, which has no external 1 PPS
+input to disambiguate from, reads `[ GPS 1PPS Valid ]`.  The captured
+58503A screen is otherwise string for string what the Z3801A firmware
+holds.
 
 ## Frame
 
@@ -120,10 +130,32 @@ order but not the exact spellings.
     LOCL GPS             which scale the displayed time is on
     LOCAL
 
+## Section markers
+
+Each banner is dotted out to the right margin and closed with a
+bracket:
+
+    SYNCHRONIZATION .....  [ Outputs Valid ]
+                           [ Outputs Invalid ]
+                           [ Outputs Valid/Reduced Accuracy ]
+    ACQUISITION .........  [ GPS 1PPS CLK Valid ]     'CLK' per the note above
+                           [ GPS 1PPS CLK Invalid ]
+                           [ EXT 1PPS CLK Valid ]
+                           [ EXT 1PPS CLK Invalid ]
+    HEALTH MONITOR ......  [ OK ]
+                           [ ERROR ]
+
+## Health monitor
+
+One line of named tests, each `%s: %-3s%s`, reading `OK` or `Err`:
+
+    Self Test    Int Pwr    Oven Pwr    OCXO    EFC    GPS Rcv
+
 ## Other
 
     ELEV MASK %2d deg%3s%-25.25s%2s
     ELEV MASK  %-2d%33s%s
+    *attempting to track     footnote; the PRN it refers to is starred
     ANT DLY  %s
     1000+ hr
 
