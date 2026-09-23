@@ -1,3 +1,20 @@
+smartclockmon (0.6.9-1) unstable; urgency=low
+
+  * Break the plotted line where the record has a hole, rather than
+    joining the readings either side: hours with a receiver unplugged
+    were drawn as a straight line, reading as an instrument sitting
+    perfectly steady.
+  * Draw the tracked and not-tracked satellite counts on one chart, and
+    allow ten series at once.  The default set becomes 1 PPS TI, EFC,
+    internal temperature, TFOM, FFOM and the tracked count.
+  * Correct the figure-of-merit bounds to the manual's: TFOM 0 to 9,
+    each step a decade of time error, and FFOM 0 to 3.  TFOM started at
+    1, so a receiver reporting 0 would not have parsed.
+  * Take the release version from Cargo.toml rather than the command
+    line, where it had to be repeated and was not checked.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Wed, 23 Sep 2026 10:28:22 -0700
+
 smartclockmon (0.6.8-1) unstable; urgency=low
 
   * Plot the satellite count.  It was recorded and not plottable, which
