@@ -87,8 +87,9 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
     maybe(
         &mut out,
         "oven_tempco",
-        "Oscillator temperature coefficient as the receiver has learned it; \
-         units undocumented, so watch the trend and not the value",
+        "Oscillator temperature coefficient, in parts in 10^12 per degree C; \
+         measured against GPS while locked and kept in EPROM, so it sits \
+         still for long stretches",
         r.oven_tempco,
     );
     maybe(
