@@ -42,9 +42,9 @@ struct Cli {
     device: Option<String>,
 
     /// Bits per second.  The receiver stores this setting, so it is not
-    /// necessarily the 9600 factory default.  Checked against the four
-    /// rates the receiver accepts: an unsupported rate does not fail on
-    /// open, it produces garbage that looks like a dead receiver.
+    /// necessarily the 9600 factory default.  Checked against the rates a
+    /// port can be opened at: an unsupported rate does not fail on open, it
+    /// produces garbage that looks like a dead receiver.
     #[arg(long, default_value_t = 19200, global = true)]
     baud: u32,
 

@@ -1851,7 +1851,7 @@ doc = "Port 1 baud rate."
 [[command]]
 id = "comm_baud_set"
 class = "dangerous"
-doc = "Set port 1 baud rate. Persists across power cycles."
+doc = "Set port 1 baud rate. Persists across power cycles. The receiver accepts a rate outside the allowed list with no error and keeps its old one, so the list is the only guard."
 
   [command.argument]
   kind = "word"

@@ -65,7 +65,7 @@ struct Cli {
     #[arg(long, env = "SMARTCLOCKD_DEVICE")]
     device: String,
 
-    /// Bits per second.  Checked against the four the receiver accepts.
+    /// Bits per second.  Checked against the rates a port can be opened at.
     #[arg(long, env = "SMARTCLOCKD_BAUD", default_value_t = 19200)]
     baud: u32,
 

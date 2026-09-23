@@ -901,30 +901,55 @@ impl fmt::Display for SignalStrength {
     }
 }
 
-/// A serial line rate the receiver supports.
+/// A serial line rate these tools can open a port at.
 ///
-/// An enum rather than a number because the receiver accepts only these
-/// four.  Opening the port at an unsupported rate does not fail
-/// loudly -- it just produces garbage, which looks like a dead
-/// receiver.
+/// An enum rather than a number because opening at an unsupported rate
+/// does not fail loudly -- it just produces garbage, which looks like a
+/// dead receiver.
+///
+/// `097-59551-02` 5-101 says the 58503A accepts 1200, 2400, 9600 and
+/// 19200, and 19200 is measured to be its ceiling.  The rest are here
+/// so a receiver moved to one can still be reached to move it back: a
+/// rate we cannot open is a receiver we cannot reach with anything,
+/// including `:SYSTem:COMMunicate:SERial1:PRESet`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 pub enum BaudRate {
     /// 1200 baud.
     B1200,
     /// 2400 baud.
     B2400,
+    /// 4800 baud.  Not a rate the 58503A's manual lists.
+    B4800,
     /// 9600 baud, the factory default.
     #[default]
     B9600,
-    /// 19200 baud, the fastest the receiver offers.
+    /// 19200 baud, the fastest the 58503A's manual lists.
     B19200,
+    /// 38400 baud.  The 58503A answers `:SYSTem:COMMunicate:SERial1:BAUD
+    /// 38400` with no error and keeps its old rate, so a receiver is only
+    /// here if something else put it here.
+    B38400,
+    /// 57600 baud.  As above.
+    B57600,
+    /// 115200 baud.  As above.
+    B115200,
 }
 
 impl BaudRate {
-    /// Every rate the receiver accepts.
-    pub const ALL: [BaudRate; 4] = [Self::B1200, Self::B2400, Self::B9600, Self::B19200];
+    /// Every rate a port can be opened at, slowest first, which is the
+    /// order to sweep when a receiver's rate is unknown.
+    pub const ALL: [BaudRate; 8] = [
+        Self::B1200,
+        Self::B2400,
+        Self::B4800,
+        Self::B9600,
+        Self::B19200,
+        Self::B38400,
+        Self::B57600,
+        Self::B115200,
+    ];
 
-    /// Recognise a rate, rejecting any the receiver cannot use.
+    /// Recognise a rate, rejecting any these tools cannot open.
     pub fn new(rate: u32) -> Option<Self> {
         Self::ALL.into_iter().find(|b| b.get() == rate)
     }
@@ -934,8 +959,12 @@ impl BaudRate {
         match self {
             Self::B1200 => 1200,
             Self::B2400 => 2400,
+            Self::B4800 => 4800,
             Self::B9600 => 9600,
             Self::B19200 => 19200,
+            Self::B38400 => 38400,
+            Self::B57600 => 57600,
+            Self::B115200 => 115_200,
         }
     }
 
@@ -982,14 +1011,21 @@ mod tests {
     }
 
     #[test]
-    fn only_the_four_supported_rates_are_accepted() {
-        // 38400 is a rate the receiver cannot use; opening at it yields
-        // garbage rather than an error, so it must be refused here.
+    fn a_rate_is_recognised_only_if_a_port_can_be_opened_at_it() {
         assert_eq!(BaudRate::new(19200), Some(BaudRate::B19200));
         assert_eq!(BaudRate::new(9600), Some(BaudRate::B9600));
-        assert_eq!(BaudRate::new(38400), None);
-        assert_eq!(BaudRate::new(115200), None);
+        // Above what the 58503A's manual lists, and openable anyway: a
+        // receiver moved to one of these has to remain reachable, or
+        // it cannot even be told to move back.
+        assert_eq!(BaudRate::new(4800), Some(BaudRate::B4800));
+        assert_eq!(BaudRate::new(38400), Some(BaudRate::B38400));
+        assert_eq!(BaudRate::new(57600), Some(BaudRate::B57600));
+        assert_eq!(BaudRate::new(115200), Some(BaudRate::B115200));
+        assert_eq!(BaudRate::new(0), None);
         assert_eq!(BaudRate::default(), BaudRate::B9600);
+        // Slowest first, so a sweep of an unknown receiver starts where
+        // a misconfigured one most often is.
+        assert!(BaudRate::ALL.windows(2).all(|w| w[0].get() < w[1].get()));
     }
 
     #[test]

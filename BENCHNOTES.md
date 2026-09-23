@@ -13,7 +13,9 @@ in the log says which receiver it came from.
 
     HEWLETT-PACKARD,58503A,3710A01056,3704-C
 
-Option 001, so it has the front-panel display and keypad.  19200 8N1.
+Option 001, so it has the front-panel display and keypad.  19200 8N1,
+which is as fast as it goes: asked for 38400 it replies `+0,"No error"`
+and stays at 19200.
 Oscillator is an HP 10811-60159; see `docs/OCXO.md` for the
 specification and `docs/efc.md` for the EFC measurements taken on it.
 
