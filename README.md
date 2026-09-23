@@ -172,20 +172,28 @@ and 1 PPS, and report state over a serial port using SCPI.
 | 58503B | `:GPS:`, `:SYNC:`        | Same tree as the 58503A                 |
 | 59551A | `:GPS:`, `:SYNC:`        | Adds pulse output and event timestamping|
 | Z3801A | `:PTIME:GPSYSTEM:`, `:ROSC:` | Divergent tree; different response formats |
+| Z3805A | `:PTIME:GPSYSTEM:`, `:ROSC:` | Answers the Z3801A tree; verified on hardware |
 | Z3816A | `:PTIME:GPSYSTEM:`, `:ROSC:` | Assumed as Z3801A; unverified          |
 
-The development unit is a 58503A with Option 001 (front-panel
-display/keypad), at 19200 8N1.  Its rear serial port is DB-25; the
-58503B uses DB-9.  It answers `*IDN?` with
+The 58503A's rear serial port is DB-25; the 58503B uses DB-9.
 
-    HEWLETT-PACKARD,58503A,0000A00000,3704-C
+These receivers' GPS engines are mid-1990s Motorola boards whose
+firmware predates the GPS week rollovers of 1999 and 2019, so a unit
+reports a date 1024 weeks in the past.  Time of day, 1 PPS and 10 MHz
+are unaffected, and `smartclock` corrects the date rather than
+presenting it as a fault.  `:DIAGnostic:IDENtification:GPSystem?`
+names the engine on both command trees.
 
-Its oscillator is an HP 10811-60159 (see `docs/OCXO.md`), and its GPS
-engine is a Motorola reporting `MODEL # B4121P1115` and `SOFTWARE DATE
-06 Aug 1996`.  That engine is why the receiver
-reports a date 1024 weeks in the past: its firmware predates the GPS
-week rollovers of 1999 and 2019.  Time of day, 1 PPS and 10 MHz are
-unaffected.
+Which receivers are actually on hand, what they answer `*IDN?` with
+and how they are wired are facts about one bench rather than about
+this project, so they live in `BENCHNOTES.md` and not here.
+
+Both report `:DIAGnostic:IDENtification:GPSystem?`, so the pair can be
+compared directly rather than inferred.  Note what it does not settle:
+on one antenna the 58503A holds seven to ten satellites while the
+Z3805A holds two to four, and nothing measured explains it.  Antenna,
+antenna bias at 4.8 V against a 4.5 V specification, supply rails,
+asserted position and the whole health monitor all check out on both.
 
 Factory default for all models is 9600 8N1, no pacing, full duplex.
 Serial settings are stored in the receiver and survive a power cycle, so
