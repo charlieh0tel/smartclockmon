@@ -34,12 +34,18 @@ fn every_spec_names_at_least_one_model() {
 
 #[test]
 fn every_spec_says_where_it_came_from() {
-    // Either a manual and page, or a note that it was found by sweeping
-    // a receiver.  Several commands exist in no manual at all.
+    // A manual and page, a note that it was found by sweeping a
+    // receiver, or the firmware image whose command tree lists it.
+    // Several commands exist in no manual at all, and some of those
+    // were read out of the parser's own tables before any receiver
+    // confirmed them -- which is weaker than a reply and stronger than
+    // a guess, so it says so rather than borrowing either wording.
     for dialect in DIALECTS {
         for spec in dialect.specs() {
             assert!(
-                spec.cite.starts_with("097-") || spec.cite.starts_with("discovered on "),
+                spec.cite.starts_with("097-")
+                    || spec.cite.starts_with("discovered on ")
+                    || spec.cite.starts_with("firmware image "),
                 "{:?} {:?} cite {:?} is neither a document nor a discovery",
                 dialect,
                 spec.id,

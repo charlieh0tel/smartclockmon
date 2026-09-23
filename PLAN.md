@@ -921,7 +921,25 @@ Things that are not decided, as distinct from the defects below.
    bit 5 -- documented "not used" in figure 5-1, so it signifies
    nothing.
 
-4. **Whether acknowledging from the monitor is wanted.**  Reading an
+4. **Asserting a known antenna position from the configuration.**  A
+   receiver at a surveyed site does not need to survey: told where it
+   is, it goes straight to position hold and starts serving time,
+   where a survey leaves the 1 PPS invalid for as long as it runs.  A
+   Z3805A brought up on a bench where a 58503A had already surveyed
+   the same antenna spent its first hour unable to do either, and the
+   position was known the whole time.
+
+   So `SMARTCLOCKD_POSITION`, asserted on attach.  Three things make it
+   more than a one-line setting.  It is a control command, so it needs
+   the same opt-in as the rest and must not fire under a daemon started
+   read-only.  It is non-volatile on the receiver, so a stale value
+   outlives the configuration that set it and a moved antenna becomes a
+   silently wrong clock.  And the two models disagree about the
+   vertical datum -- the 58503B reports height above the ellipsoid
+   where the others use mean sea level -- so the setting has to say
+   which it means rather than carry a bare number.
+
+5. **Whether acknowledging from the monitor is wanted.**  Reading an
    event register would say which bit latched rather than which group,
    and clears the alarm as it does so.  That makes it exactly the right
    implementation of a deliberate acknowledgement and exactly the wrong

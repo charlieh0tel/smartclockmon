@@ -16,6 +16,10 @@
 # latched events.
 # response:  parser name; see crates/smartclock/src/parse
 # models:    which receivers expose this command
+# cite:      where the spelling came from -- a manual and page
+#            ("097-..."), a receiver it was swept from ("discovered on
+#            a Z3805A"), or the image whose parser tables list it
+#            ("firmware image z3801a.bin, command tree").
 # evidence:  how far the entry has been confirmed --
 #            "manual"   transcribed from the document only
 #            "firmware" every keyword found in the firmware's own
@@ -231,6 +235,13 @@ doc = "Instantaneous antenna position."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-11"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:POSition:ACTual?"
+  response = "position"
+  models = ["Z3805A"]
+  cite = "firmware image z3801a.bin, command tree"
+  evidence = "firmware"
+
 
 [[command]]
 id = "position_set"
@@ -246,6 +257,13 @@ doc = "Place receiver in position hold at a given location."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-9"
   evidence = "manual"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:POSition"
+  response = "none"
+  models = ["Z3805A"]
+  cite = "firmware image z3801a.bin, command tree"
+  evidence = "firmware"
+
 
 [[command]]
 id = "position_hold_last"
@@ -276,6 +294,13 @@ doc = "Whether the receiver is in position hold."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-14"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:POSition:HOLD:STATe?"
+  response = "bool01"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "survey_progress"
@@ -327,6 +352,13 @@ doc = "Begin a position survey."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-17"
   evidence = "manual"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:POSition:SURVey:STATe ONCE"
+  response = "none"
+  models = ["Z3805A"]
+  cite = "firmware image z3801a.bin, command tree"
+  evidence = "firmware"
+
 
 [[command]]
 id = "survey_powerup"
@@ -339,6 +371,13 @@ doc = "Whether a survey runs at power-up."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-19"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:POSition:SURVey:STATe:POWerup?"
+  response = "bool01"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "survey_powerup_set"
@@ -355,6 +394,13 @@ doc = "Enable or disable survey at power-up."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-19"
   evidence = "manual"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:POSition:SURVey:STATe:POWerup"
+  response = "none"
+  models = ["Z3805A"]
+  cite = "firmware image z3801a.bin, command tree"
+  evidence = "firmware"
+
 
 [[command]]
 id = "elevation_mask"
@@ -600,6 +646,13 @@ doc = "Seed date to speed first acquisition."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-7"
   evidence = "manual"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:INITial:DATE"
+  response = "none"
+  models = ["Z3805A"]
+  cite = "firmware image z3801a.bin, command tree"
+  evidence = "firmware"
+
 
 [[command]]
 id = "initial_time_set"
@@ -615,6 +668,13 @@ doc = "Seed time to speed first acquisition."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-8"
   evidence = "manual"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:INITial:TIME"
+  response = "none"
+  models = ["Z3805A"]
+  cite = "firmware image z3801a.bin, command tree"
+  evidence = "firmware"
+
 
 [[command]]
 id = "initial_pos_set"
@@ -630,6 +690,13 @@ doc = "Seed position to speed first acquisition."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-7"
   evidence = "manual"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:GPSystem:INITial:POSition"
+  response = "none"
+  models = ["Z3805A"]
+  cite = "firmware image z3801a.bin, command tree"
+  evidence = "firmware"
+
 
 [[command]]
 id = "sync_state"

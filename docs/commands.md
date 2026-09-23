@@ -8,7 +8,7 @@ to regenerate; a test fails if this file and the table disagree.
 | Tree | Commands | Hardware | Firmware | Manual |
 | ---- | -------- | -------- | -------- | ------ |
 | 58503A/B, 59551A | 129 | 91 | 0 | 38 |
-| Z3801A, Z3816A | 72 | 16 | 55 | 1 |
+| Z3801A, Z3816A | 81 | 18 | 62 | 1 |
 
 **H** means the receiver answered it.  **F** means every keyword
 appears in the firmware's own keyword table, so the spelling is
@@ -60,15 +60,15 @@ anything reaching the receiver.
 | sre | Query | `*SRE?` H | `*SRE?` F |
 | stb | Query | `*STB?` H | `*STB?` F |
 | position avg | Query | `:GPS:POSition?` H | `:PTIMe:GPSystem:POSition?` F |
-| position actual | Query | `:GPS:POSition:ACTual?` H |  |
-| position set | Control | `:GPS:POSition` M |  |
+| position actual | Query | `:GPS:POSition:ACTual?` H | `:PTIMe:GPSystem:POSition:ACTual?` F |
+| position set | Control | `:GPS:POSition` M | `:PTIMe:GPSystem:POSition` F |
 | position hold last | Query | `:GPS:POSition:HOLD:LAST?` H | `:PTIMe:GPSystem:POSition:HOLD:LAST?` F |
-| position hold state | Query | `:GPS:POSition:HOLD:STATe?` H |  |
+| position hold state | Query | `:GPS:POSition:HOLD:STATe?` H | `:PTIMe:GPSystem:POSition:HOLD:STATe?` H |
 | survey progress | Query | `:GPS:POSition:SURVey:PROGress?` H | `:PTIMe:GPSystem:POSition:SURVey:PROGress?` F |
 | survey state | Query | `:GPS:POSition:SURVey:STATe?` H | `:PTIMe:GPSystem:POSition:SURVey:STATe?` F |
-| survey once | Control | `:GPS:POSition:SURVey:STATe ONCE` M |  |
-| survey powerup | Query | `:GPS:POSition:SURVey:STATe:POWerup?` H |  |
-| survey powerup set | Control | `:GPS:POSition:SURVey:STATe:POWerup` M |  |
+| survey once | Control | `:GPS:POSition:SURVey:STATe ONCE` M | `:PTIMe:GPSystem:POSition:SURVey:STATe ONCE` F |
+| survey powerup | Query | `:GPS:POSition:SURVey:STATe:POWerup?` H | `:PTIMe:GPSystem:POSition:SURVey:STATe:POWerup?` H |
+| survey powerup set | Control | `:GPS:POSition:SURVey:STATe:POWerup` M | `:PTIMe:GPSystem:POSition:SURVey:STATe:POWerup` F |
 | elevation mask | Query | `:GPS:SATellite:TRACking:EMANgle?` H | `:PTIMe:GPSystem:EMANgle?` F |
 | elevation mask set | Control | `:GPS:SATellite:TRACking:EMANgle` M |  |
 | sat ignore | Query | `:GPS:SATellite:TRACking:IGNore?` H | `:PTIMe:GPSystem:SATellite:TRACking:IGNore?` F |
@@ -83,9 +83,9 @@ anything reaching the receiver.
 | sat tracking count | Query | `:GPS:SATellite:TRACking:COUNt?` H | `:PTIMe:GPSystem:SATellite:TRACking:COUNt?` F |
 | sat visible | Query | `:GPS:SATellite:VISible:PREDicted?` H | `:PTIMe:GPSystem:SATellite:VISible:PREDicted?` F |
 | sat visible count | Query | `:GPS:SATellite:VISible:PREDicted:COUNt?` H | `:PTIMe:GPSystem:SATellite:VISible:PREDicted:COUNt?` F |
-| initial date set | Control | `:GPS:INITial:DATE` M |  |
-| initial time set | Control | `:GPS:INITial:TIME` M |  |
-| initial pos set | Control | `:GPS:INITial:POSition` M |  |
+| initial date set | Control | `:GPS:INITial:DATE` M | `:PTIMe:GPSystem:INITial:DATE` F |
+| initial time set | Control | `:GPS:INITial:TIME` M | `:PTIMe:GPSystem:INITial:TIME` F |
+| initial pos set | Control | `:GPS:INITial:POSition` M | `:PTIMe:GPSystem:INITial:POSition` F |
 | sync state | Query | `:SYNChronization:STATe?` H | `:ROSCillator:STATe?` F |
 | efc | Query | `:DIAGnostic:ROSCillator:EFControl:RELative?` H | `:DIAGnostic:ROSCillator:EFControl:RELative?` F |
 | led gpslock | Query | `:LED:GPSLock?` H | `:LED:GPSLock?` F |
