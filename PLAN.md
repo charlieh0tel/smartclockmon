@@ -929,15 +929,34 @@ Things that are not decided, as distinct from the defects below.
    the same antenna spent its first hour unable to do either, and the
    position was known the whole time.
 
-   So `SMARTCLOCKD_POSITION`, asserted on attach.  Three things make it
-   more than a one-line setting.  It is a control command, so it needs
-   the same opt-in as the rest and must not fire under a daemon started
-   read-only.  It is non-volatile on the receiver, so a stale value
-   outlives the configuration that set it and a moved antenna becomes a
-   silently wrong clock.  And the two models disagree about the
-   vertical datum -- the 58503B reports height above the ellipsoid
-   where the others use mean sea level -- so the setting has to say
-   which it means rather than carry a bare number.
+   So a position setting asserted on attach, taking any of three
+   forms: a geodetic position, earth-centred x, y and z, or the word
+   `survey` to say the receiver should determine its own.  The third
+   is not a no-op -- it is how you ask for a survey deliberately rather
+   than inheriting whatever the last operator left set.
+
+   Four things make it more than a one-line setting.
+
+   It is a control command, so it needs the same opt-in as the rest and
+   must not fire under a daemon started read-only.
+
+   It is non-volatile on the receiver, so a stale value outlives the
+   configuration that set it.  Worse, holding a position also means
+   turning off survey-on-powerup, or the next power cycle discards it;
+   set both and a receiver whose antenna has moved will never notice,
+   and will serve confident nonsense.  Whatever asserts a position
+   should be able to release it too.
+
+   The two models disagree about the vertical datum -- the 58503B
+   reports height above the ellipsoid where the others use mean sea
+   level -- so a geodetic setting has to say which it means rather than
+   carry a bare number.  Earth-centred coordinates sidestep that
+   entirely, which is half the reason to support them.
+
+   Observed on a Z3805A: brought up on a bench where a 58503A had
+   already surveyed the same antenna, it spent an hour unable to serve
+   time while the position was known the whole time.  Asserting it by
+   hand took two commands.
 
 5. **Whether acknowledging from the monitor is wanted.**  Reading an
    event register would say which bit latched rather than which group,
