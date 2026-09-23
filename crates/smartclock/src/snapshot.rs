@@ -31,13 +31,16 @@ use crate::types::TimeOfDay;
 ///
 /// The split is a link budget, not a preference.  The status screen is
 /// about 1.8 KB, close to a second of wire time at 19200, so it cannot
-/// share a one-second tier with anything else.
+/// share a one-second tier with anything else.  A tier is further
+/// broken into steps, run one per turn, so a slow tier holds the link
+/// for one query at a time rather than for its whole pass.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Tier {
     /// Short scalar queries: mode, figures of merit, interval, EFC and
     /// the hardware register.
     Fast,
-    /// The status screen and the holdover detail.
+    /// The status screen, the oscillator readings, the condition
+    /// registers and the holdover detail.
     Medium,
     /// Position, date and counters, which barely move.
     Slow,

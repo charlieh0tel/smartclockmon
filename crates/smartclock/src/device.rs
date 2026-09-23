@@ -383,6 +383,55 @@ fn datum_for(model: &str) -> Datum {
     }
 }
 
+/// One step of a tier's pass.
+///
+/// Naming the steps lets each tier be written as a list, so the number
+/// of steps is the length of that list rather than a second constant
+/// to keep in agreement with it.  Dispatch is an exhaustive match, so
+/// a step added here and nowhere else does not compile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Step {
+    /// Everything on the fast tier, read together.
+    Fast,
+    /// Oven temperature and current, and the EFC DAC.
+    Oscillator,
+    /// The subgroup condition registers.
+    Registers,
+    /// Holdover duration, prediction and present error.
+    Holdover,
+    /// Position and date.
+    Position,
+    /// Log count, learned tempco and the powerup register.
+    Counters,
+    /// The status screen.
+    Screen,
+}
+
+/// The steps making up each tier's pass, in the order they are run.
+///
+/// A scheduler takes one step per turn, so a tier costs the link its
+/// longest single step rather than its whole pass.  The fast tier is
+/// one step on purpose: its fields are compared against each other,
+/// and a time interval from one second beside an EFC from the next is
+/// a correlation nobody measured.
+const fn steps(tier: Tier) -> &'static [Step] {
+    match tier {
+        Tier::Fast => &[Step::Fast],
+        Tier::Medium => &[
+            Step::Oscillator,
+            Step::Registers,
+            Step::Holdover,
+            Step::Screen,
+        ],
+        Tier::Slow => &[Step::Position, Step::Counters],
+    }
+}
+
+/// How many steps a pass over this tier takes.
+pub fn step_count(tier: Tier) -> usize {
+    steps(tier).len()
+}
+
 /// Polling one tier's worth of fields into a snapshot.
 impl<T: Transport> Device<T> {
     /// Refresh the fields belonging to `tier`.
@@ -396,14 +445,49 @@ impl<T: Transport> Device<T> {
     /// of their own last success, so a caller can tell how old each
     /// group of fields is rather than reading one timestamp that the
     /// fastest tier keeps refreshing on everyone's behalf.
+    ///
+    /// This runs the tier's whole pass in one go.  A scheduler sharing
+    /// the link with a faster tier wants [`Device::poll_step`] instead.
     pub fn poll(&mut self, tier: Tier, into: &mut Snapshot, now: Timestamp) -> Result<()> {
-        match tier {
-            Tier::Fast => self.poll_fast(into)?,
-            Tier::Medium => self.poll_medium(into)?,
-            Tier::Slow => self.poll_slow(into, now)?,
+        for step in 0..step_count(tier) {
+            self.poll_step(tier, step, into, now)?;
+        }
+        Ok(())
+    }
+
+    /// Refresh one step of `tier`'s pass.
+    ///
+    /// Steps are numbered from zero and are meant to be run in order.
+    /// Success is recorded only on the last one: a pass is as old as
+    /// its slowest field, so stamping it partway through would call
+    /// fields fresh that had not been read yet.
+    ///
+    /// A step index past the end of the tier reads nothing and is not
+    /// an error, so a caller that has lost its place cannot wedge.
+    pub fn poll_step(
+        &mut self,
+        tier: Tier,
+        step: usize,
+        into: &mut Snapshot,
+        now: Timestamp,
+    ) -> Result<()> {
+        let steps = steps(tier);
+        let Some(step_kind) = steps.get(step) else {
+            return Ok(());
+        };
+        match step_kind {
+            Step::Fast => self.poll_fast(into)?,
+            Step::Oscillator => self.poll_oscillator(into)?,
+            Step::Registers => self.poll_registers(into)?,
+            Step::Holdover => self.poll_holdover(into)?,
+            Step::Position => self.poll_position(into, now)?,
+            Step::Counters => self.poll_counters(into)?,
+            Step::Screen => self.poll_screen(into)?,
         }
         into.at = now;
-        into.polled.succeeded(tier, now);
+        if step + 1 == steps.len() {
+            into.polled.succeeded(tier, now);
+        }
         into.settle_freshness();
         Ok(())
     }
@@ -420,23 +504,32 @@ impl<T: Transport> Device<T> {
         Ok(())
     }
 
-    fn poll_medium(&mut self, into: &mut Snapshot) -> Result<()> {
+    fn poll_oscillator(&mut self, into: &mut Snapshot) -> Result<()> {
         // Temperature and oven current sit here rather than on the fast
         // tier: they move slowly, and the fast tier is already close to
         // its budget.
         into.temperature = absent_if_unsupported(self.temperature())?.flatten();
         into.oven_current = absent_if_unsupported(self.oven_current())?.flatten();
         into.efc_dac = absent_if_unsupported(self.efc_dac())?.flatten();
-        // The subgroup condition registers.  A condition register is
-        // read in real time and holds nothing, so sampling one every
-        // ten seconds misses transitions -- the event registers catch
-        // those, and reading an event register clears it, which a
-        // logger has no business doing.  What survives a poll here is
-        // the receiver's steady state, which is what the history is
-        // for.
+        Ok(())
+    }
+
+    /// The subgroup condition registers.
+    ///
+    /// A condition register is read in real time and holds nothing, so
+    /// sampling one every ten seconds misses transitions -- the event
+    /// registers catch those, and reading an event register clears it,
+    /// which a logger has no business doing.  What survives a poll here
+    /// is the receiver's steady state, which is what the history is
+    /// for.
+    fn poll_registers(&mut self, into: &mut Snapshot) -> Result<()> {
         into.alarm = absent_if_unsupported(self.alarm_condition())?;
         into.operation = absent_if_unsupported(self.operation_condition())?;
         into.holdover_state = absent_if_unsupported(self.holdover_condition())?;
+        Ok(())
+    }
+
+    fn poll_holdover(&mut self, into: &mut Snapshot) -> Result<()> {
         let holdover = self.holdover_duration()?;
         into.holdover_duration = Some(holdover);
         into.holdover_predicted = absent_if_unsupported(self.holdover_predicted())?.flatten();
@@ -454,21 +547,22 @@ impl<T: Transport> Device<T> {
         } else {
             None
         };
-        into.screen = absent_if_unsupported(self.screen())?;
         Ok(())
     }
 
-    fn poll_slow(&mut self, into: &mut Snapshot, now: Timestamp) -> Result<()> {
-        // Every one of these is wrapped, including the two that already
-        // return an Option.  A receiver that has never had a fix
-        // refuses its date with -230, and a bare `?` on that line meant
-        // the slow tier never completed once on a cold Z3805A -- so the
-        // log count, the tempco and the powerup register below it were
-        // never read either, and reported themselves missing when they
-        // were merely unreached.
+    /// Every one of these is wrapped, including the two that already
+    /// return an Option.  A receiver that has never had a fix refuses
+    /// its date with -230, and a bare `?` on that line aborts the rest
+    /// of the tier: the counters below would report themselves missing
+    /// when they were merely unreached.
+    fn poll_position(&mut self, into: &mut Snapshot, now: Timestamp) -> Result<()> {
         into.position = absent_if_unsupported(self.position())?.flatten();
         let today = now.to_zoned(jiff::tz::TimeZone::UTC).date();
         into.date = absent_if_unsupported(self.date(today))?;
+        Ok(())
+    }
+
+    fn poll_counters(&mut self, into: &mut Snapshot) -> Result<()> {
         into.log_count = absent_if_unsupported(self.log_count())?;
         into.oven_tempco = absent_if_unsupported(self.oven_tempco())?.flatten();
         // All three of its bits are set during startup and then stay,
@@ -479,17 +573,53 @@ impl<T: Transport> Device<T> {
         into.powerup = absent_if_unsupported(self.powerup_condition())?;
         Ok(())
     }
+    /// The status screen.
+    ///
+    /// A step of its own because it is the one read that costs about a
+    /// second: 1.8 KB, which at 19200 8N1 is as long as a whole fast
+    /// pass.  Nothing else on the tier comes close.
+    fn poll_screen(&mut self, into: &mut Snapshot) -> Result<()> {
+        into.screen = absent_if_unsupported(self.screen())?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::Step;
     use super::absent_if_unsupported;
+    use super::steps;
     use crate::command::CommandId;
+    use crate::snapshot::Tier;
 
     use super::datum_for;
     use super::dialect_for;
     use crate::command::Dialect;
     use crate::types::Datum;
+
+    #[test]
+    fn every_step_belongs_to_exactly_one_tier() {
+        // A missing match arm is a compile error; a variant that no
+        // tier schedules is not, and would read nothing forever.
+        let scheduled: Vec<Step> = Tier::ALL.iter().flat_map(|t| steps(*t)).copied().collect();
+        // The screen is read on request, not on a schedule.
+        for step in [
+            Step::Fast,
+            Step::Oscillator,
+            Step::Registers,
+            Step::Holdover,
+            Step::Position,
+            Step::Counters,
+            Step::Screen,
+        ] {
+            assert_eq!(
+                scheduled.iter().filter(|s| **s == step).count(),
+                1,
+                "{step:?}"
+            );
+        }
+        assert_eq!(scheduled.len(), 7);
+    }
 
     #[test]
     fn the_model_chooses_the_command_tree() {

@@ -82,6 +82,43 @@ fn every_tier_polls_into_a_snapshot() {
 }
 
 #[test]
+fn a_pass_taken_a_step_at_a_time_reads_what_the_whole_pass_reads() {
+    let now = jiff::Timestamp::now();
+    let mut whole = Snapshot::new(now);
+    device(Receiver::default())
+        .poll(Tier::Medium, &mut whole, now)
+        .expect("the medium tier in one pass");
+
+    let mut stepped = Snapshot::new(now);
+    let mut device = device(Receiver::default());
+    for step in 0..smartclock::device::step_count(Tier::Medium) {
+        device
+            .poll_step(Tier::Medium, step, &mut stepped, now)
+            .expect("a medium step");
+        // The pass is only as fresh as its slowest field, so it is
+        // stamped once, at the end.
+        let done = step + 1 == smartclock::device::step_count(Tier::Medium);
+        assert_eq!(stepped.polled.medium.at.is_some(), done, "at step {step}");
+    }
+    assert_eq!(stepped.temperature, whole.temperature);
+    assert_eq!(stepped.efc_dac, whole.efc_dac);
+    assert_eq!(stepped.operation, whole.operation);
+    assert_eq!(stepped.holdover_predicted, whole.holdover_predicted);
+    assert_eq!(stepped.screen, whole.screen);
+
+    // A caller that has lost its place reads nothing rather than
+    // wedging on an index the tier does not have.
+    device
+        .poll_step(
+            Tier::Medium,
+            smartclock::device::step_count(Tier::Medium),
+            &mut stepped,
+            now,
+        )
+        .expect("a step past the end");
+}
+
+#[test]
 fn a_value_the_receiver_declines_reads_as_absent_not_as_a_failure() {
     // Present holdover error does not exist while locked; the receiver
     // answers -230, and that must not fail the whole tier.  It is not
@@ -213,7 +250,13 @@ fn the_task_polls_and_publishes_without_hardware() {
         let Ok(snapshot) = updates.recv_timeout(Duration::from_secs(2)) else {
             break;
         };
-        if snapshot.screen.is_some() && snapshot.date.is_some() {
+        // Every tier stamped, not merely one field from each: the
+        // tiers finish their passes at different times, so a snapshot
+        // carrying a screen can still predate the first medium pass.
+        if Tier::ALL
+            .iter()
+            .all(|t| snapshot.polled.get(*t).at.is_some())
+        {
             complete = Some(snapshot);
             break;
         }

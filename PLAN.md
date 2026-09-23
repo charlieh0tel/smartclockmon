@@ -483,6 +483,44 @@ The status screen is roughly 24 lines of 76 columns, about 1.8 KB.  At
 19200 8N1 that is about 0.95 s of wire time.  The status screen cannot
 be polled at 1 Hz alongside anything else.
 
+19200 is the ceiling, so the budget cannot be bought out with a faster
+link.  `097-59551-02` 5-101 lists four rates up to 19200, and the
+58503A answers `:SYSTem:COMMunicate:SERial1:BAUD 38400` with
+`+0,"No error"` while keeping 19200 -- it neither applies the rate nor
+reports refusing it.  `BaudRate` still knows 38400 and 115200, because
+a receiver some other tool has moved to one has to be reachable to be
+moved back.
+
+The medium tier is therefore interleaved rather than run as one pass.
+`Tier::steps()` gives the number of steps in a pass, the scheduler
+takes one step per turn, and a tier's freshness is stamped when the
+pass completes rather than when it starts.  The fast tier is
+deliberately one step, because its fields are compared against each
+other and a time interval from one second beside an EFC from the next
+is a correlation nobody measured.
+
+Measured on a 58503A at 19200, as the marginal cost over a 0.67 s
+open-and-synchronise, the medium tier is four steps of which one is
+almost all of it:
+
+| step                                    | cost   |
+| --------------------------------------- | ------ |
+| oscillator temperature, current, DAC    | 0.13 s |
+| condition registers                     | 0.12 s |
+| holdover duration, predicted, present   | 0.16 s |
+| status screen                           | 1.50 s |
+
+A whole fast pass, all eight of its queries, is 0.38 s.  So the worst
+the fast tier now waits is the screen, rather than the 1.9 s the whole
+pass took -- an improvement, but a small one, because the screen is
+1574 bytes: 0.94 s of wire time and another 0.5 s of the receiver
+composing it.  Interleaving cannot help with a single read that long.
+
+A refresh moves the deadlines but not the step cursors: restarting a
+pass in flight discards the steps already read, and under a stream of
+refreshes no pass would reach its last step, so no tier would ever be
+stamped as having run.
+
 Tiers, to be measured against hardware before being fixed:
 
 | Tier  | Contents                                                    |

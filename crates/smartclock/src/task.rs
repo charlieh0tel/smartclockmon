@@ -30,6 +30,7 @@ use std::time::Instant;
 use jiff::Timestamp;
 
 use crate::device::Device;
+use crate::device::step_count;
 use crate::error::Error;
 use crate::error::Result;
 use crate::session::Reply;
@@ -52,8 +53,9 @@ pub struct Cadence {
 impl Default for Cadence {
     fn default() -> Self {
         // The medium tier carries the status screen, roughly a second
-        // of wire time at 19200, so it cannot run much faster than this
-        // without starving everything else.
+        // of wire time at 19200.  Taken a step at a time it no longer
+        // stalls the fast tier for a whole pass, but that one step is
+        // still the longest read the receiver has.
         Self {
             fast: Duration::from_secs(1),
             medium: Duration::from_secs(10),
@@ -355,6 +357,17 @@ pub struct DeviceTask<T: Transport> {
     /// When each tier last ran, for breaking ties between equal
     /// deadlines.  See [`DeviceTask::next_due`].
     last_run: [Instant; 3],
+    /// The next step of each tier's pass to run.
+    ///
+    /// A tier that is due runs one step and yields the link, so a
+    /// faster tier waits out one query rather than a whole pass.  The
+    /// deadline moves only when a pass finishes and the cursor wraps.
+    ///
+    /// A refresh moves the deadlines but leaves the cursors alone.
+    /// Restarting a pass in flight would discard the steps already
+    /// read, and under a stream of refreshes no pass would ever reach
+    /// its last step, so no tier would ever be stamped as having run.
+    step: [usize; 3],
     /// Consecutive failed polls.
     failures: u32,
     /// Set when a served command left the session mid-reply.
@@ -398,6 +411,7 @@ impl<T: Transport> DeviceTask<T> {
             shared,
             requests,
             due: [now, now, now],
+            step: [0, 0, 0],
             last_run: [now, now, now],
             failures: 0,
             resync: false,
@@ -534,20 +548,30 @@ impl<T: Transport> DeviceTask<T> {
         }
         let now = Timestamp::now();
         let mut snapshot = self.shared.latest().unwrap_or_else(|| Snapshot::new(now));
-        let outcome = self.device.poll(tier, &mut snapshot, now);
+        let step = self.step[tier as usize];
+        let outcome = self.device.poll_step(tier, step, &mut snapshot, now);
         self.report_strays();
-        // Measured from when the tier was due, not from when its poll
-        // finished, or the period becomes cadence plus wire time and
-        // the sampling of a drifting oscillator is uneven.  Clamped
-        // forward when a poll overruns so a slow tier cannot accumulate
-        // a backlog of missed deadlines.
         self.last_run[tier as usize] = Instant::now();
-        let cadence = self.cadence.of(tier);
-        let slot = &mut self.due[tier as usize];
-        *slot += cadence;
-        let now_monotonic = Instant::now();
-        if *slot < now_monotonic {
-            *slot = now_monotonic + cadence;
+        // Mid-pass the tier stays due, so the next turn continues it
+        // unless something faster has come up meanwhile.  A pass that
+        // failed is abandoned rather than resumed: its later steps
+        // would be read after a resynchronisation, and reporting them
+        // as one pass would date the whole tier by the retry.
+        let finished = outcome.is_err() || step + 1 >= step_count(tier);
+        self.step[tier as usize] = if finished { 0 } else { step + 1 };
+        if finished {
+            // Measured from when the tier was due, not from when its
+            // pass finished, or the period becomes cadence plus wire
+            // time and the sampling of a drifting oscillator is uneven.
+            // Clamped forward when a pass overruns so a slow tier
+            // cannot accumulate a backlog of missed deadlines.
+            let cadence = self.cadence.of(tier);
+            let slot = &mut self.due[tier as usize];
+            *slot += cadence;
+            let now_monotonic = Instant::now();
+            if *slot < now_monotonic {
+                *slot = now_monotonic + cadence;
+            }
         }
 
         match outcome {
