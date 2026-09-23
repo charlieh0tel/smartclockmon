@@ -1,3 +1,20 @@
+smartclockmon (0.6.6-1) unstable; urgency=low
+
+  * Show one receiver at a time.  The web view and the monitor both
+    filter by receiver and offer a selector; a log holding two units no
+    longer draws them as one trace.
+  * A command a model does not have no longer voids the rest of the
+    poll.  A Z3805A has no TFOM in its dialect, and that one gap left
+    every later field on the tier unread and the snapshot unstamped.
+  * Sixteen commands added to the Z3801 dialect -- temperature, oven
+    current, EFC count, TFOM, date and time among them -- each confirmed
+    against a Z3805A and against the firmware's own keyword table.
+  * The monitor's journal is ordered by the receiver's own sequence.  A
+    stamp is elapsed time since boot until the first GPS lock, so
+    power-on entries sorted above what preceded them.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Tue, 22 Sep 2026 22:10:17 -0700
+
 smartclockmon (0.6.5-1) unstable; urgency=low
 
   * Schema 7.  Record which generation of the receiver's diagnostic log
