@@ -40,8 +40,46 @@ The exception is `:DIAGnostic:ERASe`, which belongs to the INSTALL
 language used for firmware download, not the PRIMARY language this
 table serves.  It stays `evidence = "manual"`.
 
-The table gives the vocabulary, not the tree: which keyword nests under
-which would need the parser code, not its strings.
+## The tree
+
+The vocabulary is not the tree, but the tree is in the image too, and
+it does not need the parser code to read.
+
+Two structures, both at file offsets -- pointers are absolute and the
+image is not relocated, so a stored pointer is a file offset as it
+stands.
+
+A **node** lives in `0x57000`..`0x5e000`:
+
+    +0   u32   pointer to the keyword pair
+    +4   u32   pointer to the child list, or out of range for a leaf
+
+A **child list** lives in `0x52000`..`0x53100`:
+
+    +0   u16   an id
+    +2   u16   how many children
+    +4   u16   flags; 0xffff is common
+    +6   u32 x count   pointers to child nodes
+
+Walking `:SYSTem:` gives `COMMunicate` -- itself the parent of `SER`,
+`SER1`, `SER2`, `SERIAL`, `SERIAL1` and `SERIAL2` -- then `DATE`,
+`ERRor`, `LANGuage`, `PRESet`, `PRINt:LENGth`, `STATus:LENGth` and
+`TIME`.
+
+Five of those were put to a Z3805A and all five exist:
+`:SYSTem:PRINt:LENGth?` answered `+23`, `:SYSTem:LANGuage?` answered
+`"PRIMARY"`, `:SYSTem:DATE?` and `:SYSTem:TIME?` were recognised and
+declined with -230 for want of a fix, and
+`:SYSTem:COMMunicate:SERIAL2:BAUD?` answered **+9600** -- a second
+serial port, at a different rate to the first, which neither manual
+mentions.
+
+What is not yet decoded is the top of the tree.  The region above the
+child lists reads as one flat sorted array of node pointers rather
+than as discrete records, so a naive count field there yields
+overlapping windows and a plausible-looking tree that is wrong.  Trust
+a path only once a receiver has answered it, or once the parser has
+been read properly -- which is Ghidra work, and on the open list.
 
 ## Of note
 
