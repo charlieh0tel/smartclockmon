@@ -22,11 +22,55 @@ answers with or without it: `:PTIMe:FFOMerit?` and
 `:SOURce:PTIMe:FFOMerit?` both returned `+3` from a Z3805A.
 
 A path being here means the parser knows it.  It does not mean the
-receiver will answer -- a value that does not exist yet is refused with
--230, and some of these are writes.  The four-letter `R...`/`W...`
-pairs are a factory interface of unknown effect and half of them write;
-`GARY`, `DOUGlas`, `KENneth` and `ROBin` are developer commands.  None
-of those has been sent.
+receiver implements it, and the difference is large: 282 of these were
+put to a Z3805A as queries and **124 answered or declined, 158 came
+back undefined**.  The tree is the vocabulary of the parser table, not
+the command set of any one model, so treat a path as a candidate until
+a receiver has answered it.
+
+Some of these are writes.  The four-letter `R...`/`W...` pairs are a
+factory interface of unknown effect and half of them write; `GARY`,
+`DOUGlas`, `KENneth` and `ROBin` are developer commands.  None of those
+has been sent.
+
+**A question mark does not make a command safe.**  A status group read
+with no leaf -- `:STATus:OPERation?`, `:STATus:QUEStionable?`,
+`:STATus:OPERation:POWerup?` and the rest -- returns the *event*
+register, and an event register clears when it is read.  Those five
+were swept before this was understood, and they cleared the Z3805A's
+latched events.  On a monitored receiver that would have thrown away
+exactly the history the daemon exists to keep, and taken the operator's
+front-panel alarm with it.  Any sweep list must exclude the bare group
+forms and anything ending `:EVENt?`.
+
+## What answered on a Z3805A
+
+`:DIAGnostic:OS:MEMory?`, `:PROCess?` and `:STACk?` dump the whole
+state of the real-time system, which is pSOS, and name its tasks:
+
+    scpi   the command parser        pllp   the disciplining loop
+    gpsm   GPS manager               curv   curve fitting
+    hmon   health monitor            klok   clock
+    spoo   spooler                   ROOT, IDLE
+
+with message exchanges `1pps`, `pllc`, `plla`, `gpsx`, `logr`, `eepx`,
+`sciR`/`sciW` and `drtR`/`drtW`, and about 13 percent of the CPU idle.
+`curv` and `pllp` are the learning and the loop that Kusters' design
+paper describes from the outside.
+
+Others worth knowing:
+
+    :DIAGnostic:PTIMe:TINTerval?        time interval, unlocked reading
+    :DIAGnostic:ROSCillator:EFControl?  the bare node answers as RELative
+    :DIAGnostic:SER*:RESTricted?        a restricted mode, on both ports
+    :DIAGnostic:SYSTem:PSTartup?        :DIAGnostic:SYSTem:DOUTput?
+    :DIAGnostic:SLOG:COUNt?             the second log is real
+    :SENSe:DATA:POINts?                 three measurement arrays
+    :SYSTem:PRINt?                      the whole status screen again
+    :LED:ACTive? :ALARm:MAJor? :ENABled? :TMHValid?
+
+88 of the 118 that answered were `:SYSTem:COMMunicate` -- the serial
+settings, which are per port and per direction.
 
 ## Paths
 

@@ -6,6 +6,14 @@
 # class:     query      read-only, always permitted
 #            control    changes receiver state, requires config opt-in
 #            dangerous  can strand the link or wipe configuration
+#
+# "query" means read-only, not harmless.  An event register clears when
+# it is read, so :STATus:...:EVENt? and the bare group forms the
+# firmware also accepts -- :STATus:OPERation?, :STATus:QUEStionable? --
+# destroy what they report.  The daemon never polls one; they are here
+# so a deliberate acknowledgement has a spelling, and so a sweep can be
+# told to leave them alone.  One sweep was not, and cleared a Z3805A's
+# latched events.
 # response:  parser name; see crates/smartclock/src/parse
 # models:    which receivers expose this command
 # evidence:  how far the entry has been confirmed --
@@ -1154,6 +1162,7 @@ doc = "Operation condition register."
 [[command]]
 id = "oper_event"
 class = "query"
+# Reading this clears it.  Never on a timer.
 doc = "Operation event register."
 
   [command.dialect.hp58503]
@@ -1184,6 +1193,7 @@ doc = "Hardware condition register; EFC full-scale is bits 6 and 7."
 [[command]]
 id = "hardware_event"
 class = "query"
+# Reading this clears it.  Never on a timer.
 doc = "Hardware event register."
 
   [command.dialect.hp58503]
@@ -1214,6 +1224,7 @@ doc = "Holdover condition register."
 [[command]]
 id = "holdover_event"
 class = "query"
+# Reading this clears it.  Never on a timer.
 doc = "Holdover event register."
 
   [command.dialect.hp58503]
@@ -1262,6 +1273,7 @@ doc = "Questionable condition register."
 [[command]]
 id = "quest_event"
 class = "query"
+# Reading this clears it.  Never on a timer.
 doc = "Questionable event register."
 
   [command.dialect.hp58503]
@@ -1274,6 +1286,7 @@ doc = "Questionable event register."
 [[command]]
 id = "powerup_event"
 class = "query"
+# Reading this clears it.  Never on a timer.
 doc = "Powerup event register."
 
   [command.dialect.hp58503]
