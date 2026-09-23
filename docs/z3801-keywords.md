@@ -74,12 +74,20 @@ declined with -230 for want of a fix, and
 serial port, at a different rate to the first, which neither manual
 mentions.
 
-What is not yet decoded is the top of the tree.  The region above the
-child lists reads as one flat sorted array of node pointers rather
-than as discrete records, so a naive count field there yields
-overlapping windows and a plausible-looking tree that is wrong.  Trust
-a path only once a receiver has answered it, or once the parser has
-been read properly -- which is Ghidra work, and on the open list.
+The whole tree comes out this way; `z3801-tree.md` is it, 513 paths.
+
+Two things had to be got right first, and both were mistakes of method
+rather than anything hidden in the image.  Searching the child-list
+region for any window containing a target finds overlapping windows,
+because a pointer array contains its own sub-arrays -- only a list
+some node's `+4` actually points at is a real one.  And walking to
+leaves alone loses every node that is both a command and a parent, so
+`:PTIMe:GPSystem:POSition` vanishes behind its own children.
+
+`:SOURce` is an optional header, which is why the roots looked wrong:
+`PTIMe`, `PULSe`, `ROSCillator` and `SYNChronization` all hang beneath
+it.  Both forms answer -- `:PTIMe:FFOMerit?` and
+`:SOURce:PTIMe:FFOMerit?` each returned `+3` from a Z3805A.
 
 ## Of note
 
