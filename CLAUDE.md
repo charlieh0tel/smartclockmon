@@ -62,14 +62,17 @@ here, where they go stale unnoticed.
 
 ## Programming Rules
 
-- Prefer ASCII in all code and user-facing strings (logs, CLI output,
-  error messages).  Ask before using Unicode.
-- The TUI is the exception: box drawing, block elements, braille and
-  other Unicode are fine there, with no ASCII fallback.  One existed and
-  was dropped: ratatui draws chart axes with box-drawing glyphs a caller
-  cannot replace, so the mode could never have been complete, and a
-  fallback that is wrong in the one place it is needed is worse than
-  none.
+- Prefer ASCII in code, in machine-facing output, and in anything a
+  script might parse: logs, CLI output, error messages.  Ask before
+  using Unicode there.
+- Output meant for a person to read is the exception, and Unicode is
+  fine in it with no ASCII fallback.  That covers the TUI -- box
+  drawing, block elements, braille -- and the browser views, where a
+  chart axis says the thing it means: tau, sigma, degrees, micro.
+  One fallback existed and was dropped: ratatui draws chart axes with
+  box-drawing glyphs a caller cannot replace, so the mode could never
+  have been complete, and a fallback that is wrong in the one place it
+  is needed is worse than none.
 - Prefer consistency above most other concerns.
 - Do not add trivial, obvious or redundant comments.
 - Be DRY.
