@@ -175,8 +175,6 @@ and 1 PPS, and report state over a serial port using SCPI.
 | Z3805A | `:PTIME:GPSYSTEM:`, `:ROSC:` | Answers the Z3801A tree; verified on hardware |
 | Z3816A | `:PTIME:GPSYSTEM:`, `:ROSC:` | Assumed as Z3801A; unverified          |
 
-The 58503A's rear serial port is DB-25; the 58503B uses DB-9.
-
 These receivers' GPS engines are mid-1990s Motorola boards whose
 firmware predates the GPS week rollovers of 1999 and 2019, so a unit
 reports a date 1024 weeks in the past.  Time of day, 1 PPS and 10 MHz
@@ -184,9 +182,9 @@ are unaffected, and `smartclock` corrects the date rather than
 presenting it as a fault.  `:DIAGnostic:IDENtification:GPSystem?`
 names the engine on both command trees.
 
-Which receivers are actually on hand, what they answer `*IDN?` with
-and how they are wired are facts about one bench rather than about
-this project, so they live in `BENCHNOTES.md` and not here.
+Which receivers are on hand, what they answer `*IDN?` with and how
+they are cabled are facts about one bench rather than about this
+project, so they live in `BENCHNOTES.md` and not here.
 
 Both report `:DIAGnostic:IDENtification:GPSystem?`, so the pair can be
 compared directly rather than inferred.  Note what it does not settle:
