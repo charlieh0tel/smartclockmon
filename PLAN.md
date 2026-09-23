@@ -655,7 +655,7 @@ make clippy     cargo clippy --all-targets -- -D warnings
 make test       cargo test
 make test-hw    cargo test -- --ignored
 make deb        a snapshot package
-make release VERSION=x.y.z
+make release    tag the version Cargo.toml already names
 ```
 
 CI called `make ci` at first, so that local and CI ran one definition

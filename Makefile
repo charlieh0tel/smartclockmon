@@ -83,15 +83,28 @@ deb:
 # silently is not one.  Refuses a dirty tree, since the tag would name a
 # commit that does not contain what was built.
 #
-#     make release VERSION=0.1.1
+#     make release
+#
+# The version comes from Cargo.toml, which the previous release already
+# set to the one being prepared -- that is what "Open x.y.z for
+# development" does.  Naming it again on the command line was a second
+# source of truth for a number that is already written down, and
+# nothing checked the two agreed.  `make release VERSION=x.y.z` still
+# works, for releasing something other than the version in hand, and is
+# refused if it disagrees with Cargo.toml.
+CARGO_VERSION = $(shell sed -n '0,/^version = "\(.*\)"/s//\1/p' Cargo.toml)
+VERSION ?= $(CARGO_VERSION)
 # The version development continues on once VERSION is released: the
 # next patch, so a snapshot sorts after the release it follows.
 NEXT_VERSION = $(shell echo "$(VERSION)" | awk -F. '{printf "%d.%d.%d", $$1, $$2, $$3 + 1}')
 
 release:
-	@test -n "$(VERSION)" || { echo "usage: make release VERSION=x.y.z" >&2; exit 2; }
+	@test -n "$(VERSION)" || { echo "cannot read a version from Cargo.toml" >&2; exit 2; }
 	@echo "$(VERSION)" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$' || \
 	    { echo "VERSION must be x.y.z, not $(VERSION)" >&2; exit 2; }
+	@test "$(VERSION)" = "$(CARGO_VERSION)" || \
+	    { echo "VERSION $(VERSION) is not the $(CARGO_VERSION) in Cargo.toml" >&2; exit 2; }
+	@echo "releasing $(VERSION), the version Cargo.toml already names"
 	@test -z "$$(git status --porcelain)" || { echo "the tree is dirty" >&2; exit 2; }
 	@git rev-parse -q --verify "refs/tags/v$(VERSION)" >/dev/null && \
 	    { echo "v$(VERSION) already exists" >&2; exit 2; } || true
