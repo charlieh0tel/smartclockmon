@@ -449,12 +449,20 @@ const COUNTS = { tracking: 8, not_tracking: 12, tfom: 9, ffom: 3 };
 
 function countScale(max, pinned, target) {
   const top = Math.max(pinned, Math.ceil(max) || 0, 1);
+  const most = Math.max(4, target + 3);
+  // A step that divides the top exactly, so the axis ends on the pin
+  // rather than above it: TFOM runs to 9, and rounding up to a step of
+  // 2 gave it an axis to 10 and a grid line at a figure of merit the
+  // receiver cannot report.
+  for (const step of [1, 2, 3, 4, 5, 6, 10, 12, 20, 25, 50]) {
+    if (top % step) continue;
+    const n = top / step;
+    if (n >= 2 && n <= most) return { lo: 0, hi: top, step, n };
+  }
   for (const step of [1, 2, 5, 10, 20, 50]) {
     const hi = Math.ceil(top / step) * step;
     const n = hi / step;
-    if (n >= 2 && n <= Math.max(4, target + 3)) {
-      return { lo: 0, hi, step, n };
-    }
+    if (n >= 2 && n <= most) return { lo: 0, hi, step, n };
   }
   return { lo: 0, hi: top, step: top, n: 1 };
 }
