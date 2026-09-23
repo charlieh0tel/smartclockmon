@@ -113,11 +113,7 @@ impl<T: Transport> Device<T> {
     /// present holdover error while locked.  That is an answer, not a
     /// failure, and a monitor should show it as absent.
     fn ask_optional(&mut self, id: CommandId) -> Result<Option<String>> {
-        match self.ask(id) {
-            Ok(line) => Ok(Some(line)),
-            Err(Error::Device { code, .. }) if is_state_refusal(code) => Ok(None),
-            Err(e) => Err(e),
-        }
+        absent_if_unsupported(self.ask(id))
     }
 
     /// Which mode the disciplining loop is in.
@@ -339,6 +335,28 @@ impl<T: Transport> Device<T> {
     }
 }
 
+/// A value this receiver cannot give reads as absent, not as a failure.
+///
+/// Two things mean that, and they mean the same to a reader.  The
+/// receiver may refuse with a state error, because the value does not
+/// exist yet -- present holdover error while locked.  Or the dialect
+/// may have no command for it at all, because this model does not
+/// expose it.
+///
+/// Neither is a reason to abandon a tier.  A Z3805A has no spelling for
+/// TFOM in the Z3801 tree, and one `?` on that line used to void every
+/// field after it: the snapshot went unstamped and empty, a hundred and
+/// twenty-eight rows carrying one frozen timestamp and no readings,
+/// while every other value on the tier was there for the asking.
+fn absent_if_unsupported<T>(result: Result<T>) -> Result<Option<T>> {
+    match result {
+        Ok(value) => Ok(Some(value)),
+        Err(Error::Unsupported { .. }) => Ok(None),
+        Err(Error::Device { code, .. }) if is_state_refusal(code) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
 fn to_u8(line: &str) -> Option<u8> {
     parse::int(line).ok().and_then(|n| u8::try_from(n).ok())
 }
@@ -391,14 +409,14 @@ impl<T: Transport> Device<T> {
     }
 
     fn poll_fast(&mut self, into: &mut Snapshot) -> Result<()> {
-        into.mode = Some(self.mode()?);
-        into.tfom = Some(self.tfom()?);
-        into.ffom = Some(self.ffom()?);
+        into.mode = absent_if_unsupported(self.mode())?;
+        into.tfom = absent_if_unsupported(self.tfom())?;
+        into.ffom = absent_if_unsupported(self.ffom())?;
         into.time_interval = self.time_interval()?;
-        into.efc = Some(self.efc()?);
-        into.hardware = Some(self.hardware_condition()?);
-        into.holdover_waiting = Some(self.holdover_waiting()?);
-        into.time = Some(self.time()?);
+        into.efc = absent_if_unsupported(self.efc())?;
+        into.hardware = absent_if_unsupported(self.hardware_condition())?;
+        into.holdover_waiting = absent_if_unsupported(self.holdover_waiting())?;
+        into.time = absent_if_unsupported(self.time())?;
         Ok(())
     }
 
@@ -416,9 +434,9 @@ impl<T: Transport> Device<T> {
         // logger has no business doing.  What survives a poll here is
         // the receiver's steady state, which is what the history is
         // for.
-        into.alarm = Some(self.alarm_condition()?);
-        into.operation = Some(self.operation_condition()?);
-        into.holdover_state = Some(self.holdover_condition()?);
+        into.alarm = absent_if_unsupported(self.alarm_condition())?;
+        into.operation = absent_if_unsupported(self.operation_condition())?;
+        into.holdover_state = absent_if_unsupported(self.holdover_condition())?;
         let holdover = self.holdover_duration()?;
         into.holdover_duration = Some(holdover);
         into.holdover_predicted = self.holdover_predicted()?;
@@ -436,7 +454,7 @@ impl<T: Transport> Device<T> {
         } else {
             None
         };
-        into.screen = Some(self.screen()?);
+        into.screen = absent_if_unsupported(self.screen())?;
         Ok(())
     }
 
@@ -445,20 +463,23 @@ impl<T: Transport> Device<T> {
         let today = now.to_zoned(jiff::tz::TimeZone::UTC).date();
         let date = self.date(today)?;
         into.date = Some(date);
-        into.log_count = Some(self.log_count()?);
+        into.log_count = absent_if_unsupported(self.log_count())?;
         into.oven_tempco = self.oven_tempco()?;
         // All three of its bits are set during startup and then stay,
         // so asking on every medium poll spent a round trip to be told
         // what it said last time.  The medium tier is the one against
         // its budget; this belongs with the other things that barely
         // move.
-        into.powerup = Some(self.powerup_condition()?);
+        into.powerup = absent_if_unsupported(self.powerup_condition())?;
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::absent_if_unsupported;
+    use crate::command::CommandId;
+
     use super::datum_for;
     use super::dialect_for;
     use crate::command::Dialect;
@@ -480,5 +501,39 @@ mod tests {
         assert_eq!(datum_for("58503A"), Datum::MeanSeaLevel);
         assert_eq!(datum_for("59551A"), Datum::MeanSeaLevel);
         assert_eq!(datum_for("58503B"), Datum::Ellipsoid);
+    }
+    #[test]
+    fn a_command_this_model_lacks_is_absent_rather_than_a_failure() {
+        // A Z3805A has no TFOM in the Z3801 tree.  Before this, the `?`
+        // on that one line abandoned the rest of the fast tier: the
+        // snapshot was never stamped and never filled, so a hundred and
+        // twenty-eight rows arrived carrying one frozen timestamp and
+        // no readings, while FFOM, EFC and the rest were there for the
+        // asking.
+        let missing: crate::error::Result<u8> = Err(crate::error::Error::Unsupported {
+            dialect: "z3801",
+            operation: CommandId::Tfom,
+        });
+        assert_eq!(
+            absent_if_unsupported(missing).expect("must not propagate"),
+            None
+        );
+
+        // A refusal means the same to a reader and is treated the same.
+        let refused: crate::error::Result<u8> = Err(crate::error::Error::Device {
+            code: -230,
+            message: "Data corrupt or stale".to_owned(),
+        });
+        assert_eq!(absent_if_unsupported(refused).expect("nor this"), None);
+
+        // Anything else still is a failure: a receiver that stopped
+        // answering must not read as a receiver without the feature.
+        let broken: crate::error::Result<u8> = Err(crate::error::Error::Parse {
+            reply: "nonsense".to_owned(),
+            expected: "a number",
+        });
+        assert!(absent_if_unsupported(broken).is_err());
+
+        assert_eq!(absent_if_unsupported(Ok(3u8)).expect("a value"), Some(3));
     }
 }
