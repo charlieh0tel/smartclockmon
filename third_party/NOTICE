@@ -29,3 +29,43 @@ Hewlett-Packard / Agilent / Symmetricom
                              design paper for SmartClock itself: what
                              the receiver learns, when, and where it
                              keeps it.
+
+Firmware images
+---------------
+
+Read-only images of the instruments' own program ROMs, from which the
+SCPI command tree in `docs/z3801-tree.md` was extracted and against
+which claims about the command set are checked.  Motorola 68000 code,
+big-endian, loaded at address zero.
+
+  z3801a.bin                 Z3801A firmware
+  z3816a.bin                 Z3816A firmware
+
+Motorola / Synergy Systems
+--------------------------
+
+The GPS receiver inside these instruments is a Motorola Oncore, and
+the interval the instrument measures has that receiver's 1 PPS at one
+end of it, so its message set is as much a part of the specification
+as the SCPI manuals.
+
+  VPCommands.pdf             "VP Oncore Command Reference", Synergy
+                             Systems, LLC, October 2001.  Compiled and
+                             audited against Motorola's Technical
+                             Reference Manual TRM0001 version 7.0 of
+                             May 1996, and covering the 6 channel
+                             PVT-6 and Basic Oncore and the 6 and 8
+                             channel VP Oncore.  The Time RAIM setup
+                             and status messages it documents, @@Bn
+                             for six channels and @@En for eight, are
+                             what carry the negative sawtooth residual.
+  ut-engg-notes.pdf          "Oncore Engineering Note: UT Plus
+                             Oncore", Motorola, revision 1.0, March
+                             2000.  Mechanical, electrical and 1 PPS
+                             detail for the UT+.
+  SSR-VP-UT-and-GT-Drop-In-ReplacementsTN484-D-031925.pdf
+                             Synergy Systems, LLC tech note #484-D,
+                             revised January 2025.  Present-day u-blox
+                             based drop-in replacements for the VP, UT+
+                             and GT+ Oncore, which do not suffer the
+                             1024 week rollover these instruments do.
