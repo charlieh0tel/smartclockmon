@@ -19,7 +19,18 @@ and stays at 19200.
 Oscillator is an HP 10811-60159; see `docs/OCXO.md` for the
 specification and `docs/efc.md` for the EFC measurements taken on it.
 
-GPS engine: Motorola, `MODEL # B4121P1115`, `SOFTWARE DATE 06 Aug 1996`.
+GPS receiver, as `:DIAGnostic:IDENtification:GPSystem?` reports it:
+
+    COPYRIGHT 1991-1996 MOTOROLA INC.
+    SFTW P/N # 98-P36830P
+    SOFTWARE VER # 8
+    SOFTWARE REV # 8
+    SOFTWARE DATE  06 Aug 1996
+    MODEL #    B4121P1115
+    HDWR P/N # _
+    SERIAL #   SSG0220999
+    MANUFACTUR DATE 7D01
+    OPTIONS LIST    IB
 
 Its diagnostic log had been full at 222 entries since March 2025 and
 had therefore stopped recording; the entries were copied out and the
@@ -39,9 +50,18 @@ Takes the Z3801A command tree, selected by the `Z38` prefix.  Every
 read-only command in that tree answered; the sixteen entries added to
 it in September 2026 were confirmed here.
 
-GPS engine: Motorola, `MODEL # B1121P1114`, `SOFTWARE DATE 13 Jul
-1995` -- one digit and one year from the 58503A's, which is why both
-report the same 1024-week offset and, on the same day, the same date.
+GPS receiver, as `:DIAGnostic:IDENtification:GPSystem?` reports it:
+
+    COPYRIGHT 1991-1995 MOTOROLA INC.
+    SFTW P/N # 98-P39972M
+    SOFTWARE VER # 8   REV # 4   DATE 13 JUL 1995
+    MODEL #    B1121P1114
+    SERIAL #   SSG0163878
+    MANUFACTUR DATE 6G09
+    OPTIONS LIST    IB
+
+One digit and one year from the 58503A's, which is why both report the
+same 1024-week offset and, on the same day, the same date.
 
 Its own diagnostic log held 225 entries, not the 222 the 58503A stops
 at.  Copied out and cleared.
