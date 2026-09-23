@@ -49,33 +49,45 @@ survey-on-powerup turned off so it survives a power cycle.  **Both
 settings are non-volatile.**  If that antenna moves, this receiver will
 not notice and will serve time from a position that is no longer true.
 
-## Wiring
+## The Z3805A's receive path is degraded
 
-Both receivers present a DB-25 and take the same lead and the same
-USB-serial adapter, so swapping which one is monitored is a matter of
-moving one cable:
+It knows where every satellite is and cannot hear them.  Its predicted
+elevations and azimuths match what the 58503A tracks, PRN for PRN, on
+the same antenna minutes apart:
 
-    /dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0
+    PRN     Z3805A predicted      58503A tracking, with signal
+              1     22  314         23  314    74
+              2     45  310         46  310   152
+              8     29  256         29  254    79
+             10     47   60         46   61   137
+             23     18   81         17   83    62
+             27     23  214         22  214   105
+             28     32  148         33  148   103
+             32     78   35         76   35   250
 
-Both are at 19200 8N1, so nothing needs reconfiguring when they swap.
-Only one can be monitored at a time: the daemon serves one device, and
-there is one adapter.
+So the almanac is sound and it is pointing correctly.  On the same
+cable and adapter the 58503A reads 62 to 250 where the Z3805A has
+never exceeded 29 in a day of watching, on either of two antennas.
+Even allowing that two engines may scale signal differently, it hears
+roughly an order of magnitude less.
 
-## Unexplained
-
-On one antenna the 58503A holds seven to ten satellites while the
-Z3805A holds two to four, and drops lock every few minutes where the
-other stays locked for days.
-
-Ruled out, each by measurement rather than argument: the antenna (the
-58503A works on it), the Z3805A's antenna bias (4.8 V at the N
+Everything else is eliminated, each by measurement against the 58503A
+as a control on the same cables: both antennas, the distribution amp
+drop, the cable, the adapter, the antenna bias (4.8 V at the N
 connector against a 4.5 V specification -- `097-58503-13` Antenna Power
-Verification), its supply (28 V at 3 A, and no rail fault bit in nine
-hours), its asserted position (reads back correct and agrees with the
-58503A's survey to within a metre), the elevation mask (10 degrees on
-both, nothing ignored, all 32 included) and its health monitor (all
-six items OK throughout).
+Verification), the supply (28 V at 3 A, no rail fault bit in ten
+hours), the asserted position (reads back correct, agrees with the
+58503A's survey to within a metre), the elevation mask (10 degrees,
+nothing ignored, all 32 included), and the health monitor (six of six
+OK throughout).
 
-Signal strengths on the Z3805A have never exceeded 29 and mostly sit
-between 19 and 28.  Whether that is comparable to the 58503A's 35 to
-128 is unknown: the engines differ and the scale is undocumented.
+What it can still do is the reason not to call it dead: over about
+five hours it acquired enough to download an almanac, validate its
+time and reach `Locked` with TFOM 3.  Downloading an almanac needs
+sustained data lock, which a deaf receiver cannot manage.  It is
+degraded, not broken -- which matches a time-nuts report of another
+Z3805A whose Oncore lost sensitivity over time.
+
+Left in position hold at the surveyed antenna position with
+survey-on-powerup off, so it serves time from its oscillator whether
+or not it ever tracks.
