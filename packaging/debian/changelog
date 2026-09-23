@@ -1,3 +1,13 @@
+smartclockmon (0.6.7-1) unstable; urgency=low
+
+  * A refused value no longer costs the rest of the poll.  A receiver
+    that has never had a fix declines its date, and that one refusal
+    stopped the slow tier before the log count, the oscillator tempco
+    and the powerup register, which then reported themselves
+    unavailable when they had simply never been asked.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Tue, 22 Sep 2026 23:01:50 -0700
+
 smartclockmon (0.6.6-1) unstable; urgency=low
 
   * Show one receiver at a time.  The web view and the monitor both
