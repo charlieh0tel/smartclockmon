@@ -13,7 +13,8 @@ in the log says which receiver it came from.
 
     HEWLETT-PACKARD,58503A,3710A01056,3704-C
 
-Option 001, so it has the front-panel display and keypad.  19200 8N1, on a DB-25.  Oscillator is an HP 10811-60159; see `docs/OCXO.md` for the
+Option 001, so it has the front-panel display and keypad.  19200 8N1.
+Oscillator is an HP 10811-60159; see `docs/OCXO.md` for the
 specification and `docs/efc.md` for the EFC measurements taken on it.
 
 GPS engine: Motorola, `MODEL # B4121P1115`, `SOFTWARE DATE 06 Aug 1996`.
@@ -47,6 +48,18 @@ Position was asserted by hand rather than surveyed, and
 survey-on-powerup turned off so it survives a power cycle.  **Both
 settings are non-volatile.**  If that antenna moves, this receiver will
 not notice and will serve time from a position that is no longer true.
+
+## Wiring
+
+Both receivers present a DB-25 and take the same lead and the same
+USB-serial adapter, so swapping which one is monitored is a matter of
+moving one cable:
+
+    /dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0
+
+Both are at 19200 8N1, so nothing needs reconfiguring when they swap.
+Only one can be monitored at a time: the daemon serves one device, and
+there is one adapter.
 
 ## Unexplained
 
