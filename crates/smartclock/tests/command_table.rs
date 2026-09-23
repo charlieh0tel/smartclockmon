@@ -113,15 +113,22 @@ fn the_z3801_tree_is_a_subset_of_the_primary_one() {
 }
 
 #[test]
-fn no_z3801_entry_claims_hardware() {
-    // No Z3801A has ever been on the line.  Those entries are confirmed
-    // against the firmware's keyword table at best.
+fn a_z3801_entry_claiming_hardware_names_the_unit() {
+    // This used to forbid hardware evidence outright, because no
+    // receiver of that family had ever been on the line.  One has: a
+    // Z3805A, 3625A01487, firmware 3543B-A.  The guard therefore
+    // becomes a weaker but still real one -- an entry may claim
+    // hardware only if it says which unit answered, so the claim stays
+    // checkable rather than becoming a habit.
     for spec in Dialect::Z3801.specs() {
-        assert_ne!(
-            spec.evidence,
-            Evidence::Hardware,
-            "{:?} claims hardware, but no Z3801A has been on the line",
-            spec.id
+        if spec.evidence != Evidence::Hardware {
+            continue;
+        }
+        assert!(
+            spec.cite.contains("Z380") || spec.cite.contains("Z381"),
+            "{:?} claims hardware without naming the unit: {:?}",
+            spec.id,
+            spec.cite
         );
     }
 }
@@ -136,9 +143,16 @@ fn most_of_the_z3801_tree_is_firmware_confirmed() {
         .iter()
         .filter(|s| s.evidence == Evidence::Firmware)
         .count();
+    // Entries promoted to hardware after the Z3805A answered them are
+    // still firmware-confirmed; they just record the stronger evidence.
+    let hardware = Dialect::Z3801
+        .specs()
+        .iter()
+        .filter(|s| s.evidence == Evidence::Hardware)
+        .count();
     assert!(
-        firmware >= 55,
-        "only {firmware} entries are firmware-confirmed"
+        firmware + hardware >= 55,
+        "only {firmware} firmware-confirmed and {hardware} hardware-confirmed"
     );
 }
 

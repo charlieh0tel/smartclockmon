@@ -8,7 +8,7 @@ to regenerate; a test fails if this file and the table disagree.
 | Tree | Commands | Hardware | Firmware | Manual |
 | ---- | -------- | -------- | -------- | ------ |
 | 58503A/B, 59551A | 129 | 91 | 0 | 38 |
-| Z3801A, Z3816A | 56 | 0 | 55 | 1 |
+| Z3801A, Z3816A | 72 | 16 | 55 | 1 |
 
 **H** means the receiver answered it.  **F** means every keyword
 appears in the firmware's own keyword table, so the spelling is
@@ -91,7 +91,7 @@ anything reaching the receiver.
 | led gpslock | Query | `:LED:GPSLock?` H | `:LED:GPSLock?` F |
 | led holdover | Query | `:LED:HOLDover?` H | `:LED:HOLDover?` F |
 | ffom | Query | `:SYNChronization:FFOMerit?` H | `:PTIMe:FFOMerit?` F |
-| tfom | Query | `:SYNChronization:TFOMerit?` H |  |
+| tfom | Query | `:SYNChronization:TFOMerit?` H | `:PTIMe:TFOMerit?` H |
 | tinterval | Query | `:SYNChronization:TINTerval?` H | `:PTIMe:TINTerval?` F |
 | holdover unc pred | Query | `:SYNChronization:HOLDover:TUNCertainty:PREDicted?` H | `:ROSCillator:HOLDover:TUNCertainty:PREDicted?` F |
 | holdover unc now | Query | `:SYNChronization:HOLDover:TUNCertainty:PRESent?` H | `:ROSCillator:HOLDover:TUNCertainty:PRESent?` F |
@@ -105,9 +105,9 @@ anything reaching the receiver.
 | holdover limit ignore | Control | `:SYNChronization:HOLDover:RECovery:LIMit:IGNore` M | `:ROSCillator:HOLDover:RECovery:LIMit:IGNore` F |
 | sync immediate | Control | `:SYNChronization:IMMediate` M | `:PTIMe:SYNChronization:IMMediate` F |
 | status screen | Query | `:SYSTem:STATus?` H | `:SYSTem:STATus?` F |
-| status screen lines | Query | `:SYSTem:STATus:LENGth?` H |  |
+| status screen lines | Query | `:SYSTem:STATus:LENGth?` H | `:SYSTem:STATus:LENGth?` H |
 | error | Query | `:SYSTem:ERRor?` H | `:SYSTem:ERRor?` F |
-| log read all | Query | `:DIAGnostic:LOG:READ:ALL?` H |  |
+| log read all | Query | `:DIAGnostic:LOG:READ:ALL?` H | `:DIAGnostic:LOG:READ:ALL?` H |
 | log count | Query | `:DIAGnostic:LOG:COUNt?` H | `:DIAGnostic:LOG:COUNt?` F |
 | log read | Query | `:DIAGnostic:LOG:READ?` H | `:DIAGnostic:LOG:READ?` F |
 | log clear | Control | `:DIAGnostic:LOG:CLEar` M | `:DIAGnostic:LOG:CLEar` F |
@@ -145,15 +145,15 @@ anything reaching the receiver.
 | timecode | Query | `:PTIMe:TCODe?` H | `:PTIMe:TCODe?` F |
 | timecode format | Query | `:PTIMe:TCODe:FORMat?` H | `:PTIMe:TCODe:FORMat?` F |
 | timecode format set | Control | `:PTIMe:TCODe:FORMat` M |  |
-| date | Query | `:PTIMe:DATE?` H |  |
-| time | Query | `:PTIMe:TIME?` H |  |
-| time string | Query | `:PTIMe:TIME:STRing?` H |  |
-| tzone | Query | `:PTIMe:TZONe?` H |  |
+| date | Query | `:PTIMe:DATE?` H | `:PTIMe:DATE?` H |
+| time | Query | `:PTIMe:TIME?` H | `:PTIMe:TIME?` H |
+| time string | Query | `:PTIMe:TIME:STRing?` H | `:PTIMe:TIME:STRing?` H |
+| tzone | Query | `:PTIMe:TZONe?` H | `:PTIMe:TZONe?` H |
 | tzone set | Control | `:PTIMe:TZONe` M |  |
 | leap accumulated | Query | `:PTIMe:LEAPsecond:ACCumulated?` H | `:PTIMe:LEAPsecond:ACCumulated?` F |
-| leap date | Query | `:PTIMe:LEAPsecond:DATE?` H |  |
-| leap duration | Query | `:PTIMe:LEAPsecond:DURation?` H |  |
-| leap state | Query | `:PTIMe:LEAPsecond:STATe?` H |  |
+| leap date | Query | `:PTIMe:LEAPsecond:DATE?` H | `:PTIMe:LEAPsecond:DATE?` H |
+| leap duration | Query | `:PTIMe:LEAPsecond:DURation?` H | `:PTIMe:LEAPsecond:DURation?` H |
+| leap state | Query | `:PTIMe:LEAPsecond:STATe?` H | `:PTIMe:LEAPsecond:STATe?` H |
 | comm settings | Query | `:SYSTem:COMMunicate?` H |  |
 | comm baud | Query | `:SYSTem:COMMunicate:SERial1:BAUD?` H |  |
 | comm baud set | Dangerous | `:SYSTem:COMMunicate:SERial1:BAUD` M |  |
@@ -168,14 +168,14 @@ anything reaching the receiver.
 | language | Query | `:SYSTem:LANGuage?` H | `:SYSTem:LANGuage?` F |
 | language set | Dangerous | `:SYSTem:LANGuage` M | `:SYSTem:LANGuage` F |
 | flash erase | Dangerous | `:DIAGnostic:ERASe` M | `:DIAGnostic:ERASe` M |
-| temperature | Query | `:DIAGnostic:TEMPerature?` H (58503A) |  |
-| oven current | Query | `:DIAGnostic:ROSCillator:CURRent?` H (58503A) |  |
-| efc absolute | Query | `:DIAGnostic:ROSCillator:EFControl:ABSolute?` H (58503A) |  |
-| oven tempco | Query | `:DIAGnostic:ROSCillator:TCOefficient?` H (58503A) |  |
-| gps engine identity | Query | `:DIAGnostic:IDENtification:GPSystem?` H (58503A) |  |
+| temperature | Query | `:DIAGnostic:TEMPerature?` H (58503A) | `:DIAGnostic:TEMPerature?` H |
+| oven current | Query | `:DIAGnostic:ROSCillator:CURRent?` H (58503A) | `:DIAGnostic:ROSCillator:CURRent?` H |
+| efc absolute | Query | `:DIAGnostic:ROSCillator:EFControl:ABSolute?` H (58503A) | `:DIAGnostic:ROSCillator:EFControl:ABSolute?` H |
+| oven tempco | Query | `:DIAGnostic:ROSCillator:TCOefficient?` H (58503A) | `:DIAGnostic:ROSCillator:TCOefficient?` H |
+| gps engine identity | Query | `:DIAGnostic:IDENtification:GPSystem?` H (58503A) | `:DIAGnostic:IDENtification:GPSystem?` H |
 | model identity | Query | `:DIAGnostic:IDENtification:DEFault?` H (58503A) |  |
 | gps engine time | Query | `:DIAGnostic:GPSystem:TIME?` H (58503A) |  |
 | gps engine utc | Query | `:DIAGnostic:GPSystem:UTC?` H (58503A) |  |
 | time offset | Query | `:DIAGnostic:TOFFset?` H (58503A) |  |
 | efc data | Query | `:DIAGnostic:ROSCillator:EFControl:DATA?` H (58503A) |  |
-| log oldest | Query | `:DIAGnostic:SLOG?` H (58503A) |  |
+| log oldest | Query | `:DIAGnostic:SLOG?` H (58503A) | `:DIAGnostic:SLOG?` H |

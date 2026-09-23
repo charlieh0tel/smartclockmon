@@ -23,9 +23,18 @@ plausible nonsense like `ESHOLDstat`.
 
 ## What it settled
 
-All but one of the 56 Z3801A entries in `commands.toml` have every
-keyword present here, so their spelling is confirmed even though no such
-receiver has been on the line.  Those are marked `evidence = "firmware"`.
+All but one of the original 56 Z3801A entries in `commands.toml` have
+every keyword present here, so their spelling was confirmed before any
+such receiver had been on the line.  Those are marked
+`evidence = "firmware"`.
+
+A Z3805A has since answered on the bench -- 3625A01487, firmware
+3543B-A -- and sixteen more entries were added from it, each one also
+spelled out of this table.  `TFOMerit`, `TEMPerature`, `TCOefficient`,
+`CURRent`, `ABSolute`, `SLOG`, `LEAPsecond`, `TZONe`, `STRing`,
+`LENGth` and `GPSystem` are all here, so those sixteen have the
+firmware's vocabulary and a live reply agreeing with each other.  They
+are marked `evidence = "hardware"` and cite the unit.
 
 The exception is `:DIAGnostic:ERASe`, which belongs to the INSTALL
 language used for firmware download, not the PRIMARY language this

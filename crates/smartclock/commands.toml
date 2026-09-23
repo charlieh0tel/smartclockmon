@@ -724,6 +724,13 @@ doc = "Time figure of merit."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-33"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:TFOMerit?"
+  response = "int"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "tinterval"
@@ -981,6 +988,13 @@ doc = "Line count of the status screen."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-31"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":SYSTem:STATus:LENGth?"
+  response = "int"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "error"
@@ -1011,6 +1025,13 @@ doc = "All diagnostic log entries."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-32"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:LOG:READ:ALL?"
+  response = "string_list"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "log_count"
@@ -1568,6 +1589,13 @@ doc = "Current date."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-76"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:DATE?"
+  response = "ymd"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "time"
@@ -1580,6 +1608,13 @@ doc = "Current time."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-77"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:TIME?"
+  response = "hms"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "time_string"
@@ -1592,6 +1627,13 @@ doc = "Current time as a string."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-78"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:TIME:STRing?"
+  response = "string"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "tzone"
@@ -1604,6 +1646,13 @@ doc = "Local time zone offset from UTC."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-79"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:TZONe?"
+  response = "hm"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "tzone_set"
@@ -1649,6 +1698,13 @@ doc = "Date of the pending leap second."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-81"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:LEAPsecond:DATE?"
+  response = "ymd"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "leap_duration"
@@ -1661,6 +1717,13 @@ doc = "Sign and size of the pending leap second."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-81"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:LEAPsecond:DURation?"
+  response = "int"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "leap_state"
@@ -1673,6 +1736,13 @@ doc = "Whether a leap second is pending."
   models = ["58503A", "58503B", "59551A"]
   cite = "097-59551-02 5-82"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":PTIMe:LEAPsecond:STATe?"
+  response = "bool01"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "comm_settings"
@@ -1898,6 +1968,13 @@ doc = "Internal temperature, degrees Celsius. Not the oven: this reads 34 to 38 
   models = ["58503A"]
   cite = "discovered on a 58503A"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:TEMPerature?"
+  response = "seconds_or_real"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "oven_current"
@@ -1910,6 +1987,13 @@ doc = "Oscillator oven current. Rises when the oven is heating."
   models = ["58503A"]
   cite = "discovered on a 58503A"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:ROSCillator:CURRent?"
+  response = "real"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "efc_absolute"
@@ -1922,6 +2006,13 @@ doc = "Oscillator EFC as a raw 20-bit value; relative percent is value / 2^20 * 
   models = ["58503A"]
   cite = "discovered on a 58503A"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:ROSCillator:EFControl:ABSolute?"
+  response = "int"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "oven_tempco"
@@ -1934,6 +2025,13 @@ doc = "Oscillator temperature coefficient, in parts in 10^12 per degree C.  Lear
   models = ["58503A"]
   cite = "discovered on a 58503A"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:ROSCillator:TCOefficient?"
+  response = "real"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "gps_engine_identity"
@@ -1946,6 +2044,13 @@ doc = "Identity of the internal GPS engine."
   models = ["58503A"]
   cite = "discovered on a 58503A"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:IDENtification:GPSystem?"
+  response = "string_list"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
 
 [[command]]
 id = "model_identity"
@@ -2018,3 +2123,11 @@ doc = "Oldest diagnostic log entry, where :DIAGnostic:LOG:READ? gives the newest
   models = ["58503A"]
   cite = "discovered on a 58503A"
   evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:SLOG?"
+  response = "string"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
+
