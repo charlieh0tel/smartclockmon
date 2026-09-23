@@ -49,6 +49,13 @@ const DEVIATION: &str = include_str!("adev.html");
 /// Shared by every page.
 const STYLE: &str = include_str!("style.css");
 
+/// The status strip, shared by every page.
+///
+/// The state of the receiver is the context for whatever else a page
+/// shows: a sky plot or a stability curve read without knowing the
+/// unit is in holdover is read wrongly.
+const STATUS: &str = include_str!("status.js");
+
 #[derive(Parser)]
 #[command(about, version = smartclock::VERSION)]
 struct Cli {
@@ -91,6 +98,7 @@ fn main() -> Result<()> {
             "/sky" => Response::ok("text/html; charset=utf-8", SKY.to_owned()),
             "/adev" => Response::ok("text/html; charset=utf-8", DEVIATION.to_owned()),
             "/style.css" => Response::ok("text/css; charset=utf-8", STYLE.to_owned()),
+            "/status.js" => Response::ok("text/javascript; charset=utf-8", STATUS.to_owned()),
             "/api/snapshot" => json(cache.snapshot(&socket)),
             "/api/info" => json(cache.info(&socket)),
             // Uncached, and the only endpoint that goes to the wire on

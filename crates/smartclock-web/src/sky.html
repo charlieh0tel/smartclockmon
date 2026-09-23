@@ -5,9 +5,15 @@
 
 <link rel="stylesheet" href="/style.css">
 
-<div class="panel full nav"><a href="/">&larr; Back</a></div>
+<div class="panel" id="status"><span class="muted">connecting...</span></div>
 
-<div class="panel full" id="state"><span class="muted">idle</span></div>
+<nav class="panel nav">
+  <a href="/">Live</a>
+  <a href="/sky" aria-current="page">Sky</a>
+  <a href="/adev">Stability</a>
+</nav>
+
+<div class="panel" id="state"><span class="muted">idle</span></div>
 
 <div class="panel">
   <div class="controls">
@@ -21,13 +27,10 @@
   <table id="sats"><tbody class="muted"><tr><td>nothing read yet</td></tr></tbody></table>
 </div>
 
+<script src="/status.js"></script>
 <script>
-const $ = (id) => document.getElementById(id);
 // Everything interpolated into innerHTML goes through this: the values
 // come from a string scraper over a serial line.
-const esc = (v) =>
-  String(v).replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 // How often a live sky re-reads, in milliseconds.
 //

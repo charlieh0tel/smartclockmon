@@ -10,56 +10,139 @@
 
 <link rel="stylesheet" href="/style.css">
 
-<div class="panel full nav"><a href="/">&larr; Back</a></div>
+<div class="panel" id="status"><span class="muted">connecting...</span></div>
 
-<div class="panel full" id="state"><span class="muted">loading...</span></div>
+<nav class="panel nav">
+  <a href="/">Live</a>
+  <a href="/sky">Sky</a>
+  <a href="/adev" aria-current="page">Stability</a>
+</nav>
 
-<div class="panel full">
+<div class="panel" id="state"><span class="muted">loading...</span></div>
+
+<div class="panel">
   <div class="controls">
     <h2>Allan deviation</h2>
     <span class="grow"></span>
     <span id="ranges"></span>
+    <button id="reset" title="Whole curve, last hour">reset</button>
   </div>
-  <div id="chart"></div>
-  <table id="table"><tbody class="muted"><tr><td>loading...</td></tr></tbody></table>
-  <p class="muted" id="caveat"></p>
+  <div id="pane">
+    <div id="chart"></div>
+  </div>
+  <div id="table-wrap">
+    <table id="table"><tbody class="muted"><tr><td>loading...</td></tr></tbody></table>
+  </div>
+  <p class="muted note" id="caveat"></p>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.iife.min.js"
         integrity="sha384-Gx3t0zdBAuQOuvvmaLZj7HKEiSgWTAs+VdtNY7wt19QDPTDQjFIwAuXDj0zeN00c"
         crossorigin="anonymous"></script>
+<script src="/status.js"></script>
 <script>
-const $ = (id) => document.getElementById(id);
-const esc = (v) =>
-  String(v).replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-// Ranges to measure over, as seconds back from the newest reading.
-// Longer than the history page offers, because a deviation at a long
-// tau needs a long run and there is no point offering a window that
-// cannot produce one.
+// Ranges to measure over, as seconds back from now.  Longer than the
+// history page offers, because a deviation at a long tau needs a long
+// run and there is no point offering a window that cannot produce one.
 const RANGES = [
   ["1h", 3600], ["6h", 21600], ["24h", 86400],
   ["7d", 604800], ["30d", 2592000], ["all", null],
 ];
 
-// Both axes are decades, which is the only way this curve is ever
-// read: the slope between decades is what names the noise.
+// Both axes are decades, which is the only way this curve is read: the
+// slope between decades is what names the noise.
 const LOG = { distr: 3, log: 10 };
 
-let range = 3600;
-let chart = null;
+// The plot fills what the pane has left after the table, between these
+// bounds.  uPlot draws its text at a fixed size however wide the plot
+// is, so width buys plotting area rather than magnifying everything --
+// which is the difference between this and scaling a drawing to fit.
+const PLOT = { min: 360, ratio: 2.5, shortest: 300, tallest: 560 };
 
-// A tau or a deviation as a reader says it: one significant figure of
-// mantissa and the exponent, rather than eleven digits of float.
+let chart = null;
+let range = 3600;
+
+// Measured on the pane, never on the chart itself: the chart is a flex
+// item that is emptied before being rebuilt, and measuring it at that
+// moment collapses it to its min-content width -- which is how a 720
+// pixel plot came out at 165.
+function width() {
+  return Math.max(PLOT.min, $("pane").clientWidth || 800);
+}
+
+// Height follows width rather than being fixed, so the curve keeps its
+// shape on any window: at a fixed height a wide plot flattens a slope
+// that has not changed, which on a log-log chart is the one thing the
+// reader is meant to judge by eye.  Bounded at both ends, because the
+// ratio alone would make a very wide window very tall.
+function height(w) {
+  return Math.round(
+    Math.max(PLOT.shortest, Math.min(PLOT.tallest, w / PLOT.ratio)),
+  );
+}
+
+// A value as a mantissa and a power, for the readout and the table,
+// where the exact figure matters and a bare decade would not do.
 function decade(v) {
   if (!Number.isFinite(v) || v <= 0) return "--";
   const exponent = Math.floor(Math.log10(v));
   const mantissa = v / 10 ** exponent;
-  return `${mantissa.toFixed(mantissa < 10 ? 1 : 0)}e${exponent}`;
+  return `${mantissa.toFixed(mantissa < 10 ? 1 : 0)}×${power(10 ** exponent)}`;
+}
+
+// A log ruler: a graduation at every 1 to 9 of each decade, so the
+// spacing between them shows the scale is logarithmic and a point can
+// be read off between labels.  uPlot's own splits label 1, 2 and 5 of
+// each decade, which is what made the axis look busy -- the answer is
+// fewer labels, not fewer graduations, so only the decades are named.
+//
+// A span too narrow to hold two decades keeps uPlot's own splits,
+// rather than being given an axis with one mark on it.
+function graduations(u, axis, min, max) {
+  const first = Math.floor(Math.log10(min) - 1e-9);
+  const last = Math.ceil(Math.log10(max) + 1e-9);
+  if (last - first < 2) return null;
+  const out = [];
+  for (let e = first; e <= last; e++) {
+    for (let m = 1; m < 10; m++) {
+      const v = m * 10 ** e;
+      if (v >= min * (1 - 1e-9) && v <= max * (1 + 1e-9)) out.push(v);
+    }
+  }
+  return out.length > 1 ? out : null;
+}
+
+// Whether a graduation is a whole decade, and so the one that is
+// named.  Compared as a rounded exponent rather than by dividing,
+// because 1e-9 divided out does not land exactly on 1.
+function whole(v) {
+  const e = Math.round(Math.log10(v));
+  return Math.abs(v / 10 ** e - 1) < 1e-6;
+}
+
+// A decade of sigma_y, which is dimensionless and always small.
+// Written 10 to the power rather than as 1e-9, which is a programming
+// language's spelling of a number rather than a physicist's.
+const SUPERSCRIPT = { "-": "⁻", 0: "⁰", 1: "¹", 2: "²",
+                      3: "³", 4: "⁴", 5: "⁵", 6: "⁶",
+                      7: "⁷", 8: "⁸", 9: "⁹" };
+function power(v) {
+  if (!Number.isFinite(v) || v <= 0) return "";
+  const exponent = String(Math.round(Math.log10(v)));
+  return "10" + [...exponent].map((c) => SUPERSCRIPT[c]).join("");
+}
+
+// A decade as the number itself: 1, 10, 100, 1000.  Past six figures
+// the exponent is shorter than the number and just as readable.
+function plain(v) {
+  if (!Number.isFinite(v) || v <= 0) return "";
+  const exponent = Math.round(Math.log10(v));
+  return exponent < 6 ? String(10 ** exponent) : `1e${exponent}`;
 }
 
 function seconds(v) {
+  if (!Number.isFinite(v)) return "--";
   if (v >= 86400) return `${(v / 86400).toFixed(v < 864000 ? 1 : 0)} d`;
   if (v >= 3600) return `${(v / 3600).toFixed(1)} h`;
   if (v >= 60) return `${(v / 60).toFixed(1)} m`;
@@ -67,60 +150,93 @@ function seconds(v) {
 }
 
 function draw(points) {
-  const taus = points.map((p) => p.tau);
-  const devs = points.map((p) => p.deviation);
   if (chart) {
     chart.destroy();
     chart = null;
   }
   $("chart").innerHTML = "";
-  if (!points.length) return;
+  if (!points.length) {
+    $("chart").innerHTML = `<p class="muted pad">nothing to plot in this range</p>`;
+    return;
+  }
+  if (typeof uPlot === "undefined") {
+    $("chart").innerHTML =
+      `<p class="muted pad">the chart library did not load; the table has the numbers</p>`;
+    return;
+  }
+  const size = { width: width(), height: 0 };
+  size.height = height(size.width);
   chart = new uPlot(
     {
-      width: $("chart").clientWidth || 640,
-      height: 360,
+      width: size.width,
+      height: size.height,
+      title: "Allan deviation of the 1 PPS against GPS",
       scales: { x: LOG, y: LOG },
       axes: [
         {
           scale: "x",
           stroke: "#8b929c",
           grid: { stroke: "#2b3038" },
-          values: (_, splits) => splits.map(seconds),
+          label: "averaging time τ, seconds",
+          labelSize: 26,
+          splits: graduations,
+          values: (_, splits) => splits.map((v) => (whole(v) ? plain(v) : null)),
         },
         {
           scale: "y",
           stroke: "#8b929c",
           grid: { stroke: "#2b3038" },
-          values: (_, splits) => splits.map(decade),
+          size: 62,
+          label: "deviation σy",
+          labelSize: 26,
+          splits: graduations,
+          values: (_, splits) => splits.map((v) => (whole(v) ? power(v) : null)),
         },
       ],
       series: [
-        { label: "tau", value: (_, v) => (v == null ? "--" : seconds(v)) },
+        { label: "τ", value: (_, v) => seconds(v) },
         {
-          label: "sigma_y",
+          label: "σy",
           stroke: "#38bdf8",
-          width: 2,
-          points: { show: true, size: 6 },
-          value: (_, v) => (v == null ? "--" : decade(v)),
+          width: 1.5,
+          points: { show: true, size: 5 },
+          value: (_, v) => decade(v),
         },
       ],
-      legend: { live: true },
+      // uPlot's legend is a live cursor readout, which is worth having
+      // on a curve whose points are decades apart and hard to read off
+      // an axis.  It confused because it was labelled "tau" and
+      // "sigma_y" under a single trace, as though two things were
+      // plotted; the symbols say plainly that these are the two
+      // coordinates of the point under the cursor.
+      legend: { show: true, live: true },
+      cursor: { points: { size: 8 } },
     },
-    [taus, devs],
+    [points.map((p) => p.tau), points.map((p) => p.deviation)],
     $("chart"),
   );
+  // uPlot drags to zoom by default, and on two log axes it is easy to
+  // end up somewhere with no way back.  Double click returns to the
+  // whole curve, as it does on the history page.
+  chart.over.addEventListener("dblclick", () => {
+    chart.setScale("x", { min: null, max: null });
+    chart.setScale("y", { min: null, max: null });
+  });
 }
 
 function table(d) {
   if (!d.points.length) {
     $("table").innerHTML =
       `<tbody class="muted"><tr><td>` +
-      `not enough unbroken readings in this range to measure anything` +
+      `not enough unbroken readings here to measure anything` +
       `</td></tr></tbody>`;
     return;
   }
   $("table").innerHTML =
-    "<thead><tr><th>tau</th><th>sigma_y</th><th>differences</th></tr></thead><tbody>" +
+    "<thead><tr><th>averaging time</th><th>deviation</th>" +
+    `<th title="second differences behind this point; each needs three ` +
+    `phase readings, which is what a gap takes away">differences</th>` +
+    "</tr></thead><tbody>" +
     d.points
       .map(
         (p) =>
@@ -134,14 +250,11 @@ function table(d) {
 async function load() {
   $("state").innerHTML = `<span class="pill">measuring...</span>`;
   const q = new URLSearchParams();
-  if (range !== null) {
-    // The server defaults `to` to the newest reading, so a window is
-    // expressed as a span and the page never has to know what time the
-    // log thinks it is.
-    q.set("from", String(Math.floor(Date.now() / 1000) - range));
-  } else {
+  if (range === null) {
     q.set("from", "0");
     q.set("to", "2000000000");
+  } else {
+    q.set("from", String(Math.floor(Date.now() / 1000) - range));
   }
   try {
     const r = await fetch(`/api/adev?${q}`);
@@ -150,47 +263,60 @@ async function load() {
     draw(d.points);
     table(d);
     // Coverage travels with the curve because the curve cannot show
-    // it: one drawn from a run that is mostly holes, or that broke
-    // into forty pieces, looks exactly like one drawn from a clean day.
+    // it: one drawn from a run that is mostly holes, or that broke into
+    // forty pieces, looks exactly like one drawn from a clean day.
     const total = d.present + d.holes;
     const complete = total ? ((100 * d.present) / total).toFixed(1) : "0.0";
+    const stat = (v, k) =>
+      `<span class="stat"><span class="v">${esc(v)}</span>` +
+      `<span class="k">${esc(k)}</span></span>`;
     $("state").innerHTML =
-      `<span class="pill ok">${d.present} readings</span>` +
-      `<span class="stat">spacing <b>${esc(seconds(d.tau0))}</b></span>` +
-      `<span class="stat">unbroken runs <b>${d.segments}</b></span>` +
-      `<span class="stat">complete <b>${complete}%</b></span>` +
-      (d.holes
-        ? `<span class="stat">holes <b>${d.holes}</b></span>`
-        : "");
+      stat(d.present, "readings") +
+      stat(seconds(d.tau0), "spacing") +
+      stat(d.segments, "unbroken runs") +
+      stat(`${complete}%`, "complete") +
+      stat(d.holes, "holes");
   } catch (e) {
     draw([]);
+    table({ points: [] });
     $("state").innerHTML = `<span class="pill down">${esc(e.message)}</span>`;
   }
 }
 
+$("reset").onclick = () => {
+  range = 3600;
+  for (const b of $("ranges").querySelectorAll("button")) {
+    b.toggleAttribute("aria-current", b.dataset.span === "3600");
+  }
+  load();
+};
+
 $("ranges").innerHTML = RANGES.map(
-  ([label, span]) => `<button data-span="${span}">${label}</button>`,
+  ([label, secs]) => `<button data-span="${secs}">${label}</button>`,
 ).join(" ");
 for (const button of $("ranges").querySelectorAll("button")) {
   button.onclick = () => {
     range = button.dataset.span === "null" ? null : Number(button.dataset.span);
+    for (const other of $("ranges").querySelectorAll("button")) {
+      other.toggleAttribute("aria-current", other === button);
+    }
     load();
   };
 }
 
-// Said once, plainly, because the number on the chart is not the
-// number most people come looking for.
+// Said once, plainly, because the number on the chart is not the number
+// most people come looking for.
 $("caveat").textContent =
-  "This is the receiver's 1 PPS against GPS, not the oscillator. " +
-  "While locked, the disciplining loop is inside what is being " +
-  "measured, so the short taus show the loop and the measurement " +
-  "noise rather than the crystal. Only holdover isolates the " +
-  "oscillator, and holdover ends a run rather than continuing it.";
+  "The interval measured is between the 1 PPS from the GPS receiver, " +
+  "which is quantized to that receiver's own crystal, and a 1 PPS " +
+  "divided down from the OCXO. While locked, the OCXO is steered to " +
+  "follow it.";
 
-addEventListener("resize", () => chart && chart.setSize({
-  width: $("chart").clientWidth || 640,
-  height: 360,
-}));
+addEventListener("resize", () => {
+  if (!chart) return;
+  const w = width();
+  chart.setSize({ width: w, height: height(w) });
+});
 
 load();
 </script>

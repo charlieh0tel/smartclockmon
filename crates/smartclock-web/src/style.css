@@ -6,21 +6,22 @@
   --font: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
 }
 * { box-sizing: border-box; }
+/* One column.  There was a 340px sidebar for the sky plot; the sky
+   moved to a page of its own and left the column empty, which stopped
+   the charts spanning the window for no reason a reader could see. */
 body {
   margin: 0; padding: 12px; gap: 12px;
-  display: grid; grid-template-columns: 1fr 340px;
+  display: grid; grid-template-columns: 1fr;
   background: var(--bg); color: var(--text);
   font: 13px/1.5 var(--font);
 }
-@media (max-width: 900px) { body { grid-template-columns: 1fr; } }
 
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
-.full { grid-column: 1 / -1; }
 h2 { margin: 0 0 10px; font-size: 12px; font-weight: 600; color: var(--dim);
      text-transform: uppercase; letter-spacing: .08em; }
 
 /* Status strip: the few things worth seeing before anything else. */
-#status { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: baseline; }
+#status, #state { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: baseline; }
 /* A fixed column, so a reading that gets wider -- "-5.8 ns" to
    "+122.6 ns" -- does not shove every tile after it sideways. */
 .stat { display: flex; flex-direction: column; gap: 2px; min-width: 10ch; }
@@ -73,9 +74,42 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
 #unit { font: inherit; background: var(--bg); color: var(--fg);
         border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; }
 
-/* The sky lives on its own page: it is the only view that costs the
-   receiver a status screen, 1.5 s of a 19200 link, so it is read while
-   someone is looking at it rather than on a timer. */
-.nav a { color: var(--accent); text-decoration: none; }
-.nav a:hover { text-decoration: underline; }
+/* One row of pages, the same on every page, with the current one
+   marked.  Arrows were worse than nothing: two links each ending in one
+   read as a breadcrumb, as though Stability were somewhere inside Sky. */
+.nav { display: flex; gap: 4px; padding: 4px 6px; }
+.nav a { color: var(--dim); text-decoration: none; padding: 4px 10px;
+         border-radius: 4px; border: 1px solid transparent; }
+.nav a:hover { color: var(--text); background: var(--bg); }
+.nav a[aria-current] { color: var(--text); border-color: var(--line);
+                       background: var(--bg); }
+
+/* Left, where the eye starts, and where the y axis label already is.
+   uPlot centres it over the plotting area by default, which leaves it
+   floating above nothing in particular. */
+.u-title { text-align: left; padding-left: 2px; }
 #sky { width: 100%; height: auto; display: block; max-width: 420px; margin: 0 auto; }
+
+/* The stability page.  Chart and table side by side where there is
+   room, because the curve is short and a column of numbers beside it
+   reads better than one under it -- and because a page that fits does
+   not jump when the range button changes how many rows there are. */
+/* The table sits under the plot rather than beside it.  Beside it, a
+   narrow column of tau and sigma_y next to a single curve reads as a
+   legend for a chart that has only one thing on it. */
+#pane { display: block; }
+#chart { width: 100%; }
+#table-wrap { max-width: 42ch; margin-top: 10px; }
+.pad { padding: 24px 8px; }
+.note { font-size: 12px; margin: 10px 2px 0; }
+#ranges button[aria-current] { color: var(--text); border-color: var(--accent); }
+
+/* The strip painted from the previous page's snapshot, before this
+   page's first poll has answered.  Muted, because the numbers are the
+   last ones seen rather than ones just read: the link may have gone in
+   between and nothing has checked it yet. */
+.pill.seen { color: var(--dim); box-shadow: inset 0 0 0 1px var(--line); }
+
+/* Something to hover.  A title attribute announces itself to nobody,
+   so anything carrying one is underlined the way a footnote is. */
+.hinted { border-bottom: 1px dotted var(--dim); cursor: help; }

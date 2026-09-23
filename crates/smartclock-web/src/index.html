@@ -10,11 +10,15 @@
 
 <link rel="stylesheet" href="/style.css">
 
-<div class="panel full" id="status"><span class="muted">connecting...</span></div>
+<div class="panel" id="status"><span class="muted">connecting...</span></div>
 
-<div class="panel full nav"><a href="/sky">Sky &rarr;</a> <a href="/adev">Stability &rarr;</a></div>
+<nav class="panel nav">
+  <a href="/" aria-current="page">Live</a>
+  <a href="/sky">Sky</a>
+  <a href="/adev">Stability</a>
+</nav>
 
-<div class="panel full" id="unit-bar" hidden>
+<div class="panel" id="unit-bar" hidden>
   <div class="controls">
     <label for="unit">Receiver</label>
     <select id="unit"></select>
@@ -35,7 +39,7 @@
   <div id="note"></div>
 </div>
 
-<div class="panel full">
+<div class="panel">
   <div class="controls">
     <h2>What the receiver recorded</h2>
     <span class="grow"></span>
@@ -49,6 +53,7 @@
 <script src="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.iife.min.js"
         integrity="sha384-Gx3t0zdBAuQOuvvmaLZj7HKEiSgWTAs+VdtNY7wt19QDPTDQjFIwAuXDj0zeN00c"
         crossorigin="anonymous"></script>
+<script src="/status.js"></script>
 <script>
 "use strict";
 
@@ -63,6 +68,21 @@ const RANGES = [
 // Label, and the factor that puts the column in units worth reading.
 // The interval is stored in seconds and is a few nanoseconds: plotted
 // as seconds, every axis tick rounds to 0.
+// Hover text for the values whose numbers mean nothing on their own.
+// Quoted from the command reference rather than paraphrased: a low
+// TFOM is a good one, which is the opposite of most scales here.
+const HINTS = {
+  tfom:
+    "Time figure of merit: the accuracy of the 1 PPS output, as a decade "
+    + "of time error. Lower is better -- 0 is under a nanosecond, 3 is "
+    + "100 to 1000 ns, 9 is over a tenth of a second (097-59551-02 5-24).",
+  ffom:
+    "Frequency figure of merit: the stability of the 10 MHz output, taken "
+    + "from the state of the phase-locked loop. 0 stabilized and within "
+    + "specification, 1 stabilizing, 2 unlocked in holdover, 3 unlocked "
+    + "and not in holdover -- do not use the output (097-59551-02 5-23).",
+};
+
 const LABELS = {
   efc_percent: ["EFC, percent of range", 1],
   efc_dac: ["EFC, raw counts", 1],
@@ -72,8 +92,16 @@ const LABELS = {
   time_interval_s: ["1 PPS TI, ns", 1e9],
   tfom: ["Time figure of merit", 1],
   ffom: ["Frequency figure of merit", 1],
+  // The receiver's own words, said as counts because that is what is
+  // plotted.  Nothing is added to them: "not tracked" is the count
+  // `:GPS:SATellite:VISible:PREDicted?` gives -- "the list of
+  // satellites (PRN) that the almanac predicts should be visible,
+  // given date, time, and position" (097-59551-02 5-6) -- less those
+  // being tracked.  Whether one is unusable or merely unneeded is not
+  // something the receiver says.
+  tracking: ["# sats tracked", 1],
+  not_tracking: ["# sats not tracked", 1],
 };
-const pad = (n) => String(n).padStart(2, "0");
 const label = (c) => (LABELS[c] ?? [c, 1])[0];
 const factor = (c) => (LABELS[c] ?? [c, 1])[1];
 const scaled = (values, c) =>
@@ -89,8 +117,16 @@ let span = view.has("range") ? Number(view.get("range")) || null : 3600;
 let zoom = null;          // [from, to] once the user has dragged
 // Several series, stacked, sharing one time axis.  `column` singular is
 // still read so an older bookmark still opens on what it named.
-let columns = (view.get("columns") ?? view.get("column") ??
-  "time_interval_s,efc_percent,temperature_c,tfom,ffom,tracking")
+// What is shown unless the URL says otherwise, in the order it is
+// stacked.  The menu is built in this order too, and the picker
+// rebuilds the selection in menu order on every change: a default in
+// any other order made the very first tick reshuffle the stack.
+const DEFAULT_COLUMNS = [
+  "time_interval_s", "efc_percent", "tracking", "not_tracking",
+  "temperature_c", "tfom", "ffom",
+];
+
+let columns = (view.get("columns") ?? view.get("column") ?? DEFAULT_COLUMNS.join(","))
   .split(",")
   .filter(Boolean);
 
@@ -98,130 +134,11 @@ let columns = (view.get("columns") ?? view.get("column") ??
 // cursor on all of them, which is most of what makes a stack readable.
 const SYNC = haveUplot ? uPlot.sync("smartclock") : null;
 
-const $ = (id) => document.getElementById(id);
-// Total: never rejects, never hangs.  A rejected fetch anywhere in the
-// boot sequence used to abort it before the polling timer was
-// installed, leaving the page stuck on "connecting..." until someone
-// reloaded it -- the one failure that needed a human.
-async function getJson(url) {
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    return await response.json();
-  } catch (e) {
-    return { error: String(e) };
-  }
-}
-// Everything interpolated into innerHTML goes through this.  The values
-// are numbers and enums today, but they come from a string scraper over
-// a serial line, and one field becoming an Option<String> upstream
-// would otherwise make this page execute whatever the receiver said.
-const esc = (v) =>
-  String(v).replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-const fmt = (v, digits = 3) =>
-  v === null || v === undefined ? "--" : Number(v).toFixed(digits);
-
-// ---------------------------------------------------------------- status
-
-let ticking = false;
-async function tick() {
-  if (ticking) return;
-  ticking = true;
-  try {
-    await poll();
-  } finally {
-    ticking = false;
-  }
-}
-
-async function poll() {
-  const s = await getJson("/api/snapshot");
-  if (s.error) {
-    lost("no daemon", s.error);
-    return;
-  }
-
-  const state = s.freshness === "Live" ? ["live", "LIVE"]
-              : s.freshness === "Stale" ? ["stale", "STALE"]
-              : ["down", "DISCONNECTED"];
-  // Age of the slowest group of fields: the honest headline, since the
-  // rest of this strip is only as current as its least current part.
-  const ages = ["fast", "medium", "slow"]
-    .map((t) => s.polled?.[t]?.at)
-    .filter(Boolean)
-    .map((at) => (Date.now() - Date.parse(at)) / 1000);
-  const oldest = ages.length ? Math.max(...ages) : null;
-
-  // The receiver's own clock, not the browser's.  Shown as of the last
-  // fast poll rather than ticking: a clock animated between polls
-  // would be the page's arithmetic presented as the receiver's time.
-  const utc = s.time
-    ? `${pad(s.time.hour)}:${pad(s.time.minute)}:${pad(s.time.second)}`
-    : "--";
-  // The date beside the time of day, corrected.  Almost every receiver
-  // of this vintage is behind by whole GPS epochs, so that is the
-  // normal condition rather than a fault; it used to raise a pill in
-  // the strip, which meant an amber warning permanently lit on a
-  // healthy instrument.  The correction is noted under the value, and
-  // the raw date is in the tooltip, because the arithmetic is ours and
-  // done against the host clock rather than anything the receiver said.
-  //
-  // Only claimed when the corrected date is actually to hand.  A
-  // daemon older than this page does not send one, and labelling its
-  // raw date as corrected would be the one thing worse than showing
-  // the raw date: saying it has been fixed when it has not.
-  const epochs = s.date_corrected ? (s.date?.rollover?.epochs ?? 0) : 0;
-  const dateKey = epochs
-    ? `date, +${epochs} GPS epoch${epochs === 1 ? "" : "s"}`
-    : s.date?.rollover
-      ? "date, as the receiver reports it"
-      : "date";
-  const stats = [
-    ["receiver UTC", utc],
-    [dateKey, s.date_corrected ?? s.date?.raw ?? "--", s.date?.raw],
-    ["mode", s.mode ?? "--"],
-    ["TFOM / FFOM", `${s.tfom ?? "--"} / ${s.ffom ?? "--"}`],
-    ["EFC", s.efc === null || s.efc === undefined ? "--" : fmt(s.efc, 3) + "%"],
-    ["EFC raw", s.efc_raw ?? "--"],
-    ["internal temp", s.temperature_c == null ? "--" : fmt(s.temperature_c, 2) + " C"],
-    ["1 PPS TI", s.time_interval_ns === null ? "--" : fmt(s.time_interval_ns, 1) + " ns"],
-    ["tracking", s.tracking == null ? "--" :
-      s.visible == null ? s.tracking : `${s.tracking} of ${s.visible} up`],
-  ];
-  $("status").innerHTML =
-    `<span class="pill ${state[0]}">${state[1]}</span>` +
-    (oldest === null
-      ? ""
-      : `<span class="muted" id="age">oldest field ${Math.max(0, oldest).toFixed(0)}s</span>`) +
-    stats
-      .map(
-        ([k, v, hint]) =>
-          `<span class="stat"${hint ? ` title="the receiver reports ${esc(hint)}"` : ""}>` +
-          `<span class="v">${esc(v)}</span><span class="k">${esc(k)}</span></span>`,
-      )
-      .join("") +
-    (s.hardware_faults?.length
-      ? `<span class="pill down">${s.hardware_faults.map(esc).join(", ")}</span>`
-      : "") +
-    // The receiver's own alarm, which is latched and stays latched
-    // until cleared at the front panel.  Named separately where it is
-    // a clock step, since that invalidates the measurements either
-    // side of it and is not just another fault.
-    (s.time_reset
-      ? `<span class="pill down">receiver reset its clock to match GPS</span>`
-      : "") +
-    (s.alarming && !s.time_reset
-      ? `<span class="pill stale">receiver alarm: ${(s.alarm_summary ?? []).map(esc).join(", ")}</span>`
-      : "") +
-    "";
-}
-
-// Nothing is known any more.
-function lost(what, why) {
-  $("status").innerHTML =
-    `<span class="pill down">${esc(what)}</span>` +
-    (why ? ` <span class="muted">${esc(why)}</span>` : "");
-}
+// The two trace colours, named once.  Both the plot and the things
+// that say which line is which read them from here, because a key that
+// disagrees with the lines is worse than no key.
+const TRACE = "#38bdf8";
+const MATE = "#fbbf24";
 
 // ---------------------------------------------------------------- charts
 
@@ -274,6 +191,20 @@ const COUNTS = { tracking: 8, not_tracking: 12, tfom: 9, ffom: 3 };
 // two -- a general grouping would have to answer what happens when a
 // temperature is paired with a count, and nothing needs that.
 const PAIRED = ["tracking", "not_tracking"];
+
+// Split two labels into what they have in common and what each adds,
+// on a word boundary.  "# sats tracked" and "# sats not tracked"
+// become "# sats " with "tracked" and "not tracked", so the title
+// says the subject once and colours only the part that tells the two
+// lines apart.
+function shareName(a, b) {
+  const x = a.split(" ");
+  const y = b.split(" ");
+  let n = 0;
+  while (n < x.length && n < y.length && x[n] === y[n]) n++;
+  if (n === 0) return ["", a, b];
+  return [x.slice(0, n).join(" ") + " ", x.slice(n).join(" "), y.slice(n).join(" ")];
+}
 
 function pairCounts(plots) {
   const first = plots.findIndex((p) => p.column === PAIRED[0]);
@@ -448,11 +379,11 @@ async function draw() {
         {},
         { label: "min", stroke: "#0e7490", width: 1, points: { show: false } },
         { label: "max", stroke: "#0e7490", width: 1, points: { show: false } },
-        { label: label(col), stroke: "#38bdf8", width: 1.5, points: { show: false } },
+        { label: label(col), stroke: TRACE, width: 1.5, points: { show: false } },
         ...(plot.partner
           ? [{
               label: label(plot.partner.column),
-              stroke: "#fbbf24",
+              stroke: MATE,
               width: 1.5,
               points: { show: false },
             }]
@@ -526,6 +457,29 @@ async function draw() {
     // without reaching back into the request that built it.
     chart.smartclockColumn = col;
     chart.smartclockPartner = plot.partner ? plot.partner.column : null;
+    if (HINTS[col]) {
+      const heading = chart.root.querySelector(".u-title");
+      if (heading) {
+        heading.title = HINTS[col];
+        heading.classList.add("hinted");
+      }
+    }
+    // uPlot's title is plain text, and with the legend off a two-line
+    // chart otherwise names both series without saying which is which.
+    if (plot.partner) {
+      const heading = chart.root.querySelector(".u-title");
+      if (heading) {
+        const [shared, mine, theirs] = shareName(
+          label(col),
+          label(plot.partner.column),
+        );
+        heading.innerHTML =
+          esc(shared) +
+          `<span style="color:${TRACE}">${esc(mine)}</span>` +
+          `<span class="muted"> and </span>` +
+          `<span style="color:${MATE}">${esc(theirs)}</span>`;
+      }
+    }
     chart.over.addEventListener("dblclick", () => {
       zoom = null;
       buttons();
@@ -564,45 +518,71 @@ function readout() {
   // Synced, so whichever chart is under the pointer has the index and
   // the rest agree; when the pointer leaves, none of them do.
   const idx = charts.map((c) => c.cursor.idx).find((i) => i != null);
-  if (idx == null) {
-    el.innerHTML = `<span class="w">hover a plot for the values at that instant</span>`;
-    return;
-  }
-  const at = new Date(charts[0].data[0][idx] * 1000);
+  // The same cells are drawn whether or not anything is under the
+  // pointer, with dashes for the values when nothing is.  Swapping the
+  // row for a one-line "hover a plot" message moved everything below
+  // it up and down as the pointer crossed the stack.
   const show = (v) =>
     v == null ? "--" : v.toLocaleString(undefined, { maximumFractionDigits: 3 });
+  const at = idx == null ? null : new Date(charts[0].data[0][idx] * 1000);
   const cells = charts.flatMap((c) => {
-    const one = (col, v) =>
-      `<span><span class="k">${esc(label(col))}</span> ` +
+    const one = (col, v, colour) =>
+      `<span><span class="k"${colour ? ` style="color:${colour}"` : ""}>` +
+      `${esc(label(col))}</span> ` +
       `<span class="v">${esc(show(v))}</span></span>`;
+    const value = (series) => (idx == null ? null : c.data[series][idx]);
     // A paired chart carries its partner in the fifth series, and it
     // needs its own cell: one number under a two-line plot would leave
     // the reader guessing which line it belonged to.
     return c.smartclockPartner
-      ? [one(c.smartclockColumn, c.data[3][idx]), one(c.smartclockPartner, c.data[4][idx])]
-      : [one(c.smartclockColumn, c.data[3][idx])];
+      ? [
+          one(c.smartclockColumn, value(3), TRACE),
+          one(c.smartclockPartner, value(4), MATE),
+        ]
+      : [one(c.smartclockColumn, value(3))];
   });
-  el.innerHTML = `<span class="v">${esc(at.toLocaleTimeString())}</span>` + cells.join("");
+  el.innerHTML =
+    `<span class="v">${at ? esc(at.toLocaleTimeString()) : "--:--:--"}</span>` +
+    cells.join("");
 }
 
-// The series menu, built from what the server says it can serve rather
-// than from a copy here that can drift out of step with PLOTTABLE.
 function pickers(plottable) {
-  $("columns").innerHTML = plottable
+  // The pair is one choice.  Tracked and not tracked are one
+  // measurement split two ways and share a chart, so offering them as
+  // two ticks invited half of it.
+  // The ones shown by default come first, so the row reads as the
+  // stack does and the rest are extras after them.
+  const order = [
+    ...DEFAULT_COLUMNS.filter((c) => plottable.includes(c)),
+    ...plottable.filter((c) => !DEFAULT_COLUMNS.includes(c)),
+  ];
+  const menu = order.filter((c) => c !== PAIRED[1]);
+  const shown = (c) => (c === PAIRED[0] ? "# sats" : label(c));
+  $("columns").innerHTML = menu
     .map(
       (c) =>
-        `<label><input type="checkbox" data-col="${c}"` +
-        `${columns.includes(c) ? " checked" : ""}> ${esc(label(c))}</label>`,
+        `<label${HINTS[c] ? ` title="${esc(HINTS[c])}"` : ""}>` +
+        `<input type="checkbox" data-col="${c}"` +
+        `${columns.includes(c) ? " checked" : ""}> ` +
+        // Underlined where there is hover text, because a bare title
+        // attribute is only found by someone who already suspects it.
+        `<span${HINTS[c] ? ' class="hinted"' : ""}>${esc(shown(c))}</span></label>`,
     )
     .join(" ");
   for (const box of $("columns").querySelectorAll("input")) {
     box.onchange = () => {
       const col = box.dataset.col;
+      const wanted = new Set(columns);
+      for (const c of col === PAIRED[0] ? PAIRED : [col]) {
+        if (box.checked) {
+          wanted.add(c);
+        } else {
+          wanted.delete(c);
+        }
+      }
       // Kept in the menu's order rather than the order they were
       // ticked, so the stack does not reshuffle as it is built.
-      columns = plottable.filter(
-        (c) => (c === col ? box.checked : columns.includes(c)),
-      );
+      columns = order.filter((c) => wanted.has(c));
       load();
     };
   }
