@@ -74,7 +74,8 @@ fn main() -> Result<()> {
             "/api/snapshot" => json(cache.snapshot(&socket)),
             "/api/info" => json(cache.info(&socket)),
             "/api/history" => json(series(&database, query)),
-            "/api/journal" => json(journal(&database)),
+            "/api/journal" => json(journal(&database, query)),
+            "/api/receivers" => json(receivers(&database)),
             _ => Response::not_found(),
         }
     })
@@ -205,10 +206,40 @@ const JOURNAL_ROWS: usize = 100;
 
 /// The receiver's own record-keeping: its diagnostic log, the
 /// transitions taken from its event registers, and its error queue.
-fn journal(database: &Path) -> Result<serde_json::Value> {
-    Ok(serde_json::to_value(
-        Log::open(database)?.journal(JOURNAL_ROWS)?,
-    )?)
+fn journal(database: &Path, query: &str) -> Result<serde_json::Value> {
+    let log = Log::open(database)?;
+    let Some(receiver) = chosen_receiver(&log, query)? else {
+        return Ok(serde_json::json!({ "entries": [], "events": [], "errors": [] }));
+    };
+    Ok(serde_json::to_value(log.journal(receiver, JOURNAL_ROWS)?)?)
+}
+
+/// Every receiver the log holds, for the page's selector.
+fn receivers(database: &Path) -> Result<serde_json::Value> {
+    Ok(serde_json::to_value(Log::open(database)?.receivers()?)?)
+}
+
+/// Which receiver a request is about.
+///
+/// `?receiver=<id>` when the page has one selected, and otherwise the
+/// most recently seen -- the only one on a bench with one unit, and
+/// the attached one on a bench where they are swapped.  An id that
+/// names no receiver is refused rather than quietly serving a
+/// different unit's history under its name.
+fn chosen_receiver(log: &Log, query: &str) -> Result<Option<i64>> {
+    let asked = query.split('&').find_map(|pair| {
+        pair.split_once('=')
+            .filter(|(key, _)| *key == "receiver")
+            .and_then(|(_, value)| value.parse::<i64>().ok())
+    });
+    let Some(asked) = asked else {
+        return log.newest_receiver();
+    };
+    anyhow::ensure!(
+        log.receivers()?.iter().any(|r| r.id == asked),
+        "this log holds no receiver {asked}"
+    );
+    Ok(Some(asked))
 }
 
 /// How much history a request that does not say gets.
@@ -249,7 +280,10 @@ fn series(database: &Path, query: &str) -> Result<serde_json::Value> {
     }
 
     let log = Log::open(database)?;
-    let (first, last) = log.extent()?;
+    let Some(receiver) = chosen_receiver(&log, query)? else {
+        anyhow::bail!("this log names no receiver, so there is nothing to plot");
+    };
+    let (first, last) = log.extent(receiver)?;
     // Default to the last hour of whatever exists, so a page loaded
     // against a log that stopped yesterday still shows something.
     #[expect(clippy::cast_possible_truncation, reason = "unix seconds fit an i64")]
@@ -261,7 +295,7 @@ fn series(database: &Path, query: &str) -> Result<serde_json::Value> {
     // rather than the JSON error this function promises.
     let from = from.unwrap_or_else(|| to.saturating_sub(DEFAULT_WINDOW));
 
-    let series = log.series(&columns, from, to, points)?;
+    let series = log.series(receiver, &columns, from, to, points)?;
     Ok(serde_json::json!({
         "from": from,
         "to": to,
@@ -270,6 +304,7 @@ fn series(database: &Path, query: &str) -> Result<serde_json::Value> {
         // What may be asked for, so the page builds its menu from the
         // server rather than from a copy that can drift.
         "plottable": PLOTTABLE,
+        "receiver": receiver,
         // uPlot wants parallel arrays, not an array of points.  One
         // `at` for all of them: that is the alignment, stated once.
         "at": series.at,

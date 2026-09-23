@@ -79,9 +79,23 @@
   /* The panel heading sits on the controls row here, so it drops the
      bottom margin the standalone headings keep. */
   .controls h2 { margin: 0; }
+  /* Only shown when the log holds more than one unit, so a bench with
+     one receiver is not given a control that can only pick it. */
+  #unit-bar label { color: var(--dim); margin-right: 8px; }
+  #unit { font: inherit; background: var(--bg); color: var(--fg);
+          border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; }
 </style>
 
 <div class="panel full" id="status"><span class="muted">connecting...</span></div>
+
+<div class="panel full" id="unit-bar" hidden>
+  <div class="controls">
+    <label for="unit">Receiver</label>
+    <select id="unit"></select>
+    <span class="grow"></span>
+    <span id="unit-seen" class="muted"></span>
+  </div>
+</div>
 
 <div class="panel">
   <div class="controls">
@@ -390,11 +404,22 @@ function sky(screen) {
 
 // ---------------------------------------------------------------- charts
 
+// Which receiver every query is about.  Null until the selector has
+// loaded, and then always set: the server defaults to the unit seen
+// most recently, and the page pins that choice so a later reload of
+// one panel cannot disagree with another.
+let unit = null;
+
+function withUnit(q) {
+  if (unit !== null) q.set("receiver", unit);
+  return q;
+}
+
 async function fetchSeries(cols, from, to) {
   const q = new URLSearchParams({ columns: cols.join(","), points: 1500 });
   if (from) q.set("from", Math.round(from));
   if (to) q.set("to", Math.round(to));
-  return getJson("/api/history?" + q);
+  return getJson("/api/history?" + withUnit(q));
 }
 
 // A y scale that begins and ends on a labelled gridline.
@@ -779,7 +804,7 @@ function showStream(journal) {
 }
 
 async function loadJournal() {
-  const journal = await getJson("/api/journal");
+  const journal = await getJson("/api/journal?" + withUnit(new URLSearchParams()));
   if (journal.error) {
     $("journal").innerHTML = `<span class="muted">${esc(journal.error)}</span>`;
     return;
@@ -789,7 +814,42 @@ async function loadJournal() {
 
 // ------------------------------------------------------------------ boot
 
+// Fill the receiver selector, and pin the choice.
+//
+// Hidden for a log with one unit, or none: a control whose only option
+// is the one already chosen is noise.  Shown the moment a second unit
+// appears in the log, which is when the plots would otherwise start
+// interleaving two oscillators without saying so.
+async function units() {
+  const list = await getJson("/api/receivers");
+  if (list.error || !Array.isArray(list) || list.length === 0) return;
+  unit = list[0].id;
+  if (list.length < 2) return;
+  const select = $("unit");
+  select.innerHTML = list
+    .map((r) => {
+      const name = [r.model, r.serial].filter(Boolean).join(" ");
+      return `<option value="${r.id}">${esc(name || `receiver ${r.id}`)}</option>`;
+    })
+    .join("");
+  select.value = String(unit);
+  const seen = () => {
+    const r = list.find((x) => String(x.id) === select.value);
+    $("unit-seen").textContent = r ? `last seen ${r.last_seen.slice(0, 19)}Z` : "";
+  };
+  seen();
+  select.onchange = () => {
+    unit = Number(select.value);
+    seen();
+    zoom = null;
+    load();
+    loadJournal();
+  };
+  $("unit-bar").hidden = false;
+}
+
 (async function () {
+  await units();
   const info = await getJson("/api/info");
   $("about").textContent = info.error
     ? info.error

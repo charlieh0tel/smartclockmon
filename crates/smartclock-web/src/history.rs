@@ -96,6 +96,49 @@ impl Log {
         Ok(Self { conn })
     }
 
+    /// Every receiver this log holds, newest first by when it was
+    /// last seen.
+    ///
+    /// Empty on a log written before receivers were recorded, which is
+    /// not an error: such a log has one unit's rows and no name for it.
+    pub(crate) fn receivers(&self) -> Result<Vec<Receiver>> {
+        let mut statement = match self.conn.prepare(
+            "SELECT id, serial, COALESCE(model, ''), COALESCE(firmware, ''),
+                    COALESCE(first_seen, ''), COALESCE(last_seen, '')
+             FROM receiver ORDER BY last_seen DESC",
+        ) {
+            Ok(statement) => statement,
+            Err(rusqlite::Error::SqliteFailure(_, Some(ref why)))
+                if why.contains("no such table") =>
+            {
+                return Ok(Vec::new());
+            }
+            Err(e) => return Err(e.into()),
+        };
+        Ok(statement
+            .query_map([], |row| {
+                Ok(Receiver {
+                    id: row.get(0)?,
+                    serial: row.get(1)?,
+                    model: row.get(2)?,
+                    firmware: row.get(3)?,
+                    first_seen: row.get(4)?,
+                    last_seen: row.get(5)?,
+                })
+            })?
+            .collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// Which receiver a request that does not say gets.
+    ///
+    /// The one seen most recently, which on a bench with one unit is
+    /// the only one and on a bench where they are swapped is the one
+    /// attached now.  `None` when the log names none, and then nothing
+    /// can be filtered and nothing should be.
+    pub(crate) fn newest_receiver(&self) -> Result<Option<i64>> {
+        Ok(self.receivers()?.first().map(|r| r.id))
+    }
+
     /// Bucketed series for several columns at once, between two unix
     /// times and into at most `points` buckets each.
     ///
@@ -119,6 +162,7 @@ impl Log {
     /// freshness flag.
     pub(crate) fn series(
         &self,
+        receiver: i64,
         columns: &[String],
         from: i64,
         to: i64,
@@ -163,6 +207,11 @@ impl Log {
              WHERE at >= strftime('%Y-%m-%dT%H:%M:%S', ?1, 'unixepoch')
                AND at < strftime('%Y-%m-%dT%H:%M:%S', ?2 + 1, 'unixepoch')
                AND (fast_at = at OR (fast_at IS NULL AND freshness = 'live'))
+               -- One unit per chart.  A bench where receivers are
+               -- swapped puts two of them in one file, and a plot that
+               -- ran them together would draw a step between two
+               -- oscillators as though one had moved.
+               AND receiver_id = ?5
              GROUP BY bucket
              ORDER BY at"
         );
@@ -177,7 +226,7 @@ impl Log {
                 max: Vec::new(),
             })
             .collect();
-        let mut rows = statement.query((from, to, points, span))?;
+        let mut rows = statement.query((from, to, points, span, receiver))?;
         while let Some(row) = rows.next()? {
             at.push(row.get::<_, f64>(1)?);
             for (n, plot) in plots.iter_mut().enumerate() {
@@ -193,10 +242,11 @@ impl Log {
 
     /// The oldest and newest readings, so the page can offer a range
     /// that exists rather than one that might not.
-    pub(crate) fn extent(&self) -> Result<(f64, f64)> {
+    pub(crate) fn extent(&self, receiver: i64) -> Result<(f64, f64)> {
         let extent = self.conn.query_row(
-            "SELECT unixepoch(MIN(at)), unixepoch(MAX(at)) FROM snapshot",
-            [],
+            "SELECT unixepoch(MIN(at)), unixepoch(MAX(at)) FROM snapshot
+             WHERE receiver_id = ?1",
+            [receiver],
             |row| Ok((row.get::<_, Option<f64>>(0)?, row.get::<_, Option<f64>>(1)?)),
         )?;
         Ok(match extent {
@@ -213,7 +263,7 @@ impl Log {
     /// transitions it latched and we took.  Neither is in the snapshot
     /// table and neither can be plotted, so they would otherwise be
     /// invisible to anyone not holding a SQL prompt.
-    pub(crate) fn journal(&self, limit: usize) -> Result<Journal> {
+    pub(crate) fn journal(&self, receiver: i64, limit: usize) -> Result<Journal> {
         let limit = limit.min(MAX_JOURNAL) as i64;
         Ok(Journal {
             // Ordered by generation and then entry number, which is
@@ -226,7 +276,9 @@ impl Log {
             // number restarts at one on a clear, which is what the
             // generation counts.
             entries: self.stream(
+                receiver,
                 "SELECT at, entry, stamp, message FROM receiver_log
+                 WHERE receiver_id = ?1
                  ORDER BY generation DESC, entry DESC",
                 limit,
                 |row| {
@@ -239,7 +291,9 @@ impl Log {
                 },
             )?,
             events: self.stream(
-                "SELECT at, register, bits, decoded FROM receiver_event ORDER BY id DESC",
+                receiver,
+                "SELECT at, register, bits, decoded FROM receiver_event
+                 WHERE receiver_id = ?1 ORDER BY id DESC",
                 limit,
                 |row| {
                     Ok(Event {
@@ -251,7 +305,9 @@ impl Log {
                 },
             )?,
             errors: self.stream(
-                "SELECT at, code, message FROM receiver_error ORDER BY id DESC",
+                receiver,
+                "SELECT at, code, message FROM receiver_error
+                 WHERE receiver_id = ?1 ORDER BY id DESC",
                 limit,
                 |row| {
                     Ok(ReceiverError {
@@ -273,11 +329,11 @@ impl Log {
     /// older log, or at an archived one, should show what is there and
     /// say nothing about the rest.  Anything else means an upgraded
     /// web view breaks against a daemon not yet restarted.
-    fn stream<T, F>(&self, select: &str, limit: i64, read: F) -> Result<Vec<T>>
+    fn stream<T, F>(&self, receiver: i64, select: &str, limit: i64, read: F) -> Result<Vec<T>>
     where
         F: Fn(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
     {
-        let sql = format!("{select} LIMIT ?1");
+        let sql = format!("{select} LIMIT ?2");
         let mut statement = match self.conn.prepare(&sql) {
             Ok(statement) => statement,
             Err(rusqlite::Error::SqliteFailure(_, Some(ref why)))
@@ -288,9 +344,23 @@ impl Log {
             Err(e) => return Err(e.into()),
         };
         Ok(statement
-            .query_map([limit], |row| read(row))?
+            .query_map((receiver, limit), |row| read(row))?
             .collect::<std::result::Result<_, _>>()?)
     }
+}
+
+/// One receiver the log holds rows for.
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct Receiver {
+    /// The `receiver_id` every row of this unit's carries.
+    pub(crate) id: i64,
+    /// What the unit calls itself, and the only field it is known by:
+    /// a firmware upgrade must not make it a different receiver.
+    pub(crate) serial: String,
+    pub(crate) model: String,
+    pub(crate) firmware: String,
+    pub(crate) first_seen: String,
+    pub(crate) last_seen: String,
 }
 
 /// The most of each stream one request will return.
@@ -344,4 +414,173 @@ pub(crate) struct ReceiverError {
     pub(crate) code: i64,
     /// What the receiver called it.
     pub(crate) message: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Log;
+    use rusqlite::Connection;
+
+    /// A log holding two receivers, each with its own snapshots, log
+    /// entries, events and errors.
+    ///
+    /// Written as raw SQL rather than through the daemon so the reader
+    /// is tested against the shape it actually meets on disk, and so a
+    /// change to the writer that forgets the reader shows up here.
+    fn two_units(name: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!("smartclock-web-{name}.sqlite"));
+        let _ = std::fs::remove_file(&path);
+        let conn = Connection::open(&path).expect("make a log");
+        conn.execute_batch(
+            r#"
+            CREATE TABLE receiver (
+                id INTEGER PRIMARY KEY, serial TEXT UNIQUE NOT NULL,
+                manufacturer TEXT, model TEXT, firmware TEXT,
+                first_seen TEXT, last_seen TEXT);
+            INSERT INTO receiver VALUES
+                (1,'AAA','HEWLETT-PACKARD','58503A','3704-C',
+                 '2026-09-01T00:00:00Z','2026-09-01T02:00:00Z'),
+                (2,'BBB','HEWLETT-PACKARD','Z3805A','3611-A',
+                 '2026-09-02T00:00:00Z','2026-09-02T02:00:00Z');
+
+            CREATE TABLE snapshot (
+                id INTEGER PRIMARY KEY, at TEXT NOT NULL, freshness TEXT,
+                fast_at TEXT, efc_percent REAL, temperature_c REAL,
+                receiver_id INTEGER);
+            INSERT INTO snapshot (at, freshness, fast_at, efc_percent, receiver_id) VALUES
+                ('2026-09-01T00:00:00Z','live','2026-09-01T00:00:00Z', 10.0, 1),
+                ('2026-09-01T00:00:01Z','live','2026-09-01T00:00:01Z', 11.0, 1),
+                ('2026-09-02T00:00:00Z','live','2026-09-02T00:00:00Z', 90.0, 2),
+                ('2026-09-02T00:00:01Z','live','2026-09-02T00:00:01Z', 91.0, 2);
+
+            CREATE TABLE receiver_log (
+                id INTEGER PRIMARY KEY, at TEXT NOT NULL, entry INTEGER NOT NULL,
+                stamp TEXT, message TEXT NOT NULL, receiver_id INTEGER,
+                generation INTEGER NOT NULL DEFAULT 0);
+            -- Out of entry order on purpose, and with a power-on whose
+            -- stamp is midnight on a stale date: ordering by stamp puts
+            -- entry 2 last, which is the bug this ordering replaced.
+            INSERT INTO receiver_log (at, entry, stamp, message, receiver_id, generation) VALUES
+                ('2026-09-01T00:00:00Z',1,'20050528.00:01:00','one A',  1,0),
+                ('2026-09-01T00:00:01Z',2,'20050528.00:00:00','Power on',1,0),
+                ('2026-09-01T00:00:02Z',1,'20050530.00:00:00','after clear A',1,1),
+                ('2026-09-02T00:00:00Z',1,'20050601.00:00:00','one B',  2,0);
+
+            CREATE TABLE receiver_event (
+                id INTEGER PRIMARY KEY, at TEXT NOT NULL, register TEXT,
+                bits INTEGER, decoded TEXT, receiver_id INTEGER);
+            INSERT INTO receiver_event (at, register, bits, decoded, receiver_id) VALUES
+                ('2026-09-01T00:00:00Z','alarm',0,'clear',1),
+                ('2026-09-02T00:00:00Z','alarm',8,'holdover',2);
+
+            CREATE TABLE receiver_error (
+                id INTEGER PRIMARY KEY, at TEXT NOT NULL, code INTEGER,
+                message TEXT, receiver_id INTEGER);
+            INSERT INTO receiver_error (at, code, message, receiver_id) VALUES
+                ('2026-09-01T00:00:00Z',-113,'undefined header',1),
+                ('2026-09-02T00:00:00Z',-230,'data corrupt or stale',2);
+            "#,
+        )
+        .expect("fill it");
+        path
+    }
+
+    #[test]
+    fn a_plot_shows_one_receiver_and_not_the_other() {
+        // The bug this exists for: every query read the whole table,
+        // so two units' readings were drawn as one trace and a swap
+        // looked like an oscillator stepping.
+        let path = two_units("plot");
+        let log = Log::open(&path).expect("open");
+        let columns = vec!["efc_percent".to_owned()];
+        // The window is every row either unit has, so anything left
+        // out was left out by the filter and not by the range.
+        let (first, last) = {
+            let (fa, la) = log.extent(1).expect("A's extent");
+            let (fb, lb) = log.extent(2).expect("B's extent");
+            (fa.min(fb) as i64, la.max(lb) as i64)
+        };
+        let a = log.series(1, &columns, first, last, 100).expect("unit A");
+        let b = log.series(2, &columns, first, last, 100).expect("unit B");
+        // The window spans both units' days, so each one's two rows
+        // fall in a single bucket: the mean of that bucket is the test.
+        // Contamination could not hide in it -- mixing A's 10 and 11
+        // with B's 90 and 91 gives 50.5, not 10.5.
+        let span = |s: &super::Series| {
+            let plot = &s.plots[0];
+            (
+                plot.mean.iter().flatten().copied().collect::<Vec<_>>(),
+                plot.min.iter().flatten().copied().collect::<Vec<_>>(),
+                plot.max.iter().flatten().copied().collect::<Vec<_>>(),
+            )
+        };
+        assert_eq!(
+            span(&a),
+            (vec![10.5], vec![10.0], vec![11.0]),
+            "A's readings only"
+        );
+        assert_eq!(
+            span(&b),
+            (vec![90.5], vec![90.0], vec![91.0]),
+            "B's readings only"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn the_extent_is_the_chosen_receivers_own() {
+        // A shared extent would open the page on a window in which the
+        // selected unit has nothing, which reads as a dead receiver.
+        let path = two_units("extent");
+        let log = Log::open(&path).expect("open");
+        let (first_a, last_a) = log.extent(1).expect("A");
+        let (first_b, _) = log.extent(2).expect("B");
+        assert!(last_a < first_b, "A's history ends before B's begins");
+        assert!(first_a < last_a);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn the_journal_is_one_receivers_and_in_the_receivers_own_order() {
+        let path = two_units("journal");
+        let log = Log::open(&path).expect("open");
+        let a = log.journal(1, 50).expect("A's journal");
+        assert_eq!(
+            a.entries
+                .iter()
+                .map(|e| e.message.as_str())
+                .collect::<Vec<_>>(),
+            vec!["after clear A", "Power on", "one A"],
+            "newest generation first, then by entry number, not by stamp"
+        );
+        assert_eq!(a.events.len(), 1);
+        assert_eq!(a.errors.len(), 1);
+        assert_eq!(a.errors[0].code, -113);
+
+        let b = log.journal(2, 50).expect("B's journal");
+        assert_eq!(
+            b.entries
+                .iter()
+                .map(|e| e.message.as_str())
+                .collect::<Vec<_>>(),
+            vec!["one B"]
+        );
+        assert_eq!(b.errors[0].code, -230);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn the_default_receiver_is_the_one_seen_most_recently() {
+        let path = two_units("newest");
+        let log = Log::open(&path).expect("open");
+        assert_eq!(log.newest_receiver().expect("newest"), Some(2));
+        let names: Vec<String> = log
+            .receivers()
+            .expect("list")
+            .into_iter()
+            .map(|r| r.serial)
+            .collect();
+        assert_eq!(names, vec!["BBB".to_owned(), "AAA".to_owned()]);
+        let _ = std::fs::remove_file(&path);
+    }
 }
