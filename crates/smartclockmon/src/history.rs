@@ -412,16 +412,54 @@ impl Log {
 
 #[cfg(test)]
 mod tests {
+    const PREFIX: &str = "smartclockmon";
+
+    /// A database path that deletes itself, and the `-wal` and `-shm`
+    /// SQLite writes beside it, on drop.  Drop also runs on a panicking
+    /// test, where a line at the end of the test body would not.
+    struct Scratch(std::path::PathBuf);
+
+    impl Scratch {
+        fn new(name: &str) -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "{}-{name}-{}.sqlite",
+                PREFIX,
+                std::process::id()
+            ));
+            let guard = Self(path);
+            guard.wipe();
+            guard
+        }
+
+        fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+
+        fn wipe(&self) {
+            for suffix in ["", "-wal", "-shm"] {
+                let mut name = self.0.clone().into_os_string();
+                name.push(suffix);
+                let _ = std::fs::remove_file(std::path::PathBuf::from(name));
+            }
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            self.wipe();
+        }
+    }
+
     use super::Log;
     use super::Source;
     use rusqlite::Connection;
 
     /// A log holding two receivers, with a cleared diagnostic log and
     /// a power-on stamped at midnight on a stale date.
-    fn two_units(name: &str) -> std::path::PathBuf {
-        let path = std::env::temp_dir().join(format!("smartclockmon-{name}.sqlite"));
-        let _ = std::fs::remove_file(&path);
-        let conn = Connection::open(&path).expect("make a log");
+    fn two_units(name: &str) -> Scratch {
+        let scratch = Scratch::new(name);
+        let path = scratch.path();
+        let conn = Connection::open(path).expect("make a log");
         conn.execute_batch(
             r#"
             CREATE TABLE receiver (
@@ -458,13 +496,15 @@ mod tests {
             "#,
         )
         .expect("fill it");
-        path
+        drop(conn);
+        scratch
     }
 
     #[test]
     fn the_journal_holds_one_receiver_and_not_the_other() {
-        let path = two_units("journal");
-        let log = Log::open(&path).expect("open");
+        let scratch = two_units("journal");
+        let path = scratch.path();
+        let log = Log::open(path).expect("open");
         let a = log.journal(1, 50).expect("A");
         let texts: Vec<&str> = a.iter().map(|n| n.text.as_str()).collect();
         assert!(
@@ -473,7 +513,6 @@ mod tests {
         );
         assert!(texts.contains(&"clear A"));
         assert!(texts.contains(&"-113 undefined header A"));
-        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
@@ -483,8 +522,9 @@ mod tests {
         // stamp put `Power on` -- at 00:00:00 -- above the entry that
         // preceded it.  The generation and the entry number are the
         // receiver's own sequence and do not have that problem.
-        let path = two_units("order");
-        let log = Log::open(&path).expect("open");
+        let scratch = two_units("order");
+        let path = scratch.path();
+        let log = Log::open(path).expect("open");
         let journal = log.journal(1, 50).expect("A");
         let entries: Vec<&str> = journal
             .iter()
@@ -492,18 +532,17 @@ mod tests {
             .map(|n| n.text.as_str())
             .collect();
         assert_eq!(entries, vec!["after clear A", "Power on", "one A"]);
-        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
     fn the_receivers_are_listed_most_recently_seen_first() {
-        let path = two_units("list");
-        let log = Log::open(&path).expect("open");
+        let scratch = two_units("list");
+        let path = scratch.path();
+        let log = Log::open(path).expect("open");
         let found = log.receivers().expect("list");
         assert_eq!(
             found.iter().map(super::Receiver::label).collect::<Vec<_>>(),
             vec!["Z3805A BBB".to_owned(), "58503A AAA".to_owned()]
         );
-        let _ = std::fs::remove_file(&path);
     }
 }

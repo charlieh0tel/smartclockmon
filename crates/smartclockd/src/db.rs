@@ -819,19 +819,46 @@ mod tests {
     use rusqlite::Connection;
 
     /// A database file of our own, under the test runner's temp dir.
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let path =
-            std::env::temp_dir().join(format!("smartclockd-{name}-{}.db", std::process::id()));
-        let _ = std::fs::remove_file(&path);
-        path
+    /// A database path that deletes itself, and the `-wal` and `-shm`
+    /// SQLite writes beside it, on drop.  Drop also runs on a panicking
+    /// test, where a line at the end of the test body would not.
+    struct Scratch(std::path::PathBuf);
+
+    impl Scratch {
+        fn new(name: &str) -> Self {
+            let path =
+                std::env::temp_dir().join(format!("smartclockd-{name}-{}.db", std::process::id()));
+            let guard = Self(path);
+            guard.wipe();
+            guard
+        }
+
+        fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+
+        fn wipe(&self) {
+            for suffix in ["", "-wal", "-shm"] {
+                let mut name = self.0.clone().into_os_string();
+                name.push(suffix);
+                let _ = std::fs::remove_file(std::path::PathBuf::from(name));
+            }
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            self.wipe();
+        }
     }
 
     #[test]
     fn an_older_database_gains_the_columns_it_is_missing() {
         // The alternative to migrating in place is refusing the file,
         // and the file is the only copy of the receiver's history.
-        let path = scratch("older");
-        let conn = Connection::open(&path).expect("create the database");
+        let scratch = Scratch::new("older");
+        let path = scratch.path();
+        let conn = Connection::open(path).expect("create the database");
         conn.execute_batch(
             "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
              INSERT INTO meta VALUES ('schema', '3');
@@ -840,7 +867,7 @@ mod tests {
         .expect("write an older schema");
         drop(conn);
 
-        let log = Log::open(&path).expect("an older database should open");
+        let log = Log::open(path).expect("an older database should open");
         for column in [
             "oven_tempco",
             "operation_bits",
@@ -853,7 +880,6 @@ mod tests {
                 "{column} should have been added"
             );
         }
-        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
@@ -868,10 +894,11 @@ mod tests {
         // This passes on rusqlite's default too, which is the same five
         // seconds.  It is here to hold the behaviour still if that
         // default ever moves, not because the default is wrong.
-        let path = scratch("busy");
-        let mut log = Log::open(&path).expect("open the database");
+        let scratch = Scratch::new("busy");
+        let path = scratch.path();
+        let mut log = Log::open(path).expect("open the database");
 
-        let other = Connection::open(&path).expect("a second writer");
+        let other = Connection::open(path).expect("a second writer");
         other
             .execute_batch("BEGIN IMMEDIATE")
             .expect("take the write lock");
@@ -884,7 +911,6 @@ mod tests {
             .expect("the write should wait for the lock, not fail on it");
         releasing.join().expect("the releasing thread");
         assert_eq!(log.journal_counts().expect("count them").0, 1);
-        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
@@ -899,8 +925,9 @@ mod tests {
         // The rows are written in the order the backfill reads them --
         // newest down to oldest, then the new log upwards from one --
         // because that is the order the migration has to cope with.
-        let path = scratch("generations");
-        let old = Connection::open(&path).expect("make an old database");
+        let scratch = Scratch::new("generations");
+        let path = scratch.path();
+        let old = Connection::open(path).expect("make an old database");
         old.execute_batch(
             r#"
             CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -928,7 +955,7 @@ mod tests {
         .expect("write the old shape");
         drop(old);
 
-        let log = Log::open(&path).expect("migrate it");
+        let log = Log::open(path).expect("migrate it");
         let rows: Vec<(i64, i64)> = log
             .conn
             .prepare("SELECT generation, entry FROM receiver_log ORDER BY generation, entry")
@@ -947,7 +974,6 @@ mod tests {
         // one's two look like a complete log of five.
         assert!(log.log_complete(1, 1, 2).expect("complete"));
         assert!(!log.log_complete(1, 1, 3).expect("not complete"));
-        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
@@ -956,8 +982,9 @@ mod tests {
         // so it re-reads entries it already holds as a matter of
         // course. Without this the same entry accumulates a row per
         // pass, for ever.
-        let path = scratch("entries");
-        let mut log = Log::open(&path).expect("open the database");
+        let scratch = Scratch::new("entries");
+        let path = scratch.path();
+        let mut log = Log::open(path).expect("open the database");
         log.note_receiver("HEWLETT-PACKARD,58503A,A,3704-C")
             .expect("note the receiver");
         let entry = |log: &mut Log, generation, n, stamp, message| {
@@ -999,7 +1026,6 @@ mod tests {
             "Holdover started"
         ));
         assert_eq!(log.journal_counts().expect("count them").1, 2);
-        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
@@ -1008,8 +1034,9 @@ mod tests {
         // in one file.  Knowing that two wrote is not enough: without a
         // per-row answer, every long-run comparison in the file is
         // between two different oscillators and reads as one drifting.
-        let path = scratch("receivers");
-        let mut log = Log::open(&path).expect("open the database");
+        let scratch = Scratch::new("receivers");
+        let path = scratch.path();
+        let mut log = Log::open(path).expect("open the database");
         let note =
             |log: &mut Log, identity| log.note_receiver(identity).expect("note the receiver");
 
@@ -1065,7 +1092,6 @@ mod tests {
             )
             .expect("read the firmware");
         assert_eq!(firmware, "3714-C");
-        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
@@ -1074,8 +1100,9 @@ mod tests {
         // so a database written by a later schema was silently relabelled
         // as this one's and written into.  Snapshots are the only record
         // of a receiver's history; there is no undoing that.
-        let path = scratch("newer");
-        let conn = Connection::open(&path).expect("create the database");
+        let scratch = Scratch::new("newer");
+        let path = scratch.path();
+        let conn = Connection::open(path).expect("create the database");
         conn.execute_batch(
             "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
              INSERT INTO meta VALUES ('schema', '99');",
@@ -1083,7 +1110,7 @@ mod tests {
         .expect("stamp it as newer");
         drop(conn);
 
-        let refused = Log::open(&path).expect_err("a newer schema must be refused");
+        let refused = Log::open(path).expect_err("a newer schema must be refused");
         let why = format!("{refused:#}");
         assert!(
             why.contains("99"),
@@ -1091,7 +1118,7 @@ mod tests {
         );
 
         // And the stamp is left alone rather than overwritten with ours.
-        let conn = Connection::open(&path).expect("reopen");
+        let conn = Connection::open(path).expect("reopen");
         let found: String = conn
             .query_row("SELECT value FROM meta WHERE key = 'schema'", [], |row| {
                 row.get(0)
@@ -1118,13 +1145,13 @@ mod tests {
             vec!["meta".to_owned()],
             "a refused database must be left as it was found"
         );
-        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
     fn a_database_of_our_own_schema_opens_and_is_stamped() {
-        let path = scratch("ours");
-        let log = Log::open(&path).expect("a fresh database opens");
+        let scratch = Scratch::new("ours");
+        let path = scratch.path();
+        let log = Log::open(path).expect("a fresh database opens");
         let found: String = log
             .conn
             .query_row("SELECT value FROM meta WHERE key = 'schema'", [], |row| {
@@ -1134,7 +1161,7 @@ mod tests {
         assert_eq!(found, SCHEMA.to_string());
         drop(log);
         // Reopening its own database is not a refusal.
-        Log::open(&path).expect("reopening our own schema");
+        Log::open(path).expect("reopening our own schema");
         for suffix in ["", "-wal", "-shm"] {
             let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
         }

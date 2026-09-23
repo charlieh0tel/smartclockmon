@@ -418,6 +418,44 @@ pub(crate) struct ReceiverError {
 
 #[cfg(test)]
 mod tests {
+    const PREFIX: &str = "smartclock-web";
+
+    /// A database path that deletes itself, and the `-wal` and `-shm`
+    /// SQLite writes beside it, on drop.  Drop also runs on a panicking
+    /// test, where a line at the end of the test body would not.
+    struct Scratch(std::path::PathBuf);
+
+    impl Scratch {
+        fn new(name: &str) -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "{}-{name}-{}.sqlite",
+                PREFIX,
+                std::process::id()
+            ));
+            let guard = Self(path);
+            guard.wipe();
+            guard
+        }
+
+        fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+
+        fn wipe(&self) {
+            for suffix in ["", "-wal", "-shm"] {
+                let mut name = self.0.clone().into_os_string();
+                name.push(suffix);
+                let _ = std::fs::remove_file(std::path::PathBuf::from(name));
+            }
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            self.wipe();
+        }
+    }
+
     use super::Log;
     use rusqlite::Connection;
 
@@ -427,10 +465,10 @@ mod tests {
     /// Written as raw SQL rather than through the daemon so the reader
     /// is tested against the shape it actually meets on disk, and so a
     /// change to the writer that forgets the reader shows up here.
-    fn two_units(name: &str) -> std::path::PathBuf {
-        let path = std::env::temp_dir().join(format!("smartclock-web-{name}.sqlite"));
-        let _ = std::fs::remove_file(&path);
-        let conn = Connection::open(&path).expect("make a log");
+    fn two_units(name: &str) -> Scratch {
+        let scratch = Scratch::new(name);
+        let path = scratch.path();
+        let conn = Connection::open(path).expect("make a log");
         conn.execute_batch(
             r#"
             CREATE TABLE receiver (
@@ -482,7 +520,8 @@ mod tests {
             "#,
         )
         .expect("fill it");
-        path
+        drop(conn);
+        scratch
     }
 
     #[test]
@@ -490,8 +529,9 @@ mod tests {
         // The bug this exists for: every query read the whole table,
         // so two units' readings were drawn as one trace and a swap
         // looked like an oscillator stepping.
-        let path = two_units("plot");
-        let log = Log::open(&path).expect("open");
+        let scratch = two_units("plot");
+        let path = scratch.path();
+        let log = Log::open(path).expect("open");
         let columns = vec!["efc_percent".to_owned()];
         // The window is every row either unit has, so anything left
         // out was left out by the filter and not by the range.
@@ -524,26 +564,26 @@ mod tests {
             (vec![90.5], vec![90.0], vec![91.0]),
             "B's readings only"
         );
-        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
     fn the_extent_is_the_chosen_receivers_own() {
         // A shared extent would open the page on a window in which the
         // selected unit has nothing, which reads as a dead receiver.
-        let path = two_units("extent");
-        let log = Log::open(&path).expect("open");
+        let scratch = two_units("extent");
+        let path = scratch.path();
+        let log = Log::open(path).expect("open");
         let (first_a, last_a) = log.extent(1).expect("A");
         let (first_b, _) = log.extent(2).expect("B");
         assert!(last_a < first_b, "A's history ends before B's begins");
         assert!(first_a < last_a);
-        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
     fn the_journal_is_one_receivers_and_in_the_receivers_own_order() {
-        let path = two_units("journal");
-        let log = Log::open(&path).expect("open");
+        let scratch = two_units("journal");
+        let path = scratch.path();
+        let log = Log::open(path).expect("open");
         let a = log.journal(1, 50).expect("A's journal");
         assert_eq!(
             a.entries
@@ -566,13 +606,13 @@ mod tests {
             vec!["one B"]
         );
         assert_eq!(b.errors[0].code, -230);
-        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
     fn the_default_receiver_is_the_one_seen_most_recently() {
-        let path = two_units("newest");
-        let log = Log::open(&path).expect("open");
+        let scratch = two_units("newest");
+        let path = scratch.path();
+        let log = Log::open(path).expect("open");
         assert_eq!(log.newest_receiver().expect("newest"), Some(2));
         let names: Vec<String> = log
             .receivers()
@@ -581,6 +621,5 @@ mod tests {
             .map(|r| r.serial)
             .collect();
         assert_eq!(names, vec!["BBB".to_owned(), "AAA".to_owned()]);
-        let _ = std::fs::remove_file(&path);
     }
 }
