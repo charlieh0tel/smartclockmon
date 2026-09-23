@@ -43,6 +43,8 @@ pub(crate) enum View {
     /// Its own view because it is the only one that costs the receiver
     /// a status screen, and so is read only while it is open.
     Sky,
+    /// Allan deviation of the 1 PPS against GPS.
+    Stability,
 }
 
 /// Monitor state.
@@ -74,6 +76,8 @@ pub(crate) struct App {
     pub(crate) receiver: Option<i64>,
     /// The last series read from it.
     pub(crate) history: History,
+    /// The Allan deviation, recomputed while its view is open.
+    pub(crate) deviation: smartclock::adev::Curve,
     /// Why the history is unavailable, if it is.
     pub(crate) history_error: Option<String>,
     /// What the receiver recorded about itself, newest first.
@@ -115,6 +119,7 @@ impl App {
             receivers: Vec::new(),
             receiver: None,
             history: History::default(),
+            deviation: smartclock::adev::Curve::default(),
             history_error: None,
             console,
             policy,
@@ -192,6 +197,25 @@ impl App {
     /// Shares `history_error` with the graphs: both read the same file
     /// through the same handle, so a failure of one is a failure of the
     /// other and two separate messages would say the same thing twice.
+    /// Recompute the deviation for the current window.
+    ///
+    /// Only called while its view is open: it reads every 1 PPS
+    /// reading in the window at full rate, which is the one query here
+    /// that is not cheap.
+    pub(crate) fn refresh_deviation(&mut self) {
+        let Some(log) = &self.log else { return };
+        let Some(receiver) = self.receiver else {
+            return;
+        };
+        match log.deviation(receiver, self.window) {
+            Ok(deviation) => {
+                self.deviation = deviation;
+                self.history_error = None;
+            }
+            Err(e) => self.history_error = Some(e.to_string()),
+        }
+    }
+
     pub(crate) fn refresh_journal(&mut self) {
         let Some(log) = &self.log else { return };
         let Some(receiver) = self.receiver else {

@@ -558,6 +558,64 @@ Tiers, to be measured against hardware before being fixed:
 A control request arriving on the socket must be able to preempt a
 scheduled status screen read.
 
+### Allan deviation is computed over segments, not over a series
+
+`:SYNChronization:TINTerval?` is a phase reading, so a run of them is
+what the Allan deviation is defined over.  This measures the receiver
+against GPS, not the oscillator: while locked the disciplining loop is
+inside the loop being measured, so the short taus show the loop and the
+measurement noise.  Only holdover isolates the crystal, and holdover
+ends a run rather than continuing it.
+
+The estimator is the overlapping one, and gaps are handled by counting
+only the triples that exist rather than by filling anything in.  That
+stays unbiased so long as what is missing is unrelated to what was
+being measured -- readings lost to a daemon restart are; readings lost
+*because* the receiver was misbehaving would not be, and no estimator
+can rescue that.
+
+Four things about gaps that are easy to get wrong, and were:
+
+- **A second difference across a discontinuity is not a measurement.**
+  A relock, a holdover, a power cycle or a swapped receiver may step
+  the phase, and the estimator would read that step as enormous
+  instability at every tau spanning it.  The run is cut into segments
+  on the recorded mode and holdover flag, and on any absence longer
+  than ten nominal intervals; triples never cross a cut, and the
+  segments are pooled so a broken run is still usable.
+- **A hole must stay a hole.** Readings go on a grid indexed by time
+  rather than into a list, so a missing reading is an empty slot and
+  not a closing-up of the ones after it -- which would turn every gap
+  into a phase step.
+- **A grid point with no reading near it must stay empty.** Nearest
+  wins where two readings land on one point, but "nearest" is always
+  *something*: the last point of a run has a nearest reading up to half
+  a grid step away, and filling it from that one invents a measurement.
+  The tolerance is half a *reading* interval, not half a grid step.
+- **The spacing has to be better than one observed gap.** The grid
+  places a reading at `round((t - t0) / tau0)`, so an error in `tau0`
+  accumulates against the run.  The median of the gaps carries one
+  gap's jitter -- a nominal second measured over a few hundred real
+  polls came out as 0.999992636, seven parts per million, which reaches
+  half a grid step within a day and then drops readings periodically as
+  the drift wraps.  The median therefore only assigns whole-number
+  positions, and the spacing is the least-squares slope of time against
+  position, whose error falls off as `n^-3/2` rather than as
+  `jitter / n`.
+
+A curve carries the count of readings, holes and segments with it,
+because a curve alone cannot be judged: one drawn from a run that is
+mostly holes looks exactly like one drawn from a clean day.  Points
+below ten triples are not emitted, and the sweep stops at a third of
+the longest segment, so the curve ends where the data does rather than
+trailing into noise.
+
+Long ranges are gridded more coarsely rather than refused, which is a
+subsample and not an average -- averaging readings before the estimator
+sees them is the operation it exists to perform.  That costs the short
+taus, which is the right trade for a month of history and the wrong one
+for an hour, so the caller picks.
+
 ## Architecture
 
 Cargo workspace:

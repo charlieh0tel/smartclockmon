@@ -39,7 +39,14 @@ const PAGE: &str = include_str!("index.html");
 /// while someone is looking at it rather than on the daemon's schedule.
 const SKY: &str = include_str!("sky.html");
 
-/// Shared by both pages.
+/// The Allan deviation, on a page of its own.
+///
+/// Separate because it is not a time series: it is one curve computed
+/// over a whole range, on two log axes, and it shares neither the
+/// history page's buckets nor its cursor.
+const DEVIATION: &str = include_str!("adev.html");
+
+/// Shared by every page.
 const STYLE: &str = include_str!("style.css");
 
 #[derive(Parser)]
@@ -82,6 +89,7 @@ fn main() -> Result<()> {
         match path {
             "/" => Response::ok("text/html; charset=utf-8", PAGE.to_owned()),
             "/sky" => Response::ok("text/html; charset=utf-8", SKY.to_owned()),
+            "/adev" => Response::ok("text/html; charset=utf-8", DEVIATION.to_owned()),
             "/style.css" => Response::ok("text/css; charset=utf-8", STYLE.to_owned()),
             "/api/snapshot" => json(cache.snapshot(&socket)),
             "/api/info" => json(cache.info(&socket)),
@@ -91,6 +99,7 @@ fn main() -> Result<()> {
             "/api/history" => json(series(&database, query)),
             "/api/journal" => json(journal(&database, query)),
             "/api/receivers" => json(receivers(&database)),
+            "/api/adev" => json(deviation(&database, query)),
             _ => Response::not_found(),
         }
     })
@@ -235,6 +244,36 @@ fn journal(database: &Path, query: &str) -> Result<serde_json::Value> {
         return Ok(serde_json::json!({ "entries": [], "events": [], "errors": [] }));
     };
     Ok(serde_json::to_value(log.journal(receiver, JOURNAL_ROWS)?)?)
+}
+
+/// The Allan deviation of the 1 PPS interval over a range.
+///
+/// Its own endpoint rather than another column of `/api/history`: a
+/// deviation is not a time series and cannot be bucketed like one.  The
+/// whole run at full rate is what the estimator needs, since averaging
+/// readings together before it sees them is precisely the operation it
+/// exists to perform.
+fn deviation(database: &Path, query: &str) -> Result<serde_json::Value> {
+    let (mut from, mut to) = (None, None);
+    for pair in query.split('&') {
+        let Some((key, value)) = pair.split_once('=') else {
+            continue;
+        };
+        match key {
+            "from" => from = value.parse::<i64>().ok(),
+            "to" => to = value.parse::<i64>().ok(),
+            _ => {}
+        }
+    }
+    let log = Log::open(database)?;
+    let Some(receiver) = chosen_receiver(&log, query)? else {
+        anyhow::bail!("this log names no receiver, so there is nothing to measure");
+    };
+    let (_, last) = log.extent(receiver)?;
+    #[expect(clippy::cast_possible_truncation, reason = "unix seconds fit an i64")]
+    let to = to.unwrap_or(last as i64);
+    let from = from.unwrap_or_else(|| to.saturating_sub(DEFAULT_WINDOW));
+    Ok(serde_json::to_value(log.phase(receiver, from, to)?)?)
 }
 
 /// Every receiver the log holds, for the page's selector.

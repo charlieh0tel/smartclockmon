@@ -1,0 +1,196 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SmartClock stability</title>
+
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.min.css"
+      integrity="sha384-IfV0B7MIOYuO95kO9G5ySKPz/85zqFNOAs8iy4tkK5zd9izhJAB8b7lHrwYqqmYE"
+      crossorigin="anonymous">
+
+<link rel="stylesheet" href="/style.css">
+
+<div class="panel full nav"><a href="/">&larr; Back</a></div>
+
+<div class="panel full" id="state"><span class="muted">loading...</span></div>
+
+<div class="panel full">
+  <div class="controls">
+    <h2>Allan deviation</h2>
+    <span class="grow"></span>
+    <span id="ranges"></span>
+  </div>
+  <div id="chart"></div>
+  <table id="table"><tbody class="muted"><tr><td>loading...</td></tr></tbody></table>
+  <p class="muted" id="caveat"></p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.iife.min.js"
+        integrity="sha384-Gx3t0zdBAuQOuvvmaLZj7HKEiSgWTAs+VdtNY7wt19QDPTDQjFIwAuXDj0zeN00c"
+        crossorigin="anonymous"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (v) =>
+  String(v).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+// Ranges to measure over, as seconds back from the newest reading.
+// Longer than the history page offers, because a deviation at a long
+// tau needs a long run and there is no point offering a window that
+// cannot produce one.
+const RANGES = [
+  ["1h", 3600], ["6h", 21600], ["24h", 86400],
+  ["7d", 604800], ["30d", 2592000], ["all", null],
+];
+
+// Both axes are decades, which is the only way this curve is ever
+// read: the slope between decades is what names the noise.
+const LOG = { distr: 3, log: 10 };
+
+let range = 3600;
+let chart = null;
+
+// A tau or a deviation as a reader says it: one significant figure of
+// mantissa and the exponent, rather than eleven digits of float.
+function decade(v) {
+  if (!Number.isFinite(v) || v <= 0) return "--";
+  const exponent = Math.floor(Math.log10(v));
+  const mantissa = v / 10 ** exponent;
+  return `${mantissa.toFixed(mantissa < 10 ? 1 : 0)}e${exponent}`;
+}
+
+function seconds(v) {
+  if (v >= 86400) return `${(v / 86400).toFixed(v < 864000 ? 1 : 0)} d`;
+  if (v >= 3600) return `${(v / 3600).toFixed(1)} h`;
+  if (v >= 60) return `${(v / 60).toFixed(1)} m`;
+  return `${v.toFixed(v < 10 ? 2 : 0)} s`;
+}
+
+function draw(points) {
+  const taus = points.map((p) => p.tau);
+  const devs = points.map((p) => p.deviation);
+  if (chart) {
+    chart.destroy();
+    chart = null;
+  }
+  $("chart").innerHTML = "";
+  if (!points.length) return;
+  chart = new uPlot(
+    {
+      width: $("chart").clientWidth || 640,
+      height: 360,
+      scales: { x: LOG, y: LOG },
+      axes: [
+        {
+          scale: "x",
+          stroke: "#8b929c",
+          grid: { stroke: "#2b3038" },
+          values: (_, splits) => splits.map(seconds),
+        },
+        {
+          scale: "y",
+          stroke: "#8b929c",
+          grid: { stroke: "#2b3038" },
+          values: (_, splits) => splits.map(decade),
+        },
+      ],
+      series: [
+        { label: "tau", value: (_, v) => (v == null ? "--" : seconds(v)) },
+        {
+          label: "sigma_y",
+          stroke: "#38bdf8",
+          width: 2,
+          points: { show: true, size: 6 },
+          value: (_, v) => (v == null ? "--" : decade(v)),
+        },
+      ],
+      legend: { live: true },
+    },
+    [taus, devs],
+    $("chart"),
+  );
+}
+
+function table(d) {
+  if (!d.points.length) {
+    $("table").innerHTML =
+      `<tbody class="muted"><tr><td>` +
+      `not enough unbroken readings in this range to measure anything` +
+      `</td></tr></tbody>`;
+    return;
+  }
+  $("table").innerHTML =
+    "<thead><tr><th>tau</th><th>sigma_y</th><th>triples</th></tr></thead><tbody>" +
+    d.points
+      .map(
+        (p) =>
+          `<tr><td>${esc(seconds(p.tau))}</td><td>${esc(decade(p.deviation))}</td>` +
+          `<td class="muted">${p.triples}</td></tr>`,
+      )
+      .join("") +
+    "</tbody>";
+}
+
+async function load() {
+  $("state").innerHTML = `<span class="pill">measuring...</span>`;
+  const q = new URLSearchParams();
+  if (range !== null) {
+    // The server defaults `to` to the newest reading, so a window is
+    // expressed as a span and the page never has to know what time the
+    // log thinks it is.
+    q.set("from", String(Math.floor(Date.now() / 1000) - range));
+  } else {
+    q.set("from", "0");
+    q.set("to", "2000000000");
+  }
+  try {
+    const r = await fetch(`/api/adev?${q}`);
+    if (!r.ok) throw new Error(`the server answered ${r.status}`);
+    const d = await r.json();
+    draw(d.points);
+    table(d);
+    // Coverage travels with the curve because the curve cannot show
+    // it: one drawn from a run that is mostly holes, or that broke
+    // into forty pieces, looks exactly like one drawn from a clean day.
+    const total = d.present + d.holes;
+    const complete = total ? ((100 * d.present) / total).toFixed(1) : "0.0";
+    $("state").innerHTML =
+      `<span class="pill ok">${d.present} readings</span>` +
+      `<span class="stat">spacing <b>${esc(seconds(d.tau0))}</b></span>` +
+      `<span class="stat">unbroken runs <b>${d.segments}</b></span>` +
+      `<span class="stat">complete <b>${complete}%</b></span>` +
+      (d.holes
+        ? `<span class="stat">holes <b>${d.holes}</b></span>`
+        : "");
+  } catch (e) {
+    draw([]);
+    $("state").innerHTML = `<span class="pill down">${esc(e.message)}</span>`;
+  }
+}
+
+$("ranges").innerHTML = RANGES.map(
+  ([label, span]) => `<button data-span="${span}">${label}</button>`,
+).join(" ");
+for (const button of $("ranges").querySelectorAll("button")) {
+  button.onclick = () => {
+    range = button.dataset.span === "null" ? null : Number(button.dataset.span);
+    load();
+  };
+}
+
+// Said once, plainly, because the number on the chart is not the
+// number most people come looking for.
+$("caveat").textContent =
+  "This is the receiver's 1 PPS against GPS, not the oscillator. " +
+  "While locked, the disciplining loop is inside what is being " +
+  "measured, so the short taus show the loop and the measurement " +
+  "noise rather than the crystal. Only holdover isolates the " +
+  "oscillator, and holdover ends a run rather than continuing it.";
+
+addEventListener("resize", () => chart && chart.setSize({
+  width: $("chart").clientWidth || 640,
+  height: 360,
+}));
+
+load();
+</script>

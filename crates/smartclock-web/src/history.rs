@@ -12,6 +12,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 use rusqlite::Connection;
 use rusqlite::OpenFlags;
+use smartclock::adev;
+use smartclock::adev::Curve;
+use smartclock::adev::Sample;
 
 /// A column of the snapshot table that can be plotted.
 ///
@@ -275,6 +278,65 @@ impl Log {
         Ok(Series { at, plots })
     }
 
+    /// The phase readings for an Allan deviation, with the run already
+    /// divided where it must not be joined.
+    ///
+    /// A second difference taken across a relock, a holdover or a power
+    /// cycle is not a measurement of the oscillator, so those become
+    /// segment boundaries and no triple is formed across one.  The mode
+    /// and the holdover flag are what the log records about that; a
+    /// plain gap in the timestamps is caught by the estimator itself.
+    pub(crate) fn phase(&self, receiver: i64, from: i64, to: i64) -> Result<Curve> {
+        anyhow::ensure!(from <= to, "the range ends before it starts");
+        let mut statement = self.conn.prepare(
+            // `fast_at = at` keeps one row per reading.  The medium and
+            // slow steps publish rows of their own carrying the fast
+            // tier's last value again, and counting those as samples
+            // would put several readings a fraction of a second apart
+            // and call the phase constant across them.
+            // `at` as stored, not `unixepoch(at)`: that truncates to
+            // the second, and the sub-second part is what decides which
+            // grid point a reading belongs to.
+            "SELECT at, time_interval_s, COALESCE(mode, 'unknown'),
+                    COALESCE(holdover_active, 0)
+             FROM snapshot
+             WHERE at >= strftime('%Y-%m-%dT%H:%M:%S', ?2, 'unixepoch')
+               AND at < strftime('%Y-%m-%dT%H:%M:%S', ?3 + 1, 'unixepoch')
+               AND receiver_id = ?1
+               AND time_interval_s IS NOT NULL
+               AND (fast_at = at OR (fast_at IS NULL AND freshness = 'live'))
+             ORDER BY at",
+        )?;
+        let rows = statement.query_map(rusqlite::params![receiver, from, to], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, f64>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, i64>(3)? != 0,
+            ))
+        })?;
+
+        let mut samples = Vec::new();
+        let mut states = Vec::new();
+        for row in rows {
+            let (at, interval, mode, holdover) = row?;
+            let Ok(at) = at.parse::<jiff::Timestamp>() else {
+                continue;
+            };
+            samples.push(Sample { at, interval });
+            states.push((mode, holdover));
+        }
+
+        // Indices, so what the estimator asks about is all this
+        // depends on.  A closure counting its own calls would be
+        // desynchronised the first time a long absence split the run
+        // without asking.
+        let stride = samples.len().div_euclid(adev::MAX_SAMPLES) + 1;
+        Ok(Curve::measure(&samples, stride, |a, b| {
+            states[a] != states[b]
+        }))
+    }
+
     /// The oldest and newest readings, so the page can offer a range
     /// that exists rather than one that might not.
     pub(crate) fn extent(&self, receiver: i64) -> Result<(f64, f64)> {
@@ -493,6 +555,123 @@ mod tests {
 
     use super::Log;
     use rusqlite::Connection;
+
+    /// A run of phase readings on disk, shaped the way the daemon
+    /// writes them: a row per publish, so the steps of the slower tiers
+    /// repeat the fast tier's last reading under a later `at`.
+    fn phase_log(name: &str, rows: &[(i64, f64, &str, i64, bool)]) -> Scratch {
+        let scratch = Scratch::new(name);
+        let conn = Connection::open(scratch.path()).expect("make a log");
+        conn.execute_batch(
+            r#"
+            CREATE TABLE receiver (
+                id INTEGER PRIMARY KEY, serial TEXT UNIQUE NOT NULL,
+                manufacturer TEXT, model TEXT, firmware TEXT,
+                first_seen TEXT, last_seen TEXT);
+            INSERT INTO receiver VALUES
+                (1,'AAA','HEWLETT-PACKARD','58503A','3704-C',NULL,NULL);
+            CREATE TABLE snapshot (
+                id INTEGER PRIMARY KEY, at TEXT NOT NULL, freshness TEXT,
+                fast_at TEXT, time_interval_s REAL, mode TEXT,
+                holdover_active INTEGER, receiver_id INTEGER);
+            "#,
+        )
+        .expect("schema");
+        for (second, interval, mode, holdover, repeat) in rows {
+            let at = jiff::Timestamp::from_second(*second).expect("a timestamp");
+            // A repeat carries an earlier `fast_at`, which is how the
+            // reader tells a measurement from a restatement of one.
+            let fast_at = if *repeat {
+                jiff::Timestamp::from_second(second - 1).expect("a timestamp")
+            } else {
+                at
+            };
+            conn.execute(
+                "INSERT INTO snapshot
+                 (at, freshness, fast_at, time_interval_s, mode, holdover_active, receiver_id)
+                 VALUES (?1,'live',?2,?3,?4,?5,1)",
+                rusqlite::params![
+                    at.to_string(),
+                    fast_at.to_string(),
+                    interval,
+                    mode,
+                    holdover,
+                ],
+            )
+            .expect("a row");
+        }
+        scratch
+    }
+
+    #[test]
+    fn a_steady_ramp_has_no_deviation_and_the_repeats_are_not_counted() {
+        // The receiver's phase walking at a constant rate is a constant
+        // frequency offset, not instability, so the curve must sit on
+        // the floor.  Six hundred readings, with a repeat row after
+        // every tenth: those must not be read as extra samples.
+        let mut rows = Vec::new();
+        for i in 0..600i64 {
+            rows.push((1_700_000_000 + i, 2e-9 * i as f64, "Locked", 0, false));
+            if i % 10 == 9 {
+                rows.push((1_700_000_000 + i, 2e-9 * i as f64, "Locked", 0, true));
+            }
+        }
+        let scratch = phase_log("adev-ramp", &rows);
+        let log = Log::open(scratch.path()).expect("open");
+        let deviation = log.phase(1, 0, 2_000_000_000).expect("a deviation");
+
+        assert_eq!(deviation.tau0, 1.0);
+        assert_eq!(deviation.segments, 1);
+        assert_eq!(deviation.present, 600, "repeats were counted as readings");
+        assert_eq!(deviation.holes, 0);
+        assert!(!deviation.points.is_empty());
+        for point in &deviation.points {
+            assert!(point.deviation < 1e-15, "{point:?}");
+        }
+    }
+
+    #[test]
+    fn a_relock_does_not_become_instability() {
+        // Holdover, then a relock that steps the phase by a
+        // microsecond.  Joined, that step is a deviation of about 1e-6
+        // at tau = 1; split, it is not a measurement at all.
+        let mut rows = Vec::new();
+        for i in 0..300i64 {
+            rows.push((1_700_000_000 + i, 1e-9 * i as f64, "Holdover", 1, false));
+        }
+        for i in 300..600i64 {
+            rows.push((
+                1_700_000_000 + i,
+                1e-6 + 1e-9 * i as f64,
+                "Locked",
+                0,
+                false,
+            ));
+        }
+        let scratch = phase_log("adev-relock", &rows);
+        let log = Log::open(scratch.path()).expect("open");
+        let deviation = log.phase(1, 0, 2_000_000_000).expect("a deviation");
+
+        assert_eq!(deviation.segments, 2);
+        for point in &deviation.points {
+            assert!(point.deviation < 1e-15, "{point:?}");
+        }
+    }
+
+    #[test]
+    fn a_range_with_too_little_in_it_yields_no_curve() {
+        // Nine readings cannot support even tau = 1, and the honest
+        // answer is an empty curve rather than a point drawn from two
+        // differences.
+        let rows: Vec<_> = (0..9i64)
+            .map(|i| (1_700_000_000 + i, 1e-9 * i as f64, "Locked", 0, false))
+            .collect();
+        let scratch = phase_log("adev-short", &rows);
+        let log = Log::open(scratch.path()).expect("open");
+        let deviation = log.phase(1, 0, 2_000_000_000).expect("a deviation");
+        assert!(deviation.points.is_empty());
+        assert_eq!(deviation.present, 9);
+    }
 
     /// A log holding two receivers, each with its own snapshots, log
     /// entries, events and errors.

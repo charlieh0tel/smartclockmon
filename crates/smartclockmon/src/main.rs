@@ -95,6 +95,10 @@ fn run(
         // as this view asks for it -- and it asks only while it is the
         // view being shown, because each read costs the receiver about
         // 1.5 s of its serial link.
+        if app.view == View::Stability && Instant::now() >= due {
+            app.refresh_deviation();
+            due = Instant::now() + HISTORY_REFRESH;
+        }
         if app.view == View::Sky && Instant::now() >= due {
             let _ = app.console.sky();
             due = Instant::now() + SKY_REFRESH;
@@ -146,7 +150,8 @@ fn run(
                             View::Dashboard => View::History,
                             View::History => View::Journal,
                             View::Journal => View::Sky,
-                            View::Sky => View::Dashboard,
+                            View::Sky => View::Stability,
+                            View::Stability => View::Dashboard,
                         };
                         due = Instant::now();
                     }

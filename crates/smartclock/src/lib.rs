@@ -3,6 +3,8 @@
 //!
 //! See `PLAN.md` at the repository root for architecture and decisions.
 
+/// Allan deviation from the receiver's phase readings.
+pub mod adev;
 pub mod client;
 pub mod control;
 pub mod device;

@@ -51,6 +51,7 @@ pub(crate) fn draw(frame: &mut Frame, app: &App) {
         View::History => history(frame, app),
         View::Journal => journal(frame, app),
         View::Sky => sky(frame, app),
+        View::Stability => stability(frame, app),
     }
 }
 
@@ -691,6 +692,113 @@ fn ti_trend(app: &App, width: usize) -> String {
             ramp[(level as usize).min(ramp.len() - 1)]
         })
         .collect()
+}
+
+/// The Allan deviation, on a view of its own.
+///
+/// Both axes are decades, which is the only way this curve is read: the
+/// slope between decades is what names the noise.  ratatui has no log
+/// axis, so the points are plotted as their logarithms and the labels
+/// say what the numbers are.
+fn stability(frame: &mut Frame, app: &App) {
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Fill(1),
+            Constraint::Length(1),
+        ])
+        .split(frame.area());
+    header(frame, rows[0], app);
+    footer(frame, rows[2], app);
+
+    let curve = &app.deviation;
+    if curve.points.is_empty() {
+        let why = if curve.present == 0 {
+            "no 1 PPS readings in this window".to_owned()
+        } else {
+            format!(
+                "{} readings over {} unbroken runs: too few for a deviation",
+                curve.present, curve.segments
+            )
+        };
+        frame.render_widget(
+            Paragraph::new(why).block(block(&format!("Stability  {}", app.window.label()))),
+            rows[1],
+        );
+        return;
+    }
+
+    let points: Vec<(f64, f64)> = curve
+        .points
+        .iter()
+        .map(|p| (p.tau.log10(), p.deviation.log10()))
+        .collect();
+    let bounds = |values: &[f64]| {
+        let low = values.iter().copied().fold(f64::INFINITY, f64::min).floor();
+        let high = values
+            .iter()
+            .copied()
+            .fold(f64::NEG_INFINITY, f64::max)
+            .ceil();
+        // A curve inside one decade would otherwise be drawn on a zero
+        // height axis.
+        if high > low {
+            [low, high]
+        } else {
+            [low, low + 1.0]
+        }
+    };
+    let x = bounds(&points.iter().map(|p| p.0).collect::<Vec<_>>());
+    let y = bounds(&points.iter().map(|p| p.1).collect::<Vec<_>>());
+    let decades = |range: [f64; 2]| {
+        let (low, high) = (range[0] as i32, range[1] as i32);
+        (low..=high).map(|d| format!("1e{d}")).collect::<Vec<_>>()
+    };
+
+    let datasets = vec![
+        Dataset::default()
+            .marker(ratatui::symbols::Marker::Braille)
+            .graph_type(ratatui::widgets::GraphType::Line)
+            .style(Style::new().fg(Color::Cyan))
+            .data(&points),
+    ];
+    let axis = Style::new().fg(Color::DarkGray);
+    // The coverage is in the title because the curve cannot show it: a
+    // run that is mostly holes draws the same line as a clean one.
+    let total = curve.present + curve.holes;
+    let complete = if total == 0 {
+        0.0
+    } else {
+        100.0 * curve.present as f64 / total as f64
+    };
+    let title = format!(
+        "Stability  {}   tau0 {:.3} s   {} readings, {} runs, {complete:.0}% complete",
+        app.window.label(),
+        curve.tau0,
+        curve.present,
+        curve.segments,
+    );
+    frame.render_widget(
+        Chart::new(datasets)
+            .block(block(&title))
+            .legend_position(None)
+            .x_axis(
+                Axis::default()
+                    .style(axis)
+                    .bounds(x)
+                    .labels(decades(x))
+                    .title("tau (s)"),
+            )
+            .y_axis(
+                Axis::default()
+                    .style(axis)
+                    .bounds(y)
+                    .labels(decades(y))
+                    .title("sigma_y"),
+            ),
+        rows[1],
+    );
 }
 
 /// The satellites overhead, on a view of its own.

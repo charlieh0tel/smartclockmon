@@ -20,12 +20,12 @@ oscillator.  See `docs/efc.md`.
 
 | | |
 | - | - |
-| `smartclock` | the library: transports, SCPI framing, the command table, parsers, the status screen scraper, and the polling task |
+| `smartclock` | the library: transports, SCPI framing, the command table, parsers, the status screen scraper, the polling task, and the Allan deviation |
 | `smartclockd` | holds the serial port, logs to SQLite, serves clients over a local socket |
-| `smartclockmon` | terminal monitor: a dashboard, history graphs, the journal and the sky |
+| `smartclockmon` | terminal monitor: a dashboard, history graphs, the journal, the sky and stability |
 | `smartclock-cli` | one-shot queries, `diagnose`, transcript capture, and sweeping for undocumented commands |
 | `smartclock-exporter` | Prometheus metrics for the receiver, from the daemon's own readings |
-| `smartclock-web` | a browser view: live state, history you can zoom, and a sky plot of its own |
+| `smartclock-web` | a browser view: live state, history you can zoom, and pages for the sky and for stability |
 | `smartclock-sim` | a simulated receiver, in process for tests and over TCP for driving the real daemon |
 
 ## Running it
@@ -69,6 +69,16 @@ which costs the receiver about 1.5 s of a 19200 link, four times what
 a whole one-second poll costs.  Nothing else needs it, so nothing else
 pays for it.  The satellite counts are queried directly and are on the
 one-second tier with everything else.
+
+Stability is its own view in both, `/adev` in the browser: the
+overlapping Allan deviation of the 1 PPS against GPS, on log axes.  It
+is the receiver that is measured and not the oscillator -- while locked
+the disciplining loop is inside what is being measured -- and the page
+says so.  Gaps are not filled in: the run is cut where a relock, a
+holdover or an absence makes the phase either side incomparable, only
+the second differences that exist are counted, and the curve carries
+the number of readings, holes and unbroken runs behind it so it can be
+judged.  `PLAN.md` has what that took.
 
 The browser view is read-only and is not the monitor in a window: it
 draws what a terminal cannot, which is mainly history you can drag to

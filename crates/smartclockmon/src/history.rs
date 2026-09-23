@@ -10,6 +10,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 use rusqlite::Connection;
 use rusqlite::OpenFlags;
+use smartclock::adev;
+use smartclock::adev::Curve;
+use smartclock::adev::Sample;
 
 /// How far back a graph looks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -354,6 +357,55 @@ impl Log {
     /// the pane titled "1 hour" could show two days.  Measured
     /// against the development log: 3133 rows returned for the last
     /// hour where 2545 was correct.
+    /// The Allan deviation of the 1 PPS interval over the window.
+    ///
+    /// The readings are taken at full rate rather than bucketed: a
+    /// deviation is not a time series, and averaging readings before
+    /// the estimator sees them is the operation it exists to perform.
+    /// A run is split where the phase either side is incomparable --
+    /// a relock, a holdover, a power cycle -- so no second difference
+    /// is ever taken across one.
+    pub(crate) fn deviation(&self, receiver: i64, window: Window) -> Result<Curve> {
+        let mut statement = self.conn.prepare(
+            // `at` as stored, not `unixepoch(at)`: that truncates to
+            // the second, and the sub-second part decides which grid
+            // point a reading belongs to.  `fast_at = at` keeps one row
+            // per reading, since the slower tiers publish rows of their
+            // own restating the fast tier's last value.
+            "SELECT at, time_interval_s, COALESCE(mode, 'unknown'),
+                    COALESCE(holdover_active, 0)
+             FROM snapshot
+             WHERE unixepoch(at) >= unixepoch('now') - ?2
+               AND receiver_id = ?1
+               AND time_interval_s IS NOT NULL
+               AND (fast_at = at OR (fast_at IS NULL AND freshness = 'live'))
+             ORDER BY at",
+        )?;
+        let rows = statement.query_map(rusqlite::params![receiver, window.seconds()], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, f64>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, i64>(3)? != 0,
+            ))
+        })?;
+
+        let mut samples = Vec::new();
+        let mut states = Vec::new();
+        for row in rows {
+            let (at, interval, mode, holdover) = row?;
+            let Ok(at) = at.parse::<jiff::Timestamp>() else {
+                continue;
+            };
+            samples.push(Sample { at, interval });
+            states.push((mode, holdover));
+        }
+        let stride = samples.len().div_euclid(adev::MAX_SAMPLES) + 1;
+        Ok(Curve::measure(&samples, stride, |a, b| {
+            states[a] != states[b]
+        }))
+    }
+
     pub(crate) fn read(&self, receiver: i64, window: Window, columns: usize) -> Result<History> {
         let span = window.seconds();
         let buckets = columns.clamp(16, 1024) as i64;
