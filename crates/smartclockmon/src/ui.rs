@@ -900,11 +900,22 @@ fn console(frame: &mut Frame, area: Rect, app: &App) {
 
 fn footer(frame: &mut Frame, area: Rect, app: &App) {
     let keys = if app.console_open {
-        "Enter send  Esc close"
+        "Enter send  Esc close".to_owned()
+    } else if app.receivers.len() > 1 {
+        "q quit  g next view  l journal  w window  r receiver  c command".to_owned()
     } else {
-        "q quit  g next view  l journal  w window  c command"
+        "q quit  g next view  l journal  w window  c command".to_owned()
     };
     let mut spans = vec![Span::styled(keys, Style::new().fg(Color::DarkGray))];
+    // Only when the log holds more than one, since naming the sole
+    // receiver on every frame says nothing.
+    if let Some(label) = app.receiver_label() {
+        spans.push(Span::raw("   "));
+        spans.push(Span::styled(
+            format!("showing {label}"),
+            Style::new().fg(Color::Cyan),
+        ));
+    }
     if let Some(error) = app.snapshot.as_ref().and_then(|s| s.polled.any_error()) {
         spans.push(Span::raw("   "));
         spans.push(Span::styled(error.to_owned(), Style::new().fg(Color::Red)));

@@ -145,6 +145,10 @@ fn run(
                         app.window = app.window.next();
                         due = Instant::now();
                     }
+                    KeyCode::Char('r') => {
+                        app.next_receiver();
+                        due = Instant::now();
+                    }
                     KeyCode::Char('c') | KeyCode::Char(':') => app.console_open = true,
                     _ => {}
                 }

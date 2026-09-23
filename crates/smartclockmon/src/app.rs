@@ -59,6 +59,14 @@ pub(crate) struct App {
     pub(crate) window: Window,
     /// The daemon's log, when there is one to read.
     pub(crate) log: Option<Log>,
+    /// Every receiver the log holds, most recently seen first.
+    pub(crate) receivers: Vec<crate::history::Receiver>,
+    /// Which of them the graphs and the journal are showing.
+    ///
+    /// `None` only while no log is open or the log names no receiver;
+    /// otherwise the most recently seen, which is the attached unit on
+    /// a bench where they are swapped.
+    pub(crate) receiver: Option<i64>,
     /// The last series read from it.
     pub(crate) history: History,
     /// Why the history is unavailable, if it is.
@@ -99,6 +107,8 @@ impl App {
             window: Window::Hour,
             log: None,
             journal: Vec::new(),
+            receivers: Vec::new(),
+            receiver: None,
             history: History::default(),
             history_error: None,
             console,
@@ -140,7 +150,11 @@ impl App {
                 database: Some(path),
                 ..
             } => match Log::open(std::path::Path::new(path)) {
-                Ok(log) => self.log = Some(log),
+                Ok(log) => {
+                    self.receivers = log.receivers().unwrap_or_default();
+                    self.receiver = self.receivers.first().map(|r| r.id);
+                    self.log = Some(log);
+                }
                 Err(e) => self.history_error = Some(e.to_string()),
             },
             Attachment::Daemon { database: None, .. } => {
@@ -156,7 +170,10 @@ impl App {
     /// Re-read the graphs.  Called on a timer, not every frame.
     pub(crate) fn refresh_history(&mut self, columns: usize) {
         let Some(log) = &self.log else { return };
-        match log.read(self.window, columns) {
+        let Some(receiver) = self.receiver else {
+            return;
+        };
+        match log.read(receiver, self.window, columns) {
             Ok(history) => {
                 self.history = history;
                 self.history_error = None;
@@ -172,13 +189,45 @@ impl App {
     /// other and two separate messages would say the same thing twice.
     pub(crate) fn refresh_journal(&mut self) {
         let Some(log) = &self.log else { return };
-        match log.journal(JOURNAL_LEN) {
+        let Some(receiver) = self.receiver else {
+            return;
+        };
+        match log.journal(receiver, JOURNAL_LEN) {
             Ok(journal) => {
                 self.journal = journal;
                 self.history_error = None;
             }
             Err(e) => self.history_error = Some(e.to_string()),
         }
+    }
+
+    /// Show the next receiver the log holds.
+    ///
+    /// Does nothing when there is one, which is the usual case: a key
+    /// that appears to do nothing is better than one that silently
+    /// reorders a single-unit view.
+    pub(crate) fn next_receiver(&mut self) {
+        if self.receivers.len() < 2 {
+            return;
+        }
+        let at = self
+            .receivers
+            .iter()
+            .position(|r| Some(r.id) == self.receiver)
+            .unwrap_or(0);
+        self.receiver = Some(self.receivers[(at + 1) % self.receivers.len()].id);
+    }
+
+    /// How the chosen receiver is named on screen, when there is a
+    /// choice to be aware of.
+    pub(crate) fn receiver_label(&self) -> Option<String> {
+        if self.receivers.len() < 2 {
+            return None;
+        }
+        self.receivers
+            .iter()
+            .find(|r| Some(r.id) == self.receiver)
+            .map(crate::history::Receiver::label)
     }
 
     /// Note that the source went away, keeping the last values on

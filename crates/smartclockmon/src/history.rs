@@ -177,6 +177,27 @@ pub(crate) struct Note {
     pub(crate) source: Source,
 }
 
+/// One receiver the log holds rows for.
+#[derive(Debug, Clone)]
+pub(crate) struct Receiver {
+    /// The `receiver_id` this unit's rows carry.
+    pub(crate) id: i64,
+    /// Its serial number, which is the only thing it is known by.
+    pub(crate) serial: String,
+    pub(crate) model: String,
+}
+
+impl Receiver {
+    /// How the status line names it.
+    pub(crate) fn label(&self) -> String {
+        if self.model.is_empty() {
+            self.serial.clone()
+        } else {
+            format!("{} {}", self.model, self.serial)
+        }
+    }
+}
+
 /// A read-only view of the daemon's log.
 #[derive(Debug)]
 pub(crate) struct Log {
@@ -194,6 +215,34 @@ impl Log {
         Ok(Self { conn })
     }
 
+    /// Every receiver this log holds, most recently seen first.
+    ///
+    /// Empty on a log written before receivers were recorded, which is
+    /// not an error: such a log has one unit's rows and no name for it.
+    pub(crate) fn receivers(&self) -> Result<Vec<Receiver>> {
+        let mut statement = match self.conn.prepare(
+            "SELECT id, serial, COALESCE(model, '') FROM receiver
+             ORDER BY last_seen DESC",
+        ) {
+            Ok(statement) => statement,
+            Err(rusqlite::Error::SqliteFailure(_, Some(ref why)))
+                if why.contains("no such table") =>
+            {
+                return Ok(Vec::new());
+            }
+            Err(e) => return Err(e.into()),
+        };
+        Ok(statement
+            .query_map([], |row| {
+                Ok(Receiver {
+                    id: row.get(0)?,
+                    serial: row.get(1)?,
+                    model: row.get(2)?,
+                })
+            })?
+            .collect::<std::result::Result<_, _>>()?)
+    }
+
     /// The receiver's own record-keeping.
     ///
     /// Grouped, not interleaved.  The three records run on two clocks:
@@ -206,7 +255,7 @@ impl Log {
     /// backwards.  So each record keeps its own order and they are
     /// shown in sequence: what has happened recently first, then the
     /// receiver's own history in its own sequence.
-    pub(crate) fn journal(&self, limit: usize) -> Result<Vec<Note>> {
+    pub(crate) fn journal(&self, receiver: i64, limit: usize) -> Result<Vec<Note>> {
         let limit = limit.min(MAX_JOURNAL) as i64;
         let mut notes = Vec::new();
         // The receiver's own stamp where there is one: an entry it
@@ -216,32 +265,35 @@ impl Log {
         // Events and errors share the host clock, so these two do
         // merge, newest first.
         let mut recent = self.stream(
-            "SELECT at, at, decoded FROM receiver_event",
+            "SELECT at, at, decoded FROM receiver_event WHERE receiver_id = ?1",
+            receiver,
             limit,
             Source::Event,
         )?;
         recent.extend(self.stream(
-            "SELECT at, at, code || ' ' || message FROM receiver_error",
+            "SELECT at, at, code || ' ' || message FROM receiver_error
+             WHERE receiver_id = ?1",
+            receiver,
             limit,
             Source::Error,
         )?);
         recent.sort_by(|a, b| b.at.cmp(&a.at));
         notes.extend(recent);
 
-        // Then the receiver's log on the receiver's own clock.  Not by
-        // entry number, which restarts at one whenever the log is
-        // cleared and would bury everything since the last clear at the
-        // bottom; and not by when we copied it, which for a backfill
-        // walking newest-to-oldest is exactly backwards.  The calendar
-        // keeps running across a clear, so its own stamp is the only
-        // key that orders the whole log correctly.
-        //
-        // Imperfect around a power cycle, where the clock restarts at
-        // midnight on a stale date until the first lock.  Those entries
-        // sort early; the entry numbers in the web view disambiguate.
+        // Then the receiver's log in the receiver's own sequence:
+        // newest generation first, and within it by entry number.  Not
+        // by stamp, which this used to use -- before the first GPS lock
+        // the receiver stamps entries with elapsed time since boot on a
+        // stale date, so every power-on sorts to the start of that day
+        // and boot sessions interleave.  Not by when we copied it
+        // either, which for a backfill walking newest-to-oldest is
+        // exactly backwards.  The generation counts the clears that
+        // restart the numbering.
         notes.extend(self.ordered(
             "SELECT at, COALESCE(stamp, at), message FROM receiver_log
-             ORDER BY COALESCE(stamp, at) DESC LIMIT ?1",
+             WHERE receiver_id = ?1
+             ORDER BY generation DESC, entry DESC LIMIT ?2",
+            receiver,
             limit,
             Source::Log,
         )?);
@@ -255,16 +307,17 @@ impl Log {
     /// as itself: the monitor can be upgraded before the daemon is
     /// restarted, or pointed at an archived log, and either should show
     /// what is there rather than refusing the lot.
-    fn stream(&self, select: &str, limit: i64, source: Source) -> Result<Vec<Note>> {
+    fn stream(&self, select: &str, receiver: i64, limit: i64, source: Source) -> Result<Vec<Note>> {
         self.ordered(
-            &format!("{select} ORDER BY id DESC LIMIT ?1"),
+            &format!("{select} ORDER BY id DESC LIMIT ?2"),
+            receiver,
             limit,
             source,
         )
     }
 
     /// As [`Log::stream`], for a query that states its own ordering.
-    fn ordered(&self, sql: &str, limit: i64, source: Source) -> Result<Vec<Note>> {
+    fn ordered(&self, sql: &str, receiver: i64, limit: i64, source: Source) -> Result<Vec<Note>> {
         let mut statement = match self.conn.prepare(sql) {
             Ok(statement) => statement,
             Err(rusqlite::Error::SqliteFailure(_, Some(ref why)))
@@ -275,7 +328,7 @@ impl Log {
             Err(e) => return Err(e.into()),
         };
         Ok(statement
-            .query_map([limit], |row| {
+            .query_map((receiver, limit), |row| {
                 Ok(Note {
                     at: row.get(0)?,
                     stamp: row.get(1)?,
@@ -301,7 +354,7 @@ impl Log {
     /// the pane titled "1 hour" could show two days.  Measured
     /// against the development log: 3133 rows returned for the last
     /// hour where 2545 was correct.
-    pub(crate) fn read(&self, window: Window, columns: usize) -> Result<History> {
+    pub(crate) fn read(&self, receiver: i64, window: Window, columns: usize) -> Result<History> {
         let span = window.seconds();
         let buckets = columns.clamp(16, 1024) as i64;
         // Bucket by time so each column is one averaged point.  Averaging
@@ -324,12 +377,15 @@ impl Log {
                -- other tier fails.  Rows from before those columns
                -- existed have no fast_at and fall back to the flag.
                AND (fast_at = at OR (fast_at IS NULL AND freshness = 'live'))
+               -- One unit per graph: two receivers' readings drawn
+               -- together make a swap look like an oscillator moving.
+               AND receiver_id = ?3
              GROUP BY bucket
              ORDER BY ago",
         )?;
 
         let mut out = History::default();
-        let rows = statement.query_map((span, buckets), |row| {
+        let rows = statement.query_map((span, buckets, receiver), |row| {
             let value = |n: usize| row.get::<_, Option<f64>>(n);
             Ok((
                 row.get::<_, f64>(1)?,
@@ -351,5 +407,103 @@ impl Log {
         // second and would render as a flat zero.
         out.time_interval.scale(1e9);
         Ok(out)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Log;
+    use super::Source;
+    use rusqlite::Connection;
+
+    /// A log holding two receivers, with a cleared diagnostic log and
+    /// a power-on stamped at midnight on a stale date.
+    fn two_units(name: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!("smartclockmon-{name}.sqlite"));
+        let _ = std::fs::remove_file(&path);
+        let conn = Connection::open(&path).expect("make a log");
+        conn.execute_batch(
+            r#"
+            CREATE TABLE receiver (
+                id INTEGER PRIMARY KEY, serial TEXT UNIQUE NOT NULL,
+                manufacturer TEXT, model TEXT, firmware TEXT,
+                first_seen TEXT, last_seen TEXT);
+            INSERT INTO receiver VALUES
+                (1,'AAA','HEWLETT-PACKARD','58503A','3704-C','x','2026-09-01T02:00:00Z'),
+                (2,'BBB','HEWLETT-PACKARD','Z3805A','3611-A','x','2026-09-02T02:00:00Z');
+
+            CREATE TABLE receiver_log (
+                id INTEGER PRIMARY KEY, at TEXT NOT NULL, entry INTEGER NOT NULL,
+                stamp TEXT, message TEXT NOT NULL, receiver_id INTEGER,
+                generation INTEGER NOT NULL DEFAULT 0);
+            INSERT INTO receiver_log (at, entry, stamp, message, receiver_id, generation) VALUES
+                ('2026-09-01T00:00:00Z',1,'20050528.00:01:00','one A',         1,0),
+                ('2026-09-01T00:00:01Z',2,'20050528.00:00:00','Power on',      1,0),
+                ('2026-09-01T00:00:02Z',1,'20050530.00:00:00','after clear A', 1,1),
+                ('2026-09-02T00:00:00Z',1,'20050601.00:00:00','one B',         2,0);
+
+            CREATE TABLE receiver_event (
+                id INTEGER PRIMARY KEY, at TEXT NOT NULL, register TEXT,
+                bits INTEGER, decoded TEXT, receiver_id INTEGER);
+            INSERT INTO receiver_event (at, register, bits, decoded, receiver_id) VALUES
+                ('2026-09-01T00:00:00Z','alarm',0,'clear A',1),
+                ('2026-09-02T00:00:00Z','alarm',8,'holdover B',2);
+
+            CREATE TABLE receiver_error (
+                id INTEGER PRIMARY KEY, at TEXT NOT NULL, code INTEGER,
+                message TEXT, receiver_id INTEGER);
+            INSERT INTO receiver_error (at, code, message, receiver_id) VALUES
+                ('2026-09-01T00:00:00Z',-113,'undefined header A',1),
+                ('2026-09-02T00:00:00Z',-230,'stale B',2);
+            "#,
+        )
+        .expect("fill it");
+        path
+    }
+
+    #[test]
+    fn the_journal_holds_one_receiver_and_not_the_other() {
+        let path = two_units("journal");
+        let log = Log::open(&path).expect("open");
+        let a = log.journal(1, 50).expect("A");
+        let texts: Vec<&str> = a.iter().map(|n| n.text.as_str()).collect();
+        assert!(
+            texts.iter().all(|t| !t.contains('B')),
+            "B's records must not appear in A's journal: {texts:?}"
+        );
+        assert!(texts.contains(&"clear A"));
+        assert!(texts.contains(&"-113 undefined header A"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_power_on_does_not_sort_to_the_start_of_its_day() {
+        // Before the first GPS lock the receiver stamps entries with
+        // elapsed time since boot on a stale date, so ordering by the
+        // stamp put `Power on` -- at 00:00:00 -- above the entry that
+        // preceded it.  The generation and the entry number are the
+        // receiver's own sequence and do not have that problem.
+        let path = two_units("order");
+        let log = Log::open(&path).expect("open");
+        let journal = log.journal(1, 50).expect("A");
+        let entries: Vec<&str> = journal
+            .iter()
+            .filter(|n| n.source == Source::Log)
+            .map(|n| n.text.as_str())
+            .collect();
+        assert_eq!(entries, vec!["after clear A", "Power on", "one A"]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn the_receivers_are_listed_most_recently_seen_first() {
+        let path = two_units("list");
+        let log = Log::open(&path).expect("open");
+        let found = log.receivers().expect("list");
+        assert_eq!(
+            found.iter().map(super::Receiver::label).collect::<Vec<_>>(),
+            vec!["Z3805A BBB".to_owned(), "58503A AAA".to_owned()]
+        );
+        let _ = std::fs::remove_file(&path);
     }
 }

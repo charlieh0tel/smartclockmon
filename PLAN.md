@@ -10,7 +10,7 @@ Phases 0 to 10 are done; see **Phases** at the end for what each turned
 out to involve, **Open questions** for what is undecided and **Known
 defects** for what is wrong and unfixed.
 
-183 tests, none needing hardware.  `make ci` is what CI runs; `make
+190 tests, none needing hardware.  `make ci` is what CI runs; `make
 test-hw` is the hardware-only set and CI never runs it.
 
 Installed from the package and running as a service against the
@@ -873,13 +873,24 @@ Suggest a commit at each phase boundary.
 
 Things that are not decided, as distinct from the defects below.
 
-1. **Whether any other SmartClock variant is on hand.**  The Z3801A
+1. **What Ghidra would say about the firmware.**  `strings` gives the
+   tables -- the SCPI keywords, the screen formats, the state names --
+   but not the logic, so three questions stay outside: which state
+   machine drives the mode suffixes, how `:DIAGnostic:ROSCillator:
+   TCOefficient?` is computed and where it is applied, and whether the
+   scaling behind the undocumented `EFControl:ABSolute?` is visible in
+   code.  Each has been inferred from the outside and none is settled.
+   `third_party/z3801a.bin` and `z3816a.bin` are the images; there is
+   no 58503A dump, which is also why the front panel's strings are
+   unknown.
+
+2. **Whether any other SmartClock variant is on hand.**  The Z3801A
    half of the command table has its spellings corroborated against the
    firmware's own keyword table, so they are right; no such receiver
    has ever been on the line, so its behaviour is unobserved.  Until
    one is, `evidence = "firmware"` is as far as those entries can go.
 
-2. **What the receiver's `:STATus:<register>:ENABle` masks are set
+3. **What the receiver's `:STATus:<register>:ENABle` masks are set
    to.**  They decide which bits within a group reach the alarm, so
    they are what would say which events the receiver itself considers
    alarm-worthy.
@@ -910,7 +921,7 @@ Things that are not decided, as distinct from the defects below.
    bit 5 -- documented "not used" in figure 5-1, so it signifies
    nothing.
 
-3. **Whether acknowledging from the monitor is wanted.**  Reading an
+4. **Whether acknowledging from the monitor is wanted.**  Reading an
    event register would say which bit latched rather than which group,
    and clears the alarm as it does so.  That makes it exactly the right
    implementation of a deliberate acknowledgement and exactly the wrong
