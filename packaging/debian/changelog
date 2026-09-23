@@ -1,3 +1,21 @@
+smartclockmon (0.6.8-1) unstable; urgency=low
+
+  * Plot the satellite count.  It was recorded and not plottable, which
+    made "is it tracking?" a database question rather than a glance.
+  * Counts get an axis pinned to their range, starting at zero and
+    stepping in whole numbers, so a count that never left zero no longer
+    draws an axis from -1 to 1.
+  * Sixteen commands, then nine more, added to the Z3801 dialect --
+    temperature, oven current, EFC count, TFOM, date, time and the
+    position group -- confirmed against a Z3805A.
+  * Say the oscillator temperature coefficient's units rather than
+    calling them undocumented: parts in 10^12 per degree C.
+  * Test databases delete their write-ahead files, which had been
+    accumulating in the temporary directory since the tests were
+    written.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Wed, 23 Sep 2026 09:51:07 -0700
+
 smartclockmon (0.6.7-1) unstable; urgency=low
 
   * A refused value no longer costs the rest of the poll.  A receiver
