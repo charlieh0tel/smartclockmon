@@ -233,8 +233,26 @@ impl Log {
             })
             .collect();
         let mut rows = statement.query((from, to, points, span, receiver))?;
+        // A bucket nobody wrote in produces no row, and a chart drawn
+        // from the rows alone joins the points either side of the hole
+        // with a straight line -- which reads as a receiver sitting
+        // perfectly steady for the hours it was in fact unplugged.  A
+        // null in the gap makes the line break instead.
+        let mut previous: Option<i64> = None;
+        let bucket_width = (span as f64 + 1.0) / points as f64;
         while let Some(row) = rows.next()? {
-            at.push(row.get::<_, f64>(1)?);
+            let bucket: i64 = row.get(0)?;
+            let when: f64 = row.get(1)?;
+            if previous.is_some_and(|last| bucket > last + 1) {
+                at.push(when - bucket_width);
+                for plot in &mut plots {
+                    plot.mean.push(None);
+                    plot.min.push(None);
+                    plot.max.push(None);
+                }
+            }
+            previous = Some(bucket);
+            at.push(when);
             for (n, plot) in plots.iter_mut().enumerate() {
                 // Three aggregates per column, after bucket and at.
                 let base = 2 + n * 3;
@@ -570,6 +588,49 @@ mod tests {
             (vec![90.5], vec![90.0], vec![91.0]),
             "B's readings only"
         );
+    }
+
+    #[test]
+    fn a_gap_in_the_record_breaks_the_line() {
+        // The fixture's two rows for unit A are a second apart and its
+        // two for unit B are a day later.  Asked for a window covering
+        // both at a resolution finer than the gap, the series must
+        // carry a null between them: without one the chart joins the
+        // points either side and draws a receiver sitting perfectly
+        // steady through hours it was unplugged.
+        let scratch = two_units("gap");
+        let path = scratch.path();
+        {
+            // Unit B gets a second pair of rows three days later, so
+            // its own record has a hole in the middle.
+            let conn = Connection::open(path).expect("reopen to extend");
+            conn.execute_batch(
+                "INSERT INTO snapshot (at, freshness, fast_at, efc_percent, receiver_id) VALUES
+                    ('2026-09-05T00:00:00Z','live','2026-09-05T00:00:00Z', 70.0, 2),
+                    ('2026-09-05T00:00:01Z','live','2026-09-05T00:00:01Z', 71.0, 2);",
+            )
+            .expect("extend");
+        }
+        let log = Log::open(path).expect("open");
+        let (first, last) = {
+            let (f, l) = log.extent(2).expect("B's extent");
+            (f as i64, l as i64)
+        };
+        let columns = vec!["efc_percent".to_owned()];
+        let s = log
+            .series(2, &columns, first, last, 200)
+            .expect("unit B over the whole span");
+        let mean = &s.plots[0].mean;
+        assert!(
+            mean.iter().any(Option::is_none),
+            "a window spanning the empty day must carry a null: {mean:?}"
+        );
+        assert_eq!(
+            mean.iter().filter(|v| v.is_some()).count(),
+            2,
+            "and still both clusters of real readings"
+        );
+        assert_eq!(s.at.len(), mean.len(), "every point needs an x");
     }
 
     #[test]
