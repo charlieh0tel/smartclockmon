@@ -511,11 +511,11 @@ almost all of it:
 | holdover duration, predicted, present   | 0.16 s |
 | status screen                           | 1.50 s |
 
-A whole fast pass, all eight of its queries, is 0.38 s.  So the worst
-the fast tier now waits is the screen, rather than the 1.9 s the whole
-pass took -- an improvement, but a small one, because the screen is
-1574 bytes: 0.94 s of wire time and another 0.5 s of the receiver
-composing it.  Interleaving cannot help with a single read that long.
+A whole fast pass, all eight of its queries, is 0.38 s.  Interleaving
+took the worst stall from 1.9 s to 1.5 s and could go no further,
+because the screen is 1574 bytes: 0.94 s of wire time and another
+0.5 s of the receiver composing it.  Nothing helps with a single read
+that long except not making it.
 
 The satellite counts do not come from the screen.  The command tree
 extracted from the firmware has no per-satellite node, so elevation,
@@ -523,6 +523,21 @@ azimuth and signal strength are screen-only -- but the counts are
 queryable: `:GPS:SATellite:TRACking:COUNt?` equals the screen's
 `Tracking`, and `:GPS:SATellite:VISible:PREDicted:COUNt?` less that
 equals its `Not Tracking`, verified against a screen showing 7 and 2.
+
+So the screen is on no tier.  Nothing else it carries is unique to it
+either: the health monitor line is the hardware condition register
+rendered coarsely, and that register is on the fast tier, while the
+bracketed synchronisation and acquisition text is
+`:SYNChronization:STATe?` and the operation register.  The screen buys
+one thing, a sky plot, and it is read only while someone is looking at
+one -- `Op::Sky` on the socket, a view of its own in the monitor, and
+`/sky` in the browser.  The medium tier, now four short steps
+totalling 0.57 s, drops from thirty seconds to ten.
+
+Measured with the daemon running: 234 of 288 consecutive snapshots
+were spaced 1.00 s apart, the rest being the medium and slow steps
+publishing in between, and the only gaps over 1.02 s were the three
+around a sky read.
 
 A refresh moves the deadlines but not the step cursors: restarting a
 pass in flight discards the steps already read, and under a stream of
@@ -534,8 +549,9 @@ Tiers, to be measured against hardware before being fixed:
 | Tier  | Contents                                                    |
 | ----- | ----------------------------------------------------------- |
 | ~1 s  | `:SYNC:TINT?`, `:SYNC:TFOM?`, `:SYNC:FFOM?`, `:DIAG:ROSC:EFC:REL?`, `:STAT:OPER:HARD:COND?`, `:SYNC:STATE?`, `:PTIM:TIME?` |
-| ~30 s | `:SYST:STAT?` (satellite table, health line), holdover duration and uncertainty, `*STB?` and the operation and holdover condition registers |
+| ~10 s | satellite counts, oven temperature and current, the EFC DAC, `*STB?` and the operation and holdover condition registers, holdover duration and uncertainty |
 | ~60 s | position, date, diagnostic log count, learned oscillator tempco, the powerup condition register |
+|       | `:SYST:STAT?` (satellite table, health line) is on no tier: it costs 1.5 s and is read on request, by whoever is looking at a sky plot. |
 |       | The receiver's UTC is on the fast tier, not with the date: a clock read once a minute and shown as a clock is wrong for the other fifty-nine seconds. |
 | ~10 s | the error queue and any new diagnostic log entries, off the schedule; see below |
 

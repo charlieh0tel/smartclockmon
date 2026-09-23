@@ -128,6 +128,28 @@ impl Console {
         }
     }
 
+    /// Ask the daemon to read one status screen.
+    ///
+    /// The snapshot carrying it arrives on the subscription like any
+    /// other, so nothing waits here.  The reply itself is ignored: the
+    /// reader forwards only what the console asked for.
+    ///
+    /// No tier polls the screen -- it costs the receiver about 1.5 s of
+    /// its link -- so this is what a sky plot is made of, and it is
+    /// sent only while someone is looking at one.
+    pub(crate) fn sky(&self) -> Result<()> {
+        let mut writer = self
+            .writer
+            .lock()
+            .map_err(|_| anyhow::anyhow!("poisoned writer"))?;
+        let Some(writer) = writer.as_mut() else {
+            return Err(anyhow::anyhow!("not connected to a daemon"));
+        };
+        writeln!(writer, r#"{{"v":1,"id":"sky","op":{{"kind":"sky"}}}}"#)?;
+        writer.flush()?;
+        Ok(())
+    }
+
     /// Send one command.  The answer arrives as an [`Update::Reply`].
     pub(crate) fn send(&self, scpi: &str) -> Result<()> {
         let mut writer = self

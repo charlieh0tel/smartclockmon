@@ -1,0 +1,167 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SmartClock sky</title>
+
+<link rel="stylesheet" href="/style.css">
+
+<div class="panel full nav"><a href="/">&larr; Back</a></div>
+
+<div class="panel full" id="state"><span class="muted">idle</span></div>
+
+<div class="panel">
+  <div class="controls">
+    <h2>Sky</h2>
+    <span class="grow"></span>
+    <label for="live">live</label>
+    <input type="checkbox" id="live">
+    <button id="read">read</button>
+  </div>
+  <canvas id="sky" width="320" height="320"></canvas>
+  <table id="sats"><tbody class="muted"><tr><td>nothing read yet</td></tr></tbody></table>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+// Everything interpolated into innerHTML goes through this: the values
+// come from a string scraper over a serial line.
+const esc = (v) =>
+  String(v).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+// How often a live sky re-reads, in milliseconds.
+//
+// Each read costs the receiver about 1.5 s of its serial link -- four
+// fast polls -- so this is deliberately slower than anything else the
+// daemon does, and off unless someone turns it on.
+const LIVE_PERIOD = 15000;
+
+const MARGIN = 20;      // room for the cardinal labels and a rim dot
+const SKY_GRID = "#39414f";
+const SKY_HORIZON = "#515b6b";
+const DOT_MIN = 4;      // a satellite with no signal reading
+const DOT_RANGE = 7;    // added at the strongest signal in the frame
+
+// ------------------------------------------------------------------ sky
+
+// A polar plot of what the receiver can see: north up, horizon at the
+// rim, zenith at the middle.  This is the view the status screen's
+// table implies and never shows.
+function sky(screen) {
+  const c = $("sky"), ctx = c.getContext("2d");
+  const w = c.width, h = c.height, cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - MARGIN;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#c2c8d2";
+  ctx.font = "11px ui-monospace, monospace";
+  ctx.textAlign = "center";
+
+  // Elevation rings at 30 degree steps, the horizon last and brighter
+  // so the edge of the plot reads as an edge.
+  for (const elev of [60, 30, 0]) {
+    ctx.strokeStyle = elev === 0 ? SKY_HORIZON : SKY_GRID;
+    ctx.beginPath();
+    ctx.arc(cx, cy, (r * (90 - elev)) / 90, 0, 2 * Math.PI);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = SKY_GRID;
+  for (const [deg, name] of [[0, "N"], [90, "E"], [180, "S"], [270, "W"]]) {
+    const a = ((deg - 90) * Math.PI) / 180;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+    ctx.stroke();
+    ctx.fillText(name, cx + (r + 10) * Math.cos(a), cy + (r + 10) * Math.sin(a) + 4);
+  }
+
+  const signals = (screen?.satellites ?? [])
+    .map((s) => s.signal)
+    .filter((v) => v != null && v > 0);
+  const strongest = signals.length ? Math.max(...signals) : 0;
+
+  const rows = [];
+  for (const sat of screen?.satellites ?? []) {
+    const state = sat.tracked ? "tracked" : sat.acquiring ? "acquiring" : "seen";
+    rows.push(`<tr><td>${sat.prn}</td><td>${sat.elevation ?? "--"}</td>` +
+              `<td>${sat.azimuth ?? "--"}</td><td>${sat.signal ?? "--"}</td>` +
+              `<td class="muted">${state}</td></tr>`);
+    // Below the horizon, or a reading the scraper could not make sense
+    // of: either would land outside the plot.
+    if (
+      !Number.isFinite(sat.elevation) ||
+      !Number.isFinite(sat.azimuth) ||
+      sat.elevation < 0
+    ) {
+      continue;
+    }
+    const a = (sat.azimuth - 90) * Math.PI / 180;
+    const d = r * (90 - sat.elevation) / 90;
+    const x = cx + d * Math.cos(a), y = cy + d * Math.sin(a);
+    // Scaled to the strongest satellite in this frame, because the
+    // receiver's own scale is undocumented and differs between models
+    // -- one reports 0 to 9, another 0 to 49.  Dividing by a fixed 255
+    // made every dot the same size, which is what this looked like
+    // before anyone measured it.
+    const size =
+      sat.signal == null || !strongest
+        ? DOT_MIN
+        : DOT_MIN + (sat.signal / strongest) * DOT_RANGE;
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, 2 * Math.PI);
+    ctx.fillStyle = sat.tracked ? "#4ade80" : sat.acquiring ? "#fbbf24" : "#6b7280";
+    ctx.fill();
+    ctx.fillStyle = "#e6e8eb";
+    ctx.textAlign = x < cx ? "right" : "left";
+    ctx.fillText(sat.prn, x + (x < cx ? -size - 3 : size + 3), y + 4);
+    ctx.textAlign = "center";
+  }
+  $("sats").innerHTML =
+    "<thead><tr><th>PRN</th><th>el</th><th>az</th><th>SS</th><th>state</th></tr></thead><tbody>" +
+    (rows.join("") || `<tr><td class="muted">no satellite table yet</td></tr>`) +
+    "</tbody>";
+}
+
+// ---------------------------------------------------------------- read
+
+// Serialised: a second read queued behind the first would sit in the
+// daemon's request queue holding the link, and the page would show a
+// sky older than the one it already had.
+let reading = false;
+let timer = null;
+
+async function read() {
+  if (reading) return;
+  reading = true;
+  $("read").disabled = true;
+  $("state").innerHTML = `<span class="pill">reading the status screen...</span>`;
+  try {
+    const r = await fetch("/api/sky");
+    if (!r.ok) throw new Error(`the daemon answered ${r.status}`);
+    const s = await r.json();
+    sky(s.screen);
+    $("state").innerHTML =
+      `<span class="pill ok">read at ${esc(new Date().toLocaleTimeString())}</span>` +
+      (s.screen?.satellites_suspect
+        ? ` <span class="pill stale">the table disagrees with its own counts</span>`
+        : "");
+  } catch (e) {
+    // The sky is cleared on failure: a canvas still showing eight
+    // tracked satellites beside the words "no daemon" asserts a sky the
+    // receiver may not have, which is the one stale value a GPS tool
+    // must not show.
+    sky(null);
+    $("state").innerHTML = `<span class="pill down">${esc(e.message)}</span>`;
+  } finally {
+    reading = false;
+    $("read").disabled = false;
+  }
+}
+
+$("read").onclick = read;
+$("live").onchange = () => {
+  clearInterval(timer);
+  timer = $("live").checked ? setInterval(read, LIVE_PERIOD) : null;
+  if ($("live").checked) read();
+};
+
+read();
+</script>

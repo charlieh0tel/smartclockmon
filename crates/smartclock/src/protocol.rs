@@ -46,6 +46,13 @@ pub enum Op {
     },
     /// Return the most recent snapshot without waiting.
     Latest,
+    /// Read one status screen and return the snapshot carrying it.
+    ///
+    /// No tier polls the screen: it costs 1.5 s, four fast passes, and
+    /// per-satellite elevation, azimuth and signal strength are all it
+    /// still answers alone.  A client showing a sky plot asks for one
+    /// while it is being looked at, and so pays for what it shows.
+    Sky,
     /// Report what the daemon is attached to.
     Info,
 }

@@ -22,10 +22,10 @@ oscillator.  See `docs/efc.md`.
 | - | - |
 | `smartclock` | the library: transports, SCPI framing, the command table, parsers, the status screen scraper, and the polling task |
 | `smartclockd` | holds the serial port, logs to SQLite, serves clients over a local socket |
-| `smartclockmon` | terminal monitor: a dashboard and history graphs |
+| `smartclockmon` | terminal monitor: a dashboard, history graphs, the journal and the sky |
 | `smartclock-cli` | one-shot queries, `diagnose`, transcript capture, and sweeping for undocumented commands |
 | `smartclock-exporter` | Prometheus metrics for the receiver, from the daemon's own readings |
-| `smartclock-web` | a browser view: live state, a sky plot, and history you can zoom |
+| `smartclock-web` | a browser view: live state, history you can zoom, and a sky plot of its own |
 | `smartclock-sim` | a simulated receiver, in process for tests and over TCP for driving the real daemon |
 
 ## Running it
@@ -63,9 +63,16 @@ the receiver actually said stays visible beside it, because the
 correction is arithmetic done here against the host clock, not
 something the receiver reported.
 
+The sky is a view of its own in both the monitor and the browser, and
+is read only while it is open: it is scraped from the status screen,
+which costs the receiver about 1.5 s of a 19200 link, four times what
+a whole one-second poll costs.  Nothing else needs it, so nothing else
+pays for it.  The satellite counts are queried directly and are on the
+one-second tier with everything else.
+
 The browser view is read-only and is not the monitor in a window: it
-draws what a terminal cannot, which is mainly a polar sky plot and
-history you can drag to zoom.
+draws what a terminal cannot, which is mainly history you can drag to
+zoom, and the polar sky plot at `/sky`.
 
 Any number of series can be stacked, and they share a time axis by
 construction rather than by appearance: one request buckets them all in
@@ -217,7 +224,14 @@ as an interactive terminal:
   rather than a SCPI response.  `:SYSTem:STATus:LENGth?` gives that
   screen's line count.
 - Per-satellite elevation, azimuth and C/N appear only in that status
-  screen.  No SCPI query returns them.
+  screen.  No SCPI query returns them, and the command tree extracted
+  from the firmware has no per-satellite node at all.  The counts are
+  the exception: `:GPS:SATellite:TRACking:COUNt?` is the screen's
+  `Tracking`, and `:GPS:SATellite:VISible:PREDicted:COUNt?` less that
+  is its `Not Tracking`.
+- The health monitor line is the hardware condition register rendered
+  coarsely, so it says nothing the register does not say in more
+  detail.
 
 Error reporting and the status registers do follow the standards:
 `:SYSTem:ERRor?` returns the conventional `<code>,"<description>"`, and

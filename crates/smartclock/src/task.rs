@@ -52,10 +52,10 @@ pub struct Cadence {
 
 impl Default for Cadence {
     fn default() -> Self {
-        // The medium tier carries the status screen, roughly a second
-        // of wire time at 19200.  Taken a step at a time it no longer
-        // stalls the fast tier for a whole pass, but that one step is
-        // still the longest read the receiver has.
+        // The medium tier is four short steps, 0.57 s of wire time
+        // together and taken one per turn, so ten seconds costs the
+        // fast tier almost nothing.  The status screen, which is what
+        // used to make this tier expensive, is on no tier at all.
         Self {
             fast: Duration::from_secs(1),
             medium: Duration::from_secs(10),
@@ -94,6 +94,17 @@ pub enum Request {
     /// Sent after a command that changed something, so the change shows
     /// in the snapshots at once rather than after up to a minute.
     Refresh,
+    /// Read the status screen once and publish it.
+    ///
+    /// No tier polls the screen: it costs 1.5 s, four fast passes, and
+    /// per-satellite elevation, azimuth and signal strength are all it
+    /// still answers alone.  A client showing a sky plot asks for one
+    /// while it is being looked at, and pays for it itself.
+    Screen {
+        /// Where to report whether the read succeeded.  The snapshot
+        /// itself goes out on the subscriptions.
+        answer: SyncSender<Result<()>>,
+    },
 }
 
 /// State that outlives any one connection to the receiver.
@@ -232,6 +243,30 @@ impl Handle {
     /// Receive every snapshot published from now on.
     pub fn subscribe(&self) -> Receiver<Snapshot> {
         self.shared.subscribe()
+    }
+
+    /// Read one status screen and wait for it.
+    ///
+    /// Nothing polls the screen, so this is the only way to a sky plot.
+    /// It costs about 1.5 s of link, four fast passes, which is why a
+    /// client asks for one while someone is looking at it rather than
+    /// having the daemon pay for it around the clock.
+    ///
+    /// The snapshot carrying it goes out on every subscription, so the
+    /// caller reads it from there or from `latest`.
+    pub fn sky(&self) -> Result<()> {
+        let (tx, rx) = sync_channel(1);
+        self.requests
+            .send(Request::Screen { answer: tx })
+            .map_err(|_| Error::TaskStopped("nothing is serving its request queue"))?;
+        match rx.recv_timeout(REQUEST_TIMEOUT) {
+            Ok(outcome) => outcome,
+            Err(RecvTimeoutError::Timeout) => Err(Error::Timeout {
+                waited: REQUEST_TIMEOUT,
+                seen: "the receiver did not answer; the link may be down".to_owned(),
+            }),
+            Err(RecvTimeoutError::Disconnected) => Err(Error::TaskStopped("it dropped the reply")),
+        }
     }
 
     /// Ask the task to re-poll everything at once.
@@ -666,6 +701,43 @@ impl<T: Transport> DeviceTask<T> {
                 if failed {
                     self.resync = true;
                 }
+                None
+            }
+            Request::Screen { answer } => {
+                if let Some(stopped) = self.ensure_synced() {
+                    let _ = answer.send(Err(Error::TaskStopped(
+                        "the link failed while resynchronising",
+                    )));
+                    return Some(stopped);
+                }
+                let now = Timestamp::now();
+                let mut snapshot = self.shared.latest().unwrap_or_else(|| Snapshot::new(now));
+                let outcome = self.device.poll_screen(&mut snapshot, now);
+                self.report_strays();
+                match outcome {
+                    Ok(()) => {
+                        let _ = answer.send(Ok(()));
+                    }
+                    Err(e) => {
+                        // Recorded against the slow tier, which is
+                        // where a reader looks for how old the sky is.
+                        snapshot.polled.failed(Tier::Slow, &e.to_string());
+                        snapshot.settle_freshness();
+                        if e.is_link_failure() {
+                            // The error goes to the caller by name
+                            // only: the task needs it itself to say
+                            // why it is giving up the port.
+                            let _ = answer.send(Err(Error::TaskStopped(
+                                "the link failed reading the status screen",
+                            )));
+                            self.shared.publish(snapshot);
+                            return Some(Stopped::LinkFailed(e));
+                        }
+                        self.resync = true;
+                        let _ = answer.send(Err(e));
+                    }
+                }
+                self.shared.publish(snapshot);
                 None
             }
             Request::Refresh => {

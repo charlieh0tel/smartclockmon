@@ -50,6 +50,13 @@ const TICK: Duration = Duration::from_millis(500);
 /// would be wasteful, and the graphs do not move that fast.
 const HISTORY_REFRESH: Duration = Duration::from_secs(5);
 
+/// How often the sky view re-reads the status screen.
+///
+/// Deliberately slower than everything else: one read costs the
+/// receiver about 1.5 s of a 19200 link, four fast polls, and the sky
+/// does not move appreciably in fifteen seconds.
+const SKY_REFRESH: Duration = Duration::from_secs(15);
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let (updates, attachment, console, policy, cadence) = match &cli.device {
@@ -83,6 +90,14 @@ fn run(
             let columns = terminal.size().map_or(80, |s| usize::from(s.width));
             app.refresh_history(columns);
             due = Instant::now() + HISTORY_REFRESH;
+        }
+        // Nothing polls the status screen, so the sky is only as fresh
+        // as this view asks for it -- and it asks only while it is the
+        // view being shown, because each read costs the receiver about
+        // 1.5 s of its serial link.
+        if app.view == View::Sky && Instant::now() >= due {
+            let _ = app.console.sky();
+            due = Instant::now() + SKY_REFRESH;
         }
         terminal.draw(|frame| ui::draw(frame, &app))?;
 
@@ -130,7 +145,8 @@ fn run(
                         app.view = match app.view {
                             View::Dashboard => View::History,
                             View::History => View::Journal,
-                            View::Journal => View::Dashboard,
+                            View::Journal => View::Sky,
+                            View::Sky => View::Dashboard,
                         };
                         due = Instant::now();
                     }

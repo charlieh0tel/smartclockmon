@@ -50,6 +50,7 @@ pub(crate) fn draw(frame: &mut Frame, app: &App) {
         View::Dashboard => dashboard(frame, app),
         View::History => history(frame, app),
         View::Journal => journal(frame, app),
+        View::Sky => sky(frame, app),
     }
 }
 
@@ -315,12 +316,9 @@ fn dashboard(frame: &mut Frame, app: &App) {
     lock(frame, middle[0], app);
     oscillator(frame, middle[1], app);
 
-    let lower = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
-        .split(rows[2]);
-    satellites(frame, lower[0], app);
-    time_and_place(frame, lower[1], app);
+    // The satellite table is not here: it comes from the status screen,
+    // which nothing polls.  It has a view of its own, which asks.
+    time_and_place(frame, rows[2], app);
 
     footer(frame, rows[4], app);
 }
@@ -695,11 +693,31 @@ fn ti_trend(app: &App, width: usize) -> String {
         .collect()
 }
 
+/// The satellites overhead, on a view of its own.
+///
+/// The status screen this is scraped from costs the receiver about
+/// 1.5 s of its link, so it is read while this view is open and at no
+/// other time.  Everything else the screen carries is available from
+/// short queries and is shown on the dashboard instead.
+fn sky(frame: &mut Frame, app: &App) {
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(0),
+            Constraint::Length(1),
+        ])
+        .split(frame.area());
+    header(frame, rows[0], app);
+    satellites(frame, rows[1], app);
+    footer(frame, rows[2], app);
+}
+
 fn satellites(frame: &mut Frame, area: Rect, app: &App) {
     let screen = app.snapshot.as_ref().and_then(|s| s.screen.as_ref());
     let Some(screen) = screen else {
         frame.render_widget(
-            Paragraph::new("waiting for a status screen").block(block("Satellites")),
+            Paragraph::new("reading the status screen...").block(block("Satellites")),
             area,
         );
         return;

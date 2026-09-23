@@ -89,14 +89,15 @@ struct Cli {
     #[arg(long, env = "SMARTCLOCKD_FAST", default_value_t = 1.0)]
     fast: f64,
 
-    /// Seconds between status screen polls.
+    /// Seconds between satellite, oscillator and holdover polls.
     ///
-    /// The tier runs a step at a time, so it costs the fast tier its
-    /// longest single step rather than its whole pass: the status
-    /// screen, about 1.8 KB and close to a second of wire time at
-    /// 19200.  Thirty seconds spends that once, for a sky plot and a
-    /// holdover detail that are no older than a reader needs.
-    #[arg(long, env = "SMARTCLOCKD_MEDIUM", default_value_t = 30.0)]
+    /// Ten rather than thirty because this tier no longer carries the
+    /// status screen, which was all that made it expensive.  Its four
+    /// steps measure 0.57 s together and run one per turn, against a
+    /// fast pass of 0.38 s in a one-second slot -- so the oven
+    /// temperature and the satellite counts can be read six times as
+    /// often for wire time the link has to spare.
+    #[arg(long, env = "SMARTCLOCKD_MEDIUM", default_value_t = 10.0)]
     medium: f64,
 
     /// Seconds between position and date polls.

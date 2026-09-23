@@ -173,6 +173,19 @@ impl Daemon {
             .map_err(|e| Error::Daemon(format!("its reading did not parse: {e}")))
     }
 
+    /// Read one status screen, and the reading that carries it.
+    ///
+    /// Unlike `latest` this does go to the wire, and costs about 1.5 s
+    /// of it: no tier polls the screen, because per-satellite
+    /// elevation, azimuth and signal strength are all it still answers
+    /// that nothing else does.  Ask while someone is looking at a sky
+    /// plot, not on a timer.
+    pub fn sky(&mut self) -> Result<Reading> {
+        let value = self.ask(Op::Sky)?;
+        serde_json::from_value(value)
+            .map_err(|e| Error::Daemon(format!("its reading did not parse: {e}")))
+    }
+
     /// Send one command and return the lines it answered with.
     ///
     /// What is permitted depends on the flags the daemon was started

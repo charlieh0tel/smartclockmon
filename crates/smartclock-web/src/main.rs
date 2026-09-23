@@ -32,6 +32,16 @@ use crate::history::PLOTTABLE;
 /// writing to a directory it happens to have.
 const PAGE: &str = include_str!("index.html");
 
+/// The sky plot, on a page of its own.
+///
+/// Separate because it is the one view that costs the receiver a status
+/// screen -- 1.5 s of a 19200 link, four fast polls -- so it is read
+/// while someone is looking at it rather than on the daemon's schedule.
+const SKY: &str = include_str!("sky.html");
+
+/// Shared by both pages.
+const STYLE: &str = include_str!("style.css");
+
 #[derive(Parser)]
 #[command(about, version = smartclock::VERSION)]
 struct Cli {
@@ -71,8 +81,13 @@ fn main() -> Result<()> {
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
         match path {
             "/" => Response::ok("text/html; charset=utf-8", PAGE.to_owned()),
+            "/sky" => Response::ok("text/html; charset=utf-8", SKY.to_owned()),
+            "/style.css" => Response::ok("text/css; charset=utf-8", STYLE.to_owned()),
             "/api/snapshot" => json(cache.snapshot(&socket)),
             "/api/info" => json(cache.info(&socket)),
+            // Uncached, and the only endpoint that goes to the wire on
+            // request: it is what the sky page is paying for.
+            "/api/sky" => json(sky(&socket)),
             "/api/history" => json(series(&database, query)),
             "/api/journal" => json(journal(&database, query)),
             "/api/receivers" => json(receivers(&database)),
@@ -132,6 +147,14 @@ fn decode(value: &str) -> String {
 /// Wrap a result as JSON, reporting a failure as data rather than as an
 /// HTTP error: the page can then say what went wrong in the place the
 /// value would have been, instead of silently showing nothing.
+/// Read one status screen through the daemon.
+///
+/// Never cached: the point of the call is that it is fresh, and the
+/// cost of it is why nothing else asks for one.
+fn sky(socket: &Path) -> Result<serde_json::Value> {
+    Ok(Daemon::connect(socket)?.ask(Op::Sky)?)
+}
+
 fn json(result: Result<serde_json::Value>) -> Response {
     let value = match result {
         Ok(value) => value,

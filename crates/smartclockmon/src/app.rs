@@ -38,6 +38,11 @@ pub(crate) enum View {
     History,
     /// What the receiver has recorded about itself.
     Journal,
+    /// The satellites overhead.
+    ///
+    /// Its own view because it is the only one that costs the receiver
+    /// a status screen, and so is read only while it is open.
+    Sky,
 }
 
 /// Monitor state.

@@ -150,7 +150,8 @@ impl Log {
             CREATE INDEX IF NOT EXISTS snapshot_at ON snapshot(at);
 
             -- The satellite table, which exists only on the status
-            -- screen and so only on medium-tier polls.
+            -- screen and so only on slow-tier polls.  The counts above
+            -- are queried directly and move with the medium tier.
             CREATE TABLE IF NOT EXISTS satellite (
                 snapshot_id INTEGER NOT NULL REFERENCES snapshot(id),
                 prn         INTEGER NOT NULL,

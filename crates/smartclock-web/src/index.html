@@ -8,85 +8,11 @@
       integrity="sha384-IfV0B7MIOYuO95kO9G5ySKPz/85zqFNOAs8iy4tkK5zd9izhJAB8b7lHrwYqqmYE"
       crossorigin="anonymous">
 
-<style>
-  :root {
-    color-scheme: dark;
-    --bg: #14161a; --panel: #1d2026; --line: #2b3038;
-    --text: #e6e8eb; --dim: #8b929c;
-    --ok: #4ade80; --warn: #fbbf24; --bad: #f87171; --accent: #38bdf8;
-    --font: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; padding: 12px; gap: 12px;
-    display: grid; grid-template-columns: 1fr 340px;
-    background: var(--bg); color: var(--text);
-    font: 13px/1.5 var(--font);
-  }
-  @media (max-width: 900px) { body { grid-template-columns: 1fr; } }
-
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
-  .full { grid-column: 1 / -1; }
-  h2 { margin: 0 0 10px; font-size: 12px; font-weight: 600; color: var(--dim);
-       text-transform: uppercase; letter-spacing: .08em; }
-
-  /* Status strip: the few things worth seeing before anything else. */
-  #status { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: baseline; }
-  /* A fixed column, so a reading that gets wider -- "-5.8 ns" to
-     "+122.6 ns" -- does not shove every tile after it sideways. */
-  .stat { display: flex; flex-direction: column; gap: 2px; min-width: 10ch; }
-  .stat .v { font-size: 22px; font-variant-numeric: tabular-nums; line-height: 1.1; }
-  .stat .k { font-size: 11px; color: var(--dim); }
-  .pill { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-  #age { min-width: 18ch; }
-  .live { background: #14532d; color: var(--ok); }
-  .stale { background: #422006; color: var(--warn); }
-  .down { background: #450a0a; color: var(--bad); }
-
-  /* Controls */
-  .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; align-items: center; }
-  button, select {
-    background: #262b33; color: var(--text); border: 1px solid var(--line);
-    border-radius: 6px; padding: 5px 10px; font: inherit; cursor: pointer;
-  }
-  button:hover, select:hover { border-color: #3d4452; }
-  button[aria-pressed="true"] { background: var(--accent); color: #07121a; border-color: var(--accent); }
-  .grow { flex: 1; }
-  label { color: var(--dim); display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
-
-  /* Sky plot */
-  #sky { width: 100%; height: auto; display: block; }
-
-  table { border-collapse: collapse; width: 100%; font-size: 12px; }
-  th { text-align: left; color: var(--dim); font-weight: 500; padding: 3px 6px 6px 0; }
-  td { padding: 2px 6px 2px 0; font-variant-numeric: tabular-nums; }
-  .muted { color: var(--dim); }
-  #note { color: var(--warn); }
-  footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
-  .uplot { width: 100% !important; }
-  /* The journal is three tables of mostly text in one panel, so it
-     scrolls on its own rather than pushing the chart off the screen. */
-  /* One readout for the whole stack, since the cursor is one cursor. */
-  #readout { display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: baseline;
-             min-height: 1.4em; font-size: 12px; font-variant-numeric: tabular-nums; }
-  #readout .w { color: var(--dim); }
-  #readout .k { color: var(--dim); }
-  #readout .v { color: var(--text); }
-  #journal { max-height: 20rem; overflow-y: auto; }
-  #journal table { font-variant-numeric: tabular-nums; }
-  #journal td:first-child { color: var(--dim); white-space: nowrap; padding-right: 10px; }
-  #journal-tabs button.on { background: var(--line); color: var(--fg); }
-  /* The panel heading sits on the controls row here, so it drops the
-     bottom margin the standalone headings keep. */
-  .controls h2 { margin: 0; }
-  /* Only shown when the log holds more than one unit, so a bench with
-     one receiver is not given a control that can only pick it. */
-  #unit-bar label { color: var(--dim); margin-right: 8px; }
-  #unit { font: inherit; background: var(--bg); color: var(--fg);
-          border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; }
-</style>
+<link rel="stylesheet" href="/style.css">
 
 <div class="panel full" id="status"><span class="muted">connecting...</span></div>
+
+<div class="panel full nav"><a href="/sky">Sky &rarr;</a></div>
 
 <div class="panel full" id="unit-bar" hidden>
   <div class="controls">
@@ -107,12 +33,6 @@
   <div id="charts"></div>
   <div id="readout"></div>
   <div id="note"></div>
-</div>
-
-<div class="panel">
-  <h2>Sky</h2>
-  <canvas id="sky" width="320" height="320"></canvas>
-  <table id="sats"><tbody class="muted"><tr><td>waiting...</td></tr></tbody></table>
 </div>
 
 <div class="panel full">
@@ -140,19 +60,6 @@ const RANGES = [
   ["1h", 3600], ["6h", 21600], ["24h", 86400],
   ["7d", 604800], ["30d", 2592000], ["all", null],
 ];
-// The sky plot's dimensions, in pixels.
-const MARGIN = 20;      // room for the cardinal labels and a rim dot
-
-// The sky grid is drawn darker than the data and lighter than a panel
-// border.  It was --line, which is the 1px border colour: right for
-// separating boxes, far too dim for lines somebody reads an angle off.
-// The horizon is the boundary of the plot, so it is stronger than the
-// elevation rings inside it.
-const SKY_GRID = "#39414f";
-const SKY_HORIZON = "#515b6b";
-const DOT_MIN = 4;      // a satellite with no signal reading
-const DOT_RANGE = 7;    // added at the strongest signal in the frame
-
 // Label, and the factor that puts the column in units worth reading.
 // The interval is stored in seconds and is a few nanoseconds: plotted
 // as seconds, every axis tick rounds to 0.
@@ -306,101 +213,14 @@ async function poll() {
     (s.alarming && !s.time_reset
       ? `<span class="pill stale">receiver alarm: ${(s.alarm_summary ?? []).map(esc).join(", ")}</span>`
       : "") +
-    (s.screen?.satellites_suspect
-      ? `<span class="pill stale">satellite table disagrees with its own counts</span>`
-      : "") +
     "";
-
-  sky(s.screen);
 }
 
-// Nothing is known any more.  The sky is cleared with the strip: a
-// canvas still showing eight tracked satellites next to the words "no
-// daemon" asserts a sky the receiver may not have, which is the one
-// stale value a GPS tool must not show.
+// Nothing is known any more.
 function lost(what, why) {
   $("status").innerHTML =
     `<span class="pill down">${esc(what)}</span>` +
     (why ? ` <span class="muted">${esc(why)}</span>` : "");
-  sky(null);
-}
-
-// ------------------------------------------------------------------ sky
-
-// A polar plot of what the receiver can see: north up, horizon at the
-// rim, zenith at the middle.  This is the view the status screen's
-// table implies and never shows.
-function sky(screen) {
-  const c = $("sky"), ctx = c.getContext("2d");
-  const w = c.width, h = c.height, cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - MARGIN;
-  ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = "#c2c8d2";
-  ctx.font = "11px ui-monospace, monospace";
-  ctx.textAlign = "center";
-
-  // Elevation rings at 30 degree steps, the horizon last and brighter
-  // so the edge of the plot reads as an edge.
-  for (const elev of [60, 30, 0]) {
-    ctx.strokeStyle = elev === 0 ? SKY_HORIZON : SKY_GRID;
-    ctx.beginPath();
-    ctx.arc(cx, cy, (r * (90 - elev)) / 90, 0, 2 * Math.PI);
-    ctx.stroke();
-  }
-  ctx.strokeStyle = SKY_GRID;
-  for (const [deg, name] of [[0, "N"], [90, "E"], [180, "S"], [270, "W"]]) {
-    const a = ((deg - 90) * Math.PI) / 180;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
-    ctx.stroke();
-    ctx.fillText(name, cx + (r + 10) * Math.cos(a), cy + (r + 10) * Math.sin(a) + 4);
-  }
-
-  const signals = (screen?.satellites ?? [])
-    .map((s) => s.signal)
-    .filter((v) => v != null && v > 0);
-  const strongest = signals.length ? Math.max(...signals) : 0;
-
-  const rows = [];
-  for (const sat of screen?.satellites ?? []) {
-    const state = sat.tracked ? "tracked" : sat.acquiring ? "acquiring" : "seen";
-    rows.push(`<tr><td>${sat.prn}</td><td>${sat.elevation ?? "--"}</td>` +
-              `<td>${sat.azimuth ?? "--"}</td><td>${sat.signal ?? "--"}</td>` +
-              `<td class="muted">${state}</td></tr>`);
-    // Below the horizon, or a reading the scraper could not make sense
-    // of: either would land outside the plot.
-    if (
-      !Number.isFinite(sat.elevation) ||
-      !Number.isFinite(sat.azimuth) ||
-      sat.elevation < 0
-    ) {
-      continue;
-    }
-    const a = (sat.azimuth - 90) * Math.PI / 180;
-    const d = r * (90 - sat.elevation) / 90;
-    const x = cx + d * Math.cos(a), y = cy + d * Math.sin(a);
-    // Scaled to the strongest satellite in this frame, because the
-    // receiver's own scale is undocumented and differs between models
-    // -- one reports 0 to 9, another 0 to 49.  Dividing by a fixed 255
-    // made every dot the same size, which is what this looked like
-    // before anyone measured it.
-    const size =
-      sat.signal == null || !strongest
-        ? DOT_MIN
-        : DOT_MIN + (sat.signal / strongest) * DOT_RANGE;
-    ctx.beginPath();
-    ctx.arc(x, y, size, 0, 2 * Math.PI);
-    ctx.fillStyle = sat.tracked ? "#4ade80" : sat.acquiring ? "#fbbf24" : "#6b7280";
-    ctx.fill();
-    ctx.fillStyle = "#e6e8eb";
-    ctx.textAlign = x < cx ? "right" : "left";
-    ctx.fillText(sat.prn, x + (x < cx ? -size - 3 : size + 3), y + 4);
-    ctx.textAlign = "center";
-  }
-  $("sats").innerHTML =
-    "<thead><tr><th>PRN</th><th>el</th><th>az</th><th>SS</th><th>state</th></tr></thead><tbody>" +
-    (rows.join("") || `<tr><td class="muted">no satellite table yet</td></tr>`) +
-    "</tbody>";
 }
 
 // ---------------------------------------------------------------- charts

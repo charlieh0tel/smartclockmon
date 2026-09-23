@@ -73,12 +73,17 @@ fn every_tier_polls_into_a_snapshot() {
     assert!(snapshot.efc.is_some());
     assert!(snapshot.temperature.is_some());
     assert!(snapshot.efc_dac.is_some());
-    // The satellite table exists only on the status screen, so finding
-    // one proves the medium tier scraped it.
+    assert!(snapshot.tracking.is_some());
+    assert!(snapshot.date.is_some());
+    // No tier reads the status screen, so the satellite table it alone
+    // carries is absent until something asks for one.
+    assert!(snapshot.screen.is_none());
+    device
+        .poll_screen(&mut snapshot, jiff::Timestamp::now())
+        .expect("a screen on request");
     let screen = snapshot.screen.as_ref().expect("a status screen");
     assert_eq!(screen.satellites.len(), 9);
     assert_eq!(screen.tracking, Some(6));
-    assert!(snapshot.date.is_some());
 }
 
 #[test]
@@ -89,6 +94,9 @@ fn the_satellite_counts_come_from_queries_and_agree_with_the_screen() {
     device
         .poll(Tier::Medium, &mut snapshot, now)
         .expect("medium");
+    device
+        .poll_screen(&mut snapshot, now)
+        .expect("a screen on request");
 
     let screen = snapshot.screen.as_ref().expect("a status screen");
     assert_eq!(snapshot.tracking, screen.tracking);

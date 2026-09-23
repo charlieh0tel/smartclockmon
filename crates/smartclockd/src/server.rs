@@ -353,6 +353,17 @@ fn handle_request(request: Request, handle: &Handle, info: &Info) -> Message {
                 "cadence_slow": info.cadence.slow.as_secs_f64(),
             }),
         ),
+        Op::Sky => match handle.sky().and_then(|()| {
+            handle.latest().ok_or(smartclock::error::Error::TaskStopped(
+                "nothing was published",
+            ))
+        }) {
+            Ok(snapshot) => match serde_json::to_value(Reading::from(&snapshot)) {
+                Ok(value) => Message::ok(id, value),
+                Err(e) => Message::err(id, e),
+            },
+            Err(e) => Message::err(id, e),
+        },
         Op::Query { scpi } => send(id, &scpi, handle, info),
     }
 }

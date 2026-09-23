@@ -414,8 +414,6 @@ enum Step {
     Position,
     /// Log count, learned tempco and the powerup register.
     Counters,
-    /// The status screen.
-    Screen,
 }
 
 /// The steps making up each tier's pass, in the order they are run.
@@ -433,7 +431,6 @@ const fn steps(tier: Tier) -> &'static [Step] {
             Step::Oscillator,
             Step::Registers,
             Step::Holdover,
-            Step::Screen,
         ],
         Tier::Slow => &[Step::Position, Step::Counters],
     }
@@ -495,7 +492,6 @@ impl<T: Transport> Device<T> {
             Step::Holdover => self.poll_holdover(into)?,
             Step::Position => self.poll_position(into, now)?,
             Step::Counters => self.poll_counters(into)?,
-            Step::Screen => self.poll_screen(into)?,
         }
         into.at = now;
         if step + 1 == steps.len() {
@@ -519,11 +515,9 @@ impl<T: Transport> Device<T> {
 
     /// The satellite counts, which the status screen also prints.
     ///
-    /// Two short queries, about 0.16 s, against the 1.5 s the screen
-    /// costs.  `:GPS:SATellite:TRACking:COUNt?` is the screen's
-    /// `Tracking`, and `:GPS:SATellite:VISible:PREDicted:COUNt?` less
-    /// that is its `Not Tracking` -- checked against a screen showing
-    /// 7 and 2.
+    /// Two short queries, about 80 ms, against the 1.5 s the screen
+    /// costs.  Reading them here is what lets the screen sit on the
+    /// slow tier without the counts going stale with it.
     fn poll_satellites(&mut self, into: &mut Snapshot) -> Result<()> {
         into.tracking = absent_if_unsupported(self.tracking_count())?.map(satellite_count);
         into.visible = absent_if_unsupported(self.visible_count())?.map(satellite_count);
@@ -599,13 +593,25 @@ impl<T: Transport> Device<T> {
         into.powerup = absent_if_unsupported(self.powerup_condition())?;
         Ok(())
     }
-    /// The status screen.
+    /// The status screen, read on request rather than on a schedule.
     ///
-    /// A step of its own because it is the one read that costs about a
-    /// second: 1.8 KB, which at 19200 8N1 is as long as a whole fast
-    /// pass.  Nothing else on the tier comes close.
-    fn poll_screen(&mut self, into: &mut Snapshot) -> Result<()> {
+    /// The slowest read the receiver has: 1574 bytes, 0.94 s of wire
+    /// time at 19200 and 1.5 s measured, the rest being the receiver
+    /// composing it -- four fast passes' worth, for one screen.
+    ///
+    /// Nothing polls it, because after the satellite counts moved to
+    /// `:GPS:SATellite:TRACking:COUNt?` and
+    /// `:GPS:SATellite:VISible:PREDicted:COUNt?` the only fields left
+    /// that appear nowhere else are per-satellite elevation, azimuth
+    /// and signal strength.  The health monitor line is the hardware
+    /// condition register rendered coarsely, and that register is on
+    /// the fast tier; the bracketed synchronisation and acquisition
+    /// text is `:SYNChronization:STATe?` and the operation register.
+    /// So a sky plot is read when someone is looking at one.
+    pub fn poll_screen(&mut self, into: &mut Snapshot, now: Timestamp) -> Result<()> {
         into.screen = absent_if_unsupported(self.screen())?;
+        into.at = now;
+        into.settle_freshness();
         Ok(())
     }
 }
@@ -637,7 +643,6 @@ mod tests {
             Step::Holdover,
             Step::Position,
             Step::Counters,
-            Step::Screen,
         ] {
             assert_eq!(
                 scheduled.iter().filter(|s| **s == step).count(),
@@ -645,7 +650,7 @@ mod tests {
                 "{step:?}"
             );
         }
-        assert_eq!(scheduled.len(), 8);
+        assert_eq!(scheduled.len(), 7);
     }
 
     #[test]
