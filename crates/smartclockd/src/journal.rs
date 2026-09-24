@@ -170,6 +170,13 @@ pub(crate) struct Journal {
     /// per connection still catches someone else having changed them
     /// while the daemon was away, which is the only way they move.
     filters_read: bool,
+    /// Whether the held span has been checked against the receiver on
+    /// this connection.
+    ///
+    /// A log cleared and refilled to at least its old count while the
+    /// link was down numbers the same way, so the count cannot show it.
+    /// The newest held entry reading differently can.
+    verified: bool,
 }
 
 impl Journal {
@@ -215,6 +222,7 @@ impl Journal {
             self.connection = Some(connection);
             self.stuck = None;
             self.filters_read = false;
+            self.verified = false;
         }
         let deadline = Instant::now() + PASS_BUDGET;
         if !self.filters_read {
@@ -323,7 +331,17 @@ impl Journal {
         // was cleared: those entries no longer exist and the receiver
         // is numbering from one again, so what follows belongs to a new
         // generation rather than overwriting the old one's history.
-        if cleared(self.copied, count) {
+        // So does the newest held entry no longer reading as it did.
+        // An error here ends the pass before anything is copied or
+        // erased on the strength of a span nobody checked.
+        let refilled = match self.copied {
+            Some((_, high)) if !self.verified && high <= count => {
+                !self.holds(handle, dialect, log, high)?
+            }
+            _ => false,
+        };
+        self.verified = true;
+        if cleared(self.copied, count) || refilled {
             self.generation += 1;
             self.copied = None;
             eprintln!(
@@ -461,6 +479,21 @@ impl Journal {
         let (stamp, message) = split_entry(text);
         log.record_log_entry(self.generation, entry, stamp, message)
     }
+
+    /// Whether the receiver's entry reads as the one held in this
+    /// generation.  An entry not held has nothing to contradict.
+    fn holds(&self, handle: &Handle, dialect: Dialect, log: &Log, entry: i64) -> Result<bool> {
+        let Some(receiver) = log.current_receiver() else {
+            return Ok(true);
+        };
+        let Some(held) = log.log_entry(receiver, self.generation, entry)? else {
+            return Ok(true);
+        };
+        let line = ask(handle, dialect, CommandId::LogRead, Some(entry))?;
+        let text = parse::string(&line).unwrap_or(line.as_str());
+        let (stamp, message) = split_entry(text);
+        Ok(held == (stamp.map(str::to_owned), message.to_owned()))
+    }
 }
 
 /// Whether the log has been cleared since the held span was taken.
@@ -569,10 +602,19 @@ fn split_entry(text: &str) -> (Option<&str>, &str) {
 
 #[cfg(test)]
 mod tests {
+    use super::Journal;
     use super::cleared;
     use super::seed;
     use super::split_entry;
     use super::wanted;
+    use crate::db::Log;
+    use smartclock::device::Device;
+    use smartclock::session::Config;
+    use smartclock::session::Session;
+    use smartclock::task;
+    use smartclock::task::Cadence;
+    use smartclock_sim::receiver::Receiver;
+    use smartclock_sim::transport::SimTransport;
 
     /// One pass as `copy_log` runs it: seed the span, take a pass
     /// worth of entries, advance the span the way the loop does.
@@ -709,6 +751,45 @@ mod tests {
             let (stamp, message) = split_entry(text);
             assert_eq!(stamp, None);
             assert_eq!(message, text);
+        }
+    }
+
+    #[test]
+    fn a_log_refilled_to_the_same_count_is_a_new_generation_and_not_erased() {
+        let simulated = Receiver::default();
+        let identity = simulated.identity.clone();
+        let dialect = simulated.dialect;
+        let transport = SimTransport::new(simulated);
+        let receiver = transport.receiver().clone();
+        let device = Device::open(Session::new(transport, Config::default()))
+            .expect("open the simulated receiver");
+        let (handle, _joiner) = task::spawn(device, Cadence::default());
+        let path =
+            std::env::temp_dir().join(format!("smartclockd-refilled-{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let mut log = Log::open(&path).expect("open the database");
+        log.note_receiver(&identity).expect("note the receiver");
+        let id = log.current_receiver().expect("a receiver");
+
+        // Everything copied, with erasing off.
+        let mut journal = Journal::default();
+        while log.log_complete(id, 0, 222).ok() != Some(true) {
+            journal.pass(&handle, dialect, id, 1, &mut log);
+        }
+
+        // Cleared and refilled while the daemon was away, then a
+        // restart that is allowed to erase.
+        receiver.lock().expect("receiver").refill_log();
+        let mut restarted = Journal::default().clearing_when_full();
+        restarted.pass(&handle, dialect, id, 2, &mut log);
+
+        assert_eq!(receiver.lock().expect("receiver").log_entries(), 222);
+        assert_eq!(log.log_generation(id).expect("generation"), 1);
+        drop(log);
+        for suffix in ["", "-wal", "-shm"] {
+            let mut name = path.clone().into_os_string();
+            name.push(suffix);
+            let _ = std::fs::remove_file(name);
         }
     }
 }

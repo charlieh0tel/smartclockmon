@@ -83,7 +83,10 @@ const CLEARED_ENTRY: &str = "\"Log 001:20050728.00:00:00: Log cleared\"";
 /// The messages repeat in a short cycle rather than being all the same,
 /// so a reader that keys entries by their text rather than by their
 /// number is caught here instead of in the field.
-fn log_entry(entry: i64) -> String {
+///
+/// `era` counts refills since the log was built, and moves the date,
+/// so a log cleared and refilled to the same count reads differently.
+fn log_entry(entry: i64, era: i64) -> String {
     const MESSAGES: [&str; 4] = [
         "Holdover started, not tracking GPS",
         "Holdover ended",
@@ -91,9 +94,10 @@ fn log_entry(entry: i64) -> String {
         "Power on",
     ];
     let minute = entry % 60;
+    let day = 27 + era;
     // Zero padded to three, as the instrument writes it.
     format!(
-        "\"Log {entry:03}:20050727.06:{minute:02}:34: {}\"",
+        "\"Log {entry:03}:200507{day:02}.06:{minute:02}:34: {}\"",
         MESSAGES[(entry as usize) % MESSAGES.len()]
     )
 }
@@ -138,6 +142,8 @@ pub struct Receiver {
     /// Whether the log has been cleared, so entry one reads as the
     /// receiver's own "Log cleared" marker rather than as history.
     log_cleared: bool,
+    /// How many times the log has been refilled; see [`log_entry`].
+    log_era: i64,
     /// Event registers, latched until read.
     ///
     /// Modelled rather than answered from the conditions, because the
@@ -227,6 +233,7 @@ impl Default for Receiver {
             events: Events::default(),
             log_entries: LOG_ENTRIES,
             log_cleared: false,
+            log_era: 0,
         }
     }
 }
@@ -363,6 +370,23 @@ impl Receiver {
             _ => return,
         };
         *field |= bits;
+    }
+
+    /// Clear the log and fill it again to the same count with different
+    /// entries, as happens while nothing is watching.
+    ///
+    /// The count alone cannot show that this happened, which is the
+    /// case a reader has to catch before erasing what it thinks it
+    /// holds.
+    pub fn refill_log(&mut self) {
+        self.log_era += 1;
+        self.log_cleared = false;
+        self.log_entries = LOG_ENTRIES;
+    }
+
+    /// How many diagnostic log entries are held.
+    pub fn log_entries(&self) -> i64 {
+        self.log_entries
     }
 
     /// Put an error in the queue that no command of ours caused.
@@ -570,13 +594,13 @@ impl Receiver {
                 } else if self.log_cleared {
                     Answer::line(CLEARED_ENTRY.to_owned())
                 } else {
-                    Answer::line(log_entry(entry))
+                    Answer::line(log_entry(entry, self.log_era))
                 }
             }
             CommandId::LogOldest => Answer::line(if self.log_cleared {
                 CLEARED_ENTRY.to_owned()
             } else {
-                log_entry(1)
+                log_entry(1, self.log_era)
             }),
             CommandId::OperCondition => Answer::line(format!("{:+}", self.operation_bits())),
             CommandId::HoldoverCondition => Answer::line(format!("{:+}", u16::from(self.holdover))),

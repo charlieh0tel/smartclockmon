@@ -1718,6 +1718,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smartclock",
+ "smartclock-sim",
 ]
 
 [[package]]

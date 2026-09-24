@@ -778,6 +778,24 @@ impl Log {
         )?)
     }
 
+    /// One held diagnostic log entry's stamp and message.
+    pub(crate) fn log_entry(
+        &self,
+        receiver: i64,
+        generation: i64,
+        entry: i64,
+    ) -> Result<Option<(Option<String>, String)>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT stamp, message FROM receiver_log
+                 WHERE receiver_id = ?1 AND generation = ?2 AND entry = ?3",
+                params![receiver, generation, entry],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?)
+    }
+
     /// Whether every entry from 1 to `count` is held for one receiver.
     ///
     /// The precondition for erasing the receiver's copy.  Counting rows

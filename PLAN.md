@@ -1167,6 +1167,16 @@ walking a unit's rows in the order they were read and starting a new
 generation wherever a number comes round again recovers the
 boundaries.
 
+A clear is noticed by the count falling below the highest entry held.
+A log cleared and refilled to at least that count while the link was
+down numbers the same way, and with `--adopt-log` the old generation's
+completeness would then authorise erasing entries never copied.  So
+once per connection, before copying or erasing anything, the newest
+held entry is read again and compared with what is stored; if it
+differs, what follows is a new generation.  One entry is the check,
+and two logs whose entries at that number read identically, stamp and
+message, would pass it.
+
 The stamps themselves are still what the receiver wrote, rollover and
 all, and this entry stands as the reason not to read them as wall
 clocks.
