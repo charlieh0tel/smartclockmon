@@ -12,6 +12,7 @@ mod journal;
 mod server;
 
 use crate::audit::Audit;
+use crate::audit::Entry;
 use crate::journal::Journal;
 use crate::journal::LOST_TO_OVERFLOW;
 use crate::server::Policy;
@@ -223,7 +224,7 @@ fn main() -> Result<()> {
         log.audit_count()?
     );
 
-    let (audit_tx, audit_rx) = channel::<crate::audit::Entry>();
+    let (audit_tx, audit_rx) = channel::<Entry>();
 
     let shared = Shared::new();
     let (requests_tx, requests_rx) = channel();
@@ -304,13 +305,7 @@ fn main() -> Result<()> {
             // when the snapshots stop.
             loop {
                 while let Ok(entry) = audit_rx.try_recv() {
-                    if let Err(e) =
-                        recorder
-                            .log
-                            .audit(&entry.scpi, &entry.class, &entry.outcome, None)
-                    {
-                        eprintln!("smartclockd: could not record a command: {e}");
-                    }
+                    recorder.audit(&entry);
                 }
                 if Instant::now() >= next_journal {
                     // Only while a receiver is answering.  Every one of
@@ -354,9 +349,7 @@ fn main() -> Result<()> {
                 // daemon is shutting down.  Write what is left and stop.
                 let Some(snapshots) = queued(&writes, AUDIT_POLL) else {
                     while let Ok(entry) = audit_rx.try_recv() {
-                        let _ = recorder
-                            .log
-                            .audit(&entry.scpi, &entry.class, &entry.outcome, None);
+                        recorder.audit(&entry);
                     }
                     return;
                 };
@@ -587,6 +580,18 @@ impl Recorder {
         }
     }
 
+    /// Write one audited command, under the receiver it was sent to
+    /// and at the time it ran.
+    fn audit(&mut self, entry: &Entry) {
+        self.note(&entry.receiver);
+        if let Err(e) = self
+            .log
+            .audit(entry.at, &entry.scpi, &entry.class, &entry.outcome, None)
+        {
+            eprintln!("smartclockd: could not record a command: {e}");
+        }
+    }
+
     /// Write one snapshot, under the receiver it was read from.
     fn write(&mut self, snapshot: &Snapshot) {
         // Only record readings that describe the receiver.  A
@@ -718,6 +723,7 @@ fn start_server(listening: Listening<'_>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use super::Entry;
     use super::Recorder;
     use super::db;
     use super::queued;
@@ -816,6 +822,42 @@ mod tests {
         drop(recorder);
         wipe();
         assert_eq!(last, Some(0));
+    }
+
+    #[test]
+    fn a_command_is_audited_when_and_where_it_ran() {
+        let path =
+            std::env::temp_dir().join(format!("smartclockd-audit-{}.db", std::process::id()));
+        let wipe = || {
+            for suffix in ["", "-wal", "-shm"] {
+                let mut name = path.clone().into_os_string();
+                name.push(suffix);
+                let _ = std::fs::remove_file(name);
+            }
+        };
+        wipe();
+        let mut recorder = Recorder::new(db::Log::open(&path).expect("open the database"));
+        // Written after a swap, and after a journal pass kept the
+        // writer busy: neither may change the row.
+        recorder.note("HEWLETT-PACKARD,58503A,B,3704-C");
+        let ran: jiff::Timestamp = "2026-09-23T12:00:00Z".parse().expect("a time");
+        recorder.audit(&Entry {
+            at: ran,
+            receiver: "HEWLETT-PACKARD,58503A,A,3704-C".to_owned(),
+            scpi: ":SYNChronization:HOLDover:INITiate".to_owned(),
+            class: "control".to_owned(),
+            outcome: "ok".to_owned(),
+        });
+        let rows = recorder.log.audit_rows().expect("read");
+        drop(recorder);
+        wipe();
+        assert_eq!(
+            rows,
+            vec![(
+                "2026-09-23T12:00:00.000000000Z".to_owned(),
+                Some("A".to_owned())
+            )]
+        );
     }
 
     #[test]

@@ -415,7 +415,7 @@ fn send(id: String, scpi: &str, handle: &Handle, info: &Info) -> Message {
         Ok(reply) => format!("ok: {}", reply.lines.join(" | ")),
         Err(e) => format!("failed: {e}"),
     };
-    info.audit.record(to_send, class, &note);
+    info.audit.record(to_send, class, &note, &info.identity);
 
     // A command that changed something should not wait up to a minute
     // to show in the snapshots.

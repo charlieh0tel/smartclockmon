@@ -587,6 +587,7 @@ impl Log {
     /// done, not by whom.
     pub(crate) fn audit(
         &mut self,
+        at: jiff::Timestamp,
         scpi: &str,
         class: &str,
         outcome: &str,
@@ -595,16 +596,23 @@ impl Log {
         self.conn.execute(
             "INSERT INTO audit (at, scpi, class, outcome, label, receiver_id)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                stored(jiff::Timestamp::now()),
-                scpi,
-                class,
-                outcome,
-                label,
-                self.current,
-            ],
+            params![stored(at), scpi, class, outcome, label, self.current,],
         )?;
         Ok(())
+    }
+
+    /// Each audit row's time and the serial it is filed under.
+    #[cfg(test)]
+    pub(crate) fn audit_rows(&self) -> Result<Vec<(String, Option<String>)>> {
+        let mut statement = self.conn.prepare(
+            "SELECT audit.at, receiver.serial FROM audit
+             LEFT JOIN receiver ON receiver.id = audit.receiver_id
+             ORDER BY audit.id",
+        )?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(rows)
     }
 
     /// How many commands have been recorded.

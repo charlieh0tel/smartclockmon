@@ -11,6 +11,13 @@ use smartclock::command::Class;
 /// One command as it happened.
 #[derive(Debug)]
 pub(crate) struct Entry {
+    /// When it completed.  Taken here, not when the row is written: the
+    /// log thread can be a journal pass behind, and a row stamped then
+    /// could land after the snapshots showing the command's effect.
+    pub(crate) at: jiff::Timestamp,
+    /// The `*IDN?` of the receiver it was sent to, as the daemon had it
+    /// when the command was classified.
+    pub(crate) receiver: String,
     /// What was sent.
     pub(crate) scpi: String,
     /// How the table classified it.
@@ -33,8 +40,10 @@ impl Audit {
 
     /// Note a command.  Failing to record must not fail the command:
     /// the audit trail is a record of what happened, not a gate on it.
-    pub(crate) fn record(&self, scpi: &str, class: Class, outcome: &str) {
+    pub(crate) fn record(&self, scpi: &str, class: Class, outcome: &str, receiver: &str) {
         let _ = self.entries.send(Entry {
+            at: jiff::Timestamp::now(),
+            receiver: receiver.to_owned(),
             scpi: scpi.to_owned(),
             class: format!("{class:?}").to_lowercase(),
             outcome: outcome.to_owned(),
