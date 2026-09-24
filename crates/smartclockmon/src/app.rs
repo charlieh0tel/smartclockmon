@@ -186,6 +186,30 @@ impl App {
         }
     }
 
+    /// Take what a daemon reached again says about itself.
+    ///
+    /// The log is reopened only if it moved: reopening an unchanged one
+    /// would reset the receiver chosen for the history panes.
+    pub(crate) fn reattached(
+        &mut self,
+        database: Option<String>,
+        policy: Policy,
+        cadence: Cadence,
+    ) {
+        self.policy = policy;
+        self.cadence = cadence;
+        if let Attachment::Daemon {
+            database: current, ..
+        } = &mut self.attachment
+            && *current != database
+        {
+            *current = database;
+            self.log = None;
+            self.history_error = None;
+            self.open_log();
+        }
+    }
+
     /// Re-read the graphs.  Called on a timer, not every frame.
     pub(crate) fn refresh_history(&mut self, columns: usize) {
         let Some(log) = &self.log else { return };
@@ -318,5 +342,51 @@ impl App {
         let mut values = self.efc_trend.iter().map(|e| e.percent());
         let first = values.next()?;
         Some(values.fold((first, first), |(lo, hi), v| (lo.min(v), hi.max(v))))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::App;
+    use crate::source::Attachment;
+    use crate::source::Console;
+    use crate::source::Policy;
+    use smartclock::task::Cadence;
+    use std::time::Duration;
+
+    #[test]
+    fn a_daemon_reached_again_is_taken_at_its_word() {
+        let mut app = App::new(
+            Attachment::Daemon {
+                socket: "/run/smartclockd.sock".to_owned(),
+                database: Some("/var/lib/smartclockd/first.db".to_owned()),
+            },
+            Console::default(),
+            Policy::default(),
+            Cadence::default(),
+        );
+        let slower = Cadence {
+            medium: Duration::from_secs(30),
+            ..Cadence::default()
+        };
+        app.reattached(
+            Some("/nonexistent/second.db".to_owned()),
+            Policy {
+                control: true,
+                ..Policy::default()
+            },
+            slower,
+        );
+        assert_eq!(
+            app.attachment,
+            Attachment::Daemon {
+                socket: "/run/smartclockd.sock".to_owned(),
+                database: Some("/nonexistent/second.db".to_owned()),
+            }
+        );
+        assert!(app.policy.control);
+        assert_eq!(app.cadence.medium, Duration::from_secs(30));
+        // The new log is the one opened, and it is not there.
+        assert!(app.history_error.is_some());
     }
 }

@@ -113,6 +113,11 @@ fn run(
             // The daemon restarts under systemd, so losing it is not a
             // reason to quit: say so and keep waiting for it to return.
             Ok(Update::Lost(why)) => app.lost(why),
+            Ok(Update::Reattached {
+                database,
+                policy,
+                cadence,
+            }) => app.reattached(database, policy, cadence),
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
                 app.lost("the source thread stopped".to_owned());

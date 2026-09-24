@@ -87,6 +87,19 @@ pub(crate) enum Update {
     /// The source went away.  The monitor keeps the last values on
     /// screen but must stop presenting them as current.
     Lost(String),
+    /// The daemon was reached again, and says this about itself.
+    ///
+    /// It may be a different daemon on the same socket, started with a
+    /// different log, policy or cadence, so what the first connection
+    /// said is not assumed to hold.
+    Reattached {
+        /// Where it keeps its log.
+        database: Option<String>,
+        /// What it lets a client do.
+        policy: Policy,
+        /// How often it polls.
+        cadence: Cadence,
+    },
 }
 
 /// What the daemon says a client may do.
@@ -239,11 +252,19 @@ pub(crate) fn from_daemon(
                     None => {
                         thread::sleep(RECONNECT_DELAY);
                         match connect_and_ask(&path) {
-                            Ok((open, send, ..)) => {
+                            Ok((open, send, database, policy, cadence)) => {
                                 // The console follows the link, or it
                                 // would keep writing to the socket that
                                 // just died.
                                 reconnected.attach(send);
+                                let told = Update::Reattached {
+                                    database,
+                                    policy,
+                                    cadence,
+                                };
+                                if tx.send(told).is_err() {
+                                    return;
+                                }
                                 stream = Some(open);
                             }
                             Err(e) => {
