@@ -433,7 +433,7 @@ pub fn updates(samples: &[Sample]) -> Vec<usize> {
 ///
 /// So the median only assigns each reading a whole-number position,
 /// and the spacing is then the least-squares slope of time against
-/// position.  Dividing the total span by the total number of steps
+/// position, fitted within each run between absences.  Dividing the total span by the total number of steps
 /// would also average out the jitter in between, but its error is set
 /// by the jitter on the two end readings alone and stays around
 /// `jitter / n`; a slope over every reading falls off as
@@ -452,30 +452,35 @@ pub fn spacing(samples: &[Sample]) -> Option<f64> {
     gaps.sort_by(f64::total_cmp);
     let median = gaps[gaps.len() / 2];
 
-    // Whole-number positions, stepped by the rounded gap.  An absence
-    // steps by however many readings it swallowed, which is what keeps
-    // the positions a straight line through the whole run rather than
-    // one line per segment.
+    // Whole-number positions within each run, stepped by the rounded
+    // gap, and a slope fitted to every run about its own means.  One
+    // line through the whole record would need a whole number of steps
+    // to span every absence, and a daemon restarted polls on a new
+    // phase, so that number does not exist: the fraction left over
+    // bends the line.  The same absence that splits the estimator's
+    // runs splits these.
+    let mut runs: Vec<Vec<(f64, f64)>> = vec![vec![(0.0, offsets[0])]];
     let mut position = 0.0;
-    let positions: Vec<f64> = offsets
-        .windows(2)
-        .map(|w| {
-            position += ((w[1] - w[0]) / median).round().max(0.0);
-            position
+    for w in offsets.windows(2) {
+        let gap = w[1] - w[0];
+        if gap > median * GAP_SEGMENTS_AFTER {
+            position = 0.0;
+            runs.push(Vec::new());
+        } else {
+            position += (gap / median).round().max(0.0);
+        }
+        if let Some(run) = runs.last_mut() {
+            run.push((position, w[1]));
+        }
+    }
+    let (covariance, variance) = runs.iter().fold((0.0, 0.0), |totals, run| {
+        let count = run.len() as f64;
+        let mean_position = run.iter().map(|&(p, _)| p).sum::<f64>() / count;
+        let mean_offset = run.iter().map(|&(_, t)| t).sum::<f64>() / count;
+        run.iter().fold(totals, |(covariance, variance), &(p, t)| {
+            let dp = p - mean_position;
+            (covariance + dp * (t - mean_offset), variance + dp * dp)
         })
-        .collect();
-    let count = positions.len() as f64 + 1.0;
-    let mean_position = (0.0 + positions.iter().sum::<f64>()) / count;
-    let mean_offset = offsets.iter().sum::<f64>() / count;
-    let pairs = std::iter::once((0.0, offsets[0])).chain(
-        positions
-            .iter()
-            .copied()
-            .zip(offsets.iter().copied().skip(1)),
-    );
-    let (covariance, variance) = pairs.fold((0.0, 0.0), |(covariance, variance), (p, t)| {
-        let dp = p - mean_position;
-        (covariance + dp * (t - mean_offset), variance + dp * dp)
     });
     if variance <= 0.0 {
         return Some(median);
@@ -632,6 +637,24 @@ mod tests {
             // The 5 us step would put tau = 1 near 3e-6.
             assert!(point.deviation < 1e-8, "{point:?}");
         }
+    }
+
+    #[test]
+    fn a_restart_that_moves_the_polling_phase_does_not_bend_the_spacing() {
+        // Two runs of readings exactly a second apart, the second
+        // starting a thousand and a half seconds after the first ended:
+        // a daemon restarted polls on a new phase.  No whole number of
+        // steps spans the gap, and fitting one line through both runs
+        // bends it.
+        let start = Timestamp::from_second(1_700_000_000).expect("a timestamp");
+        let at = |millis: i64| start + jiff::SignedDuration::from_millis(millis);
+        let samples: Vec<Sample> = (0..200)
+            .map(|i| at(i * 1000))
+            .chain((0..200).map(|i| at(199_000 + 1_000_500 + i * 1000)))
+            .map(|at| Sample { at, interval: 0.0 })
+            .collect();
+        let tau0 = spacing(&samples).expect("a spacing");
+        assert!((tau0 - 1.0).abs() < 1e-9, "tau0 {tau0}");
     }
 
     #[test]

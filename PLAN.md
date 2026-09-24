@@ -644,7 +644,11 @@ Four things about gaps that are easy to get wrong, and were:
   the drift wraps.  The median therefore only assigns whole-number
   positions, and the spacing is the least-squares slope of time against
   position, whose error falls off as `n^-3/2` rather than as
-  `jitter / n`.
+  `jitter / n`.  The slope is fitted within each run between absences,
+  about that run's own means: a restarted daemon polls on a new phase,
+  so no whole number of steps spans the absence, and one line through
+  both runs was bent by the fraction -- four parts in ten thousand for
+  a half-second shift between two runs of two hundred readings.
 
 A curve carries the count of readings, holes and segments with it,
 because a curve alone cannot be judged: one drawn from a run that is
