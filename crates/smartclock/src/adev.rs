@@ -450,40 +450,16 @@ pub fn spacing(samples: &[Sample]) -> Option<f64> {
     Some(covariance / variance)
 }
 
-/// Averaging times to offer, in seconds.
-///
-/// A ladder of times a person would choose, not of sample counts.
-/// Counting in samples put points at 100 and 500 seconds, which read
-/// back as 1.7 and 8.3 minutes -- arithmetic showing through the face
-/// of the instrument.  Within each unit the steps are the 1-2-5
-/// sequence that a log axis is labelled with, and each unit stops
-/// where the next begins.
-const LADDER: [f64; 24] = [
-    1.0,
-    2.0,
-    5.0,
-    10.0,
-    20.0,
-    50.0, // seconds
-    60.0,
-    120.0,
-    300.0,
-    600.0,
-    1200.0,
-    3000.0, // 1 to 50 minutes
-    3600.0,
-    7200.0,
-    18000.0,
-    36000.0,
-    72000.0, // 1 to 20 hours
-    86400.0,
-    172_800.0,
-    432_000.0,
-    864_000.0,
-    1_728_000.0,
-    4_320_000.0, // days
-    8_640_000.0,
-];
+/// Averaging times to offer, in seconds: 1, 2 and 5 in every decade,
+/// the sequence a log axis is labelled with, so the points sit on the
+/// graduations.
+fn ladder() -> impl Iterator<Item = f64> {
+    (0..8).flat_map(|decade| {
+        [1.0, 2.0, 5.0]
+            .into_iter()
+            .map(move |step| step * 10f64.powi(decade))
+    })
+}
 
 /// The ladder as multiples of the sample spacing, for a run of
 /// `longest` grid places.
@@ -499,7 +475,7 @@ fn multipliers(longest: usize, tau0: f64) -> Vec<usize> {
     // the sweep never proposes one.
     let ceiling = longest / 3;
     let mut out: Vec<usize> = Vec::new();
-    for tau in LADDER {
+    for tau in ladder() {
         if tau0 <= 0.0 {
             break;
         }
@@ -576,17 +552,14 @@ mod tests {
     }
 
     #[test]
-    fn the_averaging_times_are_ones_a_person_would_choose() {
-        // Not 100 and 500 seconds, which read back as 1.7 and 8.3
-        // minutes.  A day of one-second readings should offer whole
-        // seconds, then whole minutes, then whole hours.
+    fn the_averaging_times_are_one_two_five_by_decade() {
         let day = Run::from_samples(&run(86_400, |i| 1e-9 * i as f64), 1.0, |_, _| false);
         let taus: Vec<f64> = day.curve().iter().map(|p| p.tau).collect();
         assert_eq!(
             taus,
             vec![
-                1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 60.0, 120.0, 300.0, 600.0, 1200.0, 3000.0, 3600.0,
-                7200.0, 18000.0,
+                1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0,
+                10000.0, 20000.0,
             ]
         );
     }
