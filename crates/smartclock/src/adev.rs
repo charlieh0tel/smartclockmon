@@ -904,10 +904,11 @@ mod tests {
     }
 
     #[test]
-    fn a_repeated_reading_is_one_measurement() {
-        // The log holds a row per publish, and the medium and slow
-        // steps publish the fast tier's last reading again.  Two rows
-        // at the same instant are one sample, not two.
+    fn the_nearest_of_two_readings_in_a_slot_is_kept() {
+        // A reading 300 ms from its slot, a nanosecond off the ramp,
+        // lands in the same slot as the reading made on time.  Keeping
+        // it rather than the nearer one puts a nanosecond step into a
+        // ramp that is otherwise perfectly steady.
         let start = Timestamp::from_second(1_700_000_000).expect("a timestamp");
         let mut samples = run(600, |i| 1e-9 * i as f64);
         samples.push(Sample {
@@ -915,8 +916,16 @@ mod tests {
             interval: 1e-9,
         });
         samples.sort_by_key(|s| s.at);
-        let (present, holes) = gapless(&samples).coverage();
-        assert_eq!(present, 600);
-        assert_eq!(holes, 0);
+        let run = gapless(&samples);
+        let (present, holes) = run.coverage();
+        assert_eq!((present, holes), (600, 0));
+        let points = run.curve();
+        assert!(!points.is_empty());
+        for point in &points {
+            assert!(
+                point.deviation < 1e-15,
+                "the farther reading was kept: {point:?}"
+            );
+        }
     }
 }
