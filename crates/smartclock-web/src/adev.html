@@ -158,6 +158,13 @@ function seconds(v) {
   return `${v.toFixed(v < 10 ? 2 : 0)} s`;
 }
 
+// The table's averaging times, always in seconds, never minutes or
+// hours.
+function inSeconds(v) {
+  if (!Number.isFinite(v)) return "--";
+  return `${v.toFixed(v < 10 ? 2 : 0)} s`;
+}
+
 function draw(points) {
   if (chart) {
     chart.destroy();
@@ -249,7 +256,7 @@ function table(d) {
     d.points
       .map(
         (p) =>
-          `<tr><td>${esc(seconds(p.tau))}</td><td>${esc(decade(p.deviation))}</td>` +
+          `<tr><td>${esc(inSeconds(p.tau))}</td><td>${esc(decade(p.deviation))}</td>` +
           `<td class="muted">${p.differences}</td></tr>`,
       )
       .join("") +
