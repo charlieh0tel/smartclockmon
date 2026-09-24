@@ -44,15 +44,35 @@ const TREND_BLOCKS: [char; 8] = [
 /// Width of the label column, so values line up across panes.
 const LABEL_WIDTH: usize = 12;
 
+/// Rows the console takes while it is open.
+const CONSOLE_ROWS: u16 = 4;
+
 /// Draw the whole monitor.
+///
+/// The console and the key line are drawn here rather than by each
+/// view: the keys that open the console work in every view, and a view
+/// that did not draw it left the operator typing into nothing.
 pub(crate) fn draw(frame: &mut Frame, app: &App) {
+    let console_rows = if app.console_open { CONSOLE_ROWS } else { 0 };
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Fill(1),
+            Constraint::Length(console_rows),
+            Constraint::Length(1),
+        ])
+        .split(frame.area());
     match app.view {
-        View::Dashboard => dashboard(frame, app),
-        View::History => history(frame, app),
-        View::Journal => journal(frame, app),
-        View::Sky => sky(frame, app),
-        View::Stability => stability(frame, app),
+        View::Dashboard => dashboard(frame, rows[0], app),
+        View::History => history(frame, rows[0], app),
+        View::Journal => journal(frame, rows[0], app),
+        View::Sky => sky(frame, rows[0], app),
+        View::Stability => stability(frame, rows[0], app),
     }
+    if app.console_open {
+        console(frame, rows[1], app);
+    }
+    footer(frame, rows[2], app);
 }
 
 /// What the receiver has recorded about itself.
@@ -63,8 +83,7 @@ pub(crate) fn draw(frame: &mut Frame, app: &App) {
 /// saying, not which mechanism said it.  None of this is in the
 /// snapshot table and none of it can be plotted, so without a pane it
 /// is visible only to somebody holding a SQL prompt.
-fn journal(frame: &mut Frame, app: &App) {
-    let area = frame.area();
+fn journal(frame: &mut Frame, area: Rect, app: &App) {
     let rows: Vec<Row> = app
         .journal
         .iter()
@@ -138,8 +157,7 @@ const STAMP_WIDTH: usize = 19;
 /// because they have different units and the question they answer is
 /// whether they move together: EFC following temperature is the room,
 /// EFC moving without it is the oscillator.
-fn history(frame: &mut Frame, app: &App) {
-    let console_rows = if app.console_open { 4 } else { 0 };
+fn history(frame: &mut Frame, area: Rect, app: &App) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -147,21 +165,15 @@ fn history(frame: &mut Frame, app: &App) {
             Constraint::Fill(1),
             Constraint::Fill(1),
             Constraint::Fill(1),
-            Constraint::Length(console_rows),
-            Constraint::Length(1),
         ])
-        .split(frame.area());
+        .split(area);
     header(frame, rows[0], app);
-    if app.console_open {
-        console(frame, rows[4], app);
-    }
 
     if let Some(why) = &app.history_error {
         frame.render_widget(
             Paragraph::new(why.clone()).block(block("History")),
             rows[1].union(rows[3]),
         );
-        footer(frame, rows[5], app);
         return;
     }
 
@@ -187,7 +199,6 @@ fn history(frame: &mut Frame, app: &App) {
         &app.history.time_interval,
         Color::Green,
     );
-    footer(frame, rows[5], app);
 }
 
 /// One metric against time, drawn as a band between its extremes with
@@ -292,23 +303,17 @@ fn oldest(seconds_ago: f64) -> String {
 }
 
 /// Current state at a glance.
-fn dashboard(frame: &mut Frame, app: &App) {
-    let console_rows = if app.console_open { 4 } else { 0 };
+fn dashboard(frame: &mut Frame, area: Rect, app: &App) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3),
             Constraint::Length(11),
             Constraint::Min(6),
-            Constraint::Length(console_rows),
-            Constraint::Length(1),
         ])
-        .split(frame.area());
+        .split(area);
 
     header(frame, rows[0], app);
-    if app.console_open {
-        console(frame, rows[3], app);
-    }
 
     let middle = Layout::default()
         .direction(Direction::Horizontal)
@@ -320,8 +325,6 @@ fn dashboard(frame: &mut Frame, app: &App) {
     // The satellite table is not here: it comes from the status screen,
     // which nothing polls.  It has a view of its own, which asks.
     time_and_place(frame, rows[2], app);
-
-    footer(frame, rows[4], app);
 }
 
 fn block(title: &str) -> Block<'static> {
@@ -721,17 +724,12 @@ fn superscript(exponent: i32) -> String {
 /// slope between decades is what names the noise.  ratatui has no log
 /// axis, so the points are plotted as their logarithms and the labels
 /// say what the numbers are.
-fn stability(frame: &mut Frame, app: &App) {
+fn stability(frame: &mut Frame, area: Rect, app: &App) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Fill(1),
-            Constraint::Length(1),
-        ])
-        .split(frame.area());
+        .constraints([Constraint::Length(3), Constraint::Fill(1)])
+        .split(area);
     header(frame, rows[0], app);
-    footer(frame, rows[2], app);
 
     let curve = &app.deviation;
     if curve.points.is_empty() {
@@ -830,18 +828,13 @@ fn stability(frame: &mut Frame, app: &App) {
 /// 1.5 s of its link, so it is read while this view is open and at no
 /// other time.  Everything else the screen carries is available from
 /// short queries and is shown on the dashboard instead.
-fn sky(frame: &mut Frame, app: &App) {
+fn sky(frame: &mut Frame, area: Rect, app: &App) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Min(0),
-            Constraint::Length(1),
-        ])
-        .split(frame.area());
+        .constraints([Constraint::Length(3), Constraint::Min(0)])
+        .split(area);
     header(frame, rows[0], app);
     satellites(frame, rows[1], app);
-    footer(frame, rows[2], app);
 }
 
 fn satellites(frame: &mut Frame, area: Rect, app: &App) {
@@ -1092,10 +1085,19 @@ fn health_faults(snapshot: &Reading) -> Option<Vec<String>> {
 
 #[cfg(test)]
 mod tests {
+    use super::draw;
     use super::mode_line;
+    use crate::app::App;
+    use crate::app::View;
+    use crate::source::Attachment;
+    use crate::source::Console;
+    use crate::source::Policy;
     use jiff::Timestamp;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
     use smartclock::screen;
     use smartclock::snapshot::Snapshot;
+    use smartclock::task::Cadence;
     use smartclock::types::SmartClockMode;
     use smartclock::wire::Reading;
 
@@ -1193,5 +1195,40 @@ mod tests {
     #[test]
     fn nothing_polled_yet_shows_as_absent() {
         assert_eq!(mode_line(&snapshot(None, None)).0, "--");
+    }
+
+    #[test]
+    fn the_console_is_drawn_in_every_view() {
+        // The keys that open it work everywhere, so a view that did not
+        // draw it had the operator typing into nothing.
+        let mut app = App::new(
+            Attachment::Direct {
+                device: "/dev/null".to_owned(),
+            },
+            Console::default(),
+            Policy::default(),
+            Cadence::default(),
+        );
+        app.console_open = true;
+        app.console_input = "*IDN?".to_owned();
+        for view in [
+            View::Dashboard,
+            View::History,
+            View::Journal,
+            View::Sky,
+            View::Stability,
+        ] {
+            app.view = view;
+            let mut terminal = Terminal::new(TestBackend::new(100, 40)).expect("a terminal");
+            terminal.draw(|frame| draw(frame, &app)).expect("draw");
+            let screen: String = terminal
+                .backend()
+                .buffer()
+                .content()
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect();
+            assert!(screen.contains("scpi> *IDN?"), "{view:?}");
+        }
     }
 }
