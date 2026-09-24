@@ -454,8 +454,10 @@ initialisation routine `FUN_00022c7c` fills that block one of two ways:
   at `0x100002` is 1, the byte at `0x10262c` is clear and bits 7 and 6
   of the reset-status register at `0xfffa07` are clear; then the loop
   block, the health-monitor records and the τ block are all restored
-  and the log gets code 0x19.  Otherwise the defaults are loaded and
-  code 0x1b is logged.
+  event 0x19 is posted (`FUN_0003ec76`) and `Power on` is written to
+  the log (`FUN_00041180(1)`, `0x4b188`).  Otherwise the defaults are
+  loaded and `System preset` is logged (`FUN_00041180(0x1b)`,
+  `0x4b196`).
 
 So a value set with `loop_time` survives a reset that leaves RAM
 intact, and 500 s is what the loop uses after a power-up.  The startup
@@ -467,6 +469,34 @@ The Z3801A's image does the same with its block at `0x101e6e`, filled
 from ROM `0x2f846` (`0x12ce0`), whose float at offset 0x14 is
 `44 7a 00 00`: 1000.0.  Its ramp from 150 s to 1000 s takes about
 1700 s.
+
+The rest of the 25-byte block, from its ROM defaults
+`00 00 00 01 00 00 01 00 | 00 00 00 00 | 00 00 00 00 | 00 00 00 00 |
+43 fa 00 00 | 00` and the code that names its bytes by address:
+
+| Offset | Default | Read and written by |
+| ------ | ------- | ------------------- |
+| +0, word | 0 | nothing but the block copies |
+| +2 | 0 | an alarm summary: `FUN_00049f76`, called from `pllp`, gathers bits from `FUN_0003ed82`, the +0x18 flag, `FUN_000324fc` and `FUN_00049f06` into the byte at `0x102c16` and sets +2 when any is set (`0x4a008`); the health monitor folds it into a status bit (`0x33d12`); a SCPI handler at `0x3d3d0` returns it |
+| +3 | 1 | a descriptor at `0x431bc` only |
+| +4 | 0 | a SCPI handler at `0x3d3b6` returns it |
+| +5 | 0 | a SCPI handler at `0x3d458` returns it |
+| +6 | 1 | set to 1 when the loop starts (`0x4af60`); consulted when holdover begins (`0x472bc`, under the stage byte's move to 3); returned by the handler at `0x3f57a`, whose node carries the keyword `REC` |
+| +7 | 0 | set to 1 by the `powerup` sub-state machine `FUN_0004a34a` (`0x4a764`); tested by SCPI handlers at `0x3c330` and `0x3c6de` |
+| +8, long | 0 | written by a SCPI setter (`0x3c35c`, through `FUN_00038f04`); its address is handed to the `powerup` sub-state machine (`0x4a382`) |
+| +0xc, +0x10 | 0 | no reader found by address |
+| +0x14, float | 500 | τ |
+| +0x18 | 0 | a holdover-recovery flag: `FUN_000473ac`, called from the `holdover recovery` stage (`FUN_000478ce`, message `holdover recovery - Error with measurement`), counts its calls at `0x102bf6` and sets the flag with event 0x2e when the count passes the limit at `0x102566`; the `powerup` machine clears it (`0x4a094`) and so does the loop's start (`0x4afa0`); it is bit 0x20 of the alarm summary above |
+
+Bytes +2 to +6 and +8 also appear, each with its address, in 28-byte
+descriptor records at `0x43168` to `0x43228` and `0x4369e`, alongside
+the same getter `FUN_00022bb8`; what those records serve was not
+traced.  The event codes passed to `FUN_0003ec76` -- 0x19 to 0x5c,
+posted to the queue at `0x10356e` -- are not the log's codes: the log
+writer `FUN_00041180` takes a code from 0 to 0x1b, looks up its text --
+`Log cleared`, `Power on`, `Re-boot`, ... `System preset` (`0x41562`
+to `0x41834`) -- and writes the entry through `FUN_00041138` under the
+lock at `0x1023fa`.
 
 G is a constant.  `FUN_0004b088` reads the hardware word at
 `0x302000` and passes −1.25 × 10⁻¹² if bit 8 is set and
@@ -876,8 +906,9 @@ there.  The unpacker takes the same opcodes.
 
 - What the reset-status bits tested at `0xfffa07` mean; the register's
   layout is in Motorola's MC68331 manual, which is not in `third_party`.
-- What the other 21 bytes of the τ block and the rest of the ROM
-  defaults hold.
+- Which SCPI keywords the handlers that return τ-block bytes hang
+  from, other than `REC` for +6; what +3, +4, +5, +7 and +8 mean; and
+  what the rest of the ROM defaults, `0x400de` to `0x40173`, hold.
 - What HQ (`FUN_00045f94`) measures, and what the fit's mode is used
   for beyond the debug print; `FUN_00045a78`, which sets c from three
   trials, was not transcribed.
