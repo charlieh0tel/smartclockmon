@@ -42,8 +42,9 @@ jobs:
       checks: write
       issues: write
     steps:
-      # Same commits the shared workflows pin, so this repo does not
-      # quietly track a different version of the same action.
+      # The commit charlieh0tel/deb-workflows pins at its v1 tag, which
+      # ci.yml and release.yml follow.  They move when that tag moves;
+      # this pin does not, and has to be moved to match by hand.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Maintained by RustSec themselves, and it carries its own
       # cargo-audit, so this job needs no Rust toolchain and cannot
