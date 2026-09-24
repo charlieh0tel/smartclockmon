@@ -40,6 +40,10 @@ follows describes the design family and is not a statement about the
   after power-up the loop starts at 150 s and lengthens by 5 s every
   update until it reaches τ.  Its phase input is the
   interval mean; no read of the sawtooth was found in it.
+- A separate task fits **a + b·t + c·ln t to 45-minute means of the
+  EFC**, up to 64 of them (48 hours), and the loop adds the fitted
+  slope to its integrator each update as predicted drift.
+  `startup_pll` sets its first EFC from the same curve.
 - The **outer oven** of a double-oven oscillator is switched, not
   regulated, by the firmware: one port bit, turned on when the
   oscillator current has stopped falling, and never turned off except
@@ -216,9 +220,31 @@ The firmware's names for them, from its state strings at `0x2c5be` to
 `0x2c758`: `coarse`, then `fine` -- with the sub-states `fine start`,
 `fine sync meas`, `fine sync 1`, `fine sync 2`, `fine meas 1`,
 `fine meas delay`, `fine meas 2`, `fine slew`, `fine slew meas`,
-`fine fine slew` -- then `startup pll`, then `normal pll`.  The
-Z3805A's `:DIAGnostic:OS:PROCess?` lists a pSOS task `pllp` (see
-`z3801-tree.md`); which task runs the functions below was not traced.
+`fine fine slew` -- then `startup pll`, then `normal pll`.
+
+The stage lives in the byte at `0x10282c`, the first of the loop's
+state block.  The console word that prints `PLL state: ` switches on it
+at `0x2bba8`:
+
+| Value | Name |
+| ----- | ---- |
+| 0 | `invalid` |
+| 1 | `powerup`, with sub-states from `start` through `checking time` (`0x2c67f` to `0x2c74c`) |
+| 2 | `powerup recovery` |
+| 3 | `holdover` |
+| 4 | `holdover recovery` |
+| 5 | `startup pll` |
+| 6 | `normal pll` |
+| 7 | `diag` |
+| 8 | `idle` |
+| 9 | `fatal error` |
+
+The pSOS tasks are created at `0x231f0` to `0x232d4`: `gpsm` (entry
+`0x50bf2`), `hmon` (`0x33dc4`), `pllp` (`FUN_0004b088`, task id at
+`0x103d4e`) and `curv` (`0x450d4`, task id at `0x103d5e`).  The Z3805A's
+`:DIAGnostic:OS:PROCess?` lists the same names (see `z3801-tree.md`).
+The loop below runs in `pllp`; the fit in "The aging fit" runs in
+`curv`.
 
 ### Fine acquisition
 
@@ -265,13 +291,22 @@ The update:
     e  = x̄ − x₀
     f ← (1 − a)·f + a·e                     a = 29.75 / τ
     d  = clamp(p·2700 / q + r, −M, M)        p = [0x102bdc], r = [0x102bd8],
-                                             q = what FUN_00023818 returns
+                                             q = [0x100c08], seconds
     I ← I + 10·k·(f + d / (2700·k))          k = 1 / (4·G·τ²)
     u  = K·f + B + I + c·s                   K = 1 / (G·τ)
 
 and `FUN_00033798(u)` converts the result.  On entry the integrator is
 cleared and B is set to the EFC in force less c·s, so that starting the
 loop does not move the oscillator.
+
+q is the seconds counter `FUN_00023818` returns, which `FUN_00023624`
+advances once a second; it lies in the region a warm restart preserves
+(see "τ and G").  p and r are two coefficients of a fit to the EFC's
+own history, described under "The aging fit" below: with y = q / 2700,
+d = b + c / y is the slope of the fitted curve a + b·y + c·ln y at the
+present moment, in EFC units per 2700 s.  The integrator's second term
+is then 10·d / 2700: the EFC change the fit predicts over the ten
+seconds between updates.
 
 That is a proportional-integral loop on the prefiltered interval error,
 with K ∝ 1/τ and the integral gain ∝ 1/(4τ²).  Taking the oscillator as
@@ -295,6 +330,85 @@ a row (`0x47e46`) end the state.  Then, at `0x47ede` to `0x47fce`, it
 lengthens its constant by 5 s (`0x47efe`) each update until that is
 within 5 s of τ, sets it to τ, and hands over to `pll_normal`.  The
 Z3801A's `FUN_000442ca` does the same.
+
+At `0x475b8` to `0x476b4` it also sets the EFC from the aging fit
+below: u = FUN_00033798(a + b·y + c·ln y + c·s), with y = q / 2700 and
+the ln term left out when y ≤ 1.  Which of its states runs that code
+was not traced.
+
+### The aging fit
+
+The `curv` task fits a curve to the EFC's history, and the loop above
+feeds the curve's slope into its integrator.
+
+**Sampling.**  `FUN_00044cbe`, which `pll_normal` calls on each pass
+(`0x48a66`, `0x48be2`), works on a ring of 64 samples at `0x102876`:
+tail byte at `0x102876`, head byte at `0x102877`, and four arrays of
+64 -- e at `0x102880`, weight bytes at `0x102980`, y at `0x1029c0`, w at
+`0x102ac0`.  While the stage is 6, or 5 with the byte at `0x102838` not
+1, each call adds u − c·s -- the EFC in force at `0x10285e` less the
+oscillator-current term -- to a sum at `0x102bc4` and counts it at
+`0x10287e`.  When q reaches the deadline at `0x102bc0` the deadline
+moves on by 2700 s and, if anything was counted, one sample is
+written at the head:
+
+    e = sum / count
+    y = q / 2700
+    w = y·ln(y / (y − 1)) + ln(y − 1) − 1        or −1 when q ≤ 2700
+    weight = 3 if count = 2700; 2 if count ≥ 675; else 1;
+             and 1 regardless while q < 10800
+
+then the sum and count are cleared and event 0x100 is sent to `curv`
+(`FUN_0004507a`).  With the debug byte at `0x102c13` set, each sample
+is printed as `e_avg= %.1f time= %f weight= %d log= %.2f tfom= %.1e`
+(`0x463a6`), time being y / 32 -- days.
+
+w is ∫ ln t dt over the window from y − 1 to y, since ∫ ln t dt =
+t·ln t − t: the mean of ln t over the 2700 s the sample averages.  So
+the curve fitted below, a + b·y + c·w, is the window mean of
+a + b·t + c·ln t.
+
+**The fit.**  `FUN_00045116` runs on each event.  Its record is at
+`0x1026a2`: mode byte at +0, a at +0x12, b at +0x16, c at +0x1a, rms at
++0x22, HQ at +0x26; its debug lines are `pts= %d a= %.1f b= %.1f c=
+%.1f rms= %.1f` (`0x46415`), `HQ= %.1e mode= %d` (`0x46441`) and
+`failed line fit` (`0x46455`).  It counts n₂, the samples with weight
+2 or more, and n₁, weight 1 or more, and finds the oldest and newest y
+(`FUN_00045680`).  Then, first match wins:
+
+| Mode | When | Fit |
+| ---- | ---- | --- |
+| 4 | n₂ = 64 and the newest y > 128 | b = (Σe over the newest 32 − Σe over the oldest 32) / 1024, a = ē − b·(y_newest − 32.5), c = 0 (`FUN_00045392`) |
+| 3 | the oldest y > 128 and n₂ > 2 | a straight line through the weight-2 samples (`FUN_00045ce0`), c = 0 |
+| 3 or 2 | n₂ > 5 | the straight line, then the three-term fit (`FUN_000455de`); the latter is taken, and the mode is 2, when its rms is below 0.75 of the line's or n₂ < 16 |
+| 3 or 2 | n₁ > 9 | the same on the weight-1 samples |
+| 1 | n₁ > 2 | the straight line through the weight-1 samples |
+| 0 | otherwise | a = ē, b = c = 0 (`FUN_00045570`) |
+
+`FUN_00045ce0` is an unweighted least-squares line of e on y,
+returning the slope, the intercept and the rms of the residuals over
+n − 2; it fails, and clears its results, with fewer than three points
+or no spread in y.  The three-term fit forms a first c and a step from
+the line (`FUN_00045782`), refits the line to e − c·w with c moved by
+that step while the rms falls (`FUN_0004587a`), and sets c from the
+last three trials (`FUN_00045a78`).  Every fit but mode 0 ends by
+resetting a so that the curve passes through the newest sample
+(`FUN_0004571c`).  HQ is `FUN_00045f94`'s result for modes 2 to 4 and
+4.32 × 10⁻⁴ for modes 0 and 1; what it measures was not traced.  128 in
+units of 2700 s is 96 hours.
+
+**Back to the loop.**  `curv` then sends event 0x100 to `pllp`.  At the
+start of each sampling pass `FUN_0004508e` asks for that event
+(`FUN_000274d6`) and, when it has arrived, copies a to `0x102bd4`, b to
+`0x102bd8` -- the loop's r -- c to `0x102bdc` -- its p -- and HQ to
+`0x102866`.  All four sit in the loop block a warm restart preserves,
+so after such a restart the loop starts with the last fit.  After a
+power-up they are zero, and stay zero until a fit with at least three
+samples -- mode 1 or above -- so d is zero for the first hours of the
+loop.
+
+The console's `last efc average = %.1f` (`0x2c3a5`) prints the newest
+e; `dmes_curv` (`0x2befe`) sets the byte at `0x103d8a`.
 
 ### s, the oscillator current
 
@@ -376,22 +490,36 @@ comes back in D0:
 | Routine | Operation |
 | ------- | --------- |
 | `0x64b6a` | D0 − D1 |
+| `0x64b68` | D1 − D0 |
 | `0x64b8e` | D0 + D1 |
 | `0x65df4` | D0 × D1 |
 | `0x652ba` | D0 ÷ D1 |
 | `0x652b8` | D1 ÷ D0: exchanges the two and falls into the divide |
 | `0x234f2` | absolute value of the float on the stack |
 | `0x65130` | compare D0 with D1 |
-| `0x65ce2` | integer to float |
-| `0x65a90` | float to integer |
-| `0x659f8` | float to double, for printing |
+| `0x65ce2`, `0x65c3c` | integer to float |
+| `0x65a90`, `0x65b22` | float to integer |
+| `0x659f8` | float to double, in D0:D1 |
+| `0x65bdc` | integer to double |
+| `0x657a6` | double to float |
 | `0x652ae` | divide the float at A0 by D1, in place |
 | `0x64b5e` | add D1 to the float at A0, in place |
+| `0x64b54` | subtract D1 from the float at A0, in place |
+| `0x64e26` | double D0:D1 + double A0:A1 |
+| `0x660d4` | double D0:D1 × double A0:A1 |
+| `0x6553e` | double A0:A1 ÷ double D0:D1 |
+| `0x6519a` | compare doubles: negative when A0:A1 < D0:D1 |
+| `0x684e4` | natural log of the double on the stack |
+| `0x693f0` | square root of the double on the stack |
 
 The constants, as single-precision floats: `0x41ee0000` is 29.75,
 `0x4528c000` 2700, `0x40800000` 4, `0x41200000` 10, `0x302bcc77`
 6.25 × 10⁻¹⁰, `0x29824fff` 5.787 × 10⁻¹⁴, and `0x4e6e6b28` 10⁹, which
-scales the interval to nanoseconds for the report.
+scales the interval to nanoseconds for the report.  In the aging fit:
+`0x40a51800 00000000` is the double 2700, `0xbff00000 00000000` the
+double −1, `0x3f400000` 0.75, `0x44800000` 1024, `0xc2020000` −32.5,
+`0x42780000` 62, `0x42000000` 32, `0x39e27e0f` 4.32 × 10⁻⁴, and the
+integers `0xa8c` 2700, `0x2a3` 675, `0x2a30` 10800.
 
 ## The ovens
 
@@ -718,9 +846,15 @@ there.  The unpacker takes the same opcodes.
   layout is in Motorola's MC68331 manual, which is not in `third_party`.
 - What the other 21 bytes of the τ block and the rest of the ROM
   defaults hold.
-- What p, q, r and the term d are.  `FUN_00023818` returns the counter
-  at `0x100c08`, compared with 900 as seconds by the warmup and used as
-  q; what increments it was not traced.
+- What HQ (`FUN_00045f94`) measures, and what the fit's mode is used
+  for beyond the debug print; `FUN_00045a78`, which sets c from three
+  trials, was not transcribed.
+- What the fit's a, written to `0x102bd4`, is used for other than by
+  `startup_pll`; readers at `0x47442`, `0x47462` and `0x490e0` were not
+  traced.
+- The console's `current drift = %.1e / day` (`0x2c3bf`) prints the
+  float at `0x102bcc` times 5.4 × 10⁻⁸.  Nothing that writes `0x102bcc`
+  was found.
 - What the Z3801A's `Oven` and `Secondary oven voltage` channels
   measure, beyond the ADC inputs and coefficients above.
 - The units of the oscillator current: nominal 250 and limit 650 after
