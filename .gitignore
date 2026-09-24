@@ -9,4 +9,3 @@
 *.sqlite
 *.sqlite-journal
 
-/third_party/*.bin

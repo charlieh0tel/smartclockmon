@@ -1092,7 +1092,7 @@ Things that are not decided, as distinct from the defects below.
    TCOefficient?` is computed and where it is applied, and whether the
    scaling behind the undocumented `EFControl:ABSolute?` is visible in
    code.  Each has been inferred from the outside and none is settled.
-   `third_party/z3801a.bin` and `z3816a.bin` are the images; there is
+   `third_party/z3801a-3543.bin` and `z3816a-4001.bin` are the images; there is
    no 58503A dump, which is also why the front panel's strings are
    unknown.
 

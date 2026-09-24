@@ -35,11 +35,19 @@ Firmware images
 
 Read-only images of the instruments' own program ROMs, from which the
 SCPI command tree in `docs/z3801-tree.md` was extracted and against
-which claims about the command set are checked.  Motorola 68000 code,
-big-endian, loaded at address zero.
+which claims about the command set are checked.  CPU32 code (68331 or
+68332), big-endian, loaded at address zero.
 
-  z3801a.bin                 Z3801A firmware
-  z3816a.bin                 Z3816A firmware
+  z3801a-3543.bin            Z3801A firmware, revision 3543.  Copyright
+                             Hewlett-Packard 1993.
+  z3816a-4001.bin            Z3816A firmware, revision 4001.  Copyright
+                             Hewlett-Packard 2000.
+
+The revision is the string the firmware puts in the third field of its
+`*IDN?` answer, stored just before the image's second copyright notice
+(`0x12eef` in the Z3801A image, `0x22ff8` in the Z3816A's).  The letter
+that follows it in a real answer, as in 3704-C, is read from RAM and is
+not in the image.
 
 Motorola / Synergy Systems
 --------------------------

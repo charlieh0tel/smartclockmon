@@ -19,7 +19,7 @@
 # cite:      where the spelling came from -- a manual and page
 #            ("097-..."), a receiver it was swept from ("discovered on
 #            a Z3805A"), or the image whose parser tables list it
-#            ("firmware image z3801a.bin, command tree").
+#            ("firmware image z3801a-3543.bin, command tree").
 # evidence:  how far the entry has been confirmed --
 #            "manual"   transcribed from the document only
 #            "firmware" every keyword found in the firmware's own
@@ -240,7 +240,7 @@ doc = "Instantaneous antenna position."
   scpi = ":PTIMe:GPSystem:POSition:ACTual?"
   response = "position"
   models = ["Z3805A"]
-  cite = "firmware image z3801a.bin, command tree"
+  cite = "firmware image z3801a-3543.bin, command tree"
   evidence = "firmware"
 
 
@@ -262,7 +262,7 @@ doc = "Place receiver in position hold at a given location."
   scpi = ":PTIMe:GPSystem:POSition"
   response = "none"
   models = ["Z3805A"]
-  cite = "firmware image z3801a.bin, command tree"
+  cite = "firmware image z3801a-3543.bin, command tree"
   evidence = "firmware"
 
 
@@ -357,7 +357,7 @@ doc = "Begin a position survey."
   scpi = ":PTIMe:GPSystem:POSition:SURVey:STATe ONCE"
   response = "none"
   models = ["Z3805A"]
-  cite = "firmware image z3801a.bin, command tree"
+  cite = "firmware image z3801a-3543.bin, command tree"
   evidence = "firmware"
 
 
@@ -399,7 +399,7 @@ doc = "Enable or disable survey at power-up."
   scpi = ":PTIMe:GPSystem:POSition:SURVey:STATe:POWerup"
   response = "none"
   models = ["Z3805A"]
-  cite = "firmware image z3801a.bin, command tree"
+  cite = "firmware image z3801a-3543.bin, command tree"
   evidence = "firmware"
 
 
@@ -651,7 +651,7 @@ doc = "Seed date to speed first acquisition."
   scpi = ":PTIMe:GPSystem:INITial:DATE"
   response = "none"
   models = ["Z3805A"]
-  cite = "firmware image z3801a.bin, command tree"
+  cite = "firmware image z3801a-3543.bin, command tree"
   evidence = "firmware"
 
 
@@ -673,7 +673,7 @@ doc = "Seed time to speed first acquisition."
   scpi = ":PTIMe:GPSystem:INITial:TIME"
   response = "none"
   models = ["Z3805A"]
-  cite = "firmware image z3801a.bin, command tree"
+  cite = "firmware image z3801a-3543.bin, command tree"
   evidence = "firmware"
 
 
@@ -695,7 +695,7 @@ doc = "Seed position to speed first acquisition."
   scpi = ":PTIMe:GPSystem:INITial:POSition"
   response = "none"
   models = ["Z3805A"]
-  cite = "firmware image z3801a.bin, command tree"
+  cite = "firmware image z3801a-3543.bin, command tree"
   evidence = "firmware"
 
 

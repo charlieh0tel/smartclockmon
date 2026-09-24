@@ -1,6 +1,6 @@
 # What the firmware shows
 
-What `third_party/z3816a.bin` shows about how the receiver measures the
+What `third_party/z3816a-4001.bin` shows about how the receiver measures the
 1 PPS time interval, how it disciplines the oscillator from it, and
 whether the Oncore's sawtooth correction enters either.  Every address
 below is in that image, which is loaded at address zero.

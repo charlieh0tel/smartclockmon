@@ -4,7 +4,7 @@ Every command path in the firmware image, read out of the parser's own
 tables.  `z3801-keywords.md` has the vocabulary and the structures this
 was extracted from; this is the tree they describe.
 
-Extracted from `third_party/z3801a.bin`.  `z3816a.bin` holds the same
+Extracted from `third_party/z3801a-3543.bin`.  `z3816a-4001.bin` holds the same
 tables at the same offsets.
 
 ## What it is worth
