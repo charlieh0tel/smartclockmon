@@ -275,10 +275,12 @@ The rest of `docs/`:
 | File | Contents |
 | ---- | -------- |
 | `running.md` | installing, configuring and what the daemon does to the receiver |
-| `efc.md` | how the receiver reports its control voltage, and what three meter readings settled about it |
+| `efc.md` | how the receiver reports its control voltage, and what six meter readings settled about it |
 | `OCXO.md` | the oscillator itself |
 | `z3801-keywords.md` | the 313 SCPI keywords the Z3801A firmware defines, and the undocumented commands found by sweeping a 58503A with them |
 | `screen-format-strings.md` | the status screen's printf templates |
+| `z3801-tree.md` | every SCPI command path in the Z3801A firmware, read from the parser's tables |
+| `time-interval.md` | how the firmware measures the 1 PPS time interval, and where the Oncore's sawtooth goes |
 
 ## Licence
 
