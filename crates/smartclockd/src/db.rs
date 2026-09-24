@@ -580,6 +580,9 @@ impl Log {
             .as_ref()
             .map_or(identity, |id| id.serial.as_str())
             .to_owned();
+        // Cleared first so a failure below leaves rows filed under no
+        // receiver rather than under the one attached before.
+        self.current = None;
         let now = jiff::Timestamp::now().to_string();
         self.conn.execute(
             "INSERT INTO receiver (serial, manufacturer, model, firmware, first_seen, last_seen)
@@ -1099,6 +1102,26 @@ mod tests {
             )
             .expect("read the firmware");
         assert_eq!(firmware, "3714-C");
+    }
+
+    #[test]
+    fn a_receiver_that_could_not_be_noted_is_not_filed_under_the_last_one() {
+        let scratch = Scratch::new("unnoted");
+        let mut log = Log::open(scratch.path()).expect("open the database");
+        log.note_receiver("HEWLETT-PACKARD,58503A,A,3704-C")
+            .expect("note the first unit");
+        log.conn
+            .execute_batch(
+                "CREATE TRIGGER refuse BEFORE INSERT ON receiver WHEN NEW.serial = 'B'
+                 BEGIN SELECT RAISE(ABORT, 'refused'); END;",
+            )
+            .expect("make the second unit fail to note");
+
+        assert!(
+            log.note_receiver("HEWLETT-PACKARD,58503A,B,3704-C")
+                .is_err()
+        );
+        assert_eq!(log.current_receiver(), None);
     }
 
     #[test]

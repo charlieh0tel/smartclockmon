@@ -534,16 +534,21 @@ fn note_attached(log: &mut db::Log, recorded: &mut Option<String>, info: &server
     if identity.is_empty() || recorded.as_ref() == Some(&identity) {
         return;
     }
+    // Not marked recorded on failure, so the next row tries again; until
+    // then rows carry no receiver and the journal waits.
     match log.note_receiver(&identity) {
-        Ok(others) if !others.is_empty() => eprintln!(
-            "smartclockd: this log also holds rows from {}; \
-             every row says which receiver it came from",
-            others.join(", ")
-        ),
-        Ok(_) => {}
+        Ok(others) => {
+            if !others.is_empty() {
+                eprintln!(
+                    "smartclockd: this log also holds rows from {}; \
+                     every row says which receiver it came from",
+                    others.join(", ")
+                );
+            }
+            *recorded = Some(identity);
+        }
         Err(e) => eprintln!("smartclockd: could not note the receiver: {e}"),
     }
-    *recorded = Some(identity);
 }
 
 /// Give the socket owner and group access, and nobody else.
