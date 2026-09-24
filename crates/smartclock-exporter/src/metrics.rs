@@ -10,6 +10,7 @@
 use std::fmt::Write as _;
 
 use smartclock::snapshot::Freshness;
+use smartclock::snapshot::Tier;
 use smartclock::wire::Reading;
 
 /// Every metric this exporter emits, prefixed to keep the namespace.
@@ -65,63 +66,79 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
         f64::from(u8::from(r.freshness == Freshness::Disconnected)),
     );
 
+    // A value is exported only while the tier that reads it is reading.
+    // With the link down or that tier failing, the number is the last
+    // one read, and a panel would draw it as current.
+    let current =
+        |tier: Tier| r.freshness != Freshness::Disconnected && r.polled.get(tier).error.is_none();
+    let fast = current(Tier::Fast);
+    let medium = current(Tier::Medium);
+    let slow = current(Tier::Slow);
+
     maybe(
         &mut out,
         "efc_percent",
         "Oscillator control as a share of its range, -100 to 100",
-        r.efc.map(|v| v.percent()),
+        r.efc.filter(|_| fast).map(|v| v.percent()),
     );
     maybe(
         &mut out,
         "efc_raw",
         "Oscillator control as the raw 20-bit value",
-        r.efc_raw.map(f64::from),
+        r.efc_raw.filter(|_| medium).map(f64::from),
     );
     maybe(
         &mut out,
         "temperature_celsius",
         "Internal temperature; not the oscillator oven, which runs far hotter",
-        r.temperature_c,
+        r.temperature_c.filter(|_| medium),
     );
-    maybe(&mut out, "oven_current", "Oven current", r.oven_current);
+    maybe(
+        &mut out,
+        "oven_current",
+        "Oven current",
+        r.oven_current.filter(|_| medium),
+    );
     maybe(
         &mut out,
         "oven_tempco",
         "Oscillator temperature coefficient, in parts in 10^12 per degree C; \
          measured against GPS while locked and kept in EPROM, so it sits \
          still for long stretches",
-        r.oven_tempco,
+        r.oven_tempco.filter(|_| slow),
     );
     maybe(
         &mut out,
         "time_interval_seconds",
         "Interval between the receiver's 1 PPS and GPS",
-        r.time_interval_ns.map(|ns| ns * 1e-9),
+        r.time_interval_ns.filter(|_| fast).map(|ns| ns * 1e-9),
     );
     maybe(
         &mut out,
         "tfom",
         "Time figure of merit, lower is better",
-        r.tfom.map(|v| f64::from(v.get())),
+        r.tfom.filter(|_| fast).map(|v| f64::from(v.get())),
     );
     maybe(
         &mut out,
         "ffom",
         "Frequency figure of merit, lower is better",
-        r.ffom.map(|v| f64::from(v.get())),
+        r.ffom.filter(|_| fast).map(|v| f64::from(v.get())),
     );
     maybe(
         &mut out,
         "hardware_bits",
         "Hardware condition register; 0 is healthy",
-        r.hardware.map(|h| f64::from(h.bits())),
+        r.hardware.filter(|_| fast).map(|h| f64::from(h.bits())),
     );
     maybe(
         &mut out,
         "alarm",
         "1 while the receiver has something latched in a status group; \
          this is what its front-panel Alarm LED is showing",
-        r.alarming.map(|v| f64::from(u8::from(v))),
+        r.alarming
+            .filter(|_| medium)
+            .map(|v| f64::from(u8::from(v))),
     );
     maybe(
         &mut out,
@@ -129,80 +146,97 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
         "1 once the receiver has stepped its own clock to match the satellites, \
          which invalidates interval measurements taken across the step; \
          stays set until the alarm is cleared at the receiver",
-        r.time_reset.map(|v| f64::from(u8::from(v))),
+        r.time_reset
+            .filter(|_| medium)
+            .map(|v| f64::from(u8::from(v))),
     );
     // The condition registers, as the booleans they decode to.  A
     // register exported as a number would need the manual and a
     // bitwise expression in every alert that used it.
-    for (name, help, value) in [
-        ("locked", "1 while locked to GPS", r.locked),
+    for (name, help, value, tier) in [
+        ("locked", "1 while locked to GPS", r.locked, medium),
         (
             "reference_valid",
             "1 while the GPS 1 PPS is fit to discipline against",
             r.reference_valid,
+            medium,
         ),
         (
             "position_hold",
             "1 while holding a surveyed position rather than surveying",
             r.position_hold,
+            medium,
         ),
         (
             "log_almost_full",
             "1 when the receiver's diagnostic log is near the point where it stops recording",
             r.log_almost_full,
+            medium,
         ),
         (
             "oven_warm",
             "1 once the oscillator oven has warmed up since powerup",
             r.oven_warm,
+            slow,
         ),
         (
             "date_time_valid",
             "1 once the date and time were set at the first lock after powerup",
             r.date_time_valid,
+            slow,
         ),
         (
             "holdover_recovering",
             "1 while coming out of holdover",
             r.holdover_recovering,
+            medium,
         ),
         (
             "holdover_exceeding_threshold",
             "1 while holdover has run past its configured threshold",
             r.holdover_exceeding_threshold,
+            medium,
         ),
     ] {
-        maybe(&mut out, name, help, value.map(|v| f64::from(u8::from(v))));
+        maybe(
+            &mut out,
+            name,
+            help,
+            value.filter(|_| tier).map(|v| f64::from(u8::from(v))),
+        );
     }
     maybe(
         &mut out,
         "holdover_active",
         "1 while the receiver is in holdover",
-        r.holdover_active.map(|v| f64::from(u8::from(v))),
+        r.holdover_active
+            .filter(|_| medium)
+            .map(|v| f64::from(u8::from(v))),
     );
     maybe(
         &mut out,
         "holdover_seconds",
         "How long the current or last holdover lasted",
-        r.holdover_seconds,
+        r.holdover_seconds.filter(|_| medium),
     );
     maybe(
         &mut out,
         "holdover_predicted_seconds",
         "Predicted error after 24 hours of holdover",
-        r.holdover_predicted_s,
+        r.holdover_predicted_s.filter(|_| medium),
     );
     maybe(
         &mut out,
         "holdover_present_seconds",
         "Error accumulated so far in the current holdover",
-        r.holdover_present_s,
+        r.holdover_present_s.filter(|_| medium),
     );
     maybe(
         &mut out,
         "rollover_epochs",
         "GPS week epochs the receiver's calendar is behind",
         r.date
+            .filter(|_| slow)
             .map(|d| f64::from(d.rollover().map_or(0, |s| s.epochs))),
     );
 
@@ -213,13 +247,13 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
         &mut out,
         "satellites_tracked",
         "Satellites being tracked",
-        r.tracking.map(f64::from),
+        r.tracking.filter(|_| medium).map(f64::from),
     );
     maybe(
         &mut out,
         "satellites_visible",
         "Satellites the almanac predicts are visible",
-        r.visible.map(f64::from),
+        r.visible.filter(|_| medium).map(f64::from),
     );
 
     // The age of each group of fields.  Without these a daemon that has
@@ -271,7 +305,10 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
 #[cfg(test)]
 mod tests {
     use super::render;
+    use smartclock::snapshot::Freshness;
     use smartclock::snapshot::Snapshot;
+    use smartclock::snapshot::Tier;
+    use smartclock::types::EfcPercent;
     use smartclock::wire::Reading;
 
     #[test]
@@ -286,6 +323,49 @@ mod tests {
             "a scrape that failed exported a reading"
         );
         assert!(!out.contains("tier_age"));
+    }
+
+    /// A snapshot with a value from every tier, every tier polled.
+    fn read_everywhere() -> Snapshot {
+        let now = jiff::Timestamp::now();
+        let mut snapshot = Snapshot::new(now);
+        snapshot.efc = EfcPercent::new(1.0);
+        snapshot.temperature = Some(35.0);
+        snapshot.oven_tempco = Some(0.5);
+        for tier in Tier::ALL {
+            snapshot.polled.succeeded(tier, now);
+        }
+        snapshot.settle_freshness();
+        snapshot
+    }
+
+    #[test]
+    fn a_disconnected_receiver_exports_no_readings() {
+        let mut snapshot = read_everywhere();
+        snapshot.freshness = Freshness::Disconnected;
+        let out = render(Some(&Reading::from(&snapshot)));
+        assert!(out.contains("smartclock_reading_disconnected 1"));
+        for absent in [
+            "smartclock_efc_percent",
+            "smartclock_temperature_celsius",
+            "smartclock_oven_tempco",
+        ] {
+            assert!(
+                !out.contains(absent),
+                "{absent} exported while disconnected"
+            );
+        }
+    }
+
+    #[test]
+    fn a_failing_tier_exports_none_of_its_values_and_the_others_still_report() {
+        let mut snapshot = read_everywhere();
+        snapshot.polled.failed(Tier::Medium, "no answer");
+        snapshot.settle_freshness();
+        let out = render(Some(&Reading::from(&snapshot)));
+        assert!(!out.contains("smartclock_temperature_celsius"));
+        assert!(out.contains("smartclock_efc_percent 1"));
+        assert!(out.contains("smartclock_oven_tempco 0.5"));
     }
 
     #[test]

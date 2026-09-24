@@ -105,7 +105,9 @@ schedule.  It exports `smartclock_up`, and the age of each tier as
 `smartclock_tier_age_seconds`, because a daemon that has stopped polling
 otherwise looks like a remarkably steady oscillator: every other value
 stays exactly where it was.  A reading the receiver declined is left out
-rather than exported as zero.
+rather than exported as zero, and so is every value whose tier is
+failing or whose link is down: the last number read, exported as
+though current, is what a panel would go on drawing.
 
 The daemon also copies out what the receiver writes down for itself, on
 every connection rather than once per unit, because a connection is the
