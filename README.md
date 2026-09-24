@@ -275,7 +275,7 @@ The rest of `docs/`:
 | File | Contents |
 | ---- | -------- |
 | `running.md` | installing, configuring and what the daemon does to the receiver |
-| `efc.md` | how the receiver reports its control voltage, and what seven meter readings settled about it |
+| `efc.md` | how the receiver reports its control voltage, measured at the oscillator's EFC pin |
 | `OCXO.md` | the oscillator itself |
 | `z3801-keywords.md` | the 313 SCPI keywords the Z3801A firmware defines, and the undocumented commands found by sweeping a 58503A with them |
 | `screen-format-strings.md` | the status screen's printf templates |
