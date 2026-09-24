@@ -325,6 +325,23 @@ impl Handle {
     }
 }
 
+/// The tier to run next: the earliest deadline.
+///
+/// Ties go to whichever tier ran longest ago, not to whichever comes
+/// first in `Tier::ALL`.  A Refresh sets all three deadlines to the same
+/// instant, so ties are common, and a fixed order meant the slow tier
+/// could be passed over indefinitely: every refresh recreated the tie,
+/// fast and medium took their turns, and another refresh arrived before
+/// slow ever got one.  A control command triggers a refresh, so a
+/// client issuing them steadily was enough.
+fn next_tier(due: &[Instant; 3], last_run: &[Instant; 3]) -> (Tier, Instant) {
+    Tier::ALL
+        .into_iter()
+        .map(|t| (t, due[t as usize]))
+        .min_by_key(|(t, at)| (*at, last_run[*t as usize]))
+        .expect("at least one tier")
+}
+
 /// Answer and discard everything queued, for a link that has gone.
 ///
 /// Without this, commands submitted during an outage were run against
@@ -540,19 +557,7 @@ impl<T: Transport> DeviceTask<T> {
 
     /// The tier that comes due soonest.
     fn next_due(&self) -> (Tier, Instant) {
-        // Ties go to whichever tier ran longest ago, not to whichever
-        // comes first in Tier::ALL.  A Refresh sets all three deadlines
-        // to the same instant, so ties are common, and a fixed order
-        // meant the slow tier could be passed over indefinitely: every
-        // refresh recreated the tie, fast and medium took their turns,
-        // and another refresh arrived before slow ever got one.  A
-        // control command triggers a refresh, so a client issuing them
-        // steadily was enough.
-        Tier::ALL
-            .into_iter()
-            .map(|t| (t, self.due[t as usize]))
-            .min_by_key(|(t, at)| (*at, self.last_run[*t as usize]))
-            .expect("at least one tier")
+        next_tier(&self.due, &self.last_run)
     }
 
     /// Report any error the receiver had raised that nobody had read.
@@ -607,6 +612,16 @@ impl<T: Transport> DeviceTask<T> {
         // as one pass would date the whole tier by the retry.
         let finished = outcome.is_err() || step + 1 >= step_count(tier);
         self.step[tier as usize] = if finished { 0 } else { step + 1 };
+        if !finished {
+            // Back of the queue, as of now.  Left at the deadline it
+            // started from, a tier partway through its pass has the
+            // earliest deadline there is, and so wins every turn until
+            // the pass is over -- which runs its steps back to back and
+            // defeats the point of having steps.  Re-queued at the
+            // present, any tier that has come due since goes first,
+            // and one that has not leaves the pass to continue.
+            self.due[tier as usize] = Instant::now();
+        }
         if finished {
             // Measured from when the tier was due, not from when its
             // pass finished, or the period becomes cadence plus wire
@@ -772,11 +787,45 @@ impl<T: Transport> DeviceTask<T> {
 mod tests {
     use super::Request;
     use super::discard_queued;
+    use super::next_tier;
     use crate::error::Error;
+    use crate::snapshot::Tier;
     use std::sync::mpsc::channel;
     use std::sync::mpsc::sync_channel;
     use std::time::Duration;
     use std::time::Instant;
+
+    /// The deadlines as a medium pass leaves them one step in: medium
+    /// started at `start`, the fast tier last ran then and is next due a
+    /// second later, and slow is far off.
+    fn mid_pass(start: Instant, medium: Instant) -> ([Instant; 3], [Instant; 3]) {
+        let fast = start + Duration::from_secs(1);
+        let slow = start + Duration::from_secs(60);
+        ([fast, medium, slow], [start, start, start])
+    }
+
+    #[test]
+    fn a_fast_tier_that_has_come_due_goes_before_a_pass_in_flight() {
+        let start = Instant::now();
+        // Medium's first step ended after the fast tier came due, and
+        // re-queued medium at that moment.
+        let stepped = start + Duration::from_millis(1100);
+        let (due, last_run) = mid_pass(start, stepped);
+        assert_eq!(next_tier(&due, &last_run).0, Tier::Fast);
+
+        // Left at the deadline its pass started from, medium would win,
+        // which is how whole passes ran back to back.
+        let (stale, _) = mid_pass(start, start);
+        assert_eq!(next_tier(&stale, &last_run).0, Tier::Medium);
+    }
+
+    #[test]
+    fn a_pass_in_flight_continues_while_nothing_faster_is_due() {
+        let start = Instant::now();
+        let stepped = start + Duration::from_millis(300);
+        let (due, last_run) = mid_pass(start, stepped);
+        assert_eq!(next_tier(&due, &last_run).0, Tier::Medium);
+    }
 
     /// A command as a client's handle would submit it.
     fn command(

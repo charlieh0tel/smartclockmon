@@ -492,12 +492,21 @@ a receiver some other tool has moved to one has to be reachable to be
 moved back.
 
 The medium tier is therefore interleaved rather than run as one pass.
-`Tier::steps()` gives the number of steps in a pass, the scheduler
-takes one step per turn, and a tier's freshness is stamped when the
-pass completes rather than when it starts.  The fast tier is
+Each tier is a list of steps (`device::step_count` gives how many), the
+scheduler takes one step per turn, and a tier's freshness is stamped
+when the pass completes rather than when it starts.  The fast tier is
 deliberately one step, because its fields are compared against each
 other and a time interval from one second beside an EFC from the next
 is a correlation nobody measured.
+
+After each step short of the last, the tier is re-queued at the present
+instant.  The scheduler takes the earliest deadline, and a tier left at
+the deadline its pass started from has the earliest there is, so it won
+every turn and ran its steps back to back -- steps in name only.
+Re-queued, it yields to any tier that has come due since, and continues
+when none has.  Giving the fast tier unconditional priority instead
+would starve the slow one under a stream of refreshes, each of which
+makes the fast tier due again.
 
 Measured on a 58503A at 19200, as the marginal cost over a 0.67 s
 open-and-synchronise, the medium tier is four steps of which one is
