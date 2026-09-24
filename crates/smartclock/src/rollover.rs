@@ -24,6 +24,9 @@ use serde::Serialize;
 /// Days in one GPS week-number epoch: 1024 weeks.
 const EPOCH_DAYS: i32 = 1024 * 7;
 
+/// How many days a receiver's local date can be from the UTC date.
+const ZONE_DAYS: i32 = 1;
+
 /// How far a receiver's calendar has slipped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rollover {
@@ -61,13 +64,18 @@ impl ReceiverDate {
     /// Compare against a known-good date, usually the host clock, and
     /// record how many epochs the receiver is behind.
     ///
-    /// Only whole multiples count.  A receiver that is merely wrong, or
+    /// Only whole multiples count, give or take a day.  The receiver's
+    /// date is local: `:PTIMe:TZONe` offsets all reported time from UTC
+    /// by up to twelve hours either way (097-59551-02, "Applying Local
+    /// Time Zone Offset"), so for part of each day it is a day either
+    /// side of a UTC reference.  A receiver that is otherwise wrong, or
     /// one whose date is ahead, is left unflagged: this detects the
     /// rollover failure specifically, not clock error in general.
     pub fn checked(raw: Date, reference: Date) -> Self {
         let behind = reference.since(raw).map(|s| s.get_days()).unwrap_or(0);
-        let epochs = behind / EPOCH_DAYS;
-        let rollover = if behind > 0 && epochs > 0 && behind % EPOCH_DAYS == 0 {
+        let epochs = (behind + ZONE_DAYS) / EPOCH_DAYS;
+        let off = behind - epochs * EPOCH_DAYS;
+        let rollover = if epochs > 0 && off.abs() <= ZONE_DAYS {
             u32::try_from(epochs).ok().map(|epochs| Rollover { epochs })
         } else {
             None
@@ -113,6 +121,20 @@ mod tests {
     use jiff::civil::date;
 
     #[test]
+    fn a_receiver_a_time_zone_away_still_shows_its_slip() {
+        // Its date is local, up to twelve hours either side of UTC, so
+        // for part of each day it is a day off the UTC reference.
+        for reference in [date(2026, 9, 19), date(2026, 9, 21)] {
+            let seen = ReceiverDate::checked(date(2007, 2, 4), reference);
+            assert_eq!(
+                seen.rollover().map(|r| r.epochs),
+                Some(1),
+                "reference {reference}"
+            );
+        }
+    }
+
+    #[test]
     fn the_development_units_slip_is_one_epoch() {
         // Observed: firmware 3704-C reported this date on this day.
         let seen = ReceiverDate::checked(date(2007, 2, 4), date(2026, 9, 20));
@@ -141,7 +163,8 @@ mod tests {
     #[test]
     fn a_date_that_is_merely_wrong_is_not_a_rollover() {
         // Detecting the specific failure beats guessing at clock error.
-        for wrong in [date(2020, 1, 1), date(2007, 2, 5), date(2030, 1, 1)] {
+        // Two days off an epoch is more than a time zone can explain.
+        for wrong in [date(2020, 1, 1), date(2007, 2, 6), date(2030, 1, 1)] {
             let seen = ReceiverDate::checked(wrong, date(2026, 9, 20));
             assert_eq!(seen.rollover(), None, "{wrong} was flagged");
             assert_eq!(seen.corrected(), wrong);
