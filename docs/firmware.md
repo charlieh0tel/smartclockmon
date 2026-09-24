@@ -13,10 +13,41 @@ QSPI.  It also initialises and uses a register block at `0xfff900`
 counter at `0xfff90c`/`0xfff90d` it reads to count 1 PPS edges).  That
 is the General-Purpose Timer module, which the 68331 has alongside its
 SIM and QSM (NXP's MC68331 page, <https://www.nxp.com/products/MC68331>)
-and the 68332 does not -- the 68332 has a TPU there instead.  An
-owner's description of the Z3801A's outer-oven circuit names the main
-CPU as "U33 / MC68331" and the oven's control line as its pin 10, PGP5
-(see "The ovens"); the image itself shows only the GPT.
+and the 68332 does not -- the 68332 has a TPU there instead.  The
+MC68331 User's Manual (`third_party/MC68331UM.pdf`) places the SIM at
+$YFFA00 (Table D-3), the GPT at $YFF900 with the port GP data register
+PORTGP at $YFF907 (Table D-2, D.5) and the QSM at $YFFC00 (Table
+D-13), which is where this image finds them; bit 5 of PORTGP is the
+pin PGP5/OC3/OC1 (section 7.2).  An owner's description of the
+Z3801A's outer-oven circuit names the main CPU as "U33 / MC68331" and
+the oven's control line as PGP5 (see "The ovens").
+
+The reset code at `0x2466e` sets the SIM up as follows (register
+names and encodings from MC68331UM appendix D; block sizes from Table
+D-11):
+
+| Register | Value | Meaning |
+| -------- | ----- | ------- |
+| SYPCR `0xfffa21` | `0xcc` | SWE, SWP, HME, BME: software watchdog on and prescaled by 512, halt and bus monitors on (D.3.12) |
+| CSBARBT `0xfffa48` | `0x0006` | boot chip select: `0x000000`, 512 KB -- the ROM this image is |
+| CSBAR0, 2, 3 | `0x1003` | `0x100000`, 64 KB -- the RAM |
+| CSBAR1 | `0x3000` | `0x300000`, 2 KB |
+| CSBAR4 | `0xfff8` | `0xfff800`, 2 KB |
+| CSBAR5 | `0x3040` | `0x304000`, 2 KB |
+| CSBAR6 | `0x0006` | `0x000000`, 512 KB |
+| CSBAR7 | `0x3020` | `0x302000`, 2 KB -- the word G is chosen by |
+| CSBAR8 | `0x2000` | `0x200000`, 2 KB -- the DUART |
+| CSBAR9 | `0x4001` | `0x400000`, 8 KB -- the checksummed block at `0x400080` |
+| CSBAR10 | `0x5000` | `0x500000`, 2 KB |
+| SYNCR `0xfffa04` | `0xcf80` | W = 1, X = 1, Y = 15: f = f_ref · 4 · 16 · 8 (section 4.3.2): 16.777 MHz from the 32.768 kHz reference the manual's frequency tables assume (4.3.2, appendix A) |
+| PORTE0 `0xfffa11` | `0x40` | port E bit 6 high; `0x22e30` later pulses it low and high |
+
+The SCI's baud rate is SCBR in SCCR0 at `0xfffc08`, f / (32 · SCBR)
+(section 6.4.3.3).  `FUN_0002e610` sets it from a setting byte: 437,
+218, 55 and 27 for settings 0 to 3, which at 16.777 MHz are 1200,
+2405, 9533 and 19418 baud -- the manual's four rates, each within
+0.7 %.  `FUN_0002ed56` sets PE and PT in SCCR1 (`0xfffc0a`) from the
+byte at `0x10261d`: no parity for 0, even for 1, odd for 2.
 
 This is the Z3816A's firmware.  No 58503A image is available, so what
 follows describes the design family and is not a statement about the
@@ -452,7 +483,11 @@ initialisation routine `FUN_00022c7c` fills that block one of two ways:
   That copy is taken when a byte checksum of the region (`FUN_00040056`
   over 0xb9c bytes) matches the word stored at its start, the flag word
   at `0x100002` is 1, the byte at `0x10262c` is clear and bits 7 and 6
-  of the reset-status register at `0xfffa07` are clear; then the loop
+  of the reset-status register at `0xfffa07` are clear -- EXT and POW
+  in MC68331UM D.3.4: the reset was neither external nor a power-up
+  (the other bits are SW, HLT, LOC, SYS and TST; `FUN_00022c7c` at
+  `0x22dc4` also asks for the register to be exactly SYS, a RESET
+  instruction); then the loop
   block, the health-monitor records and the τ block are all restored
   event 0x19 is posted (`FUN_0003ec76`) and `Power on` is written to
   the log (`FUN_00041180(1)`, `0x4b188`).  Otherwise the defaults are
@@ -904,8 +939,6 @@ there.  The unpacker takes the same opcodes.
 
 ## What is not established
 
-- What the reset-status bits tested at `0xfffa07` mean; the register's
-  layout is in Motorola's MC68331 manual, which is not in `third_party`.
 - Which SCPI keywords the handlers that return τ-block bytes hang
   from, other than `REC` for +6; what +3, +4, +5, +7 and +8 mean; and
   what the rest of the ROM defaults, `0x400de` to `0x40173`, hold.
@@ -926,9 +959,11 @@ there.  The unpacker takes the same opcodes.
   are an owner's report of a Z3801A board, not something traced here;
   and how the Z3801A firmware's "Oven" and "Secondary oven voltage"
   values relate to the volts at P2/9 was not worked out.
-- Which CPU32 part this is: the `0xfff900` block rules out the 68332,
-  and the MC68331 comes from an owner's description of the board, not
-  from the image.
+- Which CPU32 part this is: the register map matches the MC68331
+  manual's and the `0xfff900` block rules out the 68332, but the part
+  name comes from an owner's description of the board, not from the
+  image.
+- What sits on chip select 7 at `0x302000`, whose bit 8 chooses G.
 - x₀ is cleared at `0x4b1dc` and otherwise written only by `phase_off`;
   whether anything calls `phase_off` other than the console was not
   traced.

@@ -49,6 +49,18 @@ The revision is the string the firmware puts in the third field of its
 that follows it in a real answer, as in 3704-C, is read from RAM and is
 not in the image.
 
+Motorola
+--------
+
+  MC68331UM.pdf              "MC68331 User's Manual", Motorola 1996,
+                             as published by Freescale/NXP,
+                             nxp.com/docs/en/data-sheet/MC68331UM.pdf.
+                             The processor the firmware images run on:
+                             its SIM, GPT and QSM register maps, reset
+                             status bits, chip-select encoding and
+                             SCI baud-rate formula, cited from
+                             `docs/firmware.md`.
+
 Motorola / Synergy Systems
 --------------------------
 
