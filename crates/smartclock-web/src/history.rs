@@ -14,6 +14,10 @@ use rusqlite::Connection;
 use rusqlite::OpenFlags;
 use smartclock::adev::Curve;
 use smartclock::adev::Sample;
+use smartclock::history::current;
+use smartclock::history::recorded_cadence;
+use smartclock::snapshot::Tier;
+use smartclock::task::Cadence;
 
 /// A column of the snapshot table that can be plotted.
 ///
@@ -30,17 +34,20 @@ use smartclock::adev::Sample;
 /// `tracking` sits third because a receiver losing satellites
 /// explains the two above it, and reading those without it invites
 /// blaming the oscillator for the sky.
-pub(crate) const PLOTTABLE: [&str; 10] = [
-    "time_interval_s",
-    "efc_percent",
-    "tracking",
-    "temperature_c",
-    "oven_current",
-    "efc_dac",
-    "oven_tempco",
-    "tfom",
-    "ffom",
-    "not_tracking",
+///
+/// Each with the tier that reads it, which decides how long a value
+/// stays current: see `smartclock::history::current`.
+pub(crate) const PLOTTABLE: [(&str, Tier); 10] = [
+    ("time_interval_s", Tier::Fast),
+    ("efc_percent", Tier::Fast),
+    ("tracking", Tier::Medium),
+    ("temperature_c", Tier::Medium),
+    ("oven_current", Tier::Medium),
+    ("efc_dac", Tier::Medium),
+    ("oven_tempco", Tier::Slow),
+    ("tfom", Tier::Fast),
+    ("ffom", Tier::Fast),
+    ("not_tracking", Tier::Medium),
 ];
 
 /// The most series one request will bucket together.
@@ -137,6 +144,17 @@ impl Log {
             .collect::<std::result::Result<_, _>>()?)
     }
 
+    /// How often the daemon ran each tier, as it recorded.
+    fn cadence(&self) -> Cadence {
+        recorded_cadence(|key| {
+            self.conn
+                .query_row("SELECT value FROM meta WHERE key = ?1", [key], |row| {
+                    row.get(0)
+                })
+                .ok()
+        })
+    }
+
     /// Which receiver a request that does not say gets.
     ///
     /// The one seen most recently, which on a bench with one unit is
@@ -163,11 +181,11 @@ impl Log {
     /// SQL, which is interpolated, so a request cannot name arbitrary
     /// expressions.
     ///
-    /// Rows where the fast tier did not run are left out: every
-    /// plottable column is a fast-tier field, so such a row restates
-    /// the previous one and plotting it draws a measurement that was
-    /// never taken.  Older rows have no `fast_at` and fall back to the
-    /// freshness flag.
+    /// Rows where the fast tier did not run are left out: such a row
+    /// restates the previous one and plotting it draws a measurement
+    /// that was never taken.  Older rows have no `fast_at` and fall
+    /// back to the freshness flag.  A slower tier's column counts in a
+    /// row only while that tier's value is current.
     pub(crate) fn series(
         &self,
         receiver: i64,
@@ -181,18 +199,28 @@ impl Log {
             columns.len() <= MAX_SERIES,
             "at most {MAX_SERIES} series at once"
         );
+        let mut tiers = Vec::with_capacity(columns.len());
         for column in columns {
-            anyhow::ensure!(
-                PLOTTABLE.contains(&column.as_str()),
-                "{column} is not a column this serves"
-            );
+            let tier = PLOTTABLE
+                .iter()
+                .find(|(name, _)| name == column)
+                .map(|&(_, tier)| tier);
+            let Some(tier) = tier else {
+                anyhow::bail!("{column} is not a column this serves");
+            };
+            tiers.push(tier);
         }
+        let cadence = self.cadence();
         let points = points.clamp(MIN_POINTS, MAX_POINTS) as i64;
         anyhow::ensure!(from <= to, "the range ends before it starts");
         let span = to.saturating_sub(from).max(1);
         let aggregates = columns
             .iter()
-            .map(|c| format!("AVG({c}), MIN({c}), MAX({c})"))
+            .zip(&tiers)
+            .map(|(c, &tier)| {
+                let value = current(c, tier, &cadence);
+                format!("AVG({value}), MIN({value}), MAX({value})")
+            })
             .collect::<Vec<_>>()
             .join(", ");
         let sql = format!(
@@ -770,6 +798,53 @@ mod tests {
             (vec![90.5], vec![90.0], vec![91.0]),
             "B's readings only"
         );
+    }
+
+    #[test]
+    fn a_slower_tier_that_stops_reading_stops_being_plotted() {
+        // Fast rows every second for two minutes, each carrying the
+        // temperature the medium tier last read.  The medium tier reads
+        // at 0 s and 10 s and then fails.  Its value is current for
+        // three of its intervals after the last read, to 40 s, and is
+        // not a measurement after that.
+        let scratch = Scratch::new("stale-tier");
+        let conn = Connection::open(scratch.path()).expect("make a log");
+        conn.execute_batch(
+            "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+             INSERT INTO meta VALUES ('cadence_medium', '10');
+             CREATE TABLE snapshot (
+                 id INTEGER PRIMARY KEY, at TEXT NOT NULL, freshness TEXT,
+                 fast_at TEXT, medium_at TEXT, temperature_c REAL,
+                 receiver_id INTEGER);",
+        )
+        .expect("schema");
+        let start = 1_700_000_000;
+        for second in 0..120 {
+            let at = jiff::Timestamp::from_second(start + second).expect("a timestamp");
+            let medium = jiff::Timestamp::from_second(start + second.min(10) / 10 * 10)
+                .expect("a timestamp");
+            conn.execute(
+                "INSERT INTO snapshot (at, freshness, fast_at, medium_at, temperature_c, receiver_id)
+                 VALUES (?1, 'stale', ?1, ?2, 35.0, 1)",
+                rusqlite::params![at.to_string(), medium.to_string()],
+            )
+            .expect("a row");
+        }
+        drop(conn);
+
+        let log = Log::open(scratch.path()).expect("open");
+        let series = log
+            .series(1, &["temperature_c".to_owned()], start, start + 119, 120)
+            .expect("series");
+        let plotted: Vec<f64> = series
+            .at
+            .iter()
+            .zip(&series.plots[0].mean)
+            .filter(|(_, mean)| mean.is_some())
+            .map(|(at, _)| at - start as f64)
+            .collect();
+        assert_eq!(plotted.first(), Some(&0.0));
+        assert_eq!(plotted.last(), Some(&40.0));
     }
 
     #[test]

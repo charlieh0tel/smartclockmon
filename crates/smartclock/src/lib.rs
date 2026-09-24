@@ -9,6 +9,7 @@ pub mod client;
 pub mod control;
 pub mod device;
 pub mod error;
+pub mod history;
 pub mod matrix;
 /// What this build is, as `<version>-<commits>+g<commit>`, with
 /// `+dirty` when it was built from a tree with uncommitted changes.

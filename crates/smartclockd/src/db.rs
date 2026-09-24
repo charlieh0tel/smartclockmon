@@ -18,8 +18,11 @@ use anyhow::Result;
 use rusqlite::Connection;
 use rusqlite::OptionalExtension as _;
 use rusqlite::params;
+use smartclock::history::cadence_key;
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Snapshot;
+use smartclock::snapshot::Tier;
+use smartclock::task::Cadence;
 
 /// Bumped when the tables change shape.
 const SCHEMA: i64 = 7;
@@ -613,6 +616,20 @@ impl Log {
             .query_map(params![serial], |row| row.get(0))?
             .collect::<std::result::Result<_, _>>()?;
         Ok(others)
+    }
+
+    /// Record how often each tier runs, for readers of the log.
+    pub(crate) fn note_cadence(&mut self, cadence: &Cadence) -> Result<()> {
+        for tier in Tier::ALL {
+            self.conn.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES (?1, ?2)",
+                params![
+                    cadence_key(tier),
+                    cadence.of(tier).as_secs_f64().to_string()
+                ],
+            )?;
+        }
+        Ok(())
     }
 
     /// Every receiver that has written here, newest attachment last.

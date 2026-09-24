@@ -373,7 +373,7 @@ fn series(database: &Path, query: &str) -> Result<serde_json::Value> {
         "last": last,
         // What may be asked for, so the page builds its menu from the
         // server rather than from a copy that can drift.
-        "plottable": PLOTTABLE,
+        "plottable": PLOTTABLE.map(|(column, _)| column),
         "receiver": receiver,
         // uPlot wants parallel arrays, not an array of points.  One
         // `at` for all of them: that is the alignment, stated once.

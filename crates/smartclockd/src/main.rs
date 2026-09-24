@@ -187,7 +187,7 @@ fn main() -> Result<()> {
     // not a transient failure, so it exits like one: retrying cannot
     // turn a newer schema into an older one, and Restart= would
     // otherwise reopen it every five seconds forever.
-    let log = match db::Log::open(&cli.database) {
+    let mut log = match db::Log::open(&cli.database) {
         Ok(log) => log,
         Err(e) => {
             eprintln!("smartclockd: {e:#}");
@@ -234,6 +234,11 @@ fn main() -> Result<()> {
         medium: seconds(cli.medium, "--medium")?,
         slow: seconds(cli.slow, "--slow")?,
     };
+    // A reader judges whether a slower tier's value is still current by
+    // this, and has only the database to ask.
+    if let Err(e) = log.note_cadence(&cadence) {
+        eprintln!("smartclockd: could not record the cadence: {e}");
+    }
     let policy = Policy {
         control: cli.allow_control,
         dangerous: cli.allow_dangerous,

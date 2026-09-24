@@ -49,6 +49,16 @@ pub enum Tier {
 impl Tier {
     /// Every tier, fastest first.
     pub const ALL: [Tier; 3] = [Tier::Fast, Tier::Medium, Tier::Slow];
+
+    /// Lower case, as the log names things after it: `fast_at`,
+    /// `cadence_fast`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Tier::Fast => "fast",
+            Tier::Medium => "medium",
+            Tier::Slow => "slow",
+        }
+    }
 }
 
 /// Whether a snapshot still describes the receiver.

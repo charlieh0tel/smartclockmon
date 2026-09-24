@@ -984,6 +984,19 @@ whether the fast tier measured this row or the row restates the last
 one.  In the development database all 6836 rows were marked `live`,
 including 535 that were restatements.
 
+That question is the fast tier's.  A medium or slow column rides in
+every fast row with whatever its own tier last read, so with that tier
+failing and the fast tier fine the graphs drew the last value as a flat
+line for as long as the failure lasted.  Such a column now counts in a
+row only while its tier's timestamp is within three of its intervals of
+the row, and is null past that, so the line breaks.  The daemon records
+its cadence in `meta` for this, since the readers have only the
+database; a log that predates that is read at the default cadence.  The
+window rather than one row per read of that tier, because at an hour's
+zoom a ten-second tier would leave most buckets empty and draw every
+such trace dashed.  The cost is that a slow column's mean is weighted by
+time rather than by read.
+
 **A failed command could be answered by the next poll.**  A client
 command that errored left the reply in flight, and the next scheduled
 poll read it as its own: TFOM reported as FFOM, oven current as

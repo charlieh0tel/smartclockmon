@@ -12,6 +12,10 @@ use rusqlite::Connection;
 use rusqlite::OpenFlags;
 use smartclock::adev::Curve;
 use smartclock::adev::Sample;
+use smartclock::history::current;
+use smartclock::history::recorded_cadence;
+use smartclock::snapshot::Tier;
+use smartclock::task::Cadence;
 
 /// How far back a graph looks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -402,35 +406,48 @@ impl Log {
         Ok(Curve::from_readings(&samples, &states))
     }
 
+    /// How often the daemon ran each tier, as it recorded.
+    fn cadence(&self) -> Cadence {
+        recorded_cadence(|key| {
+            self.conn
+                .query_row("SELECT value FROM meta WHERE key = ?1", [key], |row| {
+                    row.get(0)
+                })
+                .ok()
+        })
+    }
+
     pub(crate) fn read(&self, receiver: i64, window: Window, columns: usize) -> Result<History> {
         let span = window.seconds();
         let buckets = columns.clamp(16, 1024) as i64;
         // Bucket by time so each column is one averaged point.  Averaging
         // rather than sampling keeps a spike from vanishing between
         // columns.
-        let mut statement = self.conn.prepare(
+        // Temperature is the medium tier's, carried in the fast tier's
+        // rows until it reads again, and counted only while current.
+        let temperature = current("temperature_c", Tier::Medium, &self.cadence());
+        let mut statement = self.conn.prepare(&format!(
             "SELECT
                  CAST((unixepoch(at) - unixepoch('now')) / MAX(?1 / ?2, 1) AS INTEGER) AS bucket,
                  AVG(unixepoch(at) - unixepoch('now')) AS ago,
                  AVG(efc_percent),       MIN(efc_percent),       MAX(efc_percent),
-                 AVG(temperature_c),     MIN(temperature_c),     MAX(temperature_c),
+                 AVG({temperature}),     MIN({temperature}),     MAX({temperature}),
                  AVG(time_interval_s),   MIN(time_interval_s),   MAX(time_interval_s)
              FROM snapshot
              WHERE unixepoch(at) >= unixepoch('now') - ?1
-               -- Every column plotted here is a fast-tier field, so the
-               -- question is whether the fast tier measured this row or
-               -- the row merely restates the last one.  fast_at answers
-               -- it exactly; the freshness flag does not, since it now
-               -- reports the whole snapshot and goes Stale when some
-               -- other tier fails.  Rows from before those columns
+               -- The question is whether the fast tier measured this
+               -- row or the row merely restates the last one.  fast_at
+               -- answers it exactly; the freshness flag does not, since
+               -- it now reports the whole snapshot and goes Stale when
+               -- some other tier fails.  Rows from before those columns
                -- existed have no fast_at and fall back to the flag.
                AND (fast_at = at OR (fast_at IS NULL AND freshness = 'live'))
                -- One unit per graph: two receivers' readings drawn
                -- together make a swap look like an oscillator moving.
                AND receiver_id = ?3
              GROUP BY bucket
-             ORDER BY ago",
-        )?;
+             ORDER BY ago"
+        ))?;
 
         let mut out = History::default();
         let rows = statement.query_map((span, buckets, receiver), |row| {
@@ -546,6 +563,50 @@ mod tests {
         .expect("fill it");
         drop(conn);
         scratch
+    }
+
+    #[test]
+    fn temperature_is_not_drawn_after_its_tier_stops_reading() {
+        // Two minutes of fast rows ending now.  The medium tier reads
+        // each second for the first ten and then fails, so its last
+        // read is 110 s ago and its value is current for three of its
+        // ten-second intervals after that: to 80 s ago.
+        let scratch = Scratch::new("stale-tier");
+        let conn = Connection::open(scratch.path()).expect("make a log");
+        conn.execute_batch(
+            "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+             INSERT INTO meta VALUES ('cadence_medium', '10');
+             CREATE TABLE snapshot (
+                 id INTEGER PRIMARY KEY, at TEXT NOT NULL, freshness TEXT,
+                 fast_at TEXT, medium_at TEXT, efc_percent REAL,
+                 temperature_c REAL, time_interval_s REAL, receiver_id INTEGER);",
+        )
+        .expect("schema");
+        let now = jiff::Timestamp::now().as_second();
+        for ago in (0..120).rev() {
+            let at = jiff::Timestamp::from_second(now - ago).expect("a timestamp");
+            let medium = jiff::Timestamp::from_second(now - ago.max(110)).expect("a timestamp");
+            conn.execute(
+                "INSERT INTO snapshot
+                 (at, freshness, fast_at, medium_at, efc_percent, temperature_c, receiver_id)
+                 VALUES (?1, 'stale', ?1, ?2, 50.0, 35.0, 1)",
+                rusqlite::params![at.to_string(), medium.to_string()],
+            )
+            .expect("a row");
+        }
+        drop(conn);
+
+        let log = Log::open(scratch.path()).expect("open");
+        let history = log.read(1, super::Window::Hour, 1024).expect("read");
+        let newest = |series: &super::Series| {
+            series
+                .iter()
+                .map(|&(ago, _)| ago)
+                .fold(f64::NEG_INFINITY, f64::max)
+        };
+        assert!(newest(&history.efc.mean) > -5.0);
+        let temperature = newest(&history.temperature.mean);
+        assert!((-85.0..=-75.0).contains(&temperature), "{temperature}");
     }
 
     #[test]
