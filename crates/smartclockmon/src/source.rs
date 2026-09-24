@@ -27,6 +27,7 @@ use smartclock::session::Config;
 use smartclock::session::Session;
 use smartclock::task;
 use smartclock::task::Cadence;
+use smartclock::task::Handle;
 use smartclock::transport;
 use smartclock::transport::serial::Settings;
 use smartclock::types::BaudRate;
@@ -113,6 +114,11 @@ pub(crate) struct Console {
     /// after any daemon restart, silently, with readings still
     /// arriving on the new one.
     writer: Arc<Mutex<Option<SendHalf>>>,
+    /// The receiver itself, in direct mode, where there is no daemon.
+    ///
+    /// Held here also because the task stops when its last handle
+    /// goes, and the console lives as long as the monitor.
+    device: Option<Handle>,
 }
 
 impl Console {
@@ -138,6 +144,18 @@ impl Console {
     /// its link -- so this is what a sky plot is made of, and it is
     /// sent only while someone is looking at one.
     pub(crate) fn sky(&self) -> Result<()> {
+        // Direct mode asks the task, which delivers the screen to
+        // subscribers the same way.  On a thread of its own because the
+        // read takes about 1.5 s and the caller is drawing the screen.
+        if let Some(device) = &self.device {
+            let device = device.clone();
+            thread::Builder::new()
+                .name("smartclockmon-sky".to_owned())
+                .spawn(move || {
+                    let _ = device.sky();
+                })?;
+            return Ok(());
+        }
         let mut writer = self
             .writer
             .lock()
@@ -401,9 +419,6 @@ pub(crate) fn from_device(
     let cadence = Cadence::default();
     let (handle, _joiner) = task::spawn(receiver, cadence.clone());
     let readings = handle.subscribe();
-    // The handle must outlive this call or the task stops, so it is
-    // leaked deliberately: the monitor polls until the process ends.
-    std::mem::forget(handle);
 
     // Direct mode publishes Snapshots; wrap them so both sources look
     // the same to the monitor.
@@ -424,13 +439,18 @@ pub(crate) fn from_device(
         .context("spawning the direct reader")?;
 
     // Direct mode has no daemon to ask, so the console has nowhere to
-    // send and says so rather than appearing to work.
+    // send commands and says so rather than appearing to work.  It can
+    // still ask the task for a status screen.
+    let console = Console {
+        device: Some(handle),
+        ..Console::default()
+    };
     Ok((
         rx,
         Attachment::Direct {
             device: device.to_owned(),
         },
-        Console::default(),
+        console,
         Policy::default(),
         cadence,
     ))
@@ -459,8 +479,25 @@ mod tests {
     }
 
     #[test]
+    fn direct_mode_reads_the_sky_when_asked() {
+        let (updates, _, console, ..) = from_device(&simulator(), 9600).expect("open");
+        console.sky().expect("ask for the sky");
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        loop {
+            let left = deadline.saturating_duration_since(std::time::Instant::now());
+            match updates.recv_timeout(left) {
+                Ok(Update::Reading(reading)) if reading.screen.is_some() => return,
+                Ok(_) => {}
+                Err(e) => panic!("no sky arrived: {e}"),
+            }
+        }
+    }
+
+    #[test]
     fn direct_mode_opens_a_receiver_by_network_address() {
-        let (updates, ..) = from_device(&simulator(), 9600).expect("open by address");
+        // The console is kept: it holds the task's handle, and the task
+        // stops when that goes.
+        let (updates, _, _console, ..) = from_device(&simulator(), 9600).expect("open by address");
         match updates.recv_timeout(Duration::from_secs(10)) {
             Ok(Update::Reading(_)) => {}
             other => panic!("expected a reading, got {other:?}"),
