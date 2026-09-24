@@ -241,8 +241,10 @@ at `0x2bba8`:
 
 The pSOS tasks are created at `0x231f0` to `0x232d4`: `gpsm` (entry
 `0x50bf2`), `hmon` (`0x33dc4`), `pllp` (`FUN_0004b088`, task id at
-`0x103d4e`) and `curv` (`0x450d4`, task id at `0x103d5e`).  The Z3805A's
-`:DIAGnostic:OS:PROCess?` lists the same names (see `z3801-tree.md`).
+`0x103d4e`) and `curv` (`0x450d4`, task id at `0x103d5e`); the SCPI
+task, `sci` (entry `0x39706`, task id at `0x103d5a`), is created by
+`FUN_00039732`.  The Z3805A's `:DIAGnostic:OS:PROCess?` lists the same
+names (see `z3801-tree.md`).
 The loop below runs in `pllp`; the fit in "The aging fit" runs in
 `curv`.
 
@@ -760,6 +762,32 @@ itself through `0x271ac`.  The choice is held only in RAM -- nothing
 else writes `0x103326` and nothing reads it at startup -- so a power
 cycle starts the SCPI task again.
 
+`0x2fe06` runs the function it is given at once when the byte at
+`0x10385e` is clear, and otherwise queues it to `0x10385a` for another
+task to run.  `0x230ba` is the console's start: it initialises the
+interpreter (`0x2af04`), defines `ps`, `mem_rep` and `s_rep`
+(`0x232f6`), registers the diagnostic words (`0x2c22e`), evaluates the
+phrase `0 !iodev` (`0x28f98`) and prints `pForth $Revision: 1.2 $`
+(`0x28fa2`), then spawns the interpreter (`0x2b038`).  `!iodev`
+(`0x2a454`) closes the current device and opens the new one through
+`trap #4`, the pSOS device supervisor at `0x24dae`, whose device number
+is D0 with the major number in its high byte and whose function code
+is D7, 0 to 5 -- `emit` writes with code 4 (`0x2932c`) and `expect`
+reads with code 3 (`0x29f3a`).  So the console's port is pSOS device
+0.  Which driver major number 0 selects is in the I/O switch table the
+pSOS configuration at `0x102cfc` points to; that table is built at
+run time and was not located in ROM.  The same `de_open(0)` is made at
+`0x2f286`, and `de_open(1)` at `0x2f34a`.
+
+The word list (`0x2a500` to `0x2b100`, 190 names) is a stock kernel
+plus pSOS wrappers -- `spawn`, `delete`, `suspend`, `resume`,
+`priority`, `send_x`, `request_x`, `signal_v`, `wait_v`, `dev_init`,
+`dev_open`, `dev_close`, `dev_read`, `dev_write`, `dev_ctrl`, `!iodev`
+-- and the diagnostic words.  It has no `bye`, `quit` or `exit`, and
+no word that starts the SCPI task again; `FUN_00039732`, which creates
+that task (named `sci`, entry `0x39706`, task id `0x103d5a`), is not in
+the table.
+
 ### Which port
 
 One.  The Z3801A manual (097-z3801-01) describes a single serial
@@ -830,8 +858,12 @@ there.  The unpacker takes the same opcodes.
 - *The language command.*  Its handler (`0x2f57a`) compares the port the
   command came from with the descriptor that `0x28a46` returns,
   `0x28cdc`, before it looks at `PFORTH`: a real check, where the
-  Z3816A's always passes.  Which port `0x28cdc` describes was not
-  traced.
+  Z3816A's always passes.  `0x28cdc` is the parser's one descriptor --
+  two function pointers and the prompts `E%+04d> ` and `scpi > ` -- and
+  its reader `FUN_00028a92` fills the buffer at `0x102b20` from stream
+  0 (`FUN_0001dbc4`, `FUN_0001711e`).  The image has no second
+  descriptor: the other copy of those prompts, at `0x7ee6`, is
+  referenced by nothing.
 - *The loop.*  The term the Z3816A takes from `FUN_000324b0(6)` comes
   from `FUN_00022fd2(3)` (`0x4496e`).  A field the Z3816A initialises
   to 10⁻⁷ is 10⁻⁸ here (`0x44a3a`).  With no valid reading in ten
@@ -869,11 +901,11 @@ there.  The unpacker takes the same opcodes.
 - x₀ is cleared at `0x4b1dc` and otherwise written only by `phase_off`;
   whether anything calls `phase_off` other than the console was not
   traced.
-- What the console does on the port once started, and whether any word
-  returns the port to SCPI short of a power cycle: the code at `0x230ba`
-  and `0x2fe06` was not traced.  Nothing was sent to a receiver to find
-  out; setting the language is one of the commands this project never
-  sends.
+- Which driver pSOS device 0, the console's, selects: the I/O switch
+  table was not found in ROM.  Whether any sequence of the console's
+  pSOS words gets SCPI back short of a power cycle was not tried.
+  Nothing was sent to a receiver to find out; setting the language is
+  one of the commands this project never sends.
 - That the SCI is the port wired to J3: the firmware's SCPI port is the
   one it creates `sciR` and `sciW` for, but the board was not traced.
 - What drives the 59551A's PORT 2.  DUART channel B, idle here, is the
