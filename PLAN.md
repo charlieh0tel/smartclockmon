@@ -1204,6 +1204,15 @@ The stamps themselves are still what the receiver wrote, rollover and
 all, and this entry stands as the reason not to read them as wall
 clocks.
 
+Our own timestamps are compared as text: every range bound and every
+`ORDER BY at` in the readers does it, so the index on `at` can serve
+them.  The default form of a timestamp trims trailing zeros, and as text
+`00.11Z`, `00.1Z` and `00Z` sort in that order, the reverse of time;
+two rows in one second could come back backwards, which the Allan
+deviation reads as a negative gap.  Schema 8 stores every timestamp with
+nine fractional digits, so text order is time order, and on opening an
+older database rewrites the ones already there in one transaction.
+
 What the September 2026 reviews found is either fixed or, where a
 decision went the other way, recorded as a decision above.
 

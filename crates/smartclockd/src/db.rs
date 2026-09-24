@@ -24,8 +24,22 @@ use smartclock::snapshot::Snapshot;
 use smartclock::snapshot::Tier;
 use smartclock::task::Cadence;
 
-/// Bumped when the tables change shape.
-const SCHEMA: i64 = 7;
+/// Bumped when the tables change shape, or what a column holds.
+const SCHEMA: i64 = 8;
+
+/// The first schema whose timestamps all carry nine fractional digits.
+const FIXED_WIDTH_STAMPS: i64 = 8;
+
+/// A timestamp as the log stores it: RFC 3339 in UTC, always with nine
+/// fractional digits.
+///
+/// Fixed width so that text order is time order.  The default form
+/// trims trailing zeros, and `00Z`, `00.1Z` and `00.11Z` sort the
+/// wrong way round as text; every range and every `ORDER BY at` in the
+/// readers compares the text.
+fn stored(at: jiff::Timestamp) -> String {
+    format!("{at:.9}")
+}
 
 /// How long to wait for another writer before giving up on a statement.
 ///
@@ -95,10 +109,14 @@ impl Log {
                 row.get(0)
             })
             .optional()?;
+        let found: Option<i64> = found
+            .map(|found| {
+                found
+                    .parse()
+                    .with_context(|| format!("meta.schema is {found:?}, which is not a version"))
+            })
+            .transpose()?;
         if let Some(found) = found {
-            let found: i64 = found
-                .parse()
-                .with_context(|| format!("meta.schema is {found:?}, which is not a version"))?;
             anyhow::ensure!(
                 found <= SCHEMA,
                 "this database is schema {found} and this smartclockd understands {SCHEMA}; \
@@ -328,6 +346,9 @@ impl Log {
             }
         }
         self.adopt_log_generations()?;
+        if found.is_some_and(|found| found < FIXED_WIDTH_STAMPS) {
+            self.widen_stamps()?;
+        }
         self.conn.execute(
             "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema', ?1)",
             params![SCHEMA.to_string()],
@@ -339,6 +360,45 @@ impl Log {
             "INSERT OR REPLACE INTO meta (key, value) VALUES ('writer', ?1)",
             params![smartclock::VERSION],
         )?;
+        Ok(())
+    }
+
+    /// Rewrite every stored timestamp in the form [`stored`] writes.
+    ///
+    /// One transaction, so a database is never left half in each form:
+    /// a range compared as text across the two would misorder rows.
+    /// Only values shaped like one of ours are touched.
+    fn widen_stamps(&mut self) -> Result<()> {
+        const COLUMNS: [(&str, &str); 11] = [
+            ("snapshot", "at"),
+            ("snapshot", "fast_at"),
+            ("snapshot", "medium_at"),
+            ("snapshot", "slow_at"),
+            ("receiver", "first_seen"),
+            ("receiver", "last_seen"),
+            ("receiver_event", "at"),
+            ("receiver_filter", "at"),
+            ("receiver_error", "at"),
+            ("receiver_log", "at"),
+            ("audit", "at"),
+        ];
+        let tx = self.conn.transaction()?;
+        for (table, column) in COLUMNS {
+            // Characters 1 to 19 are the date and time to the second,
+            // and 20 is the point when there is one.  The fraction is
+            // what lies between it and the Z, padded to nine.
+            tx.execute_batch(&format!(
+                "UPDATE {table} SET {column} =
+                     substr({column}, 1, 19) || '.' ||
+                     substr(CASE WHEN substr({column}, 20, 1) = '.'
+                                 THEN substr({column}, 21, length({column}) - 21)
+                                 ELSE '' END || '000000000', 1, 9) || 'Z'
+                 WHERE length({column}) <> 30
+                   AND {column} GLOB
+                       '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]*Z'"
+            ))?;
+        }
+        tx.commit()?;
         Ok(())
     }
 
@@ -448,7 +508,7 @@ impl Log {
                        ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29,
                        ?30, ?31, ?32)",
             params![
-                snapshot.at.to_string(),
+                stored(snapshot.at),
                 match snapshot.freshness {
                     Freshness::Live => "live",
                     Freshness::Stale => "stale",
@@ -486,9 +546,9 @@ impl Log {
                 snapshot.date.and_then(|d| d.rollover()).map(|r| r.epochs),
                 snapshot.log_count,
                 snapshot.polled.any_error(),
-                snapshot.polled.fast.at.map(|t| t.to_string()),
-                snapshot.polled.medium.at.map(|t| t.to_string()),
-                snapshot.polled.slow.at.map(|t| t.to_string()),
+                snapshot.polled.fast.at.map(stored),
+                snapshot.polled.medium.at.map(stored),
+                snapshot.polled.slow.at.map(stored),
                 self.current,
             ],
         )?;
@@ -536,7 +596,7 @@ impl Log {
             "INSERT INTO audit (at, scpi, class, outcome, label, receiver_id)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
-                jiff::Timestamp::now().to_string(),
+                stored(jiff::Timestamp::now()),
                 scpi,
                 class,
                 outcome,
@@ -586,7 +646,7 @@ impl Log {
         // Cleared first so a failure below leaves rows filed under no
         // receiver rather than under the one attached before.
         self.current = None;
-        let now = jiff::Timestamp::now().to_string();
+        let now = stored(jiff::Timestamp::now());
         self.conn.execute(
             "INSERT INTO receiver (serial, manufacturer, model, firmware, first_seen, last_seen)
              VALUES (?1, ?2, ?3, ?4, ?5, ?5)
@@ -653,12 +713,7 @@ impl Log {
         self.conn.execute(
             "INSERT INTO receiver_error (at, code, message, receiver_id)
              VALUES (?1, ?2, ?3, ?4)",
-            params![
-                jiff::Timestamp::now().to_string(),
-                code,
-                message,
-                self.current,
-            ],
+            params![stored(jiff::Timestamp::now()), code, message, self.current,],
         )?;
         Ok(())
     }
@@ -689,7 +744,7 @@ impl Log {
             "INSERT INTO receiver_event (at, register, bits, decoded, receiver_id)
              VALUES (?1, ?2, ?3, ?4, ?5)",
             params![
-                jiff::Timestamp::now().to_string(),
+                stored(jiff::Timestamp::now()),
                 register,
                 i64::from(bits),
                 decoded,
@@ -720,7 +775,7 @@ impl Log {
                 register,
                 positive,
                 negative,
-                jiff::Timestamp::now().to_string(),
+                stored(jiff::Timestamp::now()),
             ],
         )?;
         Ok(())
@@ -743,7 +798,7 @@ impl Log {
                  (at, entry, stamp, message, receiver_id, generation)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
-                jiff::Timestamp::now().to_string(),
+                stored(jiff::Timestamp::now()),
                 entry,
                 stamp,
                 message,
@@ -875,6 +930,7 @@ impl Log {
 mod tests {
     use super::Log;
     use super::SCHEMA;
+    use super::stored;
     use rusqlite::Connection;
 
     /// A database file of our own, under the test runner's temp dir.
@@ -909,6 +965,61 @@ mod tests {
         fn drop(&mut self) {
             self.wipe();
         }
+    }
+
+    #[test]
+    fn stored_timestamps_sort_as_text_in_time_order() {
+        let at = |s: &str| s.parse::<jiff::Timestamp>().expect("a timestamp");
+        let times = [
+            at("2026-09-01T00:00:00Z"),
+            at("2026-09-01T00:00:00.1Z"),
+            at("2026-09-01T00:00:00.11Z"),
+        ];
+        let texts: Vec<String> = times.iter().map(|&t| stored(t)).collect();
+        let mut sorted = texts.clone();
+        sorted.sort();
+        assert_eq!(sorted, texts);
+        assert_eq!(texts[1], "2026-09-01T00:00:00.100000000Z");
+    }
+
+    #[test]
+    fn an_older_database_has_its_timestamps_widened() {
+        let scratch = Scratch::new("widen");
+        let path = scratch.path();
+        let conn = Connection::open(path).expect("create the database");
+        conn.execute_batch(
+            "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+             INSERT INTO meta VALUES ('schema', '7');
+             CREATE TABLE snapshot (id INTEGER PRIMARY KEY, at TEXT NOT NULL,
+                                    freshness TEXT NOT NULL, fast_at TEXT);
+             INSERT INTO snapshot (at, freshness, fast_at) VALUES
+                 ('2026-09-01T00:00:00Z', 'live', NULL),
+                 ('2026-09-01T00:00:00.1Z', 'live', '2026-09-01T00:00:00.1Z'),
+                 ('2026-09-01T00:00:00.123456789Z', 'live', NULL);",
+        )
+        .expect("write a schema 7 database");
+        drop(conn);
+
+        let log = Log::open(path).expect("open");
+        let rows: Vec<(String, Option<String>)> = log
+            .conn
+            .prepare("SELECT at, fast_at FROM snapshot ORDER BY at")
+            .expect("prepare")
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .expect("query")
+            .collect::<std::result::Result<_, _>>()
+            .expect("collect");
+        assert_eq!(
+            rows,
+            vec![
+                ("2026-09-01T00:00:00.000000000Z".to_owned(), None),
+                (
+                    "2026-09-01T00:00:00.100000000Z".to_owned(),
+                    Some("2026-09-01T00:00:00.100000000Z".to_owned())
+                ),
+                ("2026-09-01T00:00:00.123456789Z".to_owned(), None),
+            ]
+        );
     }
 
     #[test]
