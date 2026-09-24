@@ -16,7 +16,8 @@ follows describes the design family and is not a statement about the
 ## Summary
 
 - The reported interval is **the mean of ten one-second readings**,
-  stored in tenths of a nanosecond.  It changes once every ten seconds.
+  stored as a single-precision float in seconds.  It changes once every
+  ten seconds.
 - Each reading comes from a counter in the FPGA: a coarse count of
   100 ns ticks plus an interpolator, with calibration terms applied.
 - The firmware **decodes** the Oncore's negative sawtooth from the
@@ -137,9 +138,12 @@ parents:
 | `0x63fb2` | `...:PTIMe:TINTerval` | `FUN_0003b052` |
 
 `:SOURce` is optional, so the first is `:SYNChronization:TINTerval?`.
-Its handler returns the 32-bit value at `0x102c0c` with a decimal
-exponent of -10 -- tenths of a nanosecond -- when the flag at
-`0x102c10` is set.  The `PTIMe` node's handler was not traced.
+Its handler copies the 32-bit value at `0x102c0c` into its reply,
+tagged with the halfword `0xfff6` (−10), when the flag at `0x102c10` is
+set.  That value is a single-precision float in seconds: `pll_normal`
+stores it there as the float sum of the readings divided by their
+count, converted to float (below).  What the −10 tag means to the reply
+formatter was not traced.  The `PTIMe` node's handler was not traced.
 
 ### The ten-second average
 
@@ -257,12 +261,34 @@ the loop gains are 1/τ and 1/(4τ²), which in the continuous
 approximation is a second-order loop with damping ratio 1.  The factor
 10 matches the ten seconds between updates.
 
+### Starting up
+
+`startup_pll`, at `0x47bac`, runs before `pll_normal` and applies the
+same update law, with two differences: its time constant is its own,
+at `0x102be8`, and it recomputes K, k and a from it on every update
+rather than once on entry.  That time constant is set to 150 s at
+`0x47af6` and `0x4af58`.
+
+Read from the Z3801A's image, where the same function is `FUN_000442ca`:
+once the ten-second means have settled, it lengthens its time constant
+by 5 s an update until it reaches τ, adjusting the integrator at each
+step so that the EFC does not jump, and then hands over to
+`pll_normal`.  The Z3816A's matching code, `0x47ede` to `0x47fce`,
+holds the 5.0 at `0x47efe`; the settling condition was not confirmed
+there.
+
 ### τ and G
 
 `FUN_0002b358` sets τ from its argument.  Nothing calls it directly; a
 pointer to it sits in the console's word table at `0x2d368`, beside the
 name `loop_time`, and the message `max loop time = %d` (`0x2c370`)
 prints τ.
+
+G is a constant.  `FUN_0004b088` reads the hardware word at
+`0x302000` and passes −1.25 × 10⁻¹² if bit 8 is set and
+−2.125 × 10⁻¹² if it is clear (`0x4b14c` to `0x4b166`); the Z3801A's
+image passes a fixed +6.25 × 10⁻¹³ (`0x475bc`).  What the bit or the
+sign stand for was not traced.
 
 `FUN_0004b022(G)` stores G, sets both gain constants to 1/G, sets M to
 6.25 × 10⁻¹⁰ / |G|, and sets a second limit at `0x102c3c` to
@@ -394,21 +420,30 @@ addresses: `pll_normal`'s and `startup_pll`'s failure messages
 (`0x44e6d`), `PFORTH`/`INSTALL`/`PRIMARY` (`0x2f711`), the pForth banner
 (`0x18ad0`), `loop_time` (`0x1d172`), `max loop time` (`0x1c0b8`) and
 `SAWT ERR` (`0x4d57a`), and the loop's constants 29.75, 6.25 × 10⁻¹⁰ and
-5.787 × 10⁻¹⁴ once or twice each as in the other.  Its code was not
-traced.
+5.787 × 10⁻¹⁴ once or twice each as in the other.  It has no `@@En`
+anywhere: of the two Time RAIM messages it handles only the six-channel
+`@@Bn`.  Its `pll_debug` word (`0x1b4d8`) stores its argument at
+`0x102539`, the Z3816A's at `0x102c13`, and its G is the constant noted
+above.
 
 The loop's report above is printed only when the flag at `0x102c13` is
-set.
+set, and the word `pll_debug` (code at `0x2b870`) is what sets it: it
+stores its argument's low byte there.  `phase_off` (`0x2b87c`) converts
+its argument to float and stores it as the loop's setpoint x₀ at
+`0x102c1c`; `lock` (`0x2b85c`) stores 1 at `0x102c18`.  Each word's
+entry in the table is the address of its code followed by its name.
 
 ## What is not established
 
-- The loop's starting τ, how `startup pll` sets or grows it, and its
-  largest value.
-- Where G comes from: `FUN_0004b088`, its one caller, would not
-  decompile.
+- τ's own value at power-up: its only writer is `loop_time`, and the
+  RAM initialisation was not traced.
+- The condition under which `startup_pll` starts lengthening its time
+  constant: reported from the Z3801A's image as sixteen consecutive
+  means within ±150 ns, but no constant of 1.5 × 10⁻⁷ is stored in
+  either image as a float or a double.
 - What p, q, r and the term d are, and what `FUN_000324b0(6)` and
   `FUN_00023818` read.
-- What the loop's setpoint x₀ holds, and what sets it.
+- What x₀ holds by default.
 - What the console does on the port once started, and whether any word
   returns the port to SCPI short of a power cycle: the code at `0x230ba`
   and `0x2fe06` was not traced.  Nothing was sent to a receiver to find
@@ -419,7 +454,6 @@ set.
 - What drives the 59551A's PORT 2.  DUART channel B, idle here, is the
   device a single-port unit would leave spare, but no image of a
   59551A's firmware is at hand.
-- Which word, if any, sets the report flag at `0x102c13`.
 - Only a sample of the firmware word table's code pointers was
   checked; they pointed at 68000 code.
 - Only byte loads of offset 26 of the form `move.b (0x1a,An),Dn` were

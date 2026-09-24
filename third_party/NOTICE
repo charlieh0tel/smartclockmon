@@ -45,7 +45,7 @@ which claims about the command set are checked.  CPU32 code (68331 or
 
 The revision is the string the firmware puts in the third field of its
 `*IDN?` answer, stored just before the image's second copyright notice
-(`0x12eef` in the Z3801A image, `0x22ff8` in the Z3816A's).  The letter
+(`0x12eee` in the Z3801A image, `0x22ff8` in the Z3816A's).  The letter
 that follows it in a real answer, as in 3704-C, is read from RAM and is
 not in the image.
 
