@@ -4,14 +4,20 @@ use std::time::Duration;
 
 use smartclock::device::Device;
 use smartclock::session::Config;
+use smartclock::session::Reply;
 use smartclock::session::Session;
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::Sender;
 use std::sync::mpsc::channel;
+use std::sync::mpsc::sync_channel;
+use std::time::Instant;
 
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Tier;
 use smartclock::task;
 use smartclock::task::Cadence;
 use smartclock::task::DeviceTask;
+use smartclock::task::Request;
 use smartclock::task::Shared;
 use smartclock::transport::replay::ReplayTransport;
 
@@ -96,6 +102,83 @@ fn nothing_is_published_before_the_first_poll() {
     drop(updates);
     drop(requests_tx);
     runner.join().expect("the device thread");
+}
+
+/// Build a transcript from (direction, bytes) pairs.
+fn transcript(steps: &[(&str, &str)]) -> String {
+    steps
+        .iter()
+        .enumerate()
+        .map(|(i, (dir, data))| {
+            let data = serde_json::to_string(data).expect("encode");
+            format!(r#"{{"t":{i}.0,"dir":"{dir}","data":{data}}}"#)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Queue a command for a task that has not started yet.
+fn queue(requests: &Sender<Request>, scpi: &str) -> Receiver<smartclock::error::Result<Reply>> {
+    let (answer, reply) = sync_channel(1);
+    requests
+        .send(Request::Command {
+            scpi: scpi.to_owned(),
+            deadline: Instant::now() + Duration::from_secs(10),
+            answer,
+        })
+        .expect("queue a command");
+    reply
+}
+
+#[test]
+fn a_failed_command_does_not_misattribute_the_next_answer() {
+    // TFOM's prompt arrives late, after the session has given up on it,
+    // and would be read as the end of whatever is asked next: FFOM
+    // would come back as TFOM's +3.  The task has to resynchronise
+    // after the failure, and the transcript is strict, so any other
+    // order of writes fails the replay.
+    let jsonl = transcript(&[
+        ("tx", "\r\n"),
+        ("rx", "\r\nscpi> "),
+        ("tx", "*IDN?\r\n"),
+        (
+            "rx",
+            "*IDN?\r\nHEWLETT-PACKARD,58503A,0000A00000,3704-C\r\nscpi> ",
+        ),
+        ("tx", ":SYNChronization:TFOMerit?\r\n"),
+        ("rx", ":SYNChronization:TFOMerit?\r\n+3\r\n"),
+        ("tx", "\r\n"),
+        ("rx", "scpi> \r\nscpi> "),
+        ("tx", ":SYNChronization:FFOMerit?\r\n"),
+        ("rx", ":SYNChronization:FFOMerit?\r\n+1\r\nscpi> "),
+    ]);
+    let session = Session::new(
+        ReplayTransport::from_jsonl(&jsonl).expect("load transcript"),
+        Config {
+            timeout: Duration::from_millis(200),
+            ..Config::default()
+        },
+    );
+    let device = Device::open(session).expect("open device");
+
+    // Both queued before the task starts, so they are served in order
+    // ahead of any poll.
+    let (requests_tx, requests_rx) = channel();
+    let tfom = queue(&requests_tx, ":SYNChronization:TFOMerit?");
+    let ffom = queue(&requests_tx, ":SYNChronization:FFOMerit?");
+    let mut task = DeviceTask::new(device, Cadence::default(), Shared::new(), requests_rx);
+    std::thread::spawn(move || {
+        task.run();
+    });
+
+    let wait = Duration::from_secs(5);
+    assert!(tfom.recv_timeout(wait).expect("an answer").is_err());
+    let ffom = ffom
+        .recv_timeout(wait)
+        .expect("an answer")
+        .expect("FFOM answered");
+    assert_eq!(ffom.lines, vec!["+1"]);
+    drop(requests_tx);
 }
 
 #[test]

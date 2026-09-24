@@ -506,35 +506,6 @@ fn a_tier_that_works_does_not_clear_another_tiers_error() {
 }
 
 #[test]
-fn a_failed_command_does_not_misattribute_the_next_polls_answer() {
-    // The failure this guards: a client command that errors leaves the
-    // receiver's reply in flight, and the next poll reads it as its
-    // own.  TFOM and FFOM take the same shape, so the wrong one is
-    // recorded as a measurement rather than rejected.
-    let (handle, joiner) = task::spawn(device(Receiver::default()), Cadence::default());
-
-    assert!(
-        handle.request(":NO:SUCH:COMMAND?").is_err(),
-        "the simulator should refuse an undefined header"
-    );
-
-    // Whatever the failure left behind must not become the next answer.
-    for _ in 0..4 {
-        let tfom = handle
-            .request(":SYNChronization:TFOMerit?")
-            .expect("a reading after the failure");
-        assert_eq!(tfom.lines, vec!["+3"], "a reply was read out of step");
-        let ffom = handle
-            .request(":SYNChronization:FFOMerit?")
-            .expect("a reading after the failure");
-        assert_eq!(ffom.lines, vec!["+1"], "a reply was read out of step");
-    }
-
-    drop(handle);
-    joiner.join().expect("the device thread");
-}
-
-#[test]
 fn a_subscriber_that_stops_reading_is_dropped_not_indulged() {
     // An unbounded channel only fails once the receiver is dropped, so
     // a client that merely stopped reading queued a full snapshot per
