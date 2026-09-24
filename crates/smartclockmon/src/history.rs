@@ -11,7 +11,6 @@ use anyhow::Result;
 use rusqlite::Connection;
 use rusqlite::OpenFlags;
 use smartclock::adev::Curve;
-use smartclock::adev::Sample;
 use smartclock::history::current;
 use smartclock::history::recorded_cadence;
 use smartclock::snapshot::Tier;
@@ -380,30 +379,29 @@ impl Log {
              FROM snapshot
              WHERE unixepoch(at) >= unixepoch('now') - ?2
                AND receiver_id = ?1
-               AND time_interval_s IS NOT NULL
                AND (fast_at = at OR (fast_at IS NULL AND freshness = 'live'))
              ORDER BY at",
         )?;
         let rows = statement.query_map(rusqlite::params![receiver, window.seconds()], |row| {
             Ok((
                 row.get::<_, String>(0)?,
-                row.get::<_, f64>(1)?,
+                row.get::<_, Option<f64>>(1)?,
                 row.get::<_, String>(2)?,
                 row.get::<_, i64>(3)? != 0,
             ))
         })?;
 
-        let mut samples = Vec::new();
-        let mut states = Vec::new();
+        // Rows without an interval are kept for their state; see
+        // `Curve::from_logged`.
+        let mut logged = Vec::new();
         for row in rows {
             let (at, interval, mode, holdover) = row?;
             let Ok(at) = at.parse::<jiff::Timestamp>() else {
                 continue;
             };
-            samples.push(Sample { at, interval });
-            states.push((mode, holdover));
+            logged.push((at, interval, (mode, holdover)));
         }
-        Ok(Curve::from_readings(&samples, &states))
+        Ok(Curve::from_logged(logged))
     }
 
     /// How often the daemon ran each tier, as it recorded.

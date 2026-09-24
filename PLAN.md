@@ -631,7 +631,10 @@ Four things about gaps that are easy to get wrong, and were:
   checked across every logged row, including the held repeats that are
   dropped as readings: a short holdover during which the interval held
   one value is all repeats, and checking only the readings kept either
-  side of it saw locked twice and no cut.
+  side of it saw locked twice and no cut.  Rows where the interval was
+  not read at all are kept for the same reason: a holdover in which the
+  receiver refused it lies wholly in such rows, and leaving them out
+  joined the locked readings either side.
 - **A hole must stay a hole.** Readings go on a grid indexed by time
   rather than into a list, so a missing reading is an empty slot and
   not a closing-up of the ones after it -- which would turn every gap

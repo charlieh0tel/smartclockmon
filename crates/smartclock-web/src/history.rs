@@ -13,7 +13,6 @@ use anyhow::Result;
 use rusqlite::Connection;
 use rusqlite::OpenFlags;
 use smartclock::adev::Curve;
-use smartclock::adev::Sample;
 use smartclock::history::current;
 use smartclock::history::recorded_cadence;
 use smartclock::snapshot::Tier;
@@ -366,11 +365,14 @@ impl Log {
                  WHERE at >= strftime('%Y-%m-%dT%H:%M:%S', ?2, 'unixepoch')
                    AND at < strftime('%Y-%m-%dT%H:%M:%S', ?3 + 1, 'unixepoch')
                    AND receiver_id = ?1
-                   AND time_interval_s IS NOT NULL
                    AND (fast_at = at OR (fast_at IS NULL AND freshness = 'live'))
                  WINDOW previous AS (ORDER BY at))
-             WHERE was_interval IS NULL
-                OR time_interval_s <> was_interval
+             -- IS NOT rather than <>, so a missing interval counts as
+             -- different from a present one: a row without one still
+             -- carries the state, and a run of them is kept by its
+             -- first row.
+             WHERE was_mode IS NULL
+                OR time_interval_s IS NOT was_interval
                 OR mode <> was_mode
                 OR holdover <> was_holdover
              ORDER BY at DESC
@@ -381,29 +383,25 @@ impl Log {
         let rows = statement.query_map(rusqlite::params![receiver, from, to, asked], |row| {
             Ok((
                 row.get::<_, String>(0)?,
-                row.get::<_, f64>(1)?,
+                row.get::<_, Option<f64>>(1)?,
                 row.get::<_, String>(2)?,
                 row.get::<_, i64>(3)? != 0,
             ))
         })?;
 
-        let mut samples = Vec::new();
-        let mut states = Vec::new();
+        let mut logged = Vec::new();
         for row in rows {
             let (at, interval, mode, holdover) = row?;
             let Ok(at) = at.parse::<jiff::Timestamp>() else {
                 continue;
             };
-            samples.push(Sample { at, interval });
-            states.push((mode, holdover));
+            logged.push((at, interval, (mode, holdover)));
         }
-        let truncated = samples.len() > limit;
-        samples.truncate(limit);
-        states.truncate(limit);
-        samples.reverse();
-        states.reverse();
+        let truncated = logged.len() > limit;
+        logged.truncate(limit);
+        logged.reverse();
 
-        Ok((Curve::from_readings(&samples, &states), truncated))
+        Ok((Curve::from_logged(logged), truncated))
     }
 
     /// The oldest and newest readings, so the page can offer a range
@@ -752,6 +750,43 @@ mod tests {
         let log = Log::open(scratch.path()).expect("open");
         let (deviation, truncated) = log.phase(1, 0, 2_000_000_000).expect("a deviation");
         assert!(!truncated);
+        assert!(deviation.segments >= 2, "{} segments", deviation.segments);
+        for point in &deviation.points {
+            assert!(point.deviation < 1e-12, "{point:?}");
+        }
+    }
+
+    #[test]
+    fn a_holdover_with_no_interval_breaks_the_run() {
+        // Locked, five rows of holdover in which the interval was
+        // refused and so is NULL, then locked with the phase stepped.
+        let mut rows: Vec<_> = (0..200i64)
+            .map(|i| (1_700_000_000 + i, 1e-9 * i as f64, "Locked", 0, false))
+            .collect();
+        rows.extend((205..400i64).map(|i| {
+            (
+                1_700_000_000 + i,
+                5e-6 + 1e-9 * i as f64,
+                "Locked",
+                0,
+                false,
+            )
+        }));
+        let scratch = phase_log("adev-null-holdover", &rows);
+        let conn = Connection::open(scratch.path()).expect("reopen");
+        for i in 200..205i64 {
+            let at = jiff::Timestamp::from_second(1_700_000_000 + i).expect("a timestamp");
+            conn.execute(
+                "INSERT INTO snapshot
+                 (at, freshness, fast_at, time_interval_s, mode, holdover_active, receiver_id)
+                 VALUES (?1, 'live', ?1, NULL, 'Holdover', 1, 1)",
+                [at.to_string()],
+            )
+            .expect("a row");
+        }
+        drop(conn);
+        let log = Log::open(scratch.path()).expect("open");
+        let (deviation, _) = log.phase(1, 0, 2_000_000_000).expect("a deviation");
         assert!(deviation.segments >= 2, "{} segments", deviation.segments);
         for point in &deviation.points {
             assert!(point.deviation < 1e-12, "{point:?}");

@@ -357,6 +357,31 @@ impl Curve {
         Self::measure(&kept, stride, |_, b| broken[b])
     }
 
+    /// As [`Curve::from_readings`], for rows as the log holds them,
+    /// with the interval possibly missing.
+    ///
+    /// A row without an interval is still evidence of the receiver's
+    /// state: a holdover during which the interval was refused lies
+    /// entirely in such rows, and leaving them out joined the locked
+    /// readings either side across it.  Each stands in as a repeat of
+    /// the reading before, which [`updates`] drops as a reading while
+    /// its state still counts.  One before any reading has nothing to
+    /// repeat and is left out.
+    pub fn from_logged<S: PartialEq>(
+        rows: impl IntoIterator<Item = (Timestamp, Option<f64>, S)>,
+    ) -> Self {
+        let mut samples: Vec<Sample> = Vec::new();
+        let mut states = Vec::new();
+        for (at, interval, state) in rows {
+            let Some(interval) = interval.or_else(|| samples.last().map(|s| s.interval)) else {
+                continue;
+            };
+            samples.push(Sample { at, interval });
+            states.push(state);
+        }
+        Self::from_readings(&samples, &states)
+    }
+
     /// Measure a set of readings, splitting them where `discontinuous`
     /// says the phase either side is incomparable.
     ///
@@ -671,6 +696,34 @@ mod tests {
         for stride in [1, 2] {
             let curve = Curve::measure(&samples, stride, |_, _| false);
             assert_eq!(curve.segments, 2, "stride {stride}");
+        }
+    }
+
+    #[test]
+    fn a_holdover_with_no_interval_still_breaks_the_run() {
+        // Locked, then five seconds of holdover in which the receiver
+        // refused the interval, then locked with the phase stepped by
+        // 5 us.  The holdover rows carry no reading, but they carry the
+        // state, and the run must break there.
+        #[derive(PartialEq)]
+        enum State {
+            Locked,
+            Holdover,
+        }
+        let start = Timestamp::from_second(1_700_000_000).expect("a timestamp");
+        let rows = (0..400i64).map(|i| {
+            let at = start + jiff::SignedDuration::from_secs(i);
+            let jitter = 1e-9 * (i % 7) as f64;
+            match i {
+                0..200 => (at, Some(jitter), State::Locked),
+                200..205 => (at, None, State::Holdover),
+                _ => (at, Some(5e-6 + jitter), State::Locked),
+            }
+        });
+        let curve = Curve::from_logged(rows);
+        assert!(curve.segments >= 2, "{} segments", curve.segments);
+        for point in &curve.points {
+            assert!(point.deviation < 1e-8, "{point:?}");
         }
     }
 
