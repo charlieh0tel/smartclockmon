@@ -469,6 +469,13 @@ different receiver, which is a false alarm on the single most likely
 event.  Firmware is recorded as last seen, so the row describes what is
 on the unit now rather than what was on it first.
 
+A snapshot carries the identity of the receiver it was read from, and
+is filed under that, not under the unit attached when it is written:
+snapshots wait in a queue, and at a swap the ones read from the old
+unit are still there after the new one is attached.  The journal's rows
+are read from the receiver attached at the time and are filed under
+it.
+
 Rows written before any of this existed keep a NULL id.  Backfilling
 them with the receiver attached today would put one unit's history under
 another's name, which is the failure this exists to prevent.

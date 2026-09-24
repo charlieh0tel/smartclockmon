@@ -832,6 +832,20 @@ impl Log {
         ))
     }
 
+    /// The serial each snapshot is filed under, oldest first.
+    #[cfg(test)]
+    pub(crate) fn snapshot_serials(&self) -> Result<Vec<Option<String>>> {
+        let mut statement = self.conn.prepare(
+            "SELECT receiver.serial FROM snapshot
+             LEFT JOIN receiver ON receiver.id = snapshot.receiver_id
+             ORDER BY snapshot.id",
+        )?;
+        let serials = statement
+            .query_map([], |row| row.get(0))?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(serials)
+    }
+
     /// How many snapshots are held.
     pub(crate) fn count(&self) -> Result<i64> {
         Ok(self

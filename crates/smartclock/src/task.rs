@@ -483,6 +483,22 @@ impl<T: Transport> DeviceTask<T> {
         }
     }
 
+    /// Publish a snapshot as read from this task's receiver.
+    fn publish(&self, snapshot: Snapshot) {
+        self.shared.publish(self.stamped(snapshot));
+    }
+
+    /// Deliver a snapshot as read from this task's receiver, without
+    /// making it the latest.
+    fn deliver(&self, snapshot: Snapshot) {
+        self.shared.deliver(self.stamped(snapshot));
+    }
+
+    fn stamped(&self, mut snapshot: Snapshot) -> Snapshot {
+        snapshot.receiver = Some(self.device.identity().to_string());
+        snapshot
+    }
+
     /// Take the request channel back, so the next task can serve it.
     ///
     /// A reconnect builds a new task around a freshly opened receiver
@@ -663,7 +679,7 @@ impl<T: Transport> DeviceTask<T> {
                 snapshot.polled.failed(tier, &e.to_string());
                 snapshot.settle_freshness();
                 if e.is_link_failure() && self.failures >= FAILURES_BEFORE_RECONNECT {
-                    self.shared.publish(snapshot);
+                    self.publish(snapshot);
                     return Some(Stopped::LinkFailed(e));
                 }
                 // One bad poll can leave the session mid-reply, so
@@ -672,12 +688,12 @@ impl<T: Transport> DeviceTask<T> {
                 // it can be trusted, so it ends the task rather than
                 // being discarded.
                 if let Err(e) = self.device.session().sync() {
-                    self.shared.publish(snapshot);
+                    self.publish(snapshot);
                     return Some(Stopped::LinkFailed(e));
                 }
             }
         }
-        self.shared.publish(snapshot);
+        self.publish(snapshot);
         None
     }
 
@@ -753,7 +769,7 @@ impl<T: Transport> DeviceTask<T> {
                     Ok(screen) => {
                         snapshot.screen = Some(screen.clone());
                         snapshot.at = now;
-                        self.shared.deliver(snapshot);
+                        self.deliver(snapshot);
                         let _ = answer.send(Ok(screen));
                         return None;
                     }
@@ -769,14 +785,14 @@ impl<T: Transport> DeviceTask<T> {
                             let _ = answer.send(Err(Error::TaskStopped(
                                 "the link failed reading the status screen",
                             )));
-                            self.shared.publish(snapshot);
+                            self.publish(snapshot);
                             return Some(Stopped::LinkFailed(e));
                         }
                         self.resync = true;
                         let _ = answer.send(Err(e));
                     }
                 }
-                self.shared.publish(snapshot);
+                self.publish(snapshot);
                 None
             }
             Request::Refresh => {

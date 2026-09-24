@@ -390,6 +390,20 @@ fn a_command_submitted_to_the_task_is_served_between_polls() {
 }
 
 #[test]
+fn a_published_snapshot_names_the_receiver_it_was_read_from() {
+    let simulated = Receiver::default();
+    let identity = simulated.identity.clone();
+    let (handle, joiner) = task::spawn(device(simulated), Cadence::default());
+    let snapshot = handle
+        .subscribe()
+        .recv_timeout(Duration::from_secs(5))
+        .expect("a snapshot");
+    assert_eq!(snapshot.receiver, Some(identity));
+    drop(handle);
+    joiner.join().expect("the device thread");
+}
+
+#[test]
 fn the_values_move_between_polls() {
     // A simulator returning constants would hide a flat trend, a chart
     // that cannot scale itself, and an average indistinguishable from a

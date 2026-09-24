@@ -71,6 +71,12 @@ pub enum Freshness {
 pub struct Snapshot {
     /// When this snapshot was last touched.
     pub at: Timestamp,
+    /// The `*IDN?` of the receiver these values were read from, joined
+    /// as it answered.  `None` until one has been polled.
+    ///
+    /// Carried with the values rather than looked up when they are
+    /// written, because a snapshot can wait in a queue across a swap.
+    pub receiver: Option<String>,
     /// Whether it still describes the receiver.
     pub freshness: Freshness,
     /// When each tier last succeeded.
@@ -238,6 +244,7 @@ impl Snapshot {
     pub fn new(at: Timestamp) -> Self {
         Self {
             at,
+            receiver: None,
             freshness: Freshness::Disconnected,
             polled: Polled::default(),
             mode: None,

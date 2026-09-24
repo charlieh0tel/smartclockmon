@@ -255,6 +255,18 @@ pub struct Identity {
     pub firmware: String,
 }
 
+/// Joined as the receiver answers it, the form the daemon keys receivers
+/// on.
+impl std::fmt::Display for Identity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{},{},{},{}",
+            self.manufacturer, self.model, self.serial, self.firmware
+        )
+    }
+}
+
 /// Parse `*IDN?`.
 pub fn identity(reply: &str) -> Result<Identity> {
     let f: Vec<&str> = reply.trim().split(',').map(str::trim).collect();

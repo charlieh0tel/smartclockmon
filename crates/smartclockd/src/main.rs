@@ -40,6 +40,7 @@ use smartclock::device::Device;
 use smartclock::session::Config;
 use smartclock::session::Session;
 use smartclock::snapshot::Freshness;
+use smartclock::snapshot::Snapshot;
 use smartclock::task;
 use smartclock::task::Cadence;
 use smartclock::task::DeviceTask;
@@ -186,7 +187,7 @@ fn main() -> Result<()> {
     // not a transient failure, so it exits like one: retrying cannot
     // turn a newer schema into an older one, and Restart= would
     // otherwise reopen it every five seconds forever.
-    let mut log = match db::Log::open(&cli.database) {
+    let log = match db::Log::open(&cli.database) {
         Ok(log) => log,
         Err(e) => {
             eprintln!("smartclockd: {e:#}");
@@ -281,22 +282,10 @@ fn main() -> Result<()> {
         .name("smartclockd-log".to_owned())
         .spawn(move || {
             let mut journal = Journal::default();
-            // The alarm as last written down, so only changes are
-            // recorded.  A row per poll would be the snapshot table
-            // again; a row per change is the history worth reading.
-            //
-            // Seeded from the database on first use rather than
-            // starting empty, or every restart writes a row saying the
-            // alarm is what it already was -- two of them showed up in
-            // one evening's upgrades.  What matters is whether it has
-            // changed since it was last recorded, which outlives this
-            // process.
-            let mut last_alarm: Option<smartclock::types::AlarmCondition> = None;
-            let mut alarm_seeded = false;
             if adopt_log {
                 journal = journal.clearing_when_full();
             }
-            let mut recorded: Option<String> = None;
+            let mut recorder = Recorder::new(log);
             // Soon after startup rather than immediately: the first
             // pass wants a receiver that has answered, and the errors
             // worth catching are the ones raised as it comes up.
@@ -309,18 +298,14 @@ fn main() -> Result<()> {
             // when the snapshots stop.
             loop {
                 while let Ok(entry) = audit_rx.try_recv() {
-                    if let Err(e) = log.audit(&entry.scpi, &entry.class, &entry.outcome, None) {
+                    if let Err(e) =
+                        recorder
+                            .log
+                            .audit(&entry.scpi, &entry.class, &entry.outcome, None)
+                    {
                         eprintln!("smartclockd: could not record a command: {e}");
                     }
                 }
-                // Before the journal, not after.  The journal writes
-                // rows of its own, and until this has run they would
-                // carry whichever receiver was attached last: on a swap
-                // the device task publishes for the new unit long
-                // before this thread has taken that snapshot off the
-                // queue, so an error or log entry read from the new
-                // receiver was filed under the old one.
-                note_attached(&mut log, &mut recorded, &journal_info);
                 if Instant::now() >= next_journal {
                     // Only while a receiver is answering.  Every one of
                     // these queries would otherwise wait out its
@@ -337,15 +322,21 @@ fn main() -> Result<()> {
                             current.generation,
                         )
                     };
-                    // And the receiver the rows will be filed under has
-                    // to be the one now attached, not merely some
-                    // receiver: `note_attached` above can have been
-                    // outrun by a swap that happened since.
-                    let settled = recorded.as_ref() == Some(&identity);
+                    // The journal's rows are read from the receiver
+                    // attached now, so they are filed under it, not
+                    // under whichever unit the last snapshot came from.
+                    recorder.note(&identity);
+                    let settled = recorder.noted.as_ref() == Some(&identity);
                     if let (true, true, Some(receiver)) =
-                        (attached, settled, log.current_receiver())
+                        (attached, settled, recorder.log.current_receiver())
                     {
-                        journal.pass(&journal_handle, dialect, receiver, generation, &mut log);
+                        journal.pass(
+                            &journal_handle,
+                            dialect,
+                            receiver,
+                            generation,
+                            &mut recorder.log,
+                        );
                     }
                     // From the end of the pass, not its start.  A pass
                     // can run longer than the interval, and timed from
@@ -356,45 +347,14 @@ fn main() -> Result<()> {
                 // daemon is shutting down.  Write what is left and stop.
                 let Some(snapshots) = queued(&writes, AUDIT_POLL) else {
                     while let Ok(entry) = audit_rx.try_recv() {
-                        let _ = log.audit(&entry.scpi, &entry.class, &entry.outcome, None);
+                        let _ = recorder
+                            .log
+                            .audit(&entry.scpi, &entry.class, &entry.outcome, None);
                     }
                     return;
                 };
                 for snapshot in snapshots {
-                    // Only record readings that describe the receiver.  A
-                    // disconnected snapshot is the same values again with a
-                    // flag, and logging those would pad the history with
-                    // rows that look like measurements.
-                    if snapshot.freshness == Freshness::Disconnected {
-                        continue;
-                    }
-                    // Again, immediately before the row is written: a
-                    // snapshot can be published before the identity is
-                    // known, and checking only at the top of the loop left
-                    // the first row of every run attributed to no receiver
-                    // at all.  It costs a string compare per row.
-                    note_attached(&mut log, &mut recorded, &journal_info);
-                    if let Some(alarm) = snapshot.alarm {
-                        if !alarm_seeded && let Some(receiver) = log.current_receiver() {
-                            match log.last_alarm(receiver) {
-                                Ok(bits) => {
-                                    last_alarm =
-                                        bits.map(smartclock::types::AlarmCondition::from_bits);
-                                }
-                                Err(e) => {
-                                    eprintln!("smartclockd: could not read the last alarm: {e}")
-                                }
-                            }
-                            alarm_seeded = true;
-                        }
-                        if snapshot.alarm != last_alarm {
-                            record_alarm(&mut log, alarm, last_alarm);
-                            last_alarm = snapshot.alarm;
-                        }
-                    }
-                    if let Err(e) = log.record(&snapshot) {
-                        eprintln!("smartclockd: could not record a snapshot: {e}");
-                    }
+                    recorder.write(&snapshot);
                 }
             }
         })
@@ -436,13 +396,7 @@ fn supervise(
             }
         };
 
-        let identity = format!(
-            "{},{},{},{}",
-            device.identity().manufacturer,
-            device.identity().model,
-            device.identity().serial,
-            device.identity().firmware
-        );
+        let identity = device.identity().to_string();
         eprintln!("smartclockd: attached to {identity} on {}", cli.device);
 
         // Refreshed on every open, so clients are told about the
@@ -527,11 +481,6 @@ fn record_alarm(
     }
 }
 
-/// Make sure the log knows which receiver is attached, so that what is
-/// written next is filed under it.
-///
-/// Cheap enough to call before every write: a string compare, and the
-/// database is touched only when the identity has actually changed.
 /// Every snapshot waiting to be written, after up to `wait` for the
 /// first; `None` once every publisher has gone.
 ///
@@ -546,25 +495,97 @@ fn queued<T>(writes: &Receiver<T>, wait: Duration) -> Option<Vec<T>> {
     }
 }
 
-fn note_attached(log: &mut db::Log, recorded: &mut Option<String>, info: &server::SharedInfo) {
-    let identity = server::lock_or_poisoned(info).identity.clone();
-    if identity.is_empty() || recorded.as_ref() == Some(&identity) {
-        return;
-    }
-    // Not marked recorded on failure, so the next row tries again; until
-    // then rows carry no receiver and the journal waits.
-    match log.note_receiver(&identity) {
-        Ok(others) => {
-            if !others.is_empty() {
-                eprintln!(
-                    "smartclockd: this log also holds rows from {}; \
-                     every row says which receiver it came from",
-                    others.join(", ")
-                );
-            }
-            *recorded = Some(identity);
+/// The log thread's writer: the database, and what it has to remember
+/// between rows to file them correctly.
+struct Recorder {
+    log: db::Log,
+    /// The identity the log last noted, so it is noted again only on a
+    /// change.
+    noted: Option<String>,
+    /// The alarm as last written down, so only changes are recorded.
+    /// A row per poll would be the snapshot table again; a row per
+    /// change is the history worth reading.
+    last_alarm: Option<smartclock::types::AlarmCondition>,
+    /// Whether `last_alarm` has been read from the database.
+    ///
+    /// Seeded on first use rather than starting empty, or every restart
+    /// writes a row saying the alarm is what it already was -- two of
+    /// them showed up in one evening's upgrades.  What matters is
+    /// whether it has changed since it was last recorded, which
+    /// outlives this process.
+    alarm_seeded: bool,
+}
+
+impl Recorder {
+    fn new(log: db::Log) -> Self {
+        Self {
+            log,
+            noted: None,
+            last_alarm: None,
+            alarm_seeded: false,
         }
-        Err(e) => eprintln!("smartclockd: could not note the receiver: {e}"),
+    }
+
+    /// Make sure the log knows which receiver rows are from, so that
+    /// what is written next is filed under it.
+    ///
+    /// Cheap enough to call before every write: a string compare, and
+    /// the database is touched only when the identity has changed.
+    /// Not marked noted on failure, so the next row tries again; until
+    /// then rows carry no receiver and the journal waits.
+    fn note(&mut self, identity: &str) {
+        if identity.is_empty() || self.noted.as_deref() == Some(identity) {
+            return;
+        }
+        match self.log.note_receiver(identity) {
+            Ok(others) => {
+                if !others.is_empty() {
+                    eprintln!(
+                        "smartclockd: this log also holds rows from {}; \
+                         every row says which receiver it came from",
+                        others.join(", ")
+                    );
+                }
+                self.noted = Some(identity.to_owned());
+            }
+            Err(e) => eprintln!("smartclockd: could not note the receiver: {e}"),
+        }
+    }
+
+    /// Write one snapshot, under the receiver it was read from.
+    fn write(&mut self, snapshot: &Snapshot) {
+        // Only record readings that describe the receiver.  A
+        // disconnected snapshot is the same values again with a flag,
+        // and logging those would pad the history with rows that look
+        // like measurements.
+        if snapshot.freshness == Freshness::Disconnected {
+            return;
+        }
+        // By the snapshot's own receiver, not the one attached now: a
+        // snapshot can wait in the queue across a swap.
+        if let Some(identity) = &snapshot.receiver {
+            self.note(identity);
+        }
+        if let Some(alarm) = snapshot.alarm {
+            if !self.alarm_seeded
+                && let Some(receiver) = self.log.current_receiver()
+            {
+                match self.log.last_alarm(receiver) {
+                    Ok(bits) => {
+                        self.last_alarm = bits.map(smartclock::types::AlarmCondition::from_bits);
+                    }
+                    Err(e) => eprintln!("smartclockd: could not read the last alarm: {e}"),
+                }
+                self.alarm_seeded = true;
+            }
+            if snapshot.alarm != self.last_alarm {
+                record_alarm(&mut self.log, alarm, self.last_alarm);
+                self.last_alarm = snapshot.alarm;
+            }
+        }
+        if let Err(e) = self.log.record(snapshot) {
+            eprintln!("smartclockd: could not record a snapshot: {e}");
+        }
     }
 }
 
@@ -662,7 +683,11 @@ fn start_server(listening: Listening<'_>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use super::Recorder;
+    use super::db;
     use super::queued;
+    use smartclock::snapshot::Freshness;
+    use smartclock::snapshot::Snapshot;
     use std::sync::mpsc::channel;
     use std::time::Duration;
 
@@ -676,5 +701,31 @@ mod tests {
         assert_eq!(queued(&rx, Duration::ZERO), Some(Vec::new()));
         drop(tx);
         assert_eq!(queued::<i32>(&rx, Duration::ZERO), None);
+    }
+
+    #[test]
+    fn a_snapshot_queued_across_a_swap_is_filed_under_the_unit_it_came_from() {
+        let path = std::env::temp_dir().join(format!("smartclockd-swap-{}.db", std::process::id()));
+        let wipe = || {
+            for suffix in ["", "-wal", "-shm"] {
+                let mut name = path.clone().into_os_string();
+                name.push(suffix);
+                let _ = std::fs::remove_file(name);
+            }
+        };
+        wipe();
+        let mut recorder = Recorder::new(db::Log::open(&path).expect("open the database"));
+        // The journal has already noted the new unit when a snapshot
+        // read from the old one comes off the queue.
+        recorder.note("HEWLETT-PACKARD,58503A,B,3704-C");
+        let mut snapshot = Snapshot::new(jiff::Timestamp::now());
+        snapshot.freshness = Freshness::Live;
+        snapshot.receiver = Some("HEWLETT-PACKARD,58503A,A,3704-C".to_owned());
+        recorder.write(&snapshot);
+
+        let serials = recorder.log.snapshot_serials().expect("read the rows");
+        drop(recorder);
+        wipe();
+        assert_eq!(serials, vec![Some("A".to_owned())]);
     }
 }
