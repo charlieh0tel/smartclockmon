@@ -197,7 +197,15 @@ count, converted to float (below).  The receiver prints the value to
 10⁻¹⁰ s: seven readings -- one in a recorded transcript, six from a
 58503A through the daemon -- are all whole tenths of a nanosecond,
 which is what a −10 resolution would give.  That the reply formatter
-uses the tag that way was not traced.  The `PTIMe` node's handler was not traced.
+uses the tag that way was not traced.
+
+The `PTIMe` node's handler, `FUN_0003b052`, answers from a different
+place: under the lock `FUN_00023488` takes, it converts the double at
+`0x102666` -- the latest one-second reading, see "One reading" below
+-- to a float for the reply, with the halfword at `0x102670` as its
+tag, when the byte at `0x10266e` is set, and otherwise fails with code
+0xc.  So `:PTIMe:TINTerval?` is one reading and
+`:SYNChronization:TINTerval?` is the mean of ten.
 
 ### The ten-second average
 
@@ -438,7 +446,9 @@ start of each sampling pass `FUN_0004508e` asks for that event
 so after such a restart the loop starts with the last fit.  After a
 power-up they are zero, and stay zero until a fit with at least three
 samples -- mode 1 or above -- so d is zero for the first hours of the
-loop.
+loop.  The `holdover` stage, `FUN_000473de` (its return of 1 moves
+the stage byte to 4 at `0x4b36a`), seeds a with u − c·s when a is
+zero (`0x47440` to `0x47460`).
 
 The console's `last efc average = %.1f` (`0x2c3a5`) prints the newest
 e; `dmes_curv` (`0x2befe`) sets the byte at `0x103d8a`.
@@ -844,7 +854,9 @@ pSOS configuration at `0x102cfc` points to; that table is built at
 run time and was not located in ROM.  The same `de_open(0)` is made at
 `0x2f286`, and `de_open(1)` at `0x2f34a`.
 
-The word list (`0x2a500` to `0x2b100`, 190 names) is a stock kernel
+The word list (`0x2a500` to `0x2b100`, 89 kernel words, and the 69
+diagnostic words from `0x2c800`; every code pointer in both tables is
+an even ROM address) is a stock kernel
 plus pSOS wrappers -- `spawn`, `delete`, `suspend`, `resume`,
 `priority`, `send_x`, `request_x`, `signal_v`, `wait_v`, `dev_init`,
 `dev_open`, `dev_close`, `dev_read`, `dev_write`, `dev_ctrl`, `!iodev`
@@ -917,6 +929,14 @@ there.  The unpacker takes the same opcodes.
   The Time RAIM page reads the sawtooth as `move.b (0x1a,A3)` at
   `0x486ec` with A3 = `0x100f62`: record offset 26, as in the other
   image.
+- *Chip selects.*  Its reset code, at `0x550`, programs the same SIM
+  the same way but for the map: CSBARBT and CSBAR6 `0x0005`, 256 KB
+  at 0, and CSBAR1 and CSBAR7 `0x0405`, 256 KB at `0x40000` -- the
+  image's two halves; CSBAR0, 2, 3 `0x1003`, the 64 KB of RAM; CSBAR5
+  `0x3003`, 64 KB at `0x300000`; CSBAR8 `0x2000`, the DUART; CSBAR9
+  `0x4001`, 8 KB at `0x400000`; CSBAR4 `0x5000` and CSBAR10 `0xfff8`,
+  2 KB each.  SYNCR is `0xcf00`, the same 16.777 MHz.  Nothing in it
+  reads `0x302000`.
 - *Serial ports.*  The host port is DUART channel B, with the exchanges
   `drtR` and `drtW` and `DUARTB isr` messages; the SCI is switched off
   -- the one reference to its registers, at `0x120da`, clears SCCR1.
@@ -945,9 +965,6 @@ there.  The unpacker takes the same opcodes.
 - What HQ (`FUN_00045f94`) measures, and what the fit's mode is used
   for beyond the debug print; `FUN_00045a78`, which sets c from three
   trials, was not transcribed.
-- What the fit's a, written to `0x102bd4`, is used for other than by
-  `startup_pll`; readers at `0x47442`, `0x47462` and `0x490e0` were not
-  traced.
 - The console's `current drift = %.1e / day` (`0x2c3bf`) prints the
   float at `0x102bcc` times 5.4 × 10⁻⁸.  Nothing that writes `0x102bcc`
   was found.
@@ -964,9 +981,8 @@ there.  The unpacker takes the same opcodes.
   name comes from an owner's description of the board, not from the
   image.
 - What sits on chip select 7 at `0x302000`, whose bit 8 chooses G.
-- x₀ is cleared at `0x4b1dc` and otherwise written only by `phase_off`;
-  whether anything calls `phase_off` other than the console was not
-  traced.
+- x₀ is cleared at `0x4b1dc` and otherwise written only by `phase_off`
+  (`0x2b87c`), which nothing calls but the console's word table.
 - Which driver pSOS device 0, the console's, selects: the I/O switch
   table was not found in ROM.  Whether any sequence of the console's
   pSOS words gets SCPI back short of a power cycle was not tried.
@@ -977,13 +993,9 @@ there.  The unpacker takes the same opcodes.
 - What drives the 59551A's PORT 2.  DUART channel B, idle here, is the
   device a single-port unit would leave spare, but no image of a
   59551A's firmware is at hand.
-- Only a sample of the firmware word table's code pointers was
-  checked; they pointed at 68000 code.
 - Only byte loads of offset 26 of the form `move.b (0x1a,An),Dn` were
   searched for.  A reader using another addressing form would have
   been missed.
-- The `PTIMe` node's `TINTerval` handler, `FUN_0003b052`, was not
-  traced.
 - None of this has been checked against a 58503A image.
 
 ## Note on the disassembly
