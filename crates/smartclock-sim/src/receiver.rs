@@ -168,6 +168,9 @@ pub struct Receiver {
     /// the garbled one: the case where half-read values could leak out
     /// as though the whole poll had succeeded.  Matched ignoring case.
     pub garbled: Vec<String>,
+    /// Commands refused with -230, as the receiver refuses a value it
+    /// does not have.  Matched ignoring case.
+    pub refused: Vec<String>,
     /// Whether the receiver has ever had a fix.
     ///
     /// Until it has, everything derived from GPS -- the date, the time,
@@ -226,6 +229,7 @@ impl Default for Receiver {
             ticks: 0,
             refuse_everything: false,
             garbled: Vec::new(),
+            refused: Vec::new(),
             no_fix: false,
             base: Base {
                 efc_raw: 713_587,
@@ -300,6 +304,9 @@ impl Receiver {
         }
         if self.garbled.iter().any(|g| g.eq_ignore_ascii_case(command)) {
             return Answer::line("#not a reading#");
+        }
+        if self.refused.iter().any(|r| r.eq_ignore_ascii_case(command)) {
+            return self.reject(-230, "Data corrupt or stale");
         }
         if let Some(answer) = self.common(command) {
             return answer;

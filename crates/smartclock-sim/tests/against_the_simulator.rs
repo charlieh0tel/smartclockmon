@@ -140,17 +140,23 @@ fn a_pass_taken_a_step_at_a_time_reads_what_the_whole_pass_reads() {
 
 #[test]
 fn a_value_the_receiver_declines_reads_as_absent_not_as_a_failure() {
-    // Present holdover error does not exist while locked; the receiver
-    // answers -230, and that must not fail the whole tier.  It is not
-    // asked for while locked either -- see below -- so this covers the
-    // tolerance rather than the asking.
-    let mut device = device(Receiver::default());
+    // In holdover, so present holdover error is asked for, and refused
+    // with -230 as the receiver refuses a value it does not have.  That
+    // must read as absent and leave the rest of the tier standing.
+    let mut receiver = Receiver::default();
+    receiver.holdover = true;
+    receiver
+        .refused
+        .push(":SYNChronization:HOLDover:TUNCertainty:PRESent?".to_owned());
+    let mut device = device(receiver);
     let mut snapshot = Snapshot::new(jiff::Timestamp::now());
     device
         .poll(Tier::Medium, &mut snapshot, jiff::Timestamp::now())
         .expect("the medium tier");
     assert_eq!(snapshot.holdover_present, None);
+    assert!(snapshot.holdover_duration.is_some_and(|h| h.active));
     assert!(snapshot.holdover_predicted.is_some());
+    assert!(snapshot.polled.medium.at.is_some());
 }
 
 #[test]
