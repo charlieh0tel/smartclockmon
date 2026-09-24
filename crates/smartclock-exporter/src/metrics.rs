@@ -206,26 +206,21 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
             .map(|d| f64::from(d.rollover().map_or(0, |s| s.epochs))),
     );
 
-    if let Some(screen) = r.screen.as_ref() {
-        maybe(
-            &mut out,
-            "satellites_tracked",
-            "Satellites being tracked",
-            screen.tracking.map(f64::from),
-        );
-        gauge(
-            &mut out,
-            "satellites_visible",
-            "Satellites in the receiver's table, tracked or not",
-            screen.satellites.len() as f64,
-        );
-        gauge(
-            &mut out,
-            "satellites_suspect",
-            "1 when the satellite table disagrees with its own counts",
-            f64::from(u8::from(screen.satellites_suspect)),
-        );
-    }
+    // From the direct counts on the medium tier, not the status screen:
+    // no tier reads the screen, so a count taken from it is whatever the
+    // last sky plot saw, however long ago.
+    maybe(
+        &mut out,
+        "satellites_tracked",
+        "Satellites being tracked",
+        r.tracking.map(f64::from),
+    );
+    maybe(
+        &mut out,
+        "satellites_visible",
+        "Satellites the almanac predicts are visible",
+        r.visible.map(f64::from),
+    );
 
     // The age of each group of fields.  Without these a daemon that has
     // stopped polling looks like a remarkably steady oscillator: the
@@ -306,6 +301,7 @@ mod tests {
             "smartclock_temperature_celsius",
             "smartclock_tfom",
             "smartclock_satellites_tracked",
+            "smartclock_satellites_visible",
         ] {
             assert!(
                 !out.contains(absent),

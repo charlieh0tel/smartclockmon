@@ -23,6 +23,7 @@ use crate::protocol::Message;
 use crate::protocol::Op;
 use crate::protocol::Request;
 use crate::protocol::VERSION;
+use crate::screen::Screen;
 use crate::wire::Reading;
 
 /// How long to wait on a daemon that has stopped answering.
@@ -173,17 +174,21 @@ impl Daemon {
             .map_err(|e| Error::Daemon(format!("its reading did not parse: {e}")))
     }
 
-    /// Read one status screen, and the reading that carries it.
+    /// Read one status screen.
     ///
     /// Unlike `latest` this does go to the wire, and costs about 1.5 s
     /// of it: no tier polls the screen, because per-satellite
     /// elevation, azimuth and signal strength are all it still answers
     /// that nothing else does.  Ask while someone is looking at a sky
     /// plot, not on a timer.
-    pub fn sky(&mut self) -> Result<Reading> {
+    pub fn sky(&mut self) -> Result<Screen> {
         let value = self.ask(Op::Sky)?;
-        serde_json::from_value(value)
-            .map_err(|e| Error::Daemon(format!("its reading did not parse: {e}")))
+        let screen = value
+            .get("screen")
+            .cloned()
+            .ok_or_else(|| Error::Daemon("its reply carried no screen".to_owned()))?;
+        serde_json::from_value(screen)
+            .map_err(|e| Error::Daemon(format!("its screen did not parse: {e}")))
     }
 
     /// Send one command and return the lines it answered with.

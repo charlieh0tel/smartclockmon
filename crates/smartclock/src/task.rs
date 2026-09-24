@@ -33,6 +33,7 @@ use crate::device::Device;
 use crate::device::step_count;
 use crate::error::Error;
 use crate::error::Result;
+use crate::screen::Screen;
 use crate::session::Reply;
 use crate::snapshot::Freshness;
 use crate::snapshot::Snapshot;
@@ -94,16 +95,15 @@ pub enum Request {
     /// Sent after a command that changed something, so the change shows
     /// in the snapshots at once rather than after up to a minute.
     Refresh,
-    /// Read the status screen once and publish it.
+    /// Read the status screen once and return it.
     ///
     /// No tier polls the screen: it costs 1.5 s, four fast passes, and
     /// per-satellite elevation, azimuth and signal strength are all it
     /// still answers alone.  A client showing a sky plot asks for one
     /// while it is being looked at, and pays for it itself.
     Screen {
-        /// Where to report whether the read succeeded.  The snapshot
-        /// itself goes out on the subscriptions.
-        answer: SyncSender<Result<()>>,
+        /// Where to send the screen, or why there is none.
+        answer: SyncSender<Result<Screen>>,
     },
 }
 
@@ -170,12 +170,22 @@ impl Shared {
     }
 
     /// Store a snapshot and hand it to every live subscriber.
+    pub fn publish(&self, snapshot: Snapshot) {
+        *self.latest.lock().expect("snapshot mutex") = Some(snapshot.clone());
+        self.deliver(snapshot);
+    }
+
+    /// Hand a snapshot to every live subscriber without keeping it as
+    /// the latest.
+    ///
+    /// For a snapshot that describes one moment and must not be built
+    /// on: every poll starts from the latest, so whatever is stored
+    /// there is inherited by everything after it.
     ///
     /// `try_send` rather than `send`: a full queue means that
     /// subscriber has stopped reading, and blocking here would stop the
     /// receiver being polled at all.
-    pub fn publish(&self, snapshot: Snapshot) {
-        *self.latest.lock().expect("snapshot mutex") = Some(snapshot.clone());
+    fn deliver(&self, snapshot: Snapshot) {
         self.subscribers
             .lock()
             .expect("subscriber mutex")
@@ -252,9 +262,12 @@ impl Handle {
     /// client asks for one while someone is looking at it rather than
     /// having the daemon pay for it around the clock.
     ///
-    /// The snapshot carrying it goes out on every subscription, so the
-    /// caller reads it from there or from `latest`.
-    pub fn sky(&self) -> Result<()> {
+    /// The screen comes back here and nowhere else lasting.  One
+    /// snapshot carrying it is delivered to the subscribers, so the log
+    /// records that sky once, but it is never kept as the latest: a
+    /// screen stored there was copied into every later snapshot, and
+    /// logged with each of them, for as long as the daemon ran.
+    pub fn sky(&self) -> Result<Screen> {
         let (tx, rx) = sync_channel(1);
         self.requests
             .send(Request::Screen { answer: tx })
@@ -712,11 +725,15 @@ impl<T: Transport> DeviceTask<T> {
                 }
                 let now = Timestamp::now();
                 let mut snapshot = self.shared.latest().unwrap_or_else(|| Snapshot::new(now));
-                let outcome = self.device.poll_screen(&mut snapshot, now);
+                let outcome = self.device.screen();
                 self.report_strays();
                 match outcome {
-                    Ok(()) => {
-                        let _ = answer.send(Ok(()));
+                    Ok(screen) => {
+                        snapshot.screen = Some(screen.clone());
+                        snapshot.at = now;
+                        self.shared.deliver(snapshot);
+                        let _ = answer.send(Ok(screen));
+                        return None;
                     }
                     Err(e) => {
                         // Recorded against the slow tier, which is

@@ -534,6 +534,14 @@ one -- `Op::Sky` on the socket, a view of its own in the monitor, and
 `/sky` in the browser.  The medium tier, now four short steps
 totalling 0.57 s, drops from thirty seconds to ten.
 
+A screen read is returned to whoever asked for it, and is delivered to
+the subscribers on one snapshot, so the log records that sky once.  It
+is never stored as the latest snapshot.  Every poll starts from the
+latest, so a screen kept there was copied into every snapshot after it,
+logged afresh with each, and outlived a reconnect to a different
+receiver.  The satellite counts the exporter serves come from the
+medium tier's direct queries for the same reason.
+
 Measured with the daemon running: 234 of 288 consecutive snapshots
 were spaced 1.00 s apart, the rest being the medium and slow steps
 publishing in between, and the only gaps over 1.02 s were the three

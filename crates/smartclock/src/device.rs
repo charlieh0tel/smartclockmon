@@ -593,27 +593,6 @@ impl<T: Transport> Device<T> {
         into.powerup = absent_if_unsupported(self.powerup_condition())?;
         Ok(())
     }
-    /// The status screen, read on request rather than on a schedule.
-    ///
-    /// The slowest read the receiver has: 1574 bytes, 0.94 s of wire
-    /// time at 19200 and 1.5 s measured, the rest being the receiver
-    /// composing it -- four fast passes' worth, for one screen.
-    ///
-    /// Nothing polls it, because after the satellite counts moved to
-    /// `:GPS:SATellite:TRACking:COUNt?` and
-    /// `:GPS:SATellite:VISible:PREDicted:COUNt?` the only fields left
-    /// that appear nowhere else are per-satellite elevation, azimuth
-    /// and signal strength.  The health monitor line is the hardware
-    /// condition register rendered coarsely, and that register is on
-    /// the fast tier; the bracketed synchronisation and acquisition
-    /// text is `:SYNChronization:STATe?` and the operation register.
-    /// So a sky plot is read when someone is looking at one.
-    pub fn poll_screen(&mut self, into: &mut Snapshot, now: Timestamp) -> Result<()> {
-        into.screen = absent_if_unsupported(self.screen())?;
-        into.at = now;
-        into.settle_freshness();
-        Ok(())
-    }
 }
 
 #[cfg(test)]

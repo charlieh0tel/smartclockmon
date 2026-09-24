@@ -46,7 +46,7 @@ pub enum Op {
     },
     /// Return the most recent snapshot without waiting.
     Latest,
-    /// Read one status screen and return the snapshot carrying it.
+    /// Read one status screen and return it, as `{"screen": ...}`.
     ///
     /// No tier polls the screen: it costs 1.5 s, four fast passes, and
     /// per-satellite elevation, azimuth and signal strength are all it

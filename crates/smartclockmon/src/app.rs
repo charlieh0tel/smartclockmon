@@ -2,6 +2,7 @@
 
 use std::collections::VecDeque;
 
+use smartclock::screen::Screen;
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Tier;
 use smartclock::task::Cadence;
@@ -52,6 +53,13 @@ pub(crate) enum View {
 pub(crate) struct App {
     /// The most recent reading, if any has arrived.
     pub(crate) snapshot: Option<Reading>,
+    /// The last status screen read, for the sky view.
+    ///
+    /// Held here because it arrives on one snapshot only: the daemon
+    /// delivers the screen with the snapshot that read it and keeps it
+    /// out of every one after, so reading it off the newest snapshot
+    /// would lose it at the next poll.
+    pub(crate) sky: Option<Screen>,
     /// Recent EFC readings, oldest first.
     pub(crate) efc_trend: VecDeque<EfcPercent>,
     /// How the monitor is attached.
@@ -108,6 +116,7 @@ impl App {
     ) -> Self {
         Self {
             snapshot: None,
+            sky: None,
             efc_trend: VecDeque::with_capacity(TREND_LEN),
             attachment,
             quitting: false,
@@ -262,6 +271,9 @@ impl App {
     /// Note that the source went away, keeping the last values on
     /// screen but no longer presenting them as current.
     pub(crate) fn lost(&mut self, why: String) {
+        // A sky from before the link dropped may not be this receiver's
+        // by the time it comes back.
+        self.sky = None;
         if let Some(snapshot) = self.snapshot.as_mut() {
             snapshot.freshness = Freshness::Disconnected;
             for tier in Tier::ALL {
@@ -294,6 +306,9 @@ impl App {
                 self.ti_trend.pop_front();
             }
             self.ti_trend.push_back(interval);
+        }
+        if let Some(screen) = snapshot.screen.clone() {
+            self.sky = Some(screen);
         }
         self.snapshot = Some(snapshot);
     }

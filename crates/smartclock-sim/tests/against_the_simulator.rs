@@ -78,10 +78,7 @@ fn every_tier_polls_into_a_snapshot() {
     // No tier reads the status screen, so the satellite table it alone
     // carries is absent until something asks for one.
     assert!(snapshot.screen.is_none());
-    device
-        .poll_screen(&mut snapshot, jiff::Timestamp::now())
-        .expect("a screen on request");
-    let screen = snapshot.screen.as_ref().expect("a status screen");
+    let screen = device.screen().expect("a screen on request");
     assert_eq!(screen.satellites.len(), 9);
     assert_eq!(screen.tracking, Some(6));
 }
@@ -94,11 +91,7 @@ fn the_satellite_counts_come_from_queries_and_agree_with_the_screen() {
     device
         .poll(Tier::Medium, &mut snapshot, now)
         .expect("medium");
-    device
-        .poll_screen(&mut snapshot, now)
-        .expect("a screen on request");
-
-    let screen = snapshot.screen.as_ref().expect("a status screen");
+    let screen = device.screen().expect("a screen on request");
     assert_eq!(snapshot.tracking, screen.tracking);
     // The screen prints what is visible but untracked; the query
     // answers what is visible at all.
@@ -258,6 +251,51 @@ fn control_changes_what_the_receiver_then_reports() {
 
     device.control().recover_from_holdover().expect("recover");
     assert_eq!(device.mode().expect("mode"), SmartClockMode::Locked);
+}
+
+#[test]
+fn a_sky_read_is_returned_and_not_carried_forward() {
+    // One sky read must reach the caller, reach the subscribers once so
+    // the log records that sky, and then be gone.  Stored as the
+    // latest, it was copied into every later snapshot -- and every one
+    // of them logged the same satellites again as if newly observed.
+    let (handle, joiner) = task::spawn(
+        device(Receiver::default()),
+        Cadence {
+            fast: Duration::from_millis(20),
+            medium: Duration::from_millis(50),
+            slow: Duration::from_millis(80),
+        },
+    );
+    let updates = handle.subscribe();
+    let screen = handle.sky().expect("a screen on request");
+    assert_eq!(screen.satellites.len(), 9);
+
+    // Delivered once, then never again.
+    let mut carrying = 0;
+    let mut after = 0;
+    let until = std::time::Instant::now() + Duration::from_secs(2);
+    while std::time::Instant::now() < until && after < 20 {
+        let left = until.saturating_duration_since(std::time::Instant::now());
+        let Ok(snapshot) = updates.recv_timeout(left) else {
+            break;
+        };
+        if snapshot.screen.is_some() {
+            carrying += 1;
+        } else if carrying > 0 {
+            after += 1;
+        }
+    }
+    assert_eq!(carrying, 1, "the screen was delivered {carrying} times");
+    assert!(after > 0, "no snapshots followed the sky read");
+    assert!(
+        handle.latest().expect("a snapshot").screen.is_none(),
+        "the screen was kept as the latest"
+    );
+
+    drop(updates);
+    drop(handle);
+    joiner.join().expect("the device thread");
 }
 
 #[test]

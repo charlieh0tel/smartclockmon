@@ -845,8 +845,7 @@ fn sky(frame: &mut Frame, app: &App) {
 }
 
 fn satellites(frame: &mut Frame, area: Rect, app: &App) {
-    let screen = app.snapshot.as_ref().and_then(|s| s.screen.as_ref());
-    let Some(screen) = screen else {
+    let Some(screen) = app.sky.as_ref() else {
         frame.render_widget(
             Paragraph::new("reading the status screen...").block(block("Satellites")),
             area,
