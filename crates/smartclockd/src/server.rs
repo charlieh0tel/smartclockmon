@@ -308,14 +308,19 @@ fn talk(stream: Stream, handle: &Handle, info: &SharedInfo, slot: Slot) -> Resul
         if line.trim().is_empty() {
             continue;
         }
-        // Parse before locking, and hold the guard only across the
-        // request itself: cloning the whole Info -- two Strings, the
-        // policy and the audit handle -- per request line bought
-        // nothing, since the lock is uncontended except at reconnect.
-        // Read per request rather than per connection, so a reconnect
-        // to a different receiver takes effect for the next command.
+        // A copy, taken and released before the request runs.  A
+        // request can wait on the receiver for up to the request
+        // timeout, and holding the lock meanwhile queued every other
+        // client behind it -- and the reconnect path, which records the
+        // new receiver here before it starts the task that would answer
+        // the waiting request.  Taken per request rather than per
+        // connection, so a reconnect to a different receiver takes
+        // effect for the next command.
         let reply = match serde_json::from_str::<Request>(&line) {
-            Ok(request) => handle_request(request, handle, &lock_or_poisoned(info)),
+            Ok(request) => {
+                let current = lock_or_poisoned(info).clone();
+                handle_request(request, handle, &current)
+            }
             Err(e) => Message::err(String::new(), format!("malformed request: {e}")),
         };
         write_line(&writer, &reply)?;
@@ -938,6 +943,7 @@ mod socket_tests {
     use super::MAX_CLIENTS;
     use super::MAX_REQUEST;
     use super::Policy;
+    use super::SharedInfo;
     use super::bind;
     use super::serve;
     use crate::audit::Audit;
@@ -970,6 +976,7 @@ mod socket_tests {
     struct Daemon {
         socket: PathBuf,
         _requests: std::sync::mpsc::Receiver<smartclock::task::Request>,
+        info: SharedInfo,
     }
 
     impl Daemon {
@@ -991,6 +998,7 @@ mod socket_tests {
                 generation: 1,
             }));
 
+            let shared_info = Arc::clone(&info);
             let name_owned = socket.clone();
             let listener = bind(
                 name_owned
@@ -1011,6 +1019,7 @@ mod socket_tests {
             Self {
                 socket,
                 _requests: rx,
+                info: shared_info,
             }
         }
 
@@ -1027,6 +1036,37 @@ mod socket_tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_file(&self.socket);
         }
+    }
+
+    #[test]
+    fn a_request_waiting_on_the_receiver_does_not_hold_the_shared_state() {
+        // Nothing serves the request queue here, so a query waits out
+        // the request timeout.  Meanwhile the reconnect path, the
+        // journal and every other client need the shared state, and a
+        // reconnect that waited behind the query could not start the
+        // task that would answer it.
+        let daemon = Daemon::start("held-lock");
+        let mut client = daemon.connect();
+        writeln!(
+            client,
+            r#"{{"v":1,"id":"1","op":{{"kind":"query","scpi":"*IDN?"}}}}"#
+        )
+        .expect("send");
+        thread::sleep(Duration::from_millis(500));
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        let free = loop {
+            if daemon.info.try_lock().is_ok() {
+                break true;
+            }
+            if std::time::Instant::now() >= deadline {
+                break false;
+            }
+            thread::sleep(Duration::from_millis(20));
+        };
+        assert!(
+            free,
+            "the shared state was held while waiting on the receiver"
+        );
     }
 
     /// The first line the daemon sends that answers `id`.
