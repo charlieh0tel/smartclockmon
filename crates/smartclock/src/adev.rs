@@ -353,8 +353,7 @@ impl Curve {
                 k > 0 && (keep[k - 1] + 1..=i).any(|j| states.get(j) != states.get(j - 1))
             })
             .collect();
-        let stride = kept.len().div_euclid(MAX_SAMPLES) + 1;
-        Self::measure(&kept, stride, |_, b| broken[b])
+        Self::measure(&kept, stride(kept.len()), |_, b| broken[b])
     }
 
     /// As [`Curve::from_readings`], for rows as the log holds them,
@@ -406,6 +405,12 @@ impl Curve {
             points: run.curve(),
         }
     }
+}
+
+/// How coarsely to grid `readings`: the least stride that leaves no
+/// more than [`MAX_SAMPLES`] of them.
+fn stride(readings: usize) -> usize {
+    readings.div_ceil(MAX_SAMPLES).max(1)
 }
 
 /// One sample per reading the receiver actually made.
@@ -564,9 +569,11 @@ fn multipliers(longest: usize, tau0: f64) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::Curve;
+    use super::MAX_SAMPLES;
     use super::Run;
     use super::Sample;
     use super::spacing;
+    use super::stride;
     use super::updates;
     use jiff::Timestamp;
 
@@ -725,6 +732,15 @@ mod tests {
         for point in &curve.points {
             assert!(point.deviation < 1e-8, "{point:?}");
         }
+    }
+
+    #[test]
+    fn readings_are_strided_only_past_the_limit() {
+        assert_eq!(stride(0), 1);
+        assert_eq!(stride(MAX_SAMPLES), 1);
+        assert_eq!(stride(MAX_SAMPLES + 1), 2);
+        assert_eq!(stride(2 * MAX_SAMPLES), 2);
+        assert_eq!(stride(2 * MAX_SAMPLES + 1), 3);
     }
 
     #[test]
