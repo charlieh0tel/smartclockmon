@@ -322,7 +322,6 @@ fn main() -> Result<()> {
                 // receiver was filed under the old one.
                 note_attached(&mut log, &mut recorded, &journal_info);
                 if Instant::now() >= next_journal {
-                    next_journal = Instant::now() + JOURNAL_EVERY;
                     // Only while a receiver is answering.  Every one of
                     // these queries would otherwise wait out its
                     // timeout, and the audit entries behind them would
@@ -348,50 +347,54 @@ fn main() -> Result<()> {
                     {
                         journal.pass(&journal_handle, dialect, receiver, generation, &mut log);
                     }
+                    // From the end of the pass, not its start.  A pass
+                    // can run longer than the interval, and timed from
+                    // its start the next would already be due.
+                    next_journal = Instant::now() + JOURNAL_EVERY;
                 }
-                let snapshot = match writes.recv_timeout(AUDIT_POLL) {
-                    Ok(snapshot) => snapshot,
-                    Err(RecvTimeoutError::Timeout) => continue,
-                    // Every publisher has gone, which only happens
-                    // when the daemon is shutting down.  Write what is
-                    // left and stop.
-                    Err(RecvTimeoutError::Disconnected) => {
-                        while let Ok(entry) = audit_rx.try_recv() {
-                            let _ = log.audit(&entry.scpi, &entry.class, &entry.outcome, None);
-                        }
-                        return;
+                // Every publisher has gone, which only happens when the
+                // daemon is shutting down.  Write what is left and stop.
+                let Some(snapshots) = queued(&writes, AUDIT_POLL) else {
+                    while let Ok(entry) = audit_rx.try_recv() {
+                        let _ = log.audit(&entry.scpi, &entry.class, &entry.outcome, None);
                     }
+                    return;
                 };
-                // Only record readings that describe the receiver.  A
-                // disconnected snapshot is the same values again with a
-                // flag, and logging those would pad the history with
-                // rows that look like measurements.
-                if snapshot.freshness == Freshness::Disconnected {
-                    continue;
-                }
-                // Again, immediately before the row is written: a
-                // snapshot can be published before the identity is
-                // known, and checking only at the top of the loop left
-                // the first row of every run attributed to no receiver
-                // at all.  It costs a string compare per row.
-                note_attached(&mut log, &mut recorded, &journal_info);
-                if let Some(alarm) = snapshot.alarm {
-                    if !alarm_seeded && let Some(receiver) = log.current_receiver() {
-                        match log.last_alarm(receiver) {
-                            Ok(bits) => {
-                                last_alarm = bits.map(smartclock::types::AlarmCondition::from_bits);
+                for snapshot in snapshots {
+                    // Only record readings that describe the receiver.  A
+                    // disconnected snapshot is the same values again with a
+                    // flag, and logging those would pad the history with
+                    // rows that look like measurements.
+                    if snapshot.freshness == Freshness::Disconnected {
+                        continue;
+                    }
+                    // Again, immediately before the row is written: a
+                    // snapshot can be published before the identity is
+                    // known, and checking only at the top of the loop left
+                    // the first row of every run attributed to no receiver
+                    // at all.  It costs a string compare per row.
+                    note_attached(&mut log, &mut recorded, &journal_info);
+                    if let Some(alarm) = snapshot.alarm {
+                        if !alarm_seeded && let Some(receiver) = log.current_receiver() {
+                            match log.last_alarm(receiver) {
+                                Ok(bits) => {
+                                    last_alarm =
+                                        bits.map(smartclock::types::AlarmCondition::from_bits);
+                                }
+                                Err(e) => {
+                                    eprintln!("smartclockd: could not read the last alarm: {e}")
+                                }
                             }
-                            Err(e) => eprintln!("smartclockd: could not read the last alarm: {e}"),
+                            alarm_seeded = true;
                         }
-                        alarm_seeded = true;
+                        if snapshot.alarm != last_alarm {
+                            record_alarm(&mut log, alarm, last_alarm);
+                            last_alarm = snapshot.alarm;
+                        }
                     }
-                    if snapshot.alarm != last_alarm {
-                        record_alarm(&mut log, alarm, last_alarm);
-                        last_alarm = snapshot.alarm;
+                    if let Err(e) = log.record(&snapshot) {
+                        eprintln!("smartclockd: could not record a snapshot: {e}");
                     }
-                }
-                if let Err(e) = log.record(&snapshot) {
-                    eprintln!("smartclockd: could not record a snapshot: {e}");
                 }
             }
         })
@@ -529,6 +532,20 @@ fn record_alarm(
 ///
 /// Cheap enough to call before every write: a string compare, and the
 /// database is touched only when the identity has actually changed.
+/// Every snapshot waiting to be written, after up to `wait` for the
+/// first; `None` once every publisher has gone.
+///
+/// All of them rather than one: a journal pass can take longer than
+/// snapshots take to arrive, and writing one per pass let the queue
+/// fill and drop readings.
+fn queued<T>(writes: &Receiver<T>, wait: Duration) -> Option<Vec<T>> {
+    match writes.recv_timeout(wait) {
+        Ok(first) => Some(std::iter::once(first).chain(writes.try_iter()).collect()),
+        Err(RecvTimeoutError::Timeout) => Some(Vec::new()),
+        Err(RecvTimeoutError::Disconnected) => None,
+    }
+}
+
 fn note_attached(log: &mut db::Log, recorded: &mut Option<String>, info: &server::SharedInfo) {
     let identity = server::lock_or_poisoned(info).identity.clone();
     if identity.is_empty() || recorded.as_ref() == Some(&identity) {
@@ -641,4 +658,23 @@ fn start_server(listening: Listening<'_>) -> Result<()> {
         .context("spawning the socket server")?;
     eprintln!("smartclockd: listening on {where_to}");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::queued;
+    use std::sync::mpsc::channel;
+    use std::time::Duration;
+
+    #[test]
+    fn everything_queued_behind_a_slow_pass_is_taken_at_once() {
+        let (tx, rx) = channel();
+        for n in 0..100 {
+            tx.send(n).expect("queue");
+        }
+        assert_eq!(queued(&rx, Duration::ZERO), Some((0..100).collect()));
+        assert_eq!(queued(&rx, Duration::ZERO), Some(Vec::new()));
+        drop(tx);
+        assert_eq!(queued::<i32>(&rx, Duration::ZERO), None);
+    }
 }
