@@ -357,6 +357,12 @@ prompt into a typed error, but that entry was used to explain the
 failure and then dropped, and nothing at all read an error the receiver
 raised on its own.  Those are the ones worth having.
 
+A failed command can also read past its own error to one the receiver
+raised earlier, which then exists nowhere but in the session.  The task
+keeps such strays, each with the identity of the receiver that raised
+it, and the daemon journals them before each pass; one from a receiver
+no longer attached is reported and not filed under the unit that is.
+
 **The diagnostic log is copied out entry by entry.**  The count was
 already polled, which recorded that seven things had happened and never
 what.  `:DIAG:LOG:READ:ALL?` returns the lot in one reply, which for a

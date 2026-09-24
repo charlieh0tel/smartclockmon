@@ -351,7 +351,7 @@ const MAX_QUEUE_DRAIN: usize = 32;
 
 /// How many unattributed errors to keep for a caller that may never
 /// ask.
-const MAX_STRAY_ERRORS: usize = 32;
+pub(crate) const MAX_STRAY_ERRORS: usize = 32;
 
 /// Parse `:SYSTem:ERRor?`, documented as `<code>,"<description>"`.
 fn parse_error(line: &str) -> Option<(i32, String)> {

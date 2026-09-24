@@ -34,11 +34,13 @@ use crate::device::step_count;
 use crate::error::Error;
 use crate::error::Result;
 use crate::screen::Screen;
+use crate::session::MAX_STRAY_ERRORS;
 use crate::session::Reply;
 use crate::snapshot::Freshness;
 use crate::snapshot::Snapshot;
 use crate::snapshot::Tier;
 use crate::transport::Transport;
+use crate::types::ErrorEntry;
 
 /// How often each tier runs.
 #[derive(Debug, Clone)]
@@ -119,6 +121,10 @@ pub struct Shared {
     subscribers: Arc<Mutex<Vec<SyncSender<Snapshot>>>>,
     /// Watchers that may not: see [`Shared::subscribe_lossless`].
     recorders: Arc<Mutex<Vec<SyncSender<Snapshot>>>>,
+    /// Errors the receiver raised that a failure read before anyone
+    /// asked for them, each with the `*IDN?` of the receiver that
+    /// raised it, oldest first.  See [`Shared::take_stray_errors`].
+    strays: Arc<Mutex<Vec<(String, ErrorEntry)>>>,
 }
 
 impl Shared {
@@ -130,6 +136,25 @@ impl Shared {
     /// The most recent snapshot, if there has been one.
     pub fn latest(&self) -> Option<Snapshot> {
         self.latest.lock().expect("snapshot mutex").clone()
+    }
+
+    /// Take the stray errors kept so far, each with the receiver that
+    /// raised it.
+    ///
+    /// Reading the error queue removes what it reads, so an error a
+    /// failure read first is gone from the receiver: this is the only
+    /// copy, and whoever keeps the journal should take it.
+    pub fn take_stray_errors(&self) -> Vec<(String, ErrorEntry)> {
+        std::mem::take(&mut *self.strays.lock().expect("stray mutex"))
+    }
+
+    /// Keep a stray error, bounded as the session bounds its own.
+    fn keep_stray(&self, receiver: String, entry: ErrorEntry) {
+        let mut strays = self.strays.lock().expect("stray mutex");
+        if strays.len() >= MAX_STRAY_ERRORS {
+            strays.remove(0);
+        }
+        strays.push((receiver, entry));
     }
 
     /// Receive the snapshots published from now on.
@@ -248,6 +273,11 @@ impl Handle {
     /// The most recent snapshot, without waiting for the next one.
     pub fn latest(&self) -> Option<Snapshot> {
         self.shared.latest()
+    }
+
+    /// See [`Shared::take_stray_errors`].
+    pub fn take_stray_errors(&self) -> Vec<(String, ErrorEntry)> {
+        self.shared.take_stray_errors()
     }
 
     /// Receive every snapshot published from now on.
@@ -582,15 +612,17 @@ impl<T: Transport> DeviceTask<T> {
     /// something: explaining the failure drains the queue, and what was
     /// in it first was not the failure's doing.  They are real errors
     /// from the receiver and the only place they would otherwise go is
-    /// nowhere, so they are said out loud.  The daemon's periodic drain
-    /// catches these in the ordinary case; this is the path where a
-    /// failure got to them first.
+    /// nowhere, so they are said out loud and kept for the journal.
+    /// The daemon's periodic drain catches these in the ordinary case;
+    /// this is the path where a failure got to them first.
     fn report_strays(&mut self) {
+        let receiver = self.device.identity().to_string();
         for stray in self.device.session().take_stray_errors() {
             eprintln!(
                 "smartclock: the receiver had also raised {} {}, unread before now",
                 stray.code, stray.message
             );
+            self.shared.keep_stray(receiver.clone(), stray);
         }
     }
 

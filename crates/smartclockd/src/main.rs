@@ -335,6 +335,7 @@ fn main() -> Result<()> {
                     if let (true, true, Some(receiver)) =
                         (attached, settled, recorder.log.current_receiver())
                     {
+                        record_strays(&journal_handle, &identity, &mut recorder.log);
                         journal.pass(
                             &journal_handle,
                             dialect,
@@ -483,6 +484,27 @@ fn record_alarm(
     match log.record_event("alarm", alarm.bits(), &decoded) {
         Ok(()) => eprintln!("smartclockd: receiver alarm now {decoded}"),
         Err(e) => eprintln!("smartclockd: could not record an alarm change: {e}"),
+    }
+}
+
+/// Journal the errors a failure read off the receiver before the drain
+/// could, which are gone from its queue and exist nowhere else.
+///
+/// Only those raised by `attached`, the receiver the log is filing
+/// under now; one kept from a unit since detached cannot be filed under
+/// it any more, and is said out loud instead.
+fn record_strays(handle: &Handle, attached: &str, log: &mut db::Log) {
+    for (from, entry) in handle.take_stray_errors() {
+        if from != attached {
+            eprintln!(
+                "smartclockd: not journalling {} {} from {from}, which is no longer attached",
+                entry.code, entry.message
+            );
+            continue;
+        }
+        if let Err(e) = log.record_error(entry.code, &entry.message) {
+            eprintln!("smartclockd: could not record an error: {e}");
+        }
     }
 }
 
@@ -695,9 +717,17 @@ mod tests {
     use super::Recorder;
     use super::db;
     use super::queued;
+    use super::record_strays;
+    use smartclock::device::Device;
+    use smartclock::session::Config;
+    use smartclock::session::Session;
     use smartclock::snapshot::Freshness;
     use smartclock::snapshot::Snapshot;
+    use smartclock::task;
+    use smartclock::task::Cadence;
     use smartclock::types::AlarmCondition;
+    use smartclock_sim::receiver::Receiver;
+    use smartclock_sim::transport::SimTransport;
     use std::sync::mpsc::channel;
     use std::time::Duration;
 
@@ -711,6 +741,44 @@ mod tests {
         assert_eq!(queued(&rx, Duration::ZERO), Some(Vec::new()));
         drop(tx);
         assert_eq!(queued::<i32>(&rx, Duration::ZERO), None);
+    }
+
+    #[test]
+    fn an_error_a_failed_command_read_first_is_journalled() {
+        let mut simulated = Receiver::default();
+        simulated.queue_error(-313, "Calibration memory lost");
+        let identity = simulated.identity.clone();
+        let device = Device::open(Session::new(
+            SimTransport::new(simulated),
+            Config::default(),
+        ))
+        .expect("open the simulated receiver");
+        let (handle, _joiner) = task::spawn(device, Cadence::default());
+        // Refused while locked; explaining the refusal reads the queue,
+        // and the -313 ahead of it comes off with it.
+        assert!(
+            handle
+                .request(":SYNChronization:HOLDover:TUNCertainty:PRESent?")
+                .is_err()
+        );
+
+        let path =
+            std::env::temp_dir().join(format!("smartclockd-strays-{}.db", std::process::id()));
+        let wipe = || {
+            for suffix in ["", "-wal", "-shm"] {
+                let mut name = path.clone().into_os_string();
+                name.push(suffix);
+                let _ = std::fs::remove_file(name);
+            }
+        };
+        wipe();
+        let mut log = db::Log::open(&path).expect("open the database");
+        log.note_receiver(&identity).expect("note the receiver");
+        record_strays(&handle, &identity, &mut log);
+        let (errors, _, _) = log.journal_counts().expect("count");
+        drop(log);
+        wipe();
+        assert_eq!(errors, 1);
     }
 
     #[test]
