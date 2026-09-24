@@ -142,8 +142,11 @@ Its handler copies the 32-bit value at `0x102c0c` into its reply,
 tagged with the halfword `0xfff6` (−10), when the flag at `0x102c10` is
 set.  That value is a single-precision float in seconds: `pll_normal`
 stores it there as the float sum of the readings divided by their
-count, converted to float (below).  What the −10 tag means to the reply
-formatter was not traced.  The `PTIMe` node's handler was not traced.
+count, converted to float (below).  The receiver prints the value to
+10⁻¹⁰ s: seven readings -- one in a recorded transcript, six from a
+58503A through the daemon -- are all whole tenths of a nanosecond,
+which is what a −10 resolution would give.  That the reply formatter
+uses the tag that way was not traced.  The `PTIMe` node's handler was not traced.
 
 ### The ten-second average
 
@@ -237,7 +240,7 @@ floating point.  Written out, with the addresses the values live at:
 | τ | `0x102548` | the loop's time constant |
 | G | `0x102c28` | a gain; `0x102c30` and `0x102c34` hold 1/G |
 | c | `0x1023cc` | a constant from the checksummed block at `0x400080` |
-| s | -- | what `FUN_000324b0(6)` returns, read once per call |
+| s | -- | the oscillator current: `FUN_000324b0(6)`, channel 6 of 8 measured channels |
 | M | `0x102c38` | a clamp, set to 6.25 × 10⁻¹⁰ / \|G\| |
 | u | `0x10285e` | the EFC value the update produces |
 
@@ -276,6 +279,23 @@ step so that the EFC does not jump, and then hands over to
 `pll_normal`.  The Z3816A's matching code, `0x47ede` to `0x47fce`,
 holds the 5.0 at `0x47efe`; the settling condition was not confirmed
 there.
+
+### s, the oscillator current
+
+`FUN_000324b0(n)` returns channel n of eight measured channels, each a
+48-byte record at `0x102258` + 0x30·n: the live value when the flag at
+`0x10225c` + 0x30·n is set, and otherwise a default from a ROM table at
+`0x325b2` + 0x2a·n.  The channels' names follow that table at
+`0x326e6`, in order:
+
+    12B  5V  12C  -12B  -12C  -12D  Oscillator current  Antenna current
+
+and their defaults are 12, 5, 12, −11.5, −11.5, −11.5, 250 and 50.  The
+loop reads channel 6, the oscillator current, so the term c·s is a
+stored constant times the oscillator current.  The Z3801A's image reads
+channel 3 of its own function, `FUN_00022fd2`; its report strings list
+Temperature, 5V, +15V, −15V, Oven, Double oven and Antenna current, but
+which of those is its channel 3 was not traced.
 
 ### τ and G
 
@@ -465,15 +485,20 @@ there.  The unpacker takes the same opcodes.
 
 ## What is not established
 
-- τ's own value at power-up: its only writer is `loop_time`, and the
-  RAM initialisation was not traced.
+- τ's own value in service.  Startup clears RAM from `0x100c3c` to
+  `0x110000`, which includes τ, and the only code that writes it is
+  `loop_time`; no text in either image runs `loop_time`.  Its other
+  references read it: `pll_normal` at `0x48260`, and `startup_pll` at
+  `0x47eda` and `0x47f6c`.  Where a working value comes from was not
+  found.
 - The condition under which `startup_pll` starts lengthening its time
   constant: reported from the Z3801A's image as sixteen consecutive
   means within ±150 ns, but no constant of 1.5 × 10⁻⁷ is stored in
   either image as a float or a double.
-- What p, q, r and the term d are, and what `FUN_000324b0(6)` and
-  `FUN_00023818` read.
-- What x₀ holds by default.
+- What p, q, r and the term d are, and what `FUN_00023818` reads.
+- x₀ is cleared at `0x4b1dc` and otherwise written only by `phase_off`;
+  whether anything calls `phase_off` other than the console was not
+  traced.
 - What the console does on the port once started, and whether any word
   returns the port to SCPI short of a power cycle: the code at `0x230ba`
   and `0x2fe06` was not traced.  Nothing was sent to a receiver to find
