@@ -35,8 +35,8 @@ Firmware images
 
 Read-only images of the instruments' own program ROMs, from which the
 SCPI command tree in `docs/z3801-tree.md` was extracted and against
-which claims about the command set are checked.  CPU32 code (68331 or
-68332), big-endian, loaded at address zero.
+which claims about the command set are checked.  CPU32 code, big-endian, loaded at address zero; see
+`docs/firmware.md` for which part.
 
   z3801a-3543.bin            Z3801A firmware, revision 3543.  Copyright
                              Hewlett-Packard 1993.
