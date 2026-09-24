@@ -86,6 +86,25 @@ as the SCPI manuals.
                              and GT+ Oncore, which do not suffer the
                              1024 week rollover these instruments do.
 
+Z3801A owner's description
+--------------------------
+
+  Z3801A-Outer-Oven-Description.pdf
+                             "Z3801A Outer Oven Description", by an
+                             owner who does not name themself, from
+                             their own unit (the PDF's metadata names
+                             David G. Mason as its maker, in 2018): the
+                             outer-oven controller's schematic and how
+                             the processor enables it.  Once on
+                             ko4bb.com as `Z3801A_Outer_Oven/Web_Page`;
+                             this copy is the PDF attached to a
+                             time-nuts message of 7 December 2022,
+                             febo.com/pipermail/time-nuts_lists.febo.com/
+                             attachments/20221207/86329414/attachment.pdf.
+                             Its own terms: "intended for academic
+                             purposes only and may not be used for
+                             businesses of any kind."
+
 NIST
 ----
 

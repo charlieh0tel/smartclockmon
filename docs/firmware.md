@@ -463,9 +463,10 @@ reported, and it agrees with the code.
 - An owner's "Z3801A Outer Oven Description", with a schematic drawn
   from their own unit, was on ko4bb.com and survives as a PDF attached
   to a time-nuts message of December 2022
-  (<http://febo.com/pipermail/time-nuts_lists.febo.com/attachments/20221207/86329414/attachment.pdf>,
-  from <https://febo.com/pipermail/time-nuts_lists.febo.com/2022-December/106993.html>;
-  the author is not named).  It places the whole controller on the
+  (<https://febo.com/pipermail/time-nuts_lists.febo.com/2022-December/106993.html>);
+  a copy is `third_party/Z3801A-Outer-Oven-Description.pdf`.  The page
+  does not name its author; the PDF's metadata names David G. Mason as
+  its maker, in 2018.  It places the whole controller on the
   power-supply board: an AD586 reference feeding a Wheatstone bridge
   whose NTC (100 kΩ at 25 °C, β 4850, so 16.21 kΩ at about 62.5 °C)
   is in the outer oven; an LT1077 op-amp "used as a PI servo
