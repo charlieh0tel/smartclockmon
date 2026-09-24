@@ -316,7 +316,7 @@ floating point.  Written out, with the addresses the values live at:
 | Symbol | Address | What it is |
 | ------ | ------- | ---------- |
 | x̄ | `0x102c0c` | the mean of the ten readings -- what the query returns |
-| x₀ | `0x102c1c` | the setpoint subtracted from it |
+| x₀ | `0x102c1c` | the setpoint subtracted from it: cleared at `0x4b1dc`, otherwise written only by the console word `phase_off` (`0x2b87c`), which nothing else calls |
 | f | `0x102be0` | the filtered error, kept between updates |
 | I | `0x102728` | the integrator |
 | B | `0x102be4` | a base EFC |
@@ -981,8 +981,6 @@ there.  The unpacker takes the same opcodes.
   name comes from an owner's description of the board, not from the
   image.
 - What sits on chip select 7 at `0x302000`, whose bit 8 chooses G.
-- x₀ is cleared at `0x4b1dc` and otherwise written only by `phase_off`
-  (`0x2b87c`), which nothing calls but the console's word table.
 - Which driver pSOS device 0, the console's, selects: the I/O switch
   table was not found in ROM.  Whether any sequence of the console's
   pSOS words gets SCPI back short of a power cycle was not tried.
