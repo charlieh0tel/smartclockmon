@@ -650,6 +650,13 @@ Four things about gaps that are easy to get wrong, and were:
   both runs was bent by the fraction -- four parts in ten thousand for
   a half-second shift between two runs of two hundred readings.
 
+On a plain gapless record the estimator is checked against an
+independent implementation: `crates/smartclock/tests/adev_reference.rs`
+holds allantools 2024.06's `oadev` values for a thousand-reading phase
+record, and the script beside it regenerates them.  They agree to one
+part in 10^9 at every tau from 1 to 200 s, with the same count of
+differences at each.
+
 A curve carries the count of readings, holes and segments with it,
 because a curve alone cannot be judged: one drawn from a run that is
 mostly holes looks exactly like one drawn from a clean day.  Points
