@@ -140,6 +140,10 @@ async function read() {
     const r = await fetch("/api/sky");
     if (!r.ok) throw new Error(`the daemon answered ${r.status}`);
     const s = await r.json();
+    // A failure the server could describe comes back as 200 with an
+    // error in it, not as an HTTP status.
+    if (s.error) throw new Error(s.error);
+    if (!s.screen) throw new Error("the daemon answered with no status screen");
     sky(s.screen);
     $("state").innerHTML =
       `<span class="pill ok">read at ${esc(new Date().toLocaleTimeString())}</span>` +

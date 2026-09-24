@@ -247,7 +247,13 @@ function table(d) {
     "</tbody>";
 }
 
+// Which load is the latest.  A long range can take longer to measure
+// than a short one asked for after it, and the slower answer must not
+// land on top of the one the reader is now looking at.
+let latest = 0;
+
 async function load() {
+  const mine = ++latest;
   $("state").innerHTML = `<span class="pill">measuring...</span>`;
   const q = new URLSearchParams();
   if (range === null) {
@@ -260,6 +266,10 @@ async function load() {
     const r = await fetch(`/api/adev?${q}`);
     if (!r.ok) throw new Error(`the server answered ${r.status}`);
     const d = await r.json();
+    if (mine !== latest) return;
+    // A failure the server could describe comes back as 200 with an
+    // error in it, not as an HTTP status.
+    if (d.error) throw new Error(d.error);
     draw(d.points);
     table(d);
     // Coverage travels with the curve because the curve cannot show
@@ -277,6 +287,7 @@ async function load() {
       stat(`${complete}%`, "complete") +
       stat(d.holes, "holes");
   } catch (e) {
+    if (mine !== latest) return;
     draw([]);
     table({ points: [] });
     $("state").innerHTML = `<span class="pill down">${esc(e.message)}</span>`;
