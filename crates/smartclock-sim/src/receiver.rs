@@ -144,6 +144,8 @@ pub struct Receiver {
     log_cleared: bool,
     /// How many times the log has been refilled; see [`log_entry`].
     log_era: i64,
+    /// An entry that reads as it did before the refill.
+    log_unchanged: Option<i64>,
     /// Event registers, latched until read.
     ///
     /// Modelled rather than answered from the conditions, because the
@@ -234,6 +236,7 @@ impl Default for Receiver {
             log_entries: LOG_ENTRIES,
             log_cleared: false,
             log_era: 0,
+            log_unchanged: None,
         }
     }
 }
@@ -382,6 +385,14 @@ impl Receiver {
         self.log_era += 1;
         self.log_cleared = false;
         self.log_entries = LOG_ENTRIES;
+    }
+
+    /// As [`Receiver::refill_log`], with entry `same` reading exactly as
+    /// it did before: the receiver repeats a power-on stamp and message,
+    /// so one matching entry is not proof of the same log.
+    pub fn refill_log_matching(&mut self, same: i64) {
+        self.refill_log();
+        self.log_unchanged = Some(same);
     }
 
     /// How many diagnostic log entries are held.
@@ -594,7 +605,12 @@ impl Receiver {
                 } else if self.log_cleared {
                     Answer::line(CLEARED_ENTRY.to_owned())
                 } else {
-                    Answer::line(log_entry(entry, self.log_era))
+                    let era = if self.log_unchanged == Some(entry) {
+                        0
+                    } else {
+                        self.log_era
+                    };
+                    Answer::line(log_entry(entry, era))
                 }
             }
             CommandId::LogOldest => Answer::line(if self.log_cleared {

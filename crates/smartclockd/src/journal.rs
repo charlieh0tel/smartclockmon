@@ -175,7 +175,10 @@ pub(crate) struct Journal {
     ///
     /// A log cleared and refilled to at least its old count while the
     /// link was down numbers the same way, so the count cannot show it.
-    /// The newest held entry reading differently can.
+    /// Held entries reading differently can.  Three are compared --
+    /// the newest, the oldest and one between -- because the receiver
+    /// repeats a power-on stamp and message, so one entry matching is
+    /// not proof of the same log.
     verified: bool,
 }
 
@@ -335,8 +338,12 @@ impl Journal {
         // An error here ends the pass before anything is copied or
         // erased on the strength of a span nobody checked.
         let refilled = match self.copied {
-            Some((_, high)) if !self.verified && high <= count => {
-                !self.holds(handle, dialect, log, high)?
+            Some((low, high)) if !self.verified && high <= count => {
+                let mut same = true;
+                for entry in [high, low, low + (high - low) / 2] {
+                    same = same && self.holds(handle, dialect, log, entry)?;
+                }
+                !same
             }
             _ => false,
         };
@@ -780,6 +787,45 @@ mod tests {
         // Cleared and refilled while the daemon was away, then a
         // restart that is allowed to erase.
         receiver.lock().expect("receiver").refill_log();
+        let mut restarted = Journal::default().clearing_when_full();
+        restarted.pass(&handle, dialect, id, 2, &mut log);
+
+        assert_eq!(receiver.lock().expect("receiver").log_entries(), 222);
+        assert_eq!(log.log_generation(id).expect("generation"), 1);
+        drop(log);
+        for suffix in ["", "-wal", "-shm"] {
+            let mut name = path.clone().into_os_string();
+            name.push(suffix);
+            let _ = std::fs::remove_file(name);
+        }
+    }
+
+    #[test]
+    fn a_refilled_log_whose_newest_entry_reads_the_same_is_still_caught() {
+        let simulated = Receiver::default();
+        let identity = simulated.identity.clone();
+        let dialect = simulated.dialect;
+        let transport = SimTransport::new(simulated);
+        let receiver = transport.receiver().clone();
+        let device = Device::open(Session::new(transport, Config::default()))
+            .expect("open the simulated receiver");
+        let (handle, _joiner) = task::spawn(device, Cadence::default());
+        let path =
+            std::env::temp_dir().join(format!("smartclockd-matching-{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let mut log = Log::open(&path).expect("open the database");
+        log.note_receiver(&identity).expect("note the receiver");
+        let id = log.current_receiver().expect("a receiver");
+
+        // Everything copied, with erasing off.
+        let mut journal = Journal::default();
+        while log.log_complete(id, 0, 222).ok() != Some(true) {
+            journal.pass(&handle, dialect, id, 1, &mut log);
+        }
+
+        // Cleared and refilled while the daemon was away, then a
+        // restart that is allowed to erase.
+        receiver.lock().expect("receiver").refill_log_matching(222);
         let mut restarted = Journal::default().clearing_when_full();
         restarted.pass(&handle, dialect, id, 2, &mut log);
 
