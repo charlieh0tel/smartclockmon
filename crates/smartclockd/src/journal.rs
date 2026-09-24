@@ -99,6 +99,13 @@ const PASS_BUDGET: Duration = Duration::from_secs(20);
 /// How many error queue entries one pass will take.
 const ERRORS_PER_PASS: usize = 64;
 
+/// Said when the receiver's queue reports that it overflowed.
+///
+/// The -350 entry is recorded as the receiver gave it; this says what
+/// it means, since the receiver does not count what it threw away.
+pub(crate) const LOST_TO_OVERFLOW: &str = "smartclockd: the receiver's error queue overflowed and \
+     discarded its most recent errors; how many is not known";
+
 /// How many diagnostic log entries one pass will read.
 ///
 /// Each is a separate query, and a full log is 222 of them -- about
@@ -310,6 +317,9 @@ impl Journal {
                 "smartclockd: the receiver reported {} {}",
                 entry.code, entry.message
             );
+            if entry.is_overflow() {
+                eprintln!("{LOST_TO_OVERFLOW}");
+            }
         }
         eprintln!(
             "smartclockd: the error queue still had entries after {ERRORS_PER_PASS}; \

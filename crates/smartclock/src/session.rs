@@ -243,6 +243,13 @@ impl<T: Transport> Session<T> {
             }
         }
         match own {
+            // The command's own error was discarded by a full queue;
+            // the marker describes the queue, and is kept with the
+            // other errors the command did not cause.
+            Some(entry) if entry.is_overflow() => {
+                self.remember_stray(entry);
+                Err(Error::ErrorLost { prompt })
+            }
             Some(entry) => Err(Error::Device {
                 code: entry.code,
                 message: entry.message,

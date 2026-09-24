@@ -828,6 +828,9 @@ impl fmt::Display for UtcOffset {
     }
 }
 
+/// SCPI's "Queue overflow".
+const QUEUE_OVERFLOW: i32 = -350;
+
 /// An entry from the receiver's error queue.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorEntry {
@@ -842,6 +845,13 @@ impl ErrorEntry {
     /// Whether this entry means "no error".
     pub fn is_empty(&self) -> bool {
         self.code == 0
+    }
+
+    /// Whether this is the marker a full queue leaves in its last slot,
+    /// having discarded the most recent errors (097-59551-02 5-31).
+    /// How many were discarded is not recorded anywhere.
+    pub fn is_overflow(&self) -> bool {
+        self.code == QUEUE_OVERFLOW
     }
 
     /// Whether the receiver declined because of its current state

@@ -363,6 +363,13 @@ keeps such strays, each with the identity of the receiver that raised
 it, and the daemon journals them before each pass; one from a receiver
 no longer attached is reported and not filed under the unit that is.
 
+A full queue replaces its last entry with -350 and discards the newest
+errors (097-59551-02 5-31).  A command that fails then finds only the
+marker, which describes the queue and not the command, so the command
+reports its error as lost and the marker is kept as a stray.  The
+journal records -350 as the receiver gave it and says that an unknown
+number of errors went with it.
+
 **The diagnostic log is copied out entry by entry.**  The count was
 already polled, which recorded that seven things had happened and never
 what.  `:DIAG:LOG:READ:ALL?` returns the lot in one reply, which for a

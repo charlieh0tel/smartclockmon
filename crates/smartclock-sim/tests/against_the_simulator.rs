@@ -847,6 +847,27 @@ fn a_steady_stream_of_refreshes_does_not_starve_the_slow_tier() {
 /// here: the right code comes back, and the older error is still
 /// available rather than gone.
 #[test]
+fn a_command_whose_error_was_lost_to_a_full_queue_says_so() {
+    // A full queue replaces its last entry with -350 and discards the
+    // newest, so a command failing then leaves only the -350 behind.
+    // That is the queue's state, not the command's error.
+    let mut receiver = Receiver::default();
+    for _ in 0..MAX_ERRORS + 8 {
+        assert!(!receiver.respond(":NO:SUCH:COMMAND?").accepted);
+    }
+    let mut device = device(receiver);
+    match device.session().query(":NO:SUCH:COMMAND?") {
+        Err(smartclock::error::Error::ErrorLost { .. }) => {}
+        other => panic!("expected the error to be reported lost, got {other:?}"),
+    }
+    let strays = device.session().take_stray_errors();
+    assert!(
+        strays.iter().any(|e| e.code == -350),
+        "the overflow marker should be kept as a stray: {strays:?}"
+    );
+}
+
+#[test]
 fn an_error_is_attributed_to_the_command_that_caused_it() {
     let mut receiver = Receiver::default();
     // Something the receiver raised on its own, unread.

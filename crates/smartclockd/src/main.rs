@@ -13,6 +13,7 @@ mod server;
 
 use crate::audit::Audit;
 use crate::journal::Journal;
+use crate::journal::LOST_TO_OVERFLOW;
 use crate::server::Policy;
 
 #[cfg(unix)]
@@ -504,6 +505,9 @@ fn record_strays(handle: &Handle, attached: &str, log: &mut db::Log) {
         }
         if let Err(e) = log.record_error(entry.code, &entry.message) {
             eprintln!("smartclockd: could not record an error: {e}");
+        }
+        if entry.is_overflow() {
+            eprintln!("{LOST_TO_OVERFLOW}");
         }
     }
 }

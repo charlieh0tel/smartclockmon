@@ -55,6 +55,15 @@ pub enum Error {
         prompt: String,
     },
 
+    /// The receiver signalled an error, but its error queue had
+    /// overflowed and discarded it: the newest entry read was the
+    /// overflow marker, not the command's own error.
+    #[error("receiver signalled error {prompt:?} but its full error queue discarded it")]
+    ErrorLost {
+        /// The error prompt that was seen.
+        prompt: String,
+    },
+
     /// A reply could not be parsed as the command's documented format.
     #[error("cannot parse {reply:?} as {expected}")]
     Parse {
