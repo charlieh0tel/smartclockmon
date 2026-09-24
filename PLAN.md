@@ -659,11 +659,14 @@ Four things about gaps that are easy to get wrong, and were:
   both runs was bent by the fraction -- four parts in ten thousand for
   a half-second shift between two runs of two hundred readings.
 
-On a plain gapless record the estimator is checked against an
-independent implementation: `crates/smartclock/tests/adev_reference.rs`
-holds allantools 2024.06's `oadev` values for a thousand-reading phase
-record, and the script beside it regenerates them.  They agree to one
-part in 10^9 at every tau from 1 to 200 s, with the same count of
+On a plain gapless record the estimator is checked against published
+values and an independent implementation, in
+`crates/smartclock/tests/adev_reference.rs`.  The 1000-point test data
+set of NIST SP 1065 section 12.4 gives Table 31's overlapping Allan
+deviation at tau of 1, 10 and 100 to the seven figures published.
+allantools 2024.06's `oadev` on a thousand-reading phase record, with
+a script beside the test to regenerate its values, agrees to one part
+in 10^9 at every tau from 1 to 200 s, with the same count of
 differences at each.
 
 The web view's query thins the held readings in SQL, keeping a row

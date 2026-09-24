@@ -59,6 +59,14 @@ as the SCPI manuals.
                              and status messages it documents, @@Bn
                              for six channels and @@En for eight, are
                              what carry the negative sawtooth residual.
+  vponcoreengnotesarchive.pdf
+                             "VP Oncore Engineering Notes", Motorola
+                             Position and Navigation Systems Business,
+                             revision 1.0, August 1996, as archived by
+                             Synergy Systems, LLC in July 2002.
+                             Specifications, power, antenna, RTC, 1 PPS
+                             signal definition and serial interface for
+                             the VP Oncore.
   ut-engg-notes.pdf          "Oncore Engineering Note: UT Plus
                              Oncore", Motorola, revision 1.0, March
                              2000.  Mechanical, electrical and 1 PPS
@@ -69,3 +77,15 @@ as the SCPI manuals.
                              based drop-in replacements for the VP, UT+
                              and GT+ Oncore, which do not suffer the
                              1024 week rollover these instruments do.
+
+NIST
+----
+
+The reference for the stability estimators, and the source of the
+published values the Allan deviation is checked against.
+
+  NIST-SP-1065.pdf           W. J. Riley, "Handbook of Frequency
+                             Stability Analysis", NIST Special
+                             Publication 1065, July 2008.  Section 12.4
+                             defines a 1000-point test data set and
+                             Table 31 gives its deviations.
