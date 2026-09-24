@@ -155,8 +155,77 @@ function lost(what, why) {
     (why ? ` <span class="muted">${esc(why)}</span>` : "");
 }
 
+// ------------------------------------------------------------- receiver
+
+// Which receiver the pages that read the log are about.  Null until
+// `chooseReceiver` has run, and then always set: the server defaults to
+// the unit seen most recently, and pinning that choice keeps a later
+// reload of one panel from disagreeing with another.
+let unit = null;
+
+function withUnit(q) {
+  if (unit !== null) q.set("receiver", unit);
+  return q;
+}
+
+// Carry the chosen receiver on the links between pages, so moving from
+// history to stability keeps the unit rather than falling back to the
+// newest.  In the address too, so a reload or a shared link does.
+function carryUnit() {
+  const q = unit === null ? "" : `?receiver=${encodeURIComponent(unit)}`;
+  for (const a of document.querySelectorAll("nav a")) {
+    a.search = q;
+  }
+  history.replaceState(null, "", location.pathname + q);
+}
+
+// Fill the receiver selector, and call `changed` when it changes.
+//
+// The unit comes from the address when it names one the log holds, and
+// is otherwise the one seen most recently.  The bar is hidden for a log
+// with one unit, or none: a control whose only option is the one
+// already chosen is noise.  Shown the moment a second unit appears in
+// the log, which is when the plots would otherwise start interleaving
+// two oscillators without saying so.
+async function chooseReceiver(changed) {
+  const list = await getJson("/api/receivers");
+  if (list.error || !Array.isArray(list) || list.length === 0) return;
+  const asked = new URLSearchParams(location.search).get("receiver");
+  unit = (list.find((r) => String(r.id) === asked) ?? list[0]).id;
+  carryUnit();
+  if (list.length < 2) return;
+  const select = $("unit");
+  select.innerHTML = list
+    .map((r) => {
+      const name = [r.model, r.serial].filter(Boolean).join(" ");
+      return `<option value="${r.id}">${esc(name || `receiver ${r.id}`)}</option>`;
+    })
+    .join("");
+  select.value = String(unit);
+  const seen = () => {
+    const r = list.find((x) => String(x.id) === select.value);
+    $("unit-seen").textContent = r ? `last seen ${r.last_seen.slice(0, 19)}Z` : "";
+  };
+  seen();
+  select.onchange = () => {
+    unit = Number(select.value);
+    carryUnit();
+    seen();
+    changed();
+  };
+  $("unit-bar").hidden = false;
+}
+
 // Every page carries the strip, so every page keeps it current.
 addEventListener("DOMContentLoaded", () => {
+  // A page with no selector of its own still passes the unit along, so
+  // a detour through the sky does not drop it.
+  const asked = new URLSearchParams(location.search).get("receiver");
+  if (asked !== null) {
+    for (const a of document.querySelectorAll("nav a")) {
+      a.search = `?receiver=${encodeURIComponent(asked)}`;
+    }
+  }
   if (!$("status")) return;
   try {
     const last = sessionStorage.getItem("snapshot");

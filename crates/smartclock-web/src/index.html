@@ -142,17 +142,6 @@ const MATE = "#fbbf24";
 
 // ---------------------------------------------------------------- charts
 
-// Which receiver every query is about.  Null until the selector has
-// loaded, and then always set: the server defaults to the unit seen
-// most recently, and the page pins that choice so a later reload of
-// one panel cannot disagree with another.
-let unit = null;
-
-function withUnit(q) {
-  if (unit !== null) q.set("receiver", unit);
-  return q;
-}
-
 async function fetchSeries(cols, from, to) {
   const q = new URLSearchParams({ columns: cols.join(","), points: 1500 });
   if (from) q.set("from", Math.round(from));
@@ -685,42 +674,12 @@ async function loadJournal() {
 
 // ------------------------------------------------------------------ boot
 
-// Fill the receiver selector, and pin the choice.
-//
-// Hidden for a log with one unit, or none: a control whose only option
-// is the one already chosen is noise.  Shown the moment a second unit
-// appears in the log, which is when the plots would otherwise start
-// interleaving two oscillators without saying so.
-async function units() {
-  const list = await getJson("/api/receivers");
-  if (list.error || !Array.isArray(list) || list.length === 0) return;
-  unit = list[0].id;
-  if (list.length < 2) return;
-  const select = $("unit");
-  select.innerHTML = list
-    .map((r) => {
-      const name = [r.model, r.serial].filter(Boolean).join(" ");
-      return `<option value="${r.id}">${esc(name || `receiver ${r.id}`)}</option>`;
-    })
-    .join("");
-  select.value = String(unit);
-  const seen = () => {
-    const r = list.find((x) => String(x.id) === select.value);
-    $("unit-seen").textContent = r ? `last seen ${r.last_seen.slice(0, 19)}Z` : "";
-  };
-  seen();
-  select.onchange = () => {
-    unit = Number(select.value);
-    seen();
+(async function () {
+  await chooseReceiver(() => {
     zoom = null;
     load();
     loadJournal();
-  };
-  $("unit-bar").hidden = false;
-}
-
-(async function () {
-  await units();
+  });
   const info = await getJson("/api/info");
   $("about").textContent = info.error
     ? info.error

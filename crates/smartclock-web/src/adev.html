@@ -18,6 +18,15 @@
   <a href="/adev" aria-current="page">Stability</a>
 </nav>
 
+<div class="panel" id="unit-bar" hidden>
+  <div class="controls">
+    <label for="unit">Receiver</label>
+    <select id="unit"></select>
+    <span class="grow"></span>
+    <span id="unit-seen" class="muted"></span>
+  </div>
+</div>
+
 <div class="panel" id="state"><span class="muted">loading...</span></div>
 
 <div class="panel">
@@ -263,7 +272,7 @@ async function load() {
     q.set("from", String(Math.floor(Date.now() / 1000) - range));
   }
   try {
-    const r = await fetch(`/api/adev?${q}`);
+    const r = await fetch(`/api/adev?${withUnit(q)}`);
     if (!r.ok) throw new Error(`the server answered ${r.status}`);
     const d = await r.json();
     if (mine !== latest) return;
@@ -332,5 +341,5 @@ addEventListener("resize", () => {
   chart.setSize({ width: w, height: height(w) });
 });
 
-load();
+chooseReceiver(load).then(load);
 </script>
