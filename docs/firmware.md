@@ -35,7 +35,10 @@ follows describes the design family and is not a statement about the
 - The oscillator is steered by a **proportional-integral loop on that
   same ten-second mean**, run every ten seconds.  Both gains follow
   from one time constant τ and one gain G: the proportional gain goes
-  as 1/(Gτ) and the integral as 1/(4Gτ²).  Its phase input is the
+  as 1/(Gτ) and the integral as 1/(4Gτ²).  **τ is 500 s** by default in
+  the Z3816A and 1000 s in the Z3801A, from a block of defaults in ROM;
+  after power-up the loop starts at 150 s and lengthens by 5 s every
+  update until it reaches τ.  Its phase input is the
   interval mean; no read of the sawtooth was found in it.
 - The **outer oven** of a double-oven oscillator is switched, not
   regulated, by the firmware: one port bit, turned on when the
@@ -315,7 +318,39 @@ which of those is its channel 3 was not traced.
 `FUN_0002b358` sets τ from its argument.  Nothing calls it directly; a
 pointer to it sits in the console's word table at `0x2d368`, beside the
 name `loop_time`, and the message `max loop time = %d` (`0x2c370`)
-prints τ.
+prints τ.  It is the only code that writes τ's address, and the start-up
+code clears the RAM τ lives in, so its value in service comes from
+somewhere else: a 25-byte block of defaults in ROM.
+
+τ lives at offset 0x14 of a 25-byte block at `0x102534`.  The
+initialisation routine `FUN_00022c7c` fills that block one of two ways:
+
+- from ROM, `memcpy(0x102534, 0x40174, 0x19)` (`0x22dd8`, `0x22e06`),
+  whose bytes at `0x40188` are `43 fa 00 00`, the float 500.0.  The same
+  routine first copies a longer block of defaults, `0x400de` to
+  `0x40173`, into `0x10249e` to `0x102532`;
+- or from the region `0x100000` to `0x100c3b`, which the start-up code
+  does not clear (its clear runs from `0x100c3c`) and which the pllp
+  task keeps writing its state into (`0x4b5fc`: the τ block to
+  `0x100b82`, the loop block to `0x100622`, another to `0x100004`).
+  That copy is taken when a byte checksum of the region (`FUN_00040056`
+  over 0xb9c bytes) matches the word stored at its start, the flag word
+  at `0x100002` is 1, the byte at `0x10262c` is clear and bits 7 and 6
+  of the reset-status register at `0xfffa07` are clear; then the loop
+  block, the health-monitor records and the τ block are all restored
+  and the log gets code 0x19.  Otherwise the defaults are loaded and
+  code 0x1b is logged.
+
+So a value set with `loop_time` survives a reset that leaves RAM
+intact, and 500 s is what the loop uses after a power-up.  The startup
+ramp (above) runs its own constant from 150 s to τ − 5 in steps of 5 s
+per ten-second update, so it reaches 500 s about 700 s after it
+begins.
+
+The Z3801A's image does the same with its block at `0x101e6e`, filled
+from ROM `0x2f846` (`0x12ce0`), whose float at offset 0x14 is
+`44 7a 00 00`: 1000.0.  Its ramp from 150 s to 1000 s takes about
+1700 s.
 
 G is a constant.  `FUN_0004b088` reads the hardware word at
 `0x302000` and passes −1.25 × 10⁻¹² if bit 8 is set and
@@ -412,7 +447,8 @@ it afterwards.
 ### The Z3801A
 
 The same two machines (`FUN_00045ec6` at `0x45f84`, `FUN_000461c0` at
-`0x461fe`) set the same bit and a flag at `0x101b6f`.  Its decision,
+`0x461fe`) set the same bit and a flag at `0x101b6f`; its default
+time constant is 1000 s, against the Z3816A's 500 s.  Its decision,
 `FUN_000230b8`, reads health-monitor channel 5 -- named `Oven` by the
 console's print word (`0x1adfe`) -- and returns true when the filtered
 value is below −2.0.  That channel's reader, the `adc_oven` word,
@@ -678,12 +714,10 @@ there.  The unpacker takes the same opcodes.
 
 ## What is not established
 
-- τ's own value in service.  Startup clears RAM from `0x100c3c` to
-  `0x110000`, which includes τ, and the only code that writes it is
-  `loop_time`; no text in either image runs `loop_time`.  Its other
-  references read it: `pll_normal` at `0x48260`, and `startup_pll` at
-  `0x47eda` and `0x47f6c`.  Where a working value comes from was not
-  found.
+- What the reset-status bits tested at `0xfffa07` mean; the register's
+  layout is in Motorola's MC68331 manual, which is not in `third_party`.
+- What the other 21 bytes of the τ block and the rest of the ROM
+  defaults hold.
 - The condition under which `startup_pll` starts lengthening its time
   constant: reported from the Z3801A's image as sixteen consecutive
   means within ±150 ns, but no constant of 1.5 × 10⁻⁷ is stored in
