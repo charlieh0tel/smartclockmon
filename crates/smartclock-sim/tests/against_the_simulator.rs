@@ -18,6 +18,8 @@ use smartclock::snapshot::Snapshot;
 use smartclock::snapshot::Tier;
 use smartclock::task;
 use smartclock::task::Cadence;
+use smartclock::task::Handle;
+use smartclock::task::Shared;
 use smartclock::types::SmartClockMode;
 use smartclock_sim::receiver::MAX_ERRORS;
 use smartclock_sim::receiver::Receiver;
@@ -537,11 +539,16 @@ fn a_subscriber_that_stops_reading_is_dropped_not_indulged() {
     }
     assert!(seen > 20, "the attentive subscriber only saw {seen}");
 
-    // The stalled one holds at most its backlog, not one per poll.
-    let queued = stalled.try_iter().count();
+    // The stalled one was dropped when its backlog filled: once what
+    // it holds is read, its channel reports the publisher gone rather
+    // than handing it the snapshots published since.
+    let _ = stalled.try_iter().count();
     assert!(
-        queued <= 16,
-        "a subscriber that never read accumulated {queued} snapshots"
+        matches!(
+            stalled.recv_timeout(Duration::from_secs(1)),
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected)
+        ),
+        "a subscriber that never read is still subscribed"
     );
 
     drop(reading);
@@ -578,14 +585,17 @@ fn a_tier_as_slow_as_its_period_does_not_starve_client_commands() {
 fn a_command_waits_a_bounded_time_for_its_answer() {
     // Nothing drains the queue while the link is down, so waiting
     // forever meant a caller blocked until the receiver came back --
-    // possibly hours -- with its thread and its socket held open.
-    let (handle, joiner) = task::spawn(device(Receiver::default()), Cadence::default());
-    let reply = handle
-        .request_within(":SYNChronization:TFOMerit?", Duration::from_secs(5))
-        .expect("a prompt answer");
-    assert_eq!(reply.lines, vec!["+3"]);
-    drop(handle);
-    joiner.join().expect("the device thread");
+    // possibly hours -- with its thread and its socket held open.  Here
+    // nothing serves the queue at all, which is that state.
+    let (requests, _unserved) = std::sync::mpsc::channel();
+    let handle = Handle::new(requests, Shared::new());
+    let started = std::time::Instant::now();
+    let outcome = handle.request_within(":SYNChronization:TFOMerit?", Duration::from_millis(200));
+    assert!(
+        matches!(outcome, Err(smartclock::error::Error::Timeout { .. })),
+        "{outcome:?}"
+    );
+    assert!(started.elapsed() < Duration::from_secs(1));
 }
 
 #[test]
