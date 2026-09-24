@@ -27,7 +27,7 @@ use smartclock::session::Config;
 use smartclock::session::Session;
 use smartclock::task;
 use smartclock::task::Cadence;
-use smartclock::transport::serial::SerialTransport;
+use smartclock::transport;
 use smartclock::transport::serial::Settings;
 use smartclock::types::BaudRate;
 use smartclock::wire::Reading;
@@ -391,7 +391,9 @@ pub(crate) fn from_device(
         baud,
         read_timeout: Duration::from_millis(250),
     };
-    let port = SerialTransport::open(&settings)
+    // Through the same opener as the other tools, so `tcp://host:port`
+    // reaches a network bridge or the simulator here as it does there.
+    let port = transport::open(&settings)
         .with_context(|| format!("opening {device}; is smartclockd holding it?"))?;
     let receiver =
         Device::open(Session::new(port, Config::default())).context("identifying the receiver")?;
@@ -432,4 +434,36 @@ pub(crate) fn from_device(
         Policy::default(),
         cadence,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Update;
+    use super::from_device;
+    use smartclock_sim::net::serve;
+    use smartclock_sim::receiver::Receiver;
+    use smartclock_sim::transport::SimTransport;
+    use std::net::TcpListener;
+    use std::time::Duration;
+
+    /// A simulated receiver on a loopback port, for one connection.
+    fn simulator() -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let address = listener.local_addr().expect("an address");
+        std::thread::spawn(move || {
+            if let Ok((stream, _)) = listener.accept() {
+                let _ = serve(stream, SimTransport::new(Receiver::default()));
+            }
+        });
+        format!("tcp://{address}")
+    }
+
+    #[test]
+    fn direct_mode_opens_a_receiver_by_network_address() {
+        let (updates, ..) = from_device(&simulator(), 9600).expect("open by address");
+        match updates.recv_timeout(Duration::from_secs(10)) {
+            Ok(Update::Reading(_)) => {}
+            other => panic!("expected a reading, got {other:?}"),
+        }
+    }
 }

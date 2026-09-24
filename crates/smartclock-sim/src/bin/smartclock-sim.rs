@@ -5,14 +5,12 @@
 //! to Unix, and the only Linux-specific part of the project is meant to
 //! be the systemd unit.
 //!
-//! Tests do not need this: they use `SimTransport` in process.
+//! Most tests do not need this: they use `SimTransport` in process.
 
-use std::io::Read;
-use std::io::Write;
 use std::net::TcpListener;
-use std::net::TcpStream;
 use std::thread;
 
+use smartclock_sim::net::serve;
 use smartclock_sim::receiver::Receiver;
 use smartclock_sim::transport::SimTransport;
 
@@ -83,31 +81,4 @@ fn main() -> std::io::Result<()> {
 fn parse_error(argument: &str) -> Option<(i32, String)> {
     let (code, message) = argument.split_once(',')?;
     Some((code.trim().parse().ok()?, message.trim().to_owned()))
-}
-
-/// Shuttle bytes between the socket and the simulated receiver.
-fn serve(mut stream: TcpStream, mut sim: SimTransport) -> std::io::Result<()> {
-    stream.set_nodelay(true)?;
-    stream.set_read_timeout(Some(std::time::Duration::from_millis(20)))?;
-    let mut from_client = [0u8; 512];
-    let mut from_receiver = [0u8; 512];
-    loop {
-        match stream.read(&mut from_client) {
-            Ok(0) => return Ok(()),
-            Ok(n) => {
-                sim.write_all(&from_client[..n])?;
-            }
-            Err(e)
-                if matches!(
-                    e.kind(),
-                    std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
-                ) => {}
-            Err(e) => return Err(e),
-        }
-        let n = sim.read(&mut from_receiver)?;
-        if n > 0 {
-            stream.write_all(&from_receiver[..n])?;
-            stream.flush()?;
-        }
-    }
 }
