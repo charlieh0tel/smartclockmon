@@ -23,6 +23,9 @@ pub struct ReplayTransport {
     /// Host bytes written but not yet matched against a Tx record.
     written: Vec<u8>,
     strict: bool,
+    /// Whether dropping it with the transcript unfinished is a failure;
+    /// see the `Drop` impl.
+    must_finish: bool,
 }
 
 impl ReplayTransport {
@@ -42,6 +45,7 @@ impl ReplayTransport {
             pending: VecDeque::new(),
             written: Vec::new(),
             strict: true,
+            must_finish: true,
         })
     }
 
@@ -49,6 +53,13 @@ impl ReplayTransport {
     /// replaying a capture taken with a different command sequence.
     pub fn relaxed(mut self) -> Self {
         self.strict = false;
+        self
+    }
+
+    /// Allow the replay to end partway, for a test whose point is that
+    /// it stops early -- a command the transcript does not contain.
+    pub fn unfinished(mut self) -> Self {
+        self.must_finish = false;
         self
     }
 
@@ -128,6 +139,26 @@ impl Write for ReplayTransport {
 
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
+    }
+}
+
+/// A strict replay that ends with records unread or bytes unmatched
+/// did not replay what it claims to, and says so.
+///
+/// Without this a test could stop partway through its transcript, or
+/// send one command too many at the end, and pass: nothing else ever
+/// looked at whether the conversation it scripted actually happened.
+/// Skipped while already panicking, since a second panic would abort
+/// the test runner and hide the first.
+impl Drop for ReplayTransport {
+    fn drop(&mut self) {
+        if self.strict && self.must_finish && !std::thread::panicking() && !self.exhausted() {
+            panic!(
+                "replay ended with {} records unread and {:?} sent unmatched",
+                self.records.len(),
+                String::from_utf8_lossy(&self.written)
+            );
+        }
     }
 }
 

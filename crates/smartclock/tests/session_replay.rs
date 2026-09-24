@@ -183,19 +183,28 @@ fn silence_times_out_and_reports_what_did_arrive() {
 #[test]
 fn sync_discards_whatever_preceded_the_prompt() {
     // Connecting mid-reply from a previous user must not poison the
-    // first real command.
+    // first real command: after the sync, the first query gets its own
+    // answer, and the transcript must be used up exactly.
     let mut s = session(&[
         ("tx", "\r\n"),
-        ("rx", "leftovers from someone else\r\nscpi> "),
+        ("rx", "leftovers from someone else\r\n+9\r\nscpi> "),
+        ("tx", ":SYNChronization:TFOMerit?\r\n"),
+        ("rx", ":SYNChronization:TFOMerit?\r\n+3\r\nscpi> "),
     ]);
     assert_eq!(s.sync().expect("sync"), Prompt::Ready);
+    let reply = s.query(":SYNChronization:TFOMerit?").expect("query");
+    assert_eq!(reply.lines, vec!["+3"]);
 }
 
 #[test]
 fn replay_rejects_a_command_the_transcript_does_not_contain() {
-    let mut s = session(&[
+    let jsonl = transcript(&[
         ("tx", ":GPS:POSition?\r\n"),
         ("rx", ":GPS:POSition?\r\nscpi> "),
     ]);
+    let transport = ReplayTransport::from_jsonl(&jsonl)
+        .expect("load transcript")
+        .unfinished();
+    let mut s = Session::new(transport, Config::default());
     assert!(s.query(":SOMETHING:ELSE?").is_err());
 }
