@@ -33,9 +33,10 @@ impl Answer {
     }
 }
 
-/// How many errors the queue holds.  Public so a test can state the
-/// bound it expects rather than repeating the number.
-pub const MAX_ERRORS: usize = 32;
+/// How many errors the queue holds: thirty, 097-59551-02 5-31.  Public
+/// so a test can state the bound it expects rather than repeating the
+/// number.
+pub const MAX_ERRORS: usize = 30;
 
 /// SCPI's "Queue overflow", which a full queue reports in place of its
 /// last entry.
