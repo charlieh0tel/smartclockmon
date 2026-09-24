@@ -10,7 +10,6 @@ use anyhow::Context as _;
 use anyhow::Result;
 use rusqlite::Connection;
 use rusqlite::OpenFlags;
-use smartclock::adev;
 use smartclock::adev::Curve;
 use smartclock::adev::Sample;
 
@@ -400,17 +399,7 @@ impl Log {
             samples.push(Sample { at, interval });
             states.push((mode, holdover));
         }
-        // One sample per reading the receiver made, not per poll: it
-        // holds the interval between its own updates, and a repeat is
-        // not a measurement.  The states go with them, or the run would
-        // be cut in the wrong places.
-        let keep = adev::updates(&samples);
-        let samples: Vec<Sample> = keep.iter().map(|&i| samples[i]).collect();
-        let states: Vec<_> = keep.into_iter().map(|i| states[i].clone()).collect();
-        let stride = samples.len().div_euclid(adev::MAX_SAMPLES) + 1;
-        Ok(Curve::measure(&samples, stride, |a, b| {
-            states[a] != states[b]
-        }))
+        Ok(Curve::from_readings(&samples, &states))
     }
 
     pub(crate) fn read(&self, receiver: i64, window: Window, columns: usize) -> Result<History> {

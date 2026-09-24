@@ -12,7 +12,6 @@ use anyhow::Context as _;
 use anyhow::Result;
 use rusqlite::Connection;
 use rusqlite::OpenFlags;
-use smartclock::adev;
 use smartclock::adev::Curve;
 use smartclock::adev::Sample;
 
@@ -327,21 +326,7 @@ impl Log {
             states.push((mode, holdover));
         }
 
-        // Indices, so what the estimator asks about is all this
-        // depends on.  A closure counting its own calls would be
-        // desynchronised the first time a long absence split the run
-        // without asking.
-        // One sample per reading the receiver made, not per poll: it
-        // holds the interval between its own updates, and a repeat is
-        // not a measurement.  The states go with them, or the run would
-        // be cut in the wrong places.
-        let keep = adev::updates(&samples);
-        let samples: Vec<Sample> = keep.iter().map(|&i| samples[i]).collect();
-        let states: Vec<_> = keep.into_iter().map(|i| states[i].clone()).collect();
-        let stride = samples.len().div_euclid(adev::MAX_SAMPLES) + 1;
-        Ok(Curve::measure(&samples, stride, |a, b| {
-            states[a] != states[b]
-        }))
+        Ok(Curve::from_readings(&samples, &states))
     }
 
     /// The oldest and newest readings, so the page can offer a range

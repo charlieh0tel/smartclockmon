@@ -324,6 +324,35 @@ pub struct Curve {
 }
 
 impl Curve {
+    /// Measure readings as logged: one per poll, each with the state the
+    /// receiver was in beside it.
+    ///
+    /// Held repeats are dropped (see [`updates`]), and a run is broken
+    /// between two kept readings if the state changed anywhere between
+    /// them -- among the dropped rows as well as the kept ones.  Checking
+    /// only the kept pair missed a holdover the interval sat still
+    /// through: every row of it was a repeat, all were dropped, the
+    /// readings either side were both locked, and the phase step at the
+    /// relock was measured as instability.
+    ///
+    /// A range too long to grid at full rate is gridded more coarsely;
+    /// see [`MAX_SAMPLES`].
+    pub fn from_readings<S: PartialEq>(samples: &[Sample], states: &[S]) -> Self {
+        let keep = updates(samples);
+        let kept: Vec<Sample> = keep.iter().map(|&i| samples[i]).collect();
+        // broken[k]: the state changed somewhere after kept reading k-1
+        // and up to kept reading k.
+        let broken: Vec<bool> = keep
+            .iter()
+            .enumerate()
+            .map(|(k, &i)| {
+                k > 0 && (keep[k - 1] + 1..=i).any(|j| states.get(j) != states.get(j - 1))
+            })
+            .collect();
+        let stride = kept.len().div_euclid(MAX_SAMPLES) + 1;
+        Self::measure(&kept, stride, |_, b| broken[b])
+    }
+
     /// Measure a set of readings, splitting them where `discontinuous`
     /// says the phase either side is incomparable.
     ///
@@ -500,6 +529,7 @@ fn multipliers(longest: usize, tau0: f64) -> Vec<usize> {
 
 #[cfg(test)]
 mod tests {
+    use super::Curve;
     use super::Run;
     use super::Sample;
     use super::spacing;
@@ -562,6 +592,42 @@ mod tests {
                 10000.0, 20000.0,
             ]
         );
+    }
+
+    #[test]
+    fn a_holdover_the_interval_sat_still_through_still_breaks_the_run() {
+        // Locked, then five seconds of holdover during which the
+        // interval holds one value, then locked again with the phase
+        // stepped by 5 us.  Every holdover row is a repeat and is
+        // dropped, but the run must still break there, or the step is
+        // read as instability.  Five seconds keeps the gap between the
+        // kept readings under the ten intervals at which an absence
+        // splits the run by itself, which would hide the case.
+        #[derive(PartialEq)]
+        enum State {
+            Locked,
+            Holdover,
+        }
+        let samples = run(400, |i| match i {
+            0..200 => 1e-9 * (i % 7) as f64,
+            200..205 => 1e-9 * (199 % 7) as f64,
+            _ => 5e-6 + 1e-9 * (i % 7) as f64,
+        });
+        let states: Vec<State> = (0..400)
+            .map(|i| {
+                if (200..205).contains(&i) {
+                    State::Holdover
+                } else {
+                    State::Locked
+                }
+            })
+            .collect();
+        let curve = Curve::from_readings(&samples, &states);
+        assert!(curve.segments >= 2, "{} segments", curve.segments);
+        for point in &curve.points {
+            // The 5 us step would put tau = 1 near 3e-6.
+            assert!(point.deviation < 1e-8, "{point:?}");
+        }
     }
 
     #[test]

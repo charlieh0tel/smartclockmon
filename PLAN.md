@@ -612,7 +612,11 @@ Four things about gaps that are easy to get wrong, and were:
   instability at every tau spanning it.  The run is cut into segments
   on the recorded mode and holdover flag, and on any absence longer
   than ten nominal intervals; second differences never cross a cut, and the
-  segments are pooled so a broken run is still usable.
+  segments are pooled so a broken run is still usable.  The state is
+  checked across every logged row, including the held repeats that are
+  dropped as readings: a short holdover during which the interval held
+  one value is all repeats, and checking only the readings kept either
+  side of it saw locked twice and no cut.
 - **A hole must stay a hole.** Readings go on a grid indexed by time
   rather than into a list, so a missing reading is an empty slot and
   not a closing-up of the ones after it -- which would turn every gap
