@@ -674,16 +674,27 @@ mod tests {
     fn a_steady_ramp_has_no_deviation_and_the_repeats_are_not_counted() {
         // The receiver's phase walking at a constant rate is a constant
         // frequency offset, not instability, so the curve must sit on
-        // the floor.  Six hundred readings, with a repeat row after
-        // every tenth: those must not be read as extra samples.
-        let mut rows = Vec::new();
-        for i in 0..600i64 {
-            rows.push((1_700_000_000 + i, 2e-9 * i as f64, "Locked", 0, false));
-            if i % 10 == 9 {
-                rows.push((1_700_000_000 + i, 2e-9 * i as f64, "Locked", 0, true));
-            }
-        }
+        // the floor.  The slower tiers publish rows of their own half a
+        // second after a reading, carrying the fast tier's earlier
+        // `fast_at`: those are not readings.  Each is given an interval
+        // far off the ramp, so counting even one would lift the curve.
+        let rows: Vec<_> = (0..600i64)
+            .map(|i| (1_700_000_000 + i, 2e-9 * i as f64, "Locked", 0, false))
+            .collect();
         let scratch = phase_log("adev-ramp", &rows);
+        let conn = Connection::open(scratch.path()).expect("reopen");
+        for i in (9..600i64).step_by(10) {
+            let read = jiff::Timestamp::from_second(1_700_000_000 + i).expect("a timestamp");
+            let later = read + jiff::SignedDuration::from_millis(500);
+            conn.execute(
+                "INSERT INTO snapshot
+                 (at, freshness, fast_at, time_interval_s, mode, holdover_active, receiver_id)
+                 VALUES (?1, 'live', ?2, ?3, 'Locked', 0, 1)",
+                rusqlite::params![later.to_string(), read.to_string(), 1e-6],
+            )
+            .expect("a repeat row");
+        }
+        drop(conn);
         let log = Log::open(scratch.path()).expect("open");
         let (deviation, _) = log.phase(1, 0, 2_000_000_000).expect("a deviation");
 
@@ -795,8 +806,23 @@ mod tests {
 
     #[test]
     fn a_range_past_the_limit_is_measured_over_its_newest_readings() {
+        // The oldest sixty wander; the newest forty are a clean ramp.
+        // Only the newest forty give a curve on the floor.
         let rows: Vec<_> = (0..100i64)
-            .map(|i| (1_700_000_000 + i, 1e-9 * i as f64, "Locked", 0, false))
+            .map(|i| {
+                let wander = if i < 60 {
+                    0.37e-9 * ((i * 7919) % 13) as f64
+                } else {
+                    0.0
+                };
+                (
+                    1_700_000_000 + i,
+                    1e-9 * i as f64 + wander,
+                    "Locked",
+                    0,
+                    false,
+                )
+            })
             .collect();
         let scratch = phase_log("adev-limit", &rows);
         let log = Log::open(scratch.path()).expect("open");
@@ -812,6 +838,10 @@ mod tests {
             .expect("a deviation");
         assert!(truncated);
         assert_eq!(newest.present, 40);
+        assert!(!newest.points.is_empty());
+        for point in &newest.points {
+            assert!(point.deviation < 1e-15, "the oldest were kept: {point:?}");
+        }
     }
 
     #[test]
