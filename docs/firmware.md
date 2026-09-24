@@ -288,13 +288,13 @@ at `0x102be8`, and it recomputes K, k and a from it on every update
 rather than once on entry.  That time constant is set to 150 s at
 `0x47af6` and `0x4af58`.
 
-Read from the Z3801A's image, where the same function is `FUN_000442ca`:
-once the ten-second means have settled, it lengthens its time constant
-by 5 s an update until it reaches τ, adjusting the integrator at each
-step so that the EFC does not jump, and then hands over to
-`pll_normal`.  The Z3816A's matching code, `0x47ede` to `0x47fce`,
-holds the 5.0 at `0x47efe`; the settling condition was not confirmed
-there.
+Its first state counts ten-second means whose magnitude is below
+150 ns -- the double 1.5 × 10⁻⁷, loaded as two halves at `0x47e60` and
+`0x47e66` -- and clears the count at the first that is not; sixteen in
+a row (`0x47e46`) end the state.  Then, at `0x47ede` to `0x47fce`, it
+lengthens its constant by 5 s (`0x47efe`) each update until that is
+within 5 s of τ, sets it to τ, and hands over to `pll_normal`.  The
+Z3801A's `FUN_000442ca` does the same.
 
 ### s, the oscillator current
 
@@ -718,10 +718,6 @@ there.  The unpacker takes the same opcodes.
   layout is in Motorola's MC68331 manual, which is not in `third_party`.
 - What the other 21 bytes of the τ block and the rest of the ROM
   defaults hold.
-- The condition under which `startup_pll` starts lengthening its time
-  constant: reported from the Z3801A's image as sixteen consecutive
-  means within ±150 ns, but no constant of 1.5 × 10⁻⁷ is stored in
-  either image as a float or a double.
 - What p, q, r and the term d are.  `FUN_00023818` returns the counter
   at `0x100c08`, compared with 900 as seconds by the warmup and used as
   q; what increments it was not traced.
