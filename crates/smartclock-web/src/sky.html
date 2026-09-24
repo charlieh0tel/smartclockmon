@@ -84,8 +84,8 @@ function sky(screen) {
   const rows = [];
   for (const sat of screen?.satellites ?? []) {
     const state = sat.tracked ? "tracked" : sat.acquiring ? "acquiring" : "seen";
-    rows.push(`<tr><td>${sat.prn}</td><td>${sat.elevation ?? "--"}</td>` +
-              `<td>${sat.azimuth ?? "--"}</td><td>${sat.signal ?? "--"}</td>` +
+    rows.push(`<tr><td>${esc(sat.prn)}</td><td>${esc(sat.elevation ?? "--")}</td>` +
+              `<td>${esc(sat.azimuth ?? "--")}</td><td>${esc(sat.signal ?? "--")}</td>` +
               `<td class="muted">${state}</td></tr>`);
     // Below the horizon, or a reading the scraper could not make sense
     // of: either would land outside the plot.
