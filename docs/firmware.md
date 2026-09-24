@@ -377,6 +377,26 @@ the SCI, and nothing in the firmware runs a console on another port.
 Whether channel B is wired to a header on the board is not something
 the image can show.
 
+The Z3801A's image, revision 3543, does it the other way.  It carries no
+SCI driver: its host port is channel B of the DUART, with the exchanges
+`drtR` and `drtW` (`0x460c`) and the interrupt messages
+`DUARTB isr signaling ...` (`0x4686`), while `drta_get_byte` is still the
+GPS link on channel A.  The Z3805A's own `:DIAGnostic:OS` listing names
+both `sciR`/`sciW` and `drtR`/`drtW` (`z3801-tree.md`), so its firmware,
+3543B, is neither image exactly.
+
+### The other image
+
+Everything above was read from the Z3816A's image, revision 4001.  The
+Z3801A's, revision 3543, carries the same landmarks at different
+addresses: `pll_normal`'s and `startup_pll`'s failure messages
+(`0x44e94`, `0x44e2e`), the fine stage's (`0x45e4a`), the loop report
+(`0x44e6d`), `PFORTH`/`INSTALL`/`PRIMARY` (`0x2f711`), the pForth banner
+(`0x18ad0`), `loop_time` (`0x1d172`), `max loop time` (`0x1c0b8`) and
+`SAWT ERR` (`0x4d57a`), and the loop's constants 29.75, 6.25 × 10⁻¹⁰ and
+5.787 × 10⁻¹⁴ once or twice each as in the other.  Its code was not
+traced.
+
 The loop's report above is printed only when the flag at `0x102c13` is
 set.
 
