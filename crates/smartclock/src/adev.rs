@@ -78,7 +78,9 @@ const MIN_DIFFERENCES: usize = 10;
 
 /// How much of a gap in the timestamps ends a segment.
 ///
-/// Expressed as a multiple of the nominal spacing.  One missing sample
+/// Expressed as a multiple of the spacing the readings arrived at, not
+/// of the grid: a grid coarsened for a long range would otherwise let
+/// the same absence through that splits a short one.  One missing sample
 /// is a hole to be skipped over, not a discontinuity: the estimator
 /// simply finds no triple there.  A long absence is different, because
 /// the daemon was not watching and the receiver may have done anything
@@ -188,12 +190,14 @@ impl Run {
     /// without consulting it.
     ///
     /// A long absence splits a segment on its own, since the daemon was
-    /// not watching and cannot say what happened.
+    /// not watching and cannot say what happened.  Long is judged
+    /// against the readings' own spacing, whatever `tau0` is.
     pub fn from_samples(
         samples: &[Sample],
         tau0: f64,
         mut discontinuous: impl FnMut(usize, usize) -> bool,
     ) -> Self {
+        let absence = spacing(samples).unwrap_or(tau0) * GAP_SEGMENTS_AFTER;
         let mut segments: Vec<Segment> = Vec::new();
         let mut current = Segment::default();
         for (i, sample) in samples.iter().enumerate() {
@@ -203,7 +207,7 @@ impl Run {
                     .unwrap_or(0.0);
                 // Both tested, and neither short-circuited: the caller
                 // may be recording what it is asked about.
-                let absent = apart > tau0 * GAP_SEGMENTS_AFTER;
+                let absent = apart > absence;
                 let declared = discontinuous(i - 1, i);
                 if absent || declared {
                     segments.push(std::mem::take(&mut current));
@@ -627,6 +631,23 @@ mod tests {
         for point in &curve.points {
             // The 5 us step would put tau = 1 near 3e-6.
             assert!(point.deviation < 1e-8, "{point:?}");
+        }
+    }
+
+    #[test]
+    fn a_gap_that_splits_the_run_splits_it_at_every_stride() {
+        // Fifteen seconds missing from one-second readings, with the
+        // phase stepped across them: more than ten readings' spacing,
+        // less than ten of a stride-two grid's.
+        let samples: Vec<Sample> = run(400, |i| if i < 200 { 0.0 } else { 5e-6 })
+            .into_iter()
+            .enumerate()
+            .filter(|(i, _)| !(200..215).contains(i))
+            .map(|(_, sample)| sample)
+            .collect();
+        for stride in [1, 2] {
+            let curve = Curve::measure(&samples, stride, |_, _| false);
+            assert_eq!(curve.segments, 2, "stride {stride}");
         }
     }
 

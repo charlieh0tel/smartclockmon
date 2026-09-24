@@ -611,7 +611,9 @@ Four things about gaps that are easy to get wrong, and were:
   the phase, and the estimator would read that step as enormous
   instability at every tau spanning it.  The run is cut into segments
   on the recorded mode and holdover flag, and on any absence longer
-  than ten nominal intervals; second differences never cross a cut, and the
+  than ten reading intervals -- of the readings, not of a grid
+  coarsened for a long range, so a gap that cuts a short range cuts a
+  long one too; second differences never cross a cut, and the
   segments are pooled so a broken run is still usable.  The state is
   checked across every logged row, including the held repeats that are
   dropped as readings: a short holdover during which the interval held
