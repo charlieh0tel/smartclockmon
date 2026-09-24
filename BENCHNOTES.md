@@ -18,6 +18,8 @@ which is as fast as it goes: asked for 38400 it replies `+0,"No error"`
 and stays at 19200.
 Oscillator is an HP 10811-60159; see `docs/OCXO.md` for the
 specification and `docs/efc.md` for the EFC measurements taken on it.
+Time zone offset `+0,+0` (`:PTIMe:TZONe?`, read 2026-09-23), so the
+dates and times it reports are UTC.
 
 GPS receiver, as `:DIAGnostic:IDENtification:GPSystem?` reports it:
 
