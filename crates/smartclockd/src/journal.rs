@@ -625,11 +625,13 @@ mod tests {
     use super::split_entry;
     use super::wanted;
     use crate::db::Log;
+    use smartclock::command::Dialect;
     use smartclock::device::Device;
     use smartclock::session::Config;
     use smartclock::session::Session;
     use smartclock::task;
     use smartclock::task::Cadence;
+    use smartclock::task::Handle;
     use smartclock_sim::receiver::Receiver;
     use smartclock_sim::transport::SimTransport;
 
@@ -709,24 +711,6 @@ mod tests {
     }
 
     #[test]
-    fn a_longer_log_on_another_unit_is_not_taken_for_copied() {
-        // The span belongs to a receiver, and `Journal::pass` clears it
-        // when the receiver changes.  Kept -- which it was, until a
-        // review caught it -- a unit swapped for one with a longer log
-        // had entries 1..222 judged copied on the strength of the
-        // previous unit's progress and never read at all.
-        let (entries, _) = pass(Some((1, 222)), 300, 4);
-        assert_eq!(
-            entries,
-            vec![223, 224, 225, 226],
-            "carrying a span across receivers skips the new unit's history"
-        );
-        let (entries, span) = pass(None, 300, 4);
-        assert_eq!(entries, vec![300, 299, 298, 297]);
-        assert_eq!(span, (297, 300));
-    }
-
-    #[test]
     fn a_log_of_one_entry_is_copied_once_and_not_again() {
         let (entries, span) = pass(None, 1, 16);
         assert_eq!(entries, vec![1]);
@@ -769,6 +753,58 @@ mod tests {
             assert_eq!(stamp, None);
             assert_eq!(message, text);
         }
+    }
+
+    /// A simulated receiver behind a running task, with the given
+    /// serial.
+    fn simulated(serial: &str) -> (Handle, String, Dialect) {
+        let mut simulated = Receiver::default();
+        simulated.identity = format!("HEWLETT-PACKARD,58503A,{serial},3704-C");
+        let identity = simulated.identity.clone();
+        let dialect = simulated.dialect;
+        let device = Device::open(Session::new(
+            SimTransport::new(simulated),
+            Config::default(),
+        ))
+        .expect("open the simulated receiver");
+        let (handle, _joiner) = task::spawn(device, Cadence::default());
+        (handle, identity, dialect)
+    }
+
+    #[test]
+    fn a_unit_swapped_in_is_copied_from_its_own_newest_entry() {
+        // The copied span belongs to a connection.  Carried across one,
+        // a unit swapped in for another whose whole log had been copied
+        // would have its entries judged copied on the first unit's
+        // progress and never read.
+        let path =
+            std::env::temp_dir().join(format!("smartclockd-swapped-{}.db", std::process::id()));
+        let wipe = || {
+            for suffix in ["", "-wal", "-shm"] {
+                let mut name = path.clone().into_os_string();
+                name.push(suffix);
+                let _ = std::fs::remove_file(name);
+            }
+        };
+        wipe();
+        let mut log = Log::open(&path).expect("open the database");
+        let mut journal = Journal::default();
+
+        let (first, identity, dialect) = simulated("A");
+        log.note_receiver(&identity).expect("note the first unit");
+        let a = log.current_receiver().expect("a receiver");
+        while log.log_complete(a, 0, 222).ok() != Some(true) {
+            journal.pass(&first, dialect, a, 1, &mut log);
+        }
+
+        let (second, identity, dialect) = simulated("B");
+        log.note_receiver(&identity).expect("note the second unit");
+        let b = log.current_receiver().expect("a receiver");
+        journal.pass(&second, dialect, b, 2, &mut log);
+        let span = log.log_span(b, 0).expect("the span");
+        drop(log);
+        wipe();
+        assert_eq!(span.map(|(_, newest)| newest), Some(222), "{span:?}");
     }
 
     #[test]
