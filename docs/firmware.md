@@ -13,9 +13,10 @@ QSPI.  It also initialises and uses a register block at `0xfff900`
 counter at `0xfff90c`/`0xfff90d` it reads to count 1 PPS edges).  That
 is the General-Purpose Timer module, which the 68331 has alongside its
 SIM and QSM (NXP's MC68331 page, <https://www.nxp.com/products/MC68331>)
-and the 68332 does not -- the 68332 has a TPU there instead.  The 68334,
-68336 and 68376 also carry a GPT; which of these parts this is, the
-image does not show.
+and the 68332 does not -- the 68332 has a TPU there instead.  An
+owner's description of the Z3801A's outer-oven circuit names the main
+CPU as "U33 / MC68331" and the oven's control line as its pin 10, PGP5
+(see "The ovens"); the image itself shows only the GPT.
 
 This is the Z3816A's firmware.  No 58503A image is available, so what
 follows describes the design family and is not a statement about the
@@ -459,16 +460,39 @@ reported, and it agrees with the code.
   The code settles only the processor's part: once the enable is set it
   is never cleared, so what the heater does after that is the analogue
   controller's doing.
-- A schematic and description of the Z3801A's outer oven controller
-  was on ko4bb.com under `Manuals/05)_GPS_Timing/Z3801/Z3801A_Outer_Oven`
-  and is no longer there; a copy is said to be attached to a time-nuts
-  message of December 2022
-  (<https://febo.com/pipermail/time-nuts_lists.febo.com/2022-December/106993.html>).
+- An owner's "Z3801A Outer Oven Description", with a schematic drawn
+  from their own unit, was on ko4bb.com and survives as a PDF attached
+  to a time-nuts message of December 2022
+  (<http://febo.com/pipermail/time-nuts_lists.febo.com/attachments/20221207/86329414/attachment.pdf>,
+  from <https://febo.com/pipermail/time-nuts_lists.febo.com/2022-December/106993.html>;
+  the author is not named).  It places the whole controller on the
+  power-supply board: an AD586 reference feeding a Wheatstone bridge
+  whose NTC (100 kΩ at 25 °C, β 4850, so 16.21 kΩ at about 62.5 °C)
+  is in the outer oven; an LT1077 op-amp "used as a PI servo
+  controller"; and an LT1270 boost regulator that drives the 18.9 Ω
+  heater directly, from 0 to about 11 W.  The processor's part is a
+  DG211 analogue switch: "The main CPU controls the oven through P2/8.
+  If the voltage at U103/pin 1 is below ~2.4V the non-inverting input
+  of U102 is pulled towards +15V, and the output pin 6 saturates
+  instantly near 13.5V.  In turn, U104 shuts down and heater power is
+  zero.  On the main CPU board the control pin has a pull-down resistor
+  to ground (10k), and a 1k series resistor to pin 10 / PGP5 of the
+  main CPU U33 / MC68331."  The servo output "is available at P2/9",
+  divided to 3.27 to 4.22 V into pin 3 of "the 8-bit AD-converter U35 /
+  ADC0838", which "allows the main CPU to measure the percentage of
+  heating power in the ON state".
 
-That is the port bit: `0xfff907` bit 5 is P2/8, and the Z3801A's
-"Secondary oven voltage" channel, with its limit of 6.8, is P2/9 -- the
-faulty unit's 8.14 V would have raised exactly that alarm.  Both
-identifications rest on the reports above, not on this bench.
+That description and the code meet exactly.  PGP5 is bit 5 of the GPT's
+port GP, which is the `0xfff907` bit the firmware sets; the heater is
+off until the processor raises it, regulated by the analogue PI loop
+once it does, and never turned off again by the firmware.  P2/9, the
+servo output, is what the Z3801A's firmware watches as "Secondary oven
+voltage" once the oven is on; its limit of 6.8 is in the units the
+firmware's channel reader produces, not volts at P2/9, and the two
+scales were not related.  An ADC0838 is also what the firmware's ADC
+reader talks to: it sends a start bit and channel select over the QSPI
+and keeps eight bits of the reply.  All of this rests on the report,
+not on this bench.
 
 ### What `hdac` is not
 
@@ -670,10 +694,13 @@ there.  The unpacker takes the same opcodes.
   measure, beyond the ADC inputs and coefficients above.
 - The units of the oscillator current: nominal 250 and limit 650 after
   a scale of 4.489 per ADC count.
-- That `0xfff907` bit 5 is P2/8 and the Z3801A's oven-voltage channel
-  is P2/9: reported, not traced on a board.
-- Which CPU32 part this is.  The `0xfff900` block rules out the 68332;
-  the 68331 is the simplest part that has it.
+- That `0xfff907` bit 5 reaches P2/8 and that the ADC is an ADC0838
+  are an owner's report of a Z3801A board, not something traced here;
+  and how the Z3801A firmware's "Oven" and "Secondary oven voltage"
+  values relate to the volts at P2/9 was not worked out.
+- Which CPU32 part this is: the `0xfff900` block rules out the 68332,
+  and the MC68331 comes from an owner's description of the board, not
+  from the image.
 - x₀ is cleared at `0x4b1dc` and otherwise written only by `phase_off`;
   whether anything calls `phase_off` other than the console was not
   traced.
