@@ -333,9 +333,44 @@ a name followed by the address of its code.  Among them:
     gps_query   gps_query_all         pr_time_raim            pr_satview
     pr_hold_cause         wr_eeprom   clear_nv    master_reset  crash
 
-The string `PFORTH` is stored at `0x4003f`, immediately before
-`INSTALL` and `PRIMARY` -- the two values 097-59551-02 4-15 documents
-for `:SYSTem:LANGuage`.
+### Getting to it
+
+`:SYSTem:LANGuage` is the way in.  097-59551-02 4-15 documents two
+values, `INSTALL` and `PRIMARY`; the handler, `FUN_0003fe8a`, accepts a
+third.  It upper-cases its argument and compares it with `PFORTH`
+(`0x4003f`) and then `INSTALL`; a match records which at `0x103326` --
+0 for `PFORTH`, 1 for `INSTALL` -- and returns `0xffffffc4`, which ends
+the SCPI parser's loop.  Anything else goes to `FUN_0003b7d8`.
+
+The comparison is guarded by a check of which port the command came
+from, `FUN_00039480`, which in this image returns 1 unconditionally:
+the Z3816A accepts it on the port it is talking SCPI on.
+
+`FUN_000395fc`, the SCPI task, runs the parser on its port and, when the
+parser returns, reads `0x103326`: for `PFORTH` it calls `0x2fe06` with
+the code at `0x230ba`; for `INSTALL` it calls `0x23036`; then it ends
+itself through `0x271ac`.  The choice is held only in RAM -- nothing
+else writes `0x103326` and nothing reads it at startup -- so a power
+cycle starts the SCPI task again.
+
+### Which port
+
+One.  The Z3801A manual (097-z3801-01) describes a single serial
+interface, the RS-422 port on the rear I/O Port 1 connector, J3.  The
+firmware drives two serial devices:
+
+- the processor's own SCI, with the message exchanges `sciR` and `sciW`
+  and the driver strings at `0xba16` and `0x2f395`;
+- channel A of the 68681 DUART, `drta_send_message` and
+  `drta_get_byte` (`0x2df43`), which is the GPS receiver link described
+  above.
+
+Channel B of the DUART buffers no data: its receive routine records
+error bits only, and its one use is a loopback self-test that sends the
+string `DUART` and checks the echo.  So the console, like SCPI, is on
+the SCI, and nothing in the firmware runs a console on another port.
+Whether channel B is wired to a header on the board is not something
+the image can show.
 
 The loop's report above is printed only when the flag at `0x102c13` is
 set.
@@ -349,10 +384,15 @@ set.
 - What p, q, r and the term d are, and what `FUN_000324b0(6)` and
   `FUN_00023818` read.
 - What the loop's setpoint x₀ holds, and what sets it.
-- That setting `:SYSTem:LANGuage` to `PFORTH` opens the console: the
-  code that selects a language was not traced, and nothing was sent to
-  a receiver to find out.  Setting the language is one of the commands
-  this project never sends.
+- What the console does on the port once started, and whether any word
+  returns the port to SCPI short of a power cycle: the code at `0x230ba`
+  and `0x2fe06` was not traced.  Nothing was sent to a receiver to find
+  out; setting the language is one of the commands this project never
+  sends.
+- That the SCI is the port wired to J3: the firmware's SCPI port is the
+  one it creates `sciR` and `sciW` for, but the board was not traced.
+- Whether the 58503A's firmware gates the language by port, since its
+  manual lists two ports.
 - Which word, if any, sets the report flag at `0x102c13`.
 - Only a sample of the firmware word table's code pointers was
   checked; they pointed at 68000 code.
