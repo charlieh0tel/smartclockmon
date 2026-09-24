@@ -506,7 +506,8 @@ struct Recorder {
     /// A row per poll would be the snapshot table again; a row per
     /// change is the history worth reading.
     last_alarm: Option<smartclock::types::AlarmCondition>,
-    /// Whether `last_alarm` has been read from the database.
+    /// Whether `last_alarm` has been read from the database for the
+    /// noted receiver.
     ///
     /// Seeded on first use rather than starting empty, or every restart
     /// writes a row saying the alarm is what it already was -- two of
@@ -547,6 +548,9 @@ impl Recorder {
                     );
                 }
                 self.noted = Some(identity.to_owned());
+                // Another receiver's alarm says nothing about whether
+                // this one's has changed.
+                self.alarm_seeded = false;
             }
             Err(e) => eprintln!("smartclockd: could not note the receiver: {e}"),
         }
@@ -688,6 +692,7 @@ mod tests {
     use super::queued;
     use smartclock::snapshot::Freshness;
     use smartclock::snapshot::Snapshot;
+    use smartclock::types::AlarmCondition;
     use std::sync::mpsc::channel;
     use std::time::Duration;
 
@@ -701,6 +706,39 @@ mod tests {
         assert_eq!(queued(&rx, Duration::ZERO), Some(Vec::new()));
         drop(tx);
         assert_eq!(queued::<i32>(&rx, Duration::ZERO), None);
+    }
+
+    #[test]
+    fn each_receiver_is_compared_with_its_own_last_alarm() {
+        let path =
+            std::env::temp_dir().join(format!("smartclockd-alarms-{}.db", std::process::id()));
+        let wipe = || {
+            for suffix in ["", "-wal", "-shm"] {
+                let mut name = path.clone().into_os_string();
+                name.push(suffix);
+                let _ = std::fs::remove_file(name);
+            }
+        };
+        wipe();
+        let mut recorder = Recorder::new(db::Log::open(&path).expect("open the database"));
+        let mut write = |serial: &str, bits: u16| {
+            let mut snapshot = Snapshot::new(jiff::Timestamp::now());
+            snapshot.freshness = Freshness::Live;
+            snapshot.receiver = Some(format!("HEWLETT-PACKARD,58503A,{serial},3704-C"));
+            snapshot.alarm = Some(AlarmCondition::from_bits(bits));
+            recorder.write(&snapshot);
+        };
+        // B asserted, then A clear, then B clear: B's clear is a change
+        // for B, whatever A last said.
+        write("B", 1 << 3);
+        write("A", 0);
+        write("B", 0);
+
+        let b = recorder.log.current_receiver().expect("B noted");
+        let last = recorder.log.last_alarm(b).expect("read the alarm");
+        drop(recorder);
+        wipe();
+        assert_eq!(last, Some(0));
     }
 
     #[test]
