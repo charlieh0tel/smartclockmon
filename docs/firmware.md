@@ -426,6 +426,50 @@ limit.  The Z3816A's monitor has no oven channel at all: its eight are
 `12B`, `5V`, `12C`, `-12B`, `-12C`, `-12D`, `Oscillator current` and
 `Antenna current`.
 
+### What others have measured
+
+None of the following was measured here; it is what owners have
+reported, and it agrees with the code.
+
+- On a Z3805A the outer oven's enable is pin 8 of the power board's
+  connector P2: 0 V with the heater off, about 4.5 V with it on, and
+  pulling it to +5 V by hand turned the heater on, after which it was
+  "being controlled by temperature controller on the power board", with
+  the controller's test point TP104 "modulating around 15.75 V".  The
+  processor reads the heater voltage back on P2 pin 9: 1.95 V on a
+  working unit, 8.14 V on the faulty one.  The heater measured 19 Ω and
+  had 15.27 V across it when working.  (John Stuart, time-nuts, April
+  2014: <https://www.febo.com/pipermail/time-nuts/2014-April/084494.html>,
+  `.../084502.html`, `.../084512.html`, `.../084517.html`.)  Jarl Risum
+  wrote in the same thread that his Z3805A's outer oven circuit is
+  identical to the Z3801's, and that the processor monitors the heater
+  voltage through P2/9.
+- A page on the Z3801A describes the same pin: a logic level on P2 pin
+  8 that turns the heater voltage off at zero and needs more than 2.4 V
+  to enable, with TP104 near 5 V when off and 14 to 16.2 V when
+  working.  Its author found units in which the processor never raised
+  the pin, and recovered them by forcing it high until the firmware
+  did.  (<https://www.realhamradio.com/oven-confusion.htm>.)
+- Whether the outer oven then runs continuously is disputed on
+  time-nuts: Bob Camp called it "simply a warmup heater" that "drops
+  out in normal operation"
+  (<https://time-nuts.febo.narkive.com/sZqRYuxp/10811-outer-oven-controller>);
+  Jarl Risum wrote that it holds 60 to 65 °C in normal operation
+  (<https://www.mail-archive.com/time-nuts@lists.febo.com/msg06566.html>).
+  The code settles only the processor's part: once the enable is set it
+  is never cleared, so what the heater does after that is the analogue
+  controller's doing.
+- A schematic and description of the Z3801A's outer oven controller
+  was on ko4bb.com under `Manuals/05)_GPS_Timing/Z3801/Z3801A_Outer_Oven`
+  and is no longer there; a copy is said to be attached to a time-nuts
+  message of December 2022
+  (<https://febo.com/pipermail/time-nuts_lists.febo.com/2022-December/106993.html>).
+
+That is the port bit: `0xfff907` bit 5 is P2/8, and the Z3801A's
+"Secondary oven voltage" channel, with its limit of 6.8, is P2/9 -- the
+faulty unit's 8.14 V would have raised exactly that alarm.  Both
+identifications rest on the reports above, not on this bench.
+
 ### What `hdac` is not
 
 The console words `hdac_write` and `hdac_all` (`0x2b2ec`, `0x2b302`)
@@ -626,8 +670,8 @@ there.  The unpacker takes the same opcodes.
   measure, beyond the ADC inputs and coefficients above.
 - The units of the oscillator current: nominal 250 and limit 650 after
   a scale of 4.489 per ADC count.
-- What the `0xfff900` block's bit 5 drives, beyond the firmware's
-  naming of it: `doven`, and the state it is switched on in.
+- That `0xfff907` bit 5 is P2/8 and the Z3801A's oven-voltage channel
+  is P2/9: reported, not traced on a board.
 - Which CPU32 part this is.  The `0xfff900` block rules out the 68332;
   the 68331 is the simplest part that has it.
 - x₀ is cleared at `0x4b1dc` and otherwise written only by `phase_off`;
