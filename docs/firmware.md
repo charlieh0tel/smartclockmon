@@ -343,8 +343,12 @@ third.  It upper-cases its argument and compares it with `PFORTH`
 the SCPI parser's loop.  Anything else goes to `FUN_0003b7d8`.
 
 The comparison is guarded by a check of which port the command came
-from, `FUN_00039480`, which in this image returns 1 unconditionally:
-the Z3816A accepts it on the port it is talking SCPI on.
+from, `FUN_00039480`: only port 1 may change the language.  That is the
+rule 097-59551-02 states for the 59551A, whose front-panel PORT 2 is a
+second SCPI port that "cannot be used to upgrade the Receiver
+firmware".  The `*IDN?` handler keeps a reply buffer per port for the
+same reason.  In this image `FUN_00039480` returns 1 unconditionally,
+so the Z3816A accepts the command on the one port it has.
 
 `FUN_000395fc`, the SCPI task, runs the parser on its port and, when the
 parser returns, reads `0x103326`: for `PFORTH` it calls `0x2fe06` with
@@ -366,8 +370,9 @@ firmware drives two serial devices:
   above.
 
 Channel B of the DUART buffers no data: its receive routine records
-error bits only, and its one use is a loopback self-test that sends the
-string `DUART` and checks the echo.  So the console, like SCPI, is on
+error bits only, its transmit register (`0x200017`) is written by
+nothing but a loopback self-test that sends the string `DUART` and
+checks the echo, and the remaining references reset it.  So the console, like SCPI, is on
 the SCI, and nothing in the firmware runs a console on another port.
 Whether channel B is wired to a header on the board is not something
 the image can show.
@@ -391,8 +396,9 @@ set.
   sends.
 - That the SCI is the port wired to J3: the firmware's SCPI port is the
   one it creates `sciR` and `sciW` for, but the board was not traced.
-- Whether the 58503A's firmware gates the language by port, since its
-  manual lists two ports.
+- What drives the 59551A's PORT 2.  DUART channel B, idle here, is the
+  device a single-port unit would leave spare, but no image of a
+  59551A's firmware is at hand.
 - Which word, if any, sets the report flag at `0x102c13`.
 - Only a sample of the firmware word table's code pointers was
   checked; they pointed at 68000 code.
