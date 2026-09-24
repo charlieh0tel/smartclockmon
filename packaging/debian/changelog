@@ -1,3 +1,53 @@
+smartclockmon (0.6.12-1) unstable; urgency=low
+
+  * Store timestamps with nine fractional digits, so the log sorts in
+    time order as text.  The first start after upgrading rewrites every
+    stored timestamp once, in one transaction, and moves the database
+    to schema 8, which older daemons refuse to open.
+  * Make the Allan deviation sounder: break a run at any change of
+    state, including one held in rows with no interval or among
+    repeated readings; judge gaps against the reading spacing rather
+    than the grid; fit the spacing within each run; thin and cap the
+    rows a long range reads.  Checked against NIST SP 1065's published
+    values and against allantools.
+  * File every snapshot, audit row and alarm change under the receiver
+    it came from, even across a swap, and retry noting a receiver rather
+    than filing under the previous one.
+  * Keep the journal from starving the snapshot writer, and check held
+    diagnostic log entries against the receiver before trusting or
+    erasing a copy, so a log cleared and refilled while the daemon was
+    away is a new generation, not erased.
+  * Journal receiver errors that a failed command read first, and say
+    when the receiver's error queue overflowed and discarded errors.
+  * Treat reading the error queue, and reading an event register, as
+    control: both take something from the receiver.
+  * Read the status screen only when the sky view asks; stop carrying it
+    into later snapshots.  Poll step by step so the fast tier keeps its
+    slot, and publish nothing from a step that fails partway.
+  * Stop drawing, exporting or averaging a slower tier's last value once
+    that tier stops reading; the exporter drops values from a failing
+    tier or a link that is down.
+  * Release the daemon's shared state before a request waits on the
+    receiver, so a reconnect is not held up behind a waiting client.
+  * Bound the whole HTTP request rather than each read.
+  * Refuse :SYSTem:PRESet, :SYSTem:COMMunicate, :DIAGnostic:ERASe and
+    setting :SYSTem:LANGuage in the command line tool's direct mode.
+  * Monitor: draw the console in every view; open tcp:// receivers and
+    read the sky in direct mode; take a restarted daemon's log, policy
+    and cadence on reconnect.
+  * Browser: share the receiver choice between history and stability
+    through the address; show the server's error on the sky and
+    stability pages.
+  * Allow a receiver's local date a day's slack in the GPS week rollover
+    check.
+  * Correct the packaged defaults: medium tier every ten seconds, the
+    full list of baud rates, and the project's address in the daemon's
+    unit.
+  * Write up how the firmware measures the time interval, add two EFC
+    readings, and tighten tests that did not check what they claimed.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Wed, 23 Sep 2026 22:42:30 -0700
+
 smartclockmon (0.6.11-1) unstable; urgency=low
 
   * Measure the Allan deviation from the receiver's own readings.  The
