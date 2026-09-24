@@ -294,7 +294,7 @@ The rest of `docs/`:
 | `z3801-keywords.md` | the 313 SCPI keywords the Z3801A firmware defines, and the undocumented commands found by sweeping a 58503A with them |
 | `screen-format-strings.md` | the status screen's printf templates |
 | `z3801-tree.md` | every SCPI command path in the Z3801A firmware, read from the parser's tables |
-| `time-interval.md` | how the firmware measures the 1 PPS time interval, and where the Oncore's sawtooth goes |
+| `firmware.md` | what the Z3816A firmware shows: how it measures the 1 PPS time interval, the loop that disciplines the oscillator from it, where the Oncore's sawtooth goes, and its pForth console |
 
 ## Licence
 
