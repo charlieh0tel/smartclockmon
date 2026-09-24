@@ -7,18 +7,21 @@
 # REQUIRED.  Uncomment and set; the daemon will not start otherwise.
 #SMARTCLOCKD_DEVICE=/dev/serial/by-id/usb-<your-adapter>-if00-port0
 
-# 1200, 2400, 9600 or 19200.
+# The rate the receiver is set to.  The 58503A accepts 1200, 2400, 9600
+# or 19200 (097-59551-02 5-101); 4800, 38400, 57600 and 115200 can also
+# be opened, to reach a receiver something else moved there.
 #SMARTCLOCKD_BAUD=19200
 
 #SMARTCLOCKD_DATABASE=/var/lib/smartclockd/snapshots.sqlite
 #SMARTCLOCKD_SOCKET=/run/smartclockd/socket
 
-# Seconds between polls of each tier.  A medium poll reads the status
-# screen and holds the serial line for about three seconds, during
-# which the fast tier cannot run; lower this and the one-second history
-# gets correspondingly patchier.
+# Seconds between polls of each tier.  The medium tier reads the
+# satellite counts, the oscillator, the condition registers and the
+# holdover detail, one short step per turn so the fast tier keeps its
+# one-second slot.  No tier reads the status screen; the sky view asks
+# for it while it is open.
 #SMARTCLOCKD_FAST=1.0
-#SMARTCLOCKD_MEDIUM=30.0
+#SMARTCLOCKD_MEDIUM=10.0
 #SMARTCLOCKD_SLOW=60.0
 
 # What clients may send.  true or false; empty is rejected.

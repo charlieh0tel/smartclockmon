@@ -1,6 +1,6 @@
 [Unit]
 Description=SmartClock GPS receiver logging daemon
-Documentation=https://github.com/ch/smartclockmon
+Documentation=https://github.com/charlieh0tel/smartclockmon
 # Nothing here names the adapter.  Every setting lives in
 # /etc/default/smartclockd so that this unit needs no editing; the
 # daemon reconnects by itself when a USB adapter re-enumerates, and
