@@ -130,7 +130,7 @@ impl<T: Transport> Device<T> {
         let line = self.ask(CommandId::Tfom)?;
         to_u8(&line).and_then(Tfom::new).ok_or(Error::Parse {
             reply: line,
-            expected: "a TFOM in 1..=9",
+            expected: Tfom::EXPECTED,
         })
     }
 
@@ -139,7 +139,7 @@ impl<T: Transport> Device<T> {
         let line = self.ask(CommandId::Ffom)?;
         to_u8(&line).and_then(Ffom::new).ok_or(Error::Parse {
             reply: line,
-            expected: "an FFOM in 0..=9",
+            expected: Ffom::EXPECTED,
         })
     }
 

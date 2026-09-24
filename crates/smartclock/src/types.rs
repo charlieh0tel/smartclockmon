@@ -23,6 +23,12 @@ pub struct Prn(u8);
 macro_rules! bounded_u8 {
     ($t:ty, $lo:expr, $hi:expr, $what:literal) => {
         impl $t {
+            /// What a reply must be, for an error that says why it was
+            /// refused.  Built from the bounds themselves, so the two
+            /// cannot disagree.
+            pub const EXPECTED: &'static str =
+                concat!("a ", $what, " in ", stringify!($lo), "..=", stringify!($hi));
+
             /// Construct, rejecting values outside the documented range.
             pub fn new(value: u8) -> Option<Self> {
                 ($lo..=$hi).contains(&value).then_some(Self(value))
@@ -998,11 +1004,21 @@ impl fmt::Display for BaudRate {
 #[cfg(test)]
 mod tests {
     use super::BaudRate;
+    use super::Ffom;
     use super::HoldoverWaitReason;
     use super::Seconds;
     use super::SmartClockMode;
+    use super::Tfom;
     use super::TimeOfDay;
     use super::UtcOffset;
+
+    #[test]
+    fn a_figure_of_merit_says_the_range_it_accepts() {
+        assert_eq!(Tfom::EXPECTED, "a time figure of merit in 0..=9");
+        assert_eq!(Ffom::EXPECTED, "a frequency figure of merit in 0..=3");
+        assert!(Ffom::new(3).is_some() && Ffom::new(4).is_none());
+        assert!(Tfom::new(0).is_some() && Tfom::new(10).is_none());
+    }
 
     #[test]
     fn a_time_quantity_picks_a_readable_scale() {
