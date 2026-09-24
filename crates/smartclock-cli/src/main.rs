@@ -17,6 +17,7 @@ use jiff::Zoned;
 use smartclock::client::Daemon;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
+use smartclock::control::forbidden;
 use smartclock::device::Device;
 use smartclock::error::Error;
 use smartclock::session::Config;
@@ -115,6 +116,9 @@ fn main() -> Result<()> {
     if let Some(socket) = cli.socket.clone() {
         return through_daemon(&socket, &cli.command);
     }
+    // Before the port is opened, so a refused list sends nothing at
+    // all rather than the commands ahead of the refused one.
+    refuse_forbidden(&typed(&cli.command)?)?;
 
     let baud = BaudRate::new(cli.baud).with_context(|| {
         let supported = BaudRate::ALL.map(|b| b.to_string()).join(", ");
@@ -189,15 +193,46 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command) -> Result<()> {
     }
 }
 
-/// Send each candidate and report what the receiver makes of it.
-fn sweep<T: Transport>(session: &mut Session<T>, from: &PathBuf) -> Result<()> {
+/// The commands a subcommand sends as given by the operator, rather
+/// than from the command table.
+fn typed(command: &Command) -> Result<Vec<String>> {
+    Ok(match command {
+        Command::Query { commands } => commands.clone(),
+        Command::Sweep { from } => candidates(from)?,
+        Command::Probe { .. } | Command::Diagnose | Command::Commands => Vec::new(),
+    })
+}
+
+/// Refuse the whole list if any command in it is one no direct-mode
+/// tool sends; see [`smartclock::control::forbidden`].
+fn refuse_forbidden(commands: &[String]) -> Result<()> {
+    for scpi in commands {
+        if let Some(which) = forbidden(scpi) {
+            anyhow::bail!(
+                "refusing to send {scpi:?}: it is {which}, which this tool never sends to \
+                 the receiver directly; nothing was sent"
+            );
+        }
+    }
+    Ok(())
+}
+
+/// The commands in a sweep file: one per line, blank lines and `#`
+/// skipped.
+fn candidates(from: &PathBuf) -> Result<Vec<String>> {
     let text =
         std::fs::read_to_string(from).with_context(|| format!("reading {}", from.display()))?;
-    let candidates: Vec<&str> = text
+    Ok(text
         .lines()
         .map(str::trim)
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .collect();
+        .map(str::to_owned)
+        .collect())
+}
+
+/// Send each candidate and report what the receiver makes of it.
+fn sweep<T: Transport>(session: &mut Session<T>, from: &PathBuf) -> Result<()> {
+    let candidates = candidates(from)?;
 
     let mut known = Vec::new();
     let (mut unknown, mut refused, mut failed) = (0usize, 0usize, 0usize);
@@ -206,7 +241,7 @@ fn sweep<T: Transport>(session: &mut Session<T>, from: &PathBuf) -> Result<()> {
             Ok(reply) => {
                 let value = reply.lines.join(" | ");
                 println!("FOUND    {scpi:<52} {value}");
-                known.push((*scpi, value));
+                known.push((scpi.as_str(), value));
             }
             // -113 is the whole point of the sweep: the header does not
             // exist, so the command is not there.

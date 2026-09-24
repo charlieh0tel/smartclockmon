@@ -176,12 +176,18 @@ paths that only run when something is wrong.
 The daemon refuses anything that changes the receiver unless started
 with `--allow-control` -- which includes reading an event register,
 since that clears it, and reading the error queue, since that takes
-the entry the daemon's journal would have kept -- refuses what can strand the link without
-`--allow-dangerous`, and refuses commands the table does not know
-without `--allow-raw`.  All three are off by default and every command
-that is not a scheduled poll is recorded in the log.  Every option also
-reads from a `SMARTCLOCKD_`-prefixed environment variable, which is how
-the service is configured without touching its unit.
+the entry the daemon's journal would have kept -- refuses what can
+strand the link without `--allow-dangerous`, and refuses commands the
+table does not know without `--allow-raw`.  All three are off by
+default and every command that is not a scheduled poll is recorded in
+the log.  Every option also reads from a `SMARTCLOCKD_`-prefixed
+environment variable, which is how the service is configured without
+touching its unit.
+
+`smartclock-cli` talking to the receiver directly has no such flags,
+and refuses outright to send `:SYSTem:PRESet`, anything under
+`:SYSTem:COMMunicate`, `:DIAGnostic:ERASe`, or a `:SYSTem:LANGuage`
+setting, before it opens the port.
 
 ## Hardware
 
