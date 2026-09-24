@@ -22,6 +22,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
+use std::time::Instant;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -40,7 +41,12 @@ const MAX_REQUEST: u64 = 8192;
 /// Without these a connection that sends nothing holds its thread for
 /// as long as the process runs, and a client that never reads holds one
 /// in `write`.  Both are one line of shell to arrange.
-const READ_TIMEOUT: Duration = Duration::from_secs(10);
+///
+/// The request's is a deadline for the whole of it, not a timeout per
+/// read.  A timeout per read restarts with every byte, so a client
+/// sending one byte every few seconds held a thread for as long as it
+/// liked, and thirty-two of them held all of them.
+const REQUEST_DEADLINE: Duration = Duration::from_secs(10);
 const WRITE_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// How many requests may be in flight at once.
@@ -153,10 +159,20 @@ fn handle<F>(stream: &TcpStream, answer: &F)
 where
     F: Fn(&str) -> Response,
 {
-    let _ = stream.set_read_timeout(Some(READ_TIMEOUT));
+    handle_within(stream, answer, REQUEST_DEADLINE);
+}
+
+/// As [`handle`], with the whole request due within `deadline`.
+fn handle_within<F>(stream: &TcpStream, answer: &F, deadline: Duration)
+where
+    F: Fn(&str) -> Response,
+{
     let _ = stream.set_write_timeout(Some(WRITE_TIMEOUT));
 
-    let mut reader = BufReader::new(stream);
+    let mut reader = BufReader::new(Deadline {
+        stream,
+        until: Instant::now() + deadline,
+    });
     let mut line = String::new();
     // Capped, so a line that never ends costs 8 KiB rather than the
     // machine.
@@ -182,6 +198,25 @@ where
     let _ = write_response(stream, &answer(path));
 }
 
+/// A stream that stops reading at a fixed moment, however the bytes
+/// trickle in.
+struct Deadline<'a> {
+    stream: &'a TcpStream,
+    until: Instant,
+}
+
+impl std::io::Read for Deadline<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let left = self.until.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err(std::io::ErrorKind::TimedOut.into());
+        }
+        self.stream.set_read_timeout(Some(left))?;
+        let mut stream = self.stream;
+        stream.read(buf)
+    }
+}
+
 fn write_response(mut stream: &TcpStream, response: &Response) -> std::io::Result<()> {
     write!(
         stream,
@@ -195,4 +230,43 @@ fn write_response(mut stream: &TcpStream, response: &Response) -> std::io::Resul
         response.body.len(),
         response.body
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Response;
+    use super::handle_within;
+    use std::io::Write as _;
+    use std::net::TcpListener;
+    use std::net::TcpStream;
+    use std::time::Duration;
+    use std::time::Instant;
+
+    #[test]
+    fn a_request_that_trickles_in_is_cut_off_at_the_deadline() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let address = listener.local_addr().expect("an address");
+        // A byte every 200 ms for four seconds: each read succeeds
+        // well inside any per-read timeout.
+        let client = std::thread::spawn(move || {
+            let mut stream = TcpStream::connect(address).expect("connect");
+            for _ in 0..20 {
+                if stream.write_all(b"G").is_err() {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(200));
+            }
+        });
+        let (server, _) = listener.accept().expect("accept");
+        let started = Instant::now();
+        handle_within(
+            &server,
+            &|_: &str| Response::not_found(),
+            Duration::from_secs(1),
+        );
+        let took = started.elapsed();
+        drop(server);
+        let _ = client.join();
+        assert!(took < Duration::from_secs(2), "held for {took:?}");
+    }
 }
