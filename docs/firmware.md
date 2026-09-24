@@ -10,10 +10,12 @@ vector base with `movec` and programs the System Integration Module's
 registers at `0xfffa00`, and the QSM at `0xfffc00` carries the SCI and
 QSPI.  It also initialises and uses a register block at `0xfff900`
 (`0x22118` onwards; a port whose bit 5 the firmware switches, and a
-counter at `0xfff90c`/`0xfff90d` it reads to count 1 PPS edges), which
-the 68331 and 68332 do not have.  In Motorola's manuals, which are not
-in `third_party`, that block is the General-Purpose Timer of the 68334,
-68336 and 68376; which of those this is, the image does not show.
+counter at `0xfff90c`/`0xfff90d` it reads to count 1 PPS edges).  That
+is the General-Purpose Timer module, which the 68331 has alongside its
+SIM and QSM (NXP's MC68331 page, <https://www.nxp.com/products/MC68331>)
+and the 68332 does not -- the 68332 has a TPU there instead.  The 68334,
+68336 and 68376 also carry a GPT; which of these parts this is, the
+image does not show.
 
 This is the Z3816A's firmware.  No 58503A image is available, so what
 follows describes the design family and is not a statement about the
@@ -626,8 +628,8 @@ there.  The unpacker takes the same opcodes.
   a scale of 4.489 per ADC count.
 - What the `0xfff900` block's bit 5 drives, beyond the firmware's
   naming of it: `doven`, and the state it is switched on in.
-- Which CPU32 part carries the `0xfff900` block; Motorola's manual is
-  not in `third_party`.
+- Which CPU32 part this is.  The `0xfff900` block rules out the 68332;
+  the 68331 is the simplest part that has it.
 - x₀ is cleared at `0x4b1dc` and otherwise written only by `phase_off`;
   whether anything calls `phase_off` other than the console was not
   traced.
