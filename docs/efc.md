@@ -39,20 +39,26 @@ at that moment.
 | 2026-09-22 01:35 | 52.58 mV | 713269 | +36.0453 % | 39.86 C |
 | 2026-09-22 19:56 | 54.77 mV | 712948 | +35.9841 % | 36.86 C |
 | 2026-09-23 02:25 | 55.35 mV | 712853 | +35.9657 % | 35.22 C |
+| 2026-09-24 00:00 | 52.36 mV | 713254 | +36.0425 % | 41.22 C |
 
 The fifth row was taken minutes after a ninety-second holdover, at the
-coldest case temperature of the five.
+coldest case temperature of the six; the sixth is the hottest.
 
 | Against | Slope | R^2 |
 | ------- | ----- | --- |
-| Raw count | -6.28 +/- 0.14 uV/count | 0.9986 |
-| Temperature | -0.74 mV/C | 0.406 |
+| Raw count | -6.41 +/- 0.31 uV/count | 0.9905 |
+| Temperature | -0.53 mV/C | 0.404 |
 
-No reading is more than 0.12 mV off the count fit.  The third row was
-taken four degrees hotter than the second and came out in the middle,
-where its count puts it; the fourth was predicted at 54.70 mV before
-the meter was read.  The count explains the pin and the temperature
-does not.
+The third row was taken four degrees hotter than the second and came
+out in the middle, where its count puts it; the fourth was predicted at
+54.70 mV before the meter was read.  The count explains the pin and the
+temperature does not.
+
+The sixth row fits less well.  The first five predicted 52.80 mV at its
+count; it read 52.36, and at 0.35 mV it is the largest residual of the
+six, where none of the first five was more than 0.12 mV off.  It is
+also the hottest reading by 1.4 C.  The residuals of the count fit
+against temperature go as -61 +/- 27 uV/C, R^2 0.57, over six points.
 
 The temperature column exists to test the *measurement*, not the
 oscillator.  It is the receiver's internal sensor -- the air in the
@@ -64,13 +70,13 @@ step".)
 
 Two consequences.
 
-**The sliver mapping is dead.**  6.28 uV per count, against 9.5 uV for
+**The sliver mapping is dead.**  6.41 uV per count, against 9.5 uV for
 a full -5 V to +5 V drive and 0.13 uV for a sliver.  The pin moves like
 something driven across volts, so the unit does not need periodic
 manual retrimming.
 
 **The inverted sign is the oscillator's own.**  Count up, voltage
-down, across all four points.  Nothing inverts between the DAC and the
+down, across all six points.  Nothing inverts between the DAC and the
 pin; the 10811's EFC input is specified inverting (`HP-10811AB-Manual`
 section 2-13):
 
@@ -83,11 +89,11 @@ the frequency.  Independently, the count rises as the case warms, which
 is the direction needed to correct an oscillator whose coefficient is
 negative.  The receiver's count is a monotonic frequency command.
 
-**The slope is a designed round number.**  6.279 +/- 0.135 uV per
+**The slope is a designed round number.**  6.41 +/- 0.31 uV per
 reported count.  Four of the twenty bits are dither, so a 16-bit DAC
 LSB is 16 counts, or 100 uV exactly, and full scale is
-65536 x 100 uV = **6.5536 V**.  The measured span is 6.584 +/- 0.142 V,
-which is that value to within a quarter of a standard error.
+65536 x 100 uV = **6.5536 V**.  The measured span is 6.72 +/- 0.33 V,
+which is that value to within half a standard error.
 
 **The absolute level is still unexplained.**  At 36 percent the
 specification mapping puts the pin at +1.80 V; it reads 52 mV, some 36
@@ -95,13 +101,15 @@ times less.  A divider scaling 1.8 V to 50 mV would scale the slope by
 the same 36x, and the slope is not scaled.  Whatever explains 52 mV has
 to leave the slope alone, which rules out a plain divider.
 
-Extrapolating the fit, the pin reaches 0 V at count 721,700 +/- 15,500,
-or **+37.7 +/- 3.0 percent** reported -- so the reported percentage is
+Extrapolating the fit, the pin reaches 0 V at count 721,480 +/- 410,
+or **+37.6 +/- 0.1 percent** reported -- so the reported percentage is
 offset from the pin voltage, and this unit, at +36.0 percent, is
 sitting within a few millivolts of the oscillator's electrical centre.
-That is an extrapolation across 720,000 counts from a fit spanning 767,
-and the quoted error is the slope's alone; treat it as an indication of
-where zero lies, not a measurement of it.
+That is an extrapolation about 8,400 counts beyond a fit spanning 767,
+and the quoted error is the fit's alone; treat it as an indication of
+where zero lies, not a measurement of it.  (An earlier version gave
++/- 15,500 counts, having scaled the slope's error by the whole count
+rather than by the distance from the data.)
 
 ## What the count does with ambient
 
@@ -178,12 +186,12 @@ the sliver mapping there would be single-digit nanohertz per hertz of
 range, most of a year at best.
 
 The offset above argues for more headroom still, not less.  If the pin
-is 0 V near +37.7 percent, this unit at +36.0 percent has pulled only
-about 1.7 percentage points, some 3x10^-9, and has most of the range in
+is 0 V near +37.6 percent, this unit at +36.0 percent has pulled only
+about 1.6 percentage points, some 3x10^-9, and has most of the range in
 both directions.  Both readings are comfortable and the difference
 between them does not matter yet, so the conservative one is quoted.
 
-The measured 6.28 uV per count settles it for the specification
+The measured 6.41 uV per count settles it for the specification
 mapping.  That slope is measured over 767 of 2^20 counts and
 extrapolated, so it establishes that the receiver drives volts rather
 than millivolts; it does not certify linearity across a range nobody
