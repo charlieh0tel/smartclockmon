@@ -254,6 +254,47 @@ fn control_changes_what_the_receiver_then_reports() {
 }
 
 #[test]
+fn a_step_that_fails_partway_publishes_none_of_what_it_read() {
+    // The fast step reads mode, TFOM, FFOM and the interval before it
+    // reaches EFC.  With EFC unparsable every fast step fails there, so
+    // no snapshot may carry a mode: one that did would be holding values
+    // from a step that never completed, under a timestamp they were not
+    // read at.
+    let mut receiver = Receiver::default();
+    receiver
+        .garbled
+        .push(":DIAGnostic:ROSCillator:EFControl:RELative?".to_owned());
+    let (handle, joiner) = task::spawn(
+        device(receiver),
+        Cadence {
+            fast: Duration::from_millis(20),
+            medium: Duration::from_millis(50),
+            slow: Duration::from_millis(80),
+        },
+    );
+    let updates = handle.subscribe();
+    let mut seen = 0;
+    let until = std::time::Instant::now() + Duration::from_secs(1);
+    while std::time::Instant::now() < until {
+        let left = until.saturating_duration_since(std::time::Instant::now());
+        let Ok(snapshot) = updates.recv_timeout(left) else {
+            break;
+        };
+        seen += 1;
+        assert_eq!(
+            snapshot.mode, None,
+            "a failed fast step published a mode it read partway"
+        );
+        assert!(snapshot.polled.fast.at.is_none());
+    }
+    assert!(seen > 5, "only {seen} snapshots were published");
+
+    drop(updates);
+    drop(handle);
+    joiner.join().expect("the device thread");
+}
+
+#[test]
 fn a_sky_read_is_returned_and_not_carried_forward() {
     // One sky read must reach the caller, reach the subscribers once so
     // the log records that sky, and then be gone.  Stored as the

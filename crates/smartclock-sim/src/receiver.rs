@@ -153,6 +153,12 @@ pub struct Receiver {
     /// the daemon has to tell the two apart: see
     /// [`Receiver::refusing`].
     refuse_everything: bool,
+    /// Commands answered with a line that parses as nothing.
+    ///
+    /// For making a poll fail partway, after the fields read before
+    /// the garbled one: the case where half-read values could leak out
+    /// as though the whole poll had succeeded.  Matched ignoring case.
+    pub garbled: Vec<String>,
     /// Whether the receiver has ever had a fix.
     ///
     /// Until it has, everything derived from GPS -- the date, the time,
@@ -210,6 +216,7 @@ impl Default for Receiver {
             dialect: Dialect::Hp58503,
             ticks: 0,
             refuse_everything: false,
+            garbled: Vec::new(),
             no_fix: false,
             base: Base {
                 efc_raw: 713_587,
@@ -279,6 +286,9 @@ impl Receiver {
         let command = command.trim();
         if command.is_empty() {
             return Answer::silent();
+        }
+        if self.garbled.iter().any(|g| g.eq_ignore_ascii_case(command)) {
+            return Answer::line("#not a reading#");
         }
         if let Some(answer) = self.common(command) {
             return answer;

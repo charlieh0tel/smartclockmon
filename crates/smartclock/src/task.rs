@@ -600,9 +600,16 @@ impl<T: Transport> DeviceTask<T> {
             return Some(stopped);
         }
         let now = Timestamp::now();
-        let mut snapshot = self.shared.latest().unwrap_or_else(|| Snapshot::new(now));
+        let before = self.shared.latest().unwrap_or_else(|| Snapshot::new(now));
         let step = self.step[tier as usize];
-        let outcome = self.device.poll_step(tier, step, &mut snapshot, now);
+        // Into a copy, kept only if the whole step succeeds.  A step
+        // that fails partway has written the fields it read before the
+        // failure and not the ones after, under the timestamp of the
+        // last success: published, that is a row claiming values from a
+        // moment they were not read at.
+        let mut attempt = before.clone();
+        let outcome = self.device.poll_step(tier, step, &mut attempt, now);
+        let mut snapshot = if outcome.is_ok() { attempt } else { before };
         self.report_strays();
         self.last_run[tier as usize] = Instant::now();
         // Mid-pass the tier stays due, so the next turn continues it
