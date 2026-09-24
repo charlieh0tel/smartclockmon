@@ -414,24 +414,54 @@ both `sciR`/`sciW` and `drtR`/`drtW` (`z3801-tree.md`), so its firmware,
 ### The other image
 
 Everything above was read from the Z3816A's image, revision 4001.  The
-Z3801A's, revision 3543, carries the same landmarks at different
-addresses: `pll_normal`'s and `startup_pll`'s failure messages
-(`0x44e94`, `0x44e2e`), the fine stage's (`0x45e4a`), the loop report
-(`0x44e6d`), `PFORTH`/`INSTALL`/`PRIMARY` (`0x2f711`), the pForth banner
-(`0x18ad0`), `loop_time` (`0x1d172`), `max loop time` (`0x1c0b8`) and
-`SAWT ERR` (`0x4d57a`), and the loop's constants 29.75, 6.25 × 10⁻¹⁰ and
-5.787 × 10⁻¹⁴ once or twice each as in the other.  It has no `@@En`
-anywhere: of the two Time RAIM messages it handles only the six-channel
-`@@Bn`.  Its `pll_debug` word (`0x1b4d8`) stores its argument at
-`0x102539`, the Z3816A's at `0x102c13`, and its G is the constant noted
-above.
+Z3801A's, revision 3543, was checked against it; what follows was
+confirmed in its bytes.
 
-The loop's report above is printed only when the flag at `0x102c13` is
-set, and the word `pll_debug` (code at `0x2b870`) is what sets it: it
-stores its argument's low byte there.  `phase_off` (`0x2b87c`) converts
-its argument to float and stores it as the loop's setpoint x₀ at
-`0x102c1c`; `lock` (`0x2b85c`) stores 1 at `0x102c18`.  Each word's
-entry in the table is the address of its code followed by its name.
+**The same.**  CPU32: the reset vector points at `0x550`, which sets
+the status register and the vector base with `movec`; the code before
+it, `0x400` to `0x54f`, writes channel B's transmit register beside the
+string `DUART`, a loopback test.  The landmarks of every section above
+are present at their own addresses: `pll_normal`'s and `startup_pll`'s
+failure messages (`0x44e94`, `0x44e2e`), the fine stage's
+(`0x45e4a`), the loop report (`0x44e6d`), `PFORTH`/`INSTALL`/`PRIMARY`
+(`0x2f711`), the pForth banner (`0x18ad0`), `loop_time` (`0x1d172`),
+`max loop time` (`0x1c0b8`), `SAWT ERR` (`0x4d57a`), and the loop's
+constants 29.75, 6.25 × 10⁻¹⁰ and 5.787 × 10⁻¹⁴.  The counter's port
+routine (`0x4076a`) is instruction for instruction the Z3816A's
+(`0x440a6`), and so is the routine that joins two of its four-bit
+registers into a byte (`0x40ba6`, against `0x444e2`).  The interval
+query's handler (`0x2efb8`) copies a float in seconds from `0x102530`
+with the same `0xfff6` tag, and `pll_normal` stores the float mean
+there.  The unpacker takes the same opcodes.
+
+**Different.**
+
+- *GPS messages.*  No `@@En` anywhere: of the two Time RAIM messages it
+  handles only the six-channel `@@Bn`.  The message table's entries are
+  56 bytes apart, where the Z3816A's are 60; `@@Bn`'s, at `0x5074c`,
+  gives length 59, decoder `0x4f81a` and destination `0x100f63`, and
+  its unpacker program at `0x50fa4` is
+
+      02 00 03 00 85 03 04 00 0a 00 fa 01 00 04 81 80
+
+  The Time RAIM page reads the sawtooth as `move.b (0x1a,A3)` at
+  `0x486ec` with A3 = `0x100f62`: record offset 26, as in the other
+  image.
+- *Serial ports.*  The host port is DUART channel B, with the exchanges
+  `drtR` and `drtW` and `DUARTB isr` messages; the SCI is switched off
+  -- the one reference to its registers, at `0x120da`, clears SCCR1.
+- *The language command.*  Its handler (`0x2f57a`) compares the port the
+  command came from with the descriptor that `0x28a46` returns,
+  `0x28cdc`, before it looks at `PFORTH`: a real check, where the
+  Z3816A's always passes.  Which port `0x28cdc` describes was not
+  traced.
+- *The loop.*  The term the Z3816A takes from `FUN_000324b0(6)` comes
+  from `FUN_00022fd2(3)` (`0x4496e`).  A field the Z3816A initialises
+  to 10⁻⁷ is 10⁻⁸ here (`0x44a3a`).  With no valid reading in ten
+  seconds, `pll_normal` sets the mean to 0 and still runs the update
+  (`0x44bb4` falls through to `0x44bd2`), where the Z3816A skips it.
+  Its G is the fixed +6.25 × 10⁻¹³ noted above, and `pll_debug`
+  (`0x1b4d8`) stores to `0x102539`.
 
 ## What is not established
 
