@@ -27,8 +27,9 @@ follows describes the design family and is not a statement about the
   from one time constant τ and one gain G: the proportional gain goes
   as 1/(Gτ) and the integral as 1/(4Gτ²).  Its phase input is the
   interval mean; no read of the sawtooth was found in it.
-- The firmware carries a **pForth interpreter** whose words include
-  the loop's own diagnostics.
+- The firmware carries a **Forth interpreter** that calls itself
+  pForth, whose words include the loop's own diagnostics.  It is a
+  shell over compiled code: no word in the image is written in Forth.
 
 ## The GPS receiver link
 
@@ -300,11 +301,29 @@ scales the interval to nanoseconds for the report.
 
 ## The debug console
 
-The firmware contains pForth, a portable Forth interpreter:
-`pForth $Revision: 1.2 $` at `0x28fa4`, the core words (`loop`,
-`+loop`, `again`, `interpret`) and a table of the firmware's own words
-around `0x2d300`, each a name followed by the address of its code.
-Among them:
+The firmware contains a Forth interpreter, identified by
+`pForth $Revision: 1.2 $` at `0x28fa4`.
+
+Its dictionary runs from about `0x2a400` to `0x2ad00`: 152 words, each
+an entry of a link to the previous entry, a code pointer, two 16-bit
+fields and the name.  The names are lower case -- `dup`, `swap`, `if`,
+`do`, `loop`, `:`, `create`, `does>`, `words`, `sin`, `cos` -- and
+include words that call the real-time system directly: `spawn`,
+`suspend`, `resume`, `priority`, `my_pid`, `send_x`, `request_x`,
+`jam_x`, `delete_x`, `signal_v`, `wait_v`, `dev_open`, `dev_read`,
+`dev_write`, `dev_ctrl`.  That layout and those names are not Phil
+Burk's portable pForth; what the name stands for here is not known.
+
+Every word's code pointer is a 68000 routine of its own -- only one pair
+share one -- so none is a Forth definition, which would point at a
+common routine that runs a list of other words.  No Forth source text is
+stored in the image.  The interpreter is a shell over compiled code, not
+a language any of the firmware is written in; `:` can still define
+words at run time, and a word named `startup` exists, so whether Forth
+is loaded from elsewhere at boot is not something the image can show.
+
+A second table, around `0x2d300`, holds the firmware's own words, each
+a name followed by the address of its code.  Among them:
 
     loop_time   pll_rep    efc_rep    pr_efc      efc_write   efc_wr
     fpll_restart          ppll_debug  lock        phase_off   hpr_pll
@@ -335,6 +354,8 @@ set.
   a receiver to find out.  Setting the language is one of the commands
   this project never sends.
 - Which word, if any, sets the report flag at `0x102c13`.
+- Only a sample of the firmware word table's code pointers was
+  checked; they pointed at 68000 code.
 - Only byte loads of offset 26 of the form `move.b (0x1a,An),Dn` were
   searched for.  A reader using another addressing form would have
   been missed.
