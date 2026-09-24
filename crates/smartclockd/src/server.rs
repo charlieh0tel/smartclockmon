@@ -576,6 +576,14 @@ fn raw_class(scpi: &str) -> Class {
     if STRANDS.iter().any(|needle| upper.contains(needle)) {
         return Class::Dangerous;
     }
+    // Reading an event register, or the standard event status register,
+    // clears it -- and with it the front-panel Alarm LED, which belongs
+    // to whoever is at the instrument.  The command table classes every
+    // one it knows as control; a spelling it does not know is guessed
+    // the same way.  EVENt's mandatory abbreviation is EVEN.
+    if upper.contains(":EVEN") || upper.contains("*ESR") {
+        return Class::Control;
+    }
     // A trailing '?' means a query only when there is nothing else in
     // the string: it is the last character of the whole command, so on
     // its own it would call anything ending in one a read.
@@ -860,6 +868,30 @@ mod tests {
         assert!(policy.allows(Class::Query));
         assert!(!policy.allows(Class::Control));
         assert!(!policy.allows(Class::Dangerous));
+    }
+
+    #[test]
+    fn a_read_that_clears_a_register_is_not_a_query() {
+        // Reading an event register clears it and can put out the
+        // front-panel Alarm LED, so the default policy must refuse it
+        // however it is spelled: from the table, abbreviated, or raw.
+        for scpi in [
+            "*ESR?",
+            ":STATus:OPERation:EVENt?",
+            ":STAT:OPER:EVEN?",
+            ":STATus:QUEStionable:EVENt?",
+            ":STATus:OPERation:HARDware:EVENt?",
+            ":STATus:OPERation:HOLDover:EVENt?",
+            ":STATus:OPERation:POWerup:EVENt?",
+        ] {
+            let class = classify(scpi, HP).map_or_else(|| raw_class(scpi), |(spec, _)| spec.class);
+            assert_eq!(class, Class::Control, "{scpi}");
+            assert!(!Policy::default().allows(class), "{scpi}");
+        }
+        // The condition registers are the non-destructive reads, and
+        // stay open.
+        let (spec, _) = classify(":STATus:OPERation:CONDition?", HP).expect("known");
+        assert_eq!(spec.class, Class::Query);
     }
 
     #[test]

@@ -135,7 +135,8 @@ doc = "Standard event status enable register."
 
 [[command]]
 id = "esr"
-class = "query"
+class = "control"
+# Reading it clears it, which is an act on the receiver, not a look at it.
 doc = "Read and clear standard event status register."
 
   [command.dialect.hp58503]
@@ -1228,8 +1229,9 @@ doc = "Operation condition register."
 
 [[command]]
 id = "oper_event"
-class = "query"
-# Reading this clears it.  Never on a timer.
+class = "control"
+# Reading it clears it, which is an act on the receiver, not a look at it.
+# Never on a timer.
 doc = "Operation event register."
 
   [command.dialect.hp58503]
@@ -1259,8 +1261,9 @@ doc = "Hardware condition register; EFC full-scale is bits 6 and 7."
 
 [[command]]
 id = "hardware_event"
-class = "query"
-# Reading this clears it.  Never on a timer.
+class = "control"
+# Reading it clears it, which is an act on the receiver, not a look at it.
+# Never on a timer.
 doc = "Hardware event register."
 
   [command.dialect.hp58503]
@@ -1290,8 +1293,9 @@ doc = "Holdover condition register."
 
 [[command]]
 id = "holdover_event"
-class = "query"
-# Reading this clears it.  Never on a timer.
+class = "control"
+# Reading it clears it, which is an act on the receiver, not a look at it.
+# Never on a timer.
 doc = "Holdover event register."
 
   [command.dialect.hp58503]
@@ -1339,8 +1343,9 @@ doc = "Questionable condition register."
 
 [[command]]
 id = "quest_event"
-class = "query"
-# Reading this clears it.  Never on a timer.
+class = "control"
+# Reading it clears it, which is an act on the receiver, not a look at it.
+# Never on a timer.
 doc = "Questionable event register."
 
   [command.dialect.hp58503]
@@ -1352,8 +1357,9 @@ doc = "Questionable event register."
 
 [[command]]
 id = "powerup_event"
-class = "query"
-# Reading this clears it.  Never on a timer.
+class = "control"
+# Reading it clears it, which is an act on the receiver, not a look at it.
+# Never on a timer.
 doc = "Powerup event register."
 
   [command.dialect.hp58503]

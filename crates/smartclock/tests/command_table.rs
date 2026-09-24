@@ -180,11 +180,16 @@ fn the_primary_tree_has_been_probed() {
 
 #[test]
 fn no_control_or_dangerous_command_claims_verification() {
-    // Probing only ever sends queries.  Hardware evidence on anything else
-    // means something sent a state-changing command to the receiver.
+    // Probing only ever sends queries.  Hardware evidence on a command
+    // that changes a setting means something sent it to the receiver.
+    //
+    // A command that returns a reading is exempt even when it is not a
+    // query: reading an event register clears it, which makes it an act
+    // rather than a look, but it was confirmed by being read, not by
+    // changing anything.
     for dialect in DIALECTS {
         for spec in dialect.specs() {
-            if spec.class != Class::Query {
+            if spec.class != Class::Query && spec.response == "none" {
                 assert_ne!(
                     spec.evidence,
                     Evidence::Hardware,

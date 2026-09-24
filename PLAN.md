@@ -241,7 +241,7 @@ scattered conditionals:
 | Class     | Examples                                              | Gate                     |
 | --------- | ----------------------------------------------------- | ------------------------ |
 | Query     | `:GPS:POSition?`, `:SYNC:TINT?`                        | none                     |
-| Control   | holdover initiate and recover, survey, antenna delay, elevation mask | `--allow-control` |
+| Control   | holdover initiate and recover, survey, antenna delay, elevation mask; reading an event register or `*ESR?`, which clears it | `--allow-control` |
 | Dangerous | `:SYSTem:PRESet`, `:SYSTem:COMMunicate:SERial1:*`, `:DIAGnostic:ERASe`, `:SYSTem:LANGuage "INSTALL"` | `--allow-dangerous` |
 
 Dangerous commands can strand the link or wipe configuration, since a
@@ -405,6 +405,13 @@ wants it, by reading the event register, which is the same act as
 acknowledging.  That is worth building when there is a reason to
 acknowledge from the monitor; it is not worth doing behind the
 operator's back on a timer.
+
+For the same reason a client of the socket cannot read an event
+register, or `*ESR?`, unless the daemon was started with
+`--allow-control`.  They were classed as queries at first, which let
+any client put the lamp out with no flag at all.  Being reads, they
+still return their value; the class records that taking it is an act
+on the receiver.
 
 The transition filters are recorded beside the events, because the
 events are uninterpretable without them.  A filter decides which

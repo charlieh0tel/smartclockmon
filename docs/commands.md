@@ -17,8 +17,8 @@ it was transcribed from a manual and nothing more.
 
 | Class | Commands | Gate |
 | ----- | -------- | ---- |
-| Query | 97 | none |
-| Control | 24 | `--allow-control` |
+| Query | 91 | none |
+| Control | 30 | `--allow-control` |
 | Dangerous | 8 | `--allow-dangerous` |
 
 ## Undocumented
@@ -55,7 +55,7 @@ anything reaching the receiver.
 | selftest | Control | `*TST?` M | `*TST?` F |
 | ese set | Control | `*ESE` M |  |
 | ese | Query | `*ESE?` H | `*ESE?` F |
-| esr | Query | `*ESR?` H | `*ESR?` F |
+| esr | Control | `*ESR?` H | `*ESR?` F |
 | sre set | Control | `*SRE` M |  |
 | sre | Query | `*SRE?` H | `*SRE?` F |
 | stb | Query | `*STB?` H | `*STB?` F |
@@ -114,15 +114,15 @@ anything reaching the receiver.
 | led alarm | Query | `:LED:ALARm?` H | `:LED:ALARm?` F |
 | status preset alarm | Control | `:STATus:PRESet:ALARm` M | `:STATus:PRESet:ALARm` F |
 | oper condition | Query | `:STATus:OPERation:CONDition?` H | `:STATus:OPERation:CONDition?` F |
-| oper event | Query | `:STATus:OPERation:EVENt?` H |  |
+| oper event | Control | `:STATus:OPERation:EVENt?` H |  |
 | hardware condition | Query | `:STATus:OPERation:HARDware:CONDition?` H | `:STATus:OPERation:HARDware:CONDition?` F |
-| hardware event | Query | `:STATus:OPERation:HARDware:EVENt?` H |  |
+| hardware event | Control | `:STATus:OPERation:HARDware:EVENt?` H |  |
 | holdover condition | Query | `:STATus:OPERation:HOLDover:CONDition?` H | `:STATus:OPERation:HOLDover:CONDition?` F |
-| holdover event | Query | `:STATus:OPERation:HOLDover:EVENt?` H |  |
+| holdover event | Control | `:STATus:OPERation:HOLDover:EVENt?` H |  |
 | powerup condition | Query | `:STATus:OPERation:POWerup:CONDition?` H | `:STATus:OPERation:POWerup:CONDition?` F |
 | quest condition | Query | `:STATus:QUEStionable:CONDition?` H | `:STATus:QUEStionable:CONDition?` F |
-| quest event | Query | `:STATus:QUEStionable:EVENt?` H |  |
-| powerup event | Query | `:STATus:OPERation:POWerup:EVENt?` M |  |
+| quest event | Control | `:STATus:QUEStionable:EVENt?` H |  |
+| powerup event | Control | `:STATus:OPERation:POWerup:EVENt?` M |  |
 | oper positive transition | Query | `:STATus:OPERation:PTRansition?` H |  |
 | oper negative transition | Query | `:STATus:OPERation:NTRansition?` H |  |
 | quest positive transition | Query | `:STATus:QUEStionable:PTRansition?` H |  |

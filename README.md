@@ -172,7 +172,8 @@ to a serial adapter behind ser2net.
 paths that only run when something is wrong.
 
 The daemon refuses anything that changes the receiver unless started
-with `--allow-control`, refuses what can strand the link without
+with `--allow-control` -- which includes reading an event register,
+since that clears it -- refuses what can strand the link without
 `--allow-dangerous`, and refuses commands the table does not know
 without `--allow-raw`.  All three are off by default and every command
 that is not a scheduled poll is recorded in the log.  Every option also

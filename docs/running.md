@@ -38,7 +38,8 @@ It copies the receiver's diagnostic log out, entry by entry, and
 optionally clears it; see `SMARTCLOCKD_ADOPT_LOG` below.
 
 It does **not** read the event registers, and so does not touch the
-front-panel Alarm LED or the BITE output.  Reading an event register
+front-panel Alarm LED or the BITE output; nor will it read one for a
+client unless started with `--allow-control`.  Reading an event register
 clears it, which clears the alarm that summarises it.  That lamp is
 yours: the daemon watches the same state through `*STB?`, which reports
 it in real time and changes nothing, and the alarm stays lit until you
