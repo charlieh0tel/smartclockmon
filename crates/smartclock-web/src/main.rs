@@ -197,33 +197,41 @@ const CACHE_FOR: Duration = Duration::from_millis(900);
 /// One mutex rather than one connection: a held connection has to be
 /// reconnected when the daemon restarts, and this way a request that
 /// finds the cache warm does not touch the socket at all.
+///
+/// The lock is held while the daemon is asked, on purpose: requests
+/// arriving together make one connection, not one each, which is what
+/// keeps a few open tabs from taking the daemon's client slots.
 #[derive(Default)]
 struct Cache {
-    latest: Mutex<Option<(Instant, serde_json::Value)>>,
-    info: Mutex<Option<(Instant, serde_json::Value)>>,
+    latest: Mutex<Option<Kept>>,
+    info: Mutex<Option<Kept>>,
 }
+
+/// One answer from the daemon, or why there was none, and when.
+type Kept = (Instant, std::result::Result<serde_json::Value, String>);
 
 impl Cache {
     /// Answer from the cache, or ask the daemon and keep what it says.
     ///
-    /// A failure is not cached: the daemon coming back should show up
-    /// on the next request, not a second later.
-    fn get<F>(
-        cell: &Mutex<Option<(Instant, serde_json::Value)>>,
-        ask: F,
-    ) -> Result<serde_json::Value>
+    /// A failure is kept as briefly as an answer.  Not keeping it made
+    /// every request queued behind a daemon that had stopped answering
+    /// ask again in turn, each waiting out the client's deadline, so
+    /// the last of them waited for all of them.  Kept, they share the
+    /// one failure, and a daemon coming back shows at most `CACHE_FOR`
+    /// later.
+    fn get<F>(cell: &Mutex<Option<Kept>>, ask: F) -> Result<serde_json::Value>
     where
         F: FnOnce() -> Result<serde_json::Value>,
     {
         let mut held = cell.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        if let Some((at, value)) = held.as_ref()
+        if let Some((at, kept)) = held.as_ref()
             && at.elapsed() < CACHE_FOR
         {
-            return Ok(value.clone());
+            return kept.clone().map_err(anyhow::Error::msg);
         }
-        let value = ask()?;
-        *held = Some((Instant::now(), value.clone()));
-        Ok(value)
+        let asked = ask().map_err(|e| format!("{e:#}"));
+        *held = Some((Instant::now(), asked.clone()));
+        asked.map_err(anyhow::Error::msg)
     }
 
     fn snapshot(&self, socket: &Path) -> Result<serde_json::Value> {
@@ -389,8 +397,42 @@ fn series(database: &Path, query: &str) -> Result<serde_json::Value> {
 
 #[cfg(test)]
 mod tests {
+    use super::Cache;
     use super::PAGE;
     use super::decode;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+    use std::time::Duration;
+    use std::time::Instant;
+
+    #[test]
+    fn requests_queued_behind_a_silent_daemon_share_its_failure() {
+        // Three requests at once, and a daemon that takes 300 ms to
+        // fail.  One ask, and all three told, in about the time of one.
+        let cache = Arc::new(Cache::default());
+        let asks = Arc::new(AtomicUsize::new(0));
+        let started = Instant::now();
+        let requests: Vec<_> = (0..3)
+            .map(|_| {
+                let cache = Arc::clone(&cache);
+                let asks = Arc::clone(&asks);
+                std::thread::spawn(move || {
+                    Cache::get(&cache.latest, || {
+                        asks.fetch_add(1, Ordering::SeqCst);
+                        std::thread::sleep(Duration::from_millis(300));
+                        Err(anyhow::anyhow!("it did not answer"))
+                    })
+                })
+            })
+            .collect();
+        for request in requests {
+            let outcome = request.join().expect("a request");
+            assert!(outcome.is_err_and(|e| e.to_string().contains("did not answer")));
+        }
+        assert_eq!(asks.load(Ordering::SeqCst), 1);
+        assert!(started.elapsed() < Duration::from_millis(800));
+    }
 
     /// No two top-level functions in the page share a name.
     ///
