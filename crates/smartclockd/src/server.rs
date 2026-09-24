@@ -578,10 +578,12 @@ fn raw_class(scpi: &str) -> Class {
     }
     // Reading an event register, or the standard event status register,
     // clears it -- and with it the front-panel Alarm LED, which belongs
-    // to whoever is at the instrument.  The command table classes every
-    // one it knows as control; a spelling it does not know is guessed
-    // the same way.  EVENt's mandatory abbreviation is EVEN.
-    if upper.contains(":EVEN") || upper.contains("*ESR") {
+    // to whoever is at the instrument.  Reading the error queue removes
+    // the entry, which the daemon's journal is there to keep.  The
+    // command table classes every one it knows as control; a spelling
+    // it does not know is guessed the same way.  The mandatory
+    // abbreviations are EVEN and ERR.
+    if upper.contains(":EVEN") || upper.contains("*ESR") || upper.contains(":ERR") {
         return Class::Control;
     }
     // A trailing '?' means a query only when there is nothing else in
@@ -873,8 +875,9 @@ mod tests {
     #[test]
     fn a_read_that_clears_a_register_is_not_a_query() {
         // Reading an event register clears it and can put out the
-        // front-panel Alarm LED, so the default policy must refuse it
-        // however it is spelled: from the table, abbreviated, or raw.
+        // front-panel Alarm LED, and reading the error queue takes the
+        // entry, so the default policy must refuse them however they
+        // are spelled: from the table, abbreviated, or raw.
         for scpi in [
             "*ESR?",
             ":STATus:OPERation:EVENt?",
@@ -883,6 +886,8 @@ mod tests {
             ":STATus:OPERation:HARDware:EVENt?",
             ":STATus:OPERation:HOLDover:EVENt?",
             ":STATus:OPERation:POWerup:EVENt?",
+            ":SYSTem:ERRor?",
+            ":SYST:ERR?",
         ] {
             let class = classify(scpi, HP).map_or_else(|| raw_class(scpi), |(spec, _)| spec.class);
             assert_eq!(class, Class::Control, "{scpi}");

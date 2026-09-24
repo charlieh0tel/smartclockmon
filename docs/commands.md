@@ -17,8 +17,8 @@ it was transcribed from a manual and nothing more.
 
 | Class | Commands | Gate |
 | ----- | -------- | ---- |
-| Query | 91 | none |
-| Control | 30 | `--allow-control` |
+| Query | 90 | none |
+| Control | 31 | `--allow-control` |
 | Dangerous | 8 | `--allow-dangerous` |
 
 ## Undocumented
@@ -106,7 +106,7 @@ anything reaching the receiver.
 | sync immediate | Control | `:SYNChronization:IMMediate` M | `:PTIMe:SYNChronization:IMMediate` F |
 | status screen | Query | `:SYSTem:STATus?` H | `:SYSTem:STATus?` F |
 | status screen lines | Query | `:SYSTem:STATus:LENGth?` H | `:SYSTem:STATus:LENGth?` H |
-| error | Query | `:SYSTem:ERRor?` H | `:SYSTem:ERRor?` F |
+| error | Control | `:SYSTem:ERRor?` H | `:SYSTem:ERRor?` F |
 | log read all | Query | `:DIAGnostic:LOG:READ:ALL?` H | `:DIAGnostic:LOG:READ:ALL?` H |
 | log count | Query | `:DIAGnostic:LOG:COUNt?` H | `:DIAGnostic:LOG:COUNt?` F |
 | log read | Query | `:DIAGnostic:LOG:READ?` H | `:DIAGnostic:LOG:READ?` F |

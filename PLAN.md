@@ -241,7 +241,7 @@ scattered conditionals:
 | Class     | Examples                                              | Gate                     |
 | --------- | ----------------------------------------------------- | ------------------------ |
 | Query     | `:GPS:POSition?`, `:SYNC:TINT?`                        | none                     |
-| Control   | holdover initiate and recover, survey, antenna delay, elevation mask; reading an event register or `*ESR?`, which clears it | `--allow-control` |
+| Control   | holdover initiate and recover, survey, antenna delay, elevation mask; reading an event register or `*ESR?`, which clears it; reading `:SYSTem:ERRor?`, which removes the entry | `--allow-control` |
 | Dangerous | `:SYSTem:PRESet`, `:SYSTem:COMMunicate:SERial1:*`, `:DIAGnostic:ERASe`, `:SYSTem:LANGuage "INSTALL"` | `--allow-dangerous` |
 
 Dangerous commands can strand the link or wipe configuration, since a

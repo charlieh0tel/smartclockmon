@@ -1074,7 +1074,8 @@ doc = "Line count of the status screen."
 
 [[command]]
 id = "error"
-class = "query"
+class = "control"
+# Reading it removes it, which is an act on the receiver, not a look at it.
 doc = "Oldest error in the queue; removes it."
 
   [command.dialect.hp58503]
