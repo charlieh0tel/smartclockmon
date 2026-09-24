@@ -254,6 +254,39 @@ fn control_changes_what_the_receiver_then_reports() {
 }
 
 #[test]
+fn a_failed_poll_marks_the_snapshot_stale_and_says_why() {
+    // TFOM comes back unreadable, so every fast step fails.  What is
+    // published must say so: Stale, with the fast tier's error naming
+    // the reply it could not read.
+    let mut receiver = Receiver::default();
+    receiver
+        .garbled
+        .push(":SYNChronization:TFOMerit?".to_owned());
+    let (handle, joiner) = task::spawn(device(receiver), Cadence::default());
+    let updates = handle.subscribe();
+    let until = std::time::Instant::now() + Duration::from_secs(5);
+    let failed = loop {
+        let left = until.saturating_duration_since(std::time::Instant::now());
+        let snapshot = updates
+            .recv_timeout(left)
+            .expect("a snapshot saying the fast tier failed");
+        if snapshot.polled.fast.error.is_some() {
+            break snapshot;
+        }
+    };
+    assert_eq!(failed.freshness, Freshness::Stale);
+    let why = failed.polled.fast.error.expect("an error");
+    assert!(
+        why.contains("#not a reading#"),
+        "the reason does not say what failed: {why}"
+    );
+
+    drop(updates);
+    drop(handle);
+    joiner.join().expect("the device thread");
+}
+
+#[test]
 fn a_step_that_fails_partway_publishes_none_of_what_it_read() {
     // The fast step reads mode, TFOM, FFOM and the interval before it
     // reaches EFC.  With EFC unparsable every fast step fails there, so

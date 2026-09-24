@@ -5,9 +5,14 @@ use std::time::Duration;
 use smartclock::device::Device;
 use smartclock::session::Config;
 use smartclock::session::Session;
+use std::sync::mpsc::channel;
+
 use smartclock::snapshot::Freshness;
+use smartclock::snapshot::Tier;
 use smartclock::task;
 use smartclock::task::Cadence;
+use smartclock::task::DeviceTask;
+use smartclock::task::Shared;
 use smartclock::transport::replay::ReplayTransport;
 
 /// A transcript that answers *IDN? and then whatever else is asked, by
@@ -62,33 +67,35 @@ fn the_task_publishes_snapshots_to_subscribers() {
 }
 
 #[test]
-fn a_failed_poll_marks_the_snapshot_stale_and_says_why() {
-    // An empty transcript makes every command time out.
-    let transport = ReplayTransport::from_jsonl("").expect("empty transcript");
-    let session = Session::new(
-        transport,
-        Config {
-            timeout: Duration::from_millis(50),
-            ..Config::default()
-        },
-    );
-    // Opening fails outright with nothing to replay, which is itself
-    // the right behaviour: no identity means no dialect.
-    assert!(Device::open(session).is_err());
-}
-
-#[test]
 fn nothing_is_published_before_the_first_poll() {
     // latest() is None rather than an empty snapshot, so a client can
     // tell "not polled yet" from "polled and everything was absent".
-    let (handle, joiner) = task::spawn(device(), Cadence::default());
-    let fresh = handle.latest();
-    drop(handle);
-    joiner.join().expect("the device thread");
-    // Either nothing yet, or a real reading; never a fabricated blank.
-    if let Some(snapshot) = fresh {
-        assert!(snapshot.mode.is_some() || snapshot.polled.any_error().is_some());
-    }
+    // Subscribed before the task starts, so nothing it publishes can be
+    // missed: the first snapshot is the first thing it ever published,
+    // and it must come from a poll.
+    let shared = Shared::new();
+    let updates = shared.subscribe();
+    let (requests_tx, requests_rx) = channel();
+    let mut task = DeviceTask::new(device(), Cadence::default(), shared.clone(), requests_rx);
+    assert!(shared.latest().is_none());
+    let runner = std::thread::spawn(move || {
+        task.run();
+    });
+
+    let first = updates
+        .recv_timeout(Duration::from_secs(5))
+        .expect("a snapshot");
+    let polled = Tier::ALL
+        .iter()
+        .any(|&tier| first.polled.get(tier).at.is_some() || first.polled.get(tier).error.is_some());
+    assert!(
+        polled,
+        "the first snapshot published came from no poll: {first:?}"
+    );
+
+    drop(updates);
+    drop(requests_tx);
+    runner.join().expect("the device thread");
 }
 
 #[test]
