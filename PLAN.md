@@ -663,6 +663,12 @@ record, and the script beside it regenerates them.  They agree to one
 part in 10^9 at every tau from 1 to 200 s, with the same count of
 differences at each.
 
+The web view's query thins the held readings in SQL, keeping a row
+only where the interval or the state differs from the one before, so a
+long range reads one row per update rather than one per poll.  It reads
+at most the newest 500 000 such rows, about two months, and says when
+a range held more.
+
 A curve carries the count of readings, holes and segments with it,
 because a curve alone cannot be judged: one drawn from a run that is
 mostly holes looks exactly like one drawn from a clean day.  Points

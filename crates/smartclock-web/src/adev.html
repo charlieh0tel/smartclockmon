@@ -285,7 +285,10 @@ async function load() {
       stat(seconds(d.tau0), "spacing") +
       stat(d.segments, "unbroken runs") +
       stat(`${complete}%`, "complete") +
-      stat(d.holes, "holes");
+      stat(d.holes, "holes") +
+      (d.truncated
+        ? ` <span class="pill stale">longer than one measurement reads; this is its newest part</span>`
+        : "");
   } catch (e) {
     if (mine !== latest) return;
     draw([]);

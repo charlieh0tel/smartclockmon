@@ -281,7 +281,12 @@ fn deviation(database: &Path, query: &str) -> Result<serde_json::Value> {
     #[expect(clippy::cast_possible_truncation, reason = "unix seconds fit an i64")]
     let to = to.unwrap_or(last as i64);
     let from = from.unwrap_or_else(|| to.saturating_sub(DEFAULT_WINDOW));
-    Ok(serde_json::to_value(log.phase(receiver, from, to)?)?)
+    let (curve, truncated) = log.phase(receiver, from, to)?;
+    let mut value = serde_json::to_value(curve)?;
+    if let Some(fields) = value.as_object_mut() {
+        fields.insert("truncated".to_owned(), truncated.into());
+    }
+    Ok(value)
 }
 
 /// Every receiver the log holds, for the page's selector.

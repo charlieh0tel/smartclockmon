@@ -50,6 +50,16 @@ pub(crate) const PLOTTABLE: [(&str, Tier); 10] = [
     ("not_tracking", Tier::Medium),
 ];
 
+/// The most rows one Allan deviation reads, after held readings are
+/// thinned out.
+///
+/// Twice what the estimator grids before it starts striding (see
+/// `smartclock::adev::MAX_SAMPLES`): about two months of ten-second
+/// updates, and some tens of megabytes held at once.  A longer range is
+/// measured over its newest rows and says so, rather than reading a
+/// year of the log into memory.
+const MAX_PHASE_ROWS: usize = 500_000;
+
 /// The most series one request will bucket together.
 ///
 /// Enough to tick every plottable column at once.  Each adds three
@@ -313,7 +323,20 @@ impl Log {
     /// segment boundaries and no triple is formed across one.  The mode
     /// and the holdover flag are what the log records about that; a
     /// plain gap in the timestamps is caught by the estimator itself.
-    pub(crate) fn phase(&self, receiver: i64, from: i64, to: i64) -> Result<Curve> {
+    ///
+    /// Also whether the range held more than [`MAX_PHASE_ROWS`], in
+    /// which case the curve is of the newest that many.
+    pub(crate) fn phase(&self, receiver: i64, from: i64, to: i64) -> Result<(Curve, bool)> {
+        self.phase_within(receiver, from, to, MAX_PHASE_ROWS)
+    }
+
+    fn phase_within(
+        &self,
+        receiver: i64,
+        from: i64,
+        to: i64,
+        limit: usize,
+    ) -> Result<(Curve, bool)> {
         anyhow::ensure!(from <= to, "the range ends before it starts");
         let mut statement = self.conn.prepare(
             // `fast_at = at` keeps one row per reading.  The medium and
@@ -324,17 +347,38 @@ impl Log {
             // `at` as stored, not `unixepoch(at)`: that truncates to
             // the second, and the sub-second part is what decides which
             // grid point a reading belongs to.
-            "SELECT at, time_interval_s, COALESCE(mode, 'unknown'),
-                    COALESCE(holdover_active, 0)
-             FROM snapshot
-             WHERE at >= strftime('%Y-%m-%dT%H:%M:%S', ?2, 'unixepoch')
-               AND at < strftime('%Y-%m-%dT%H:%M:%S', ?3 + 1, 'unixepoch')
-               AND receiver_id = ?1
-               AND time_interval_s IS NOT NULL
-               AND (fast_at = at OR (fast_at IS NULL AND freshness = 'live'))
-             ORDER BY at",
+            //
+            // A row is kept only where the interval or the state differs
+            // from the row before.  The receiver updates the interval
+            // every ten seconds and is polled every second, so this is
+            // the same thinning `Curve::from_readings` does, done where
+            // it saves reading nine rows in ten into memory; the state
+            // changes are kept because the run must break at them.
+            // Newest first, so the limit keeps the end of the range.
+            "SELECT at, time_interval_s, mode, holdover FROM (
+                 SELECT at, time_interval_s,
+                        COALESCE(mode, 'unknown') AS mode,
+                        COALESCE(holdover_active, 0) AS holdover,
+                        LAG(time_interval_s) OVER previous AS was_interval,
+                        LAG(COALESCE(mode, 'unknown')) OVER previous AS was_mode,
+                        LAG(COALESCE(holdover_active, 0)) OVER previous AS was_holdover
+                 FROM snapshot
+                 WHERE at >= strftime('%Y-%m-%dT%H:%M:%S', ?2, 'unixepoch')
+                   AND at < strftime('%Y-%m-%dT%H:%M:%S', ?3 + 1, 'unixepoch')
+                   AND receiver_id = ?1
+                   AND time_interval_s IS NOT NULL
+                   AND (fast_at = at OR (fast_at IS NULL AND freshness = 'live'))
+                 WINDOW previous AS (ORDER BY at))
+             WHERE was_interval IS NULL
+                OR time_interval_s <> was_interval
+                OR mode <> was_mode
+                OR holdover <> was_holdover
+             ORDER BY at DESC
+             LIMIT ?4",
         )?;
-        let rows = statement.query_map(rusqlite::params![receiver, from, to], |row| {
+        // One more than the limit, to know whether there were more.
+        let asked = i64::try_from(limit.saturating_add(1)).unwrap_or(i64::MAX);
+        let rows = statement.query_map(rusqlite::params![receiver, from, to, asked], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, f64>(1)?,
@@ -353,8 +397,13 @@ impl Log {
             samples.push(Sample { at, interval });
             states.push((mode, holdover));
         }
+        let truncated = samples.len() > limit;
+        samples.truncate(limit);
+        states.truncate(limit);
+        samples.reverse();
+        states.reverse();
 
-        Ok(Curve::from_readings(&samples, &states))
+        Ok((Curve::from_readings(&samples, &states), truncated))
     }
 
     /// The oldest and newest readings, so the page can offer a range
@@ -638,7 +687,7 @@ mod tests {
         }
         let scratch = phase_log("adev-ramp", &rows);
         let log = Log::open(scratch.path()).expect("open");
-        let deviation = log.phase(1, 0, 2_000_000_000).expect("a deviation");
+        let (deviation, _) = log.phase(1, 0, 2_000_000_000).expect("a deviation");
 
         assert_eq!(deviation.tau0, 1.0);
         assert_eq!(deviation.segments, 1);
@@ -670,12 +719,64 @@ mod tests {
         }
         let scratch = phase_log("adev-relock", &rows);
         let log = Log::open(scratch.path()).expect("open");
-        let deviation = log.phase(1, 0, 2_000_000_000).expect("a deviation");
+        let (deviation, _) = log.phase(1, 0, 2_000_000_000).expect("a deviation");
 
         assert_eq!(deviation.segments, 2);
         for point in &deviation.points {
             assert!(point.deviation < 1e-15, "{point:?}");
         }
+    }
+
+    #[test]
+    fn a_holdover_inside_a_held_reading_still_breaks_the_run() {
+        // One-second rows with the interval updated every ten, as the
+        // receiver does.  Three rows of holdover sit inside one held
+        // value, and the phase steps by a microsecond at the next
+        // update.  The
+        // query thins held rows out, and must keep the state changes
+        // or the step is read as instability.
+        let rows: Vec<_> = (0..600i64)
+            .map(|i| {
+                let update = i / 10;
+                let step = if i >= 310 { 1e-6 } else { 0.0 };
+                let mode = if (302..305).contains(&i) {
+                    "Holdover"
+                } else {
+                    "Locked"
+                };
+                let interval = step + 1e-9 * update as f64;
+                (1_700_000_000 + i, interval, mode, 0, false)
+            })
+            .collect();
+        let scratch = phase_log("adev-held-holdover", &rows);
+        let log = Log::open(scratch.path()).expect("open");
+        let (deviation, truncated) = log.phase(1, 0, 2_000_000_000).expect("a deviation");
+        assert!(!truncated);
+        assert!(deviation.segments >= 2, "{} segments", deviation.segments);
+        for point in &deviation.points {
+            assert!(point.deviation < 1e-12, "{point:?}");
+        }
+    }
+
+    #[test]
+    fn a_range_past_the_limit_is_measured_over_its_newest_readings() {
+        let rows: Vec<_> = (0..100i64)
+            .map(|i| (1_700_000_000 + i, 1e-9 * i as f64, "Locked", 0, false))
+            .collect();
+        let scratch = phase_log("adev-limit", &rows);
+        let log = Log::open(scratch.path()).expect("open");
+
+        let (all, truncated) = log
+            .phase_within(1, 0, 2_000_000_000, 100)
+            .expect("a deviation");
+        assert!(!truncated);
+        assert_eq!(all.present, 100);
+
+        let (newest, truncated) = log
+            .phase_within(1, 0, 2_000_000_000, 40)
+            .expect("a deviation");
+        assert!(truncated);
+        assert_eq!(newest.present, 40);
     }
 
     #[test]
@@ -688,7 +789,7 @@ mod tests {
             .collect();
         let scratch = phase_log("adev-short", &rows);
         let log = Log::open(scratch.path()).expect("open");
-        let deviation = log.phase(1, 0, 2_000_000_000).expect("a deviation");
+        let (deviation, _) = log.phase(1, 0, 2_000_000_000).expect("a deviation");
         assert!(deviation.points.is_empty());
         assert_eq!(deviation.present, 9);
     }
