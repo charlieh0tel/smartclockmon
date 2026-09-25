@@ -695,6 +695,26 @@ sees them is the operation it exists to perform.  That costs the short
 taus, which is the right trade for a month of history and the wrong one
 for an hour, so the caller picks.
 
+The reading itself is already an average.  `docs/firmware.md` shows
+`:SYNChronization:TINTerval?` to be the mean of ten one-second
+readings, updated every ten seconds, so the record is phase averaged
+over contiguous 10 s windows.  That leaves the Allan deviation
+band-limited below about five window lengths -- the 10 s and 20 s
+points are low where white or flicker phase noise dominates, which is
+where receiver noise sits -- and exact from about 100 s up.  The
+modified Allan deviation has no such limit: its own averaging over n
+consecutive samples of the 10 s means is the same window mean as over
+10n one-second readings, so MDEV computed from the record equals MDEV
+of the underlying one-second phase at every tau of 10 s and above,
+with only the count of overlapping estimates reduced.  TDEV follows as
+tau times MDEV over root three.  The decision is to add MDEV and TDEV
+as the primary curves and keep ADEV, labelled, for comparison with the
+oscillator and receiver data sheets, which quote ADEV; this is open
+question 6.  `:PTIMe:TINTerval?`, which returns the latest one-second
+reading, would extend the curves below 10 s, and is not going to be
+polled: it costs a query a second and ten times the phase rows for
+the receiver-noise floor alone.
+
 ## Architecture
 
 Cargo workspace:
@@ -1175,6 +1195,16 @@ Things that are not decided, as distinct from the defects below.
    and clears the alarm as it does so.  That makes it exactly the right
    implementation of a deliberate acknowledgement and exactly the wrong
    thing to do on a timer.  Nothing needs it yet.
+
+6. **MDEV and TDEV beside ADEV.**  Decided but not built; see "Allan
+   deviation is computed over segments" for why MDEV is exact on this
+   record where ADEV is filtered.  To do: overlapping MDEV over
+   cumulative sums of the gridded phase, with the same segment and gap
+   handling; TDEV from it; the reference tests extended to
+   allantools' `mdev` and `tdev` and to NIST SP 1065 Table 31's MDEV
+   and TDEV columns; the web chart showing MDEV and TDEV by default
+   with ADEV selectable, and the TUI likewise.  Not decided: whether
+   the chart shows one curve or both by default.
 
 ## Known defects
 
