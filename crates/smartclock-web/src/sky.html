@@ -137,7 +137,7 @@ async function read() {
   $("read").disabled = true;
   $("state").innerHTML = `<span class="pill">reading the status screen...</span>`;
   try {
-    const r = await fetch("/api/sky");
+    const r = await fetch("/api/sky" + liveQuery());
     if (!r.ok) throw new Error(`the daemon answered ${r.status}`);
     const s = await r.json();
     // A failure the server could describe comes back as 200 with an

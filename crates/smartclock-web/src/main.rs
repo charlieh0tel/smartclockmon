@@ -12,6 +12,7 @@
 
 mod history;
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -61,11 +62,19 @@ const STATUS: &str = include_str!("status.js");
 #[derive(Parser)]
 #[command(about, version = smartclock::VERSION)]
 struct Cli {
-    /// The daemon's socket, for live readings: one instance's
-    /// `/run/smartclockd/<instance>/socket`.  No default, since a
-    /// guessed instance name would point at a socket that is not there.
+    /// Where the daemons' sockets are: one instance per subdirectory,
+    /// `<run-dir>/<instance>/socket`.  The live strip follows the
+    /// selected receiver to whichever daemon is attached to it.
+    #[arg(
+        long,
+        env = "SMARTCLOCK_WEB_RUN_DIR",
+        default_value = "/run/smartclockd"
+    )]
+    run_dir: PathBuf,
+
+    /// One daemon's socket in place of the directory.
     #[arg(long, env = "SMARTCLOCK_WEB_SOCKET")]
-    socket: PathBuf,
+    socket: Option<PathBuf>,
 
     /// The daemon's logs, for history: one `.sqlite` file per receiver
     /// in this directory.  Opened read-only.
@@ -94,7 +103,10 @@ struct Cli {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     eprintln!("smartclock-web: serving http://{}/", cli.listen);
-    let socket = cli.socket.clone();
+    let daemons = match cli.socket.clone() {
+        Some(file) => Daemons::File(file),
+        None => Daemons::Dir(cli.run_dir.clone()),
+    };
     let logs = match cli.database.clone() {
         Some(file) => Logs::File(file),
         None => Logs::Dir(cli.log_dir.clone()),
@@ -108,14 +120,18 @@ fn main() -> Result<()> {
             "/adev" => Response::ok("text/html; charset=utf-8", DEVIATION.to_owned()),
             "/style.css" => Response::ok("text/css; charset=utf-8", STYLE.to_owned()),
             "/status.js" => Response::ok("text/javascript; charset=utf-8", STATUS.to_owned()),
-            "/api/snapshot" => json(cache.snapshot(&socket)),
-            "/api/info" => json(cache.info(&socket)),
+            "/api/snapshot" => json(
+                daemons
+                    .choose(&cache, query)
+                    .and_then(|s| cache.snapshot(&s)),
+            ),
+            "/api/info" => json(daemons.choose(&cache, query).and_then(|s| cache.info(&s))),
             // Uncached, and the only endpoint that goes to the wire on
             // request: it is what the sky page is paying for.
-            "/api/sky" => json(sky(&socket)),
+            "/api/sky" => json(daemons.choose(&cache, query).and_then(|s| sky(&s))),
             "/api/history" => json(series(&logs, query)),
             "/api/journal" => json(journal(&logs, query)),
-            "/api/receivers" => json(receivers(&logs)),
+            "/api/receivers" => json(receivers(&logs, &daemons, &cache)),
             "/api/adev" => json(deviation(&logs, query)),
             _ => Response::not_found(),
         }
@@ -212,11 +228,11 @@ const CACHE_FOR: Duration = Duration::from_millis(900);
 /// keeps a few open tabs from taking the daemon's client slots.
 #[derive(Default)]
 struct Cache {
-    latest: Mutex<Option<Kept>>,
-    info: Mutex<Option<Kept>>,
+    latest: Mutex<HashMap<PathBuf, Kept>>,
+    info: Mutex<HashMap<PathBuf, Kept>>,
 }
 
-/// One answer from the daemon, or why there was none, and when.
+/// One answer from a daemon, or why there was none, and when.
 type Kept = (Instant, std::result::Result<serde_json::Value, String>);
 
 impl Cache {
@@ -228,29 +244,137 @@ impl Cache {
     /// the last of them waited for all of them.  Kept, they share the
     /// one failure, and a daemon coming back shows at most `CACHE_FOR`
     /// later.
-    fn get<F>(cell: &Mutex<Option<Kept>>, ask: F) -> Result<serde_json::Value>
+    fn get<F>(
+        cell: &Mutex<HashMap<PathBuf, Kept>>,
+        socket: &Path,
+        ask: F,
+    ) -> Result<serde_json::Value>
     where
         F: FnOnce() -> Result<serde_json::Value>,
     {
         let mut held = cell.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        if let Some((at, kept)) = held.as_ref()
+        if let Some((at, kept)) = held.get(socket)
             && at.elapsed() < CACHE_FOR
         {
             return kept.clone().map_err(anyhow::Error::msg);
         }
         let asked = ask().map_err(|e| format!("{e:#}"));
-        *held = Some((Instant::now(), asked.clone()));
+        held.insert(socket.to_path_buf(), (Instant::now(), asked.clone()));
         asked.map_err(anyhow::Error::msg)
     }
 
     fn snapshot(&self, socket: &Path) -> Result<serde_json::Value> {
-        Self::get(&self.latest, || {
+        Self::get(&self.latest, socket, || {
             Ok(Daemon::connect(socket)?.ask(Op::Latest)?)
         })
     }
 
     fn info(&self, socket: &Path) -> Result<serde_json::Value> {
-        Self::get(&self.info, || Ok(Daemon::connect(socket)?.info()?))
+        Self::get(&self.info, socket, || Ok(Daemon::connect(socket)?.info()?))
+    }
+}
+
+/// Where the daemons are.
+enum Daemons {
+    /// The run directory: one instance per subdirectory, its socket
+    /// inside.
+    Dir(PathBuf),
+    /// One socket.
+    File(PathBuf),
+}
+
+/// One daemon that answered, and what it is attached to.
+struct Live {
+    socket: PathBuf,
+    /// The instance name, the subdirectory's; empty for a socket
+    /// named outright.
+    instance: String,
+    /// The serial of the receiver it is attached to, when it is
+    /// attached to one whose identity parses.
+    serial: Option<String>,
+    identity: String,
+}
+
+impl Daemons {
+    /// Every socket that could be a daemon's, by instance name.
+    fn sockets(&self) -> Vec<(String, PathBuf)> {
+        match self {
+            Self::File(file) => vec![(String::new(), file.clone())],
+            Self::Dir(dir) => {
+                let Ok(entries) = std::fs::read_dir(dir) else {
+                    return Vec::new();
+                };
+                let mut sockets: Vec<(String, PathBuf)> = entries
+                    .filter_map(|entry| entry.ok())
+                    .filter(|entry| entry.path().join("socket").exists())
+                    .map(|entry| {
+                        (
+                            entry.file_name().to_string_lossy().into_owned(),
+                            entry.path().join("socket"),
+                        )
+                    })
+                    .collect();
+                sockets.sort();
+                sockets
+            }
+        }
+    }
+
+    /// Every daemon that answers, by instance name.
+    ///
+    /// A socket nobody answers on -- an instance stopped with its
+    /// directory still there -- is left out, not an error: the page
+    /// shows what is live, and history for the rest.
+    fn live(&self, cache: &Cache) -> Vec<Live> {
+        self.sockets()
+            .into_iter()
+            .filter_map(|(instance, socket)| {
+                let info = cache.info(&socket).ok()?;
+                let identity = info
+                    .get("identity")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned();
+                let serial = smartclock::parse::identity(&identity)
+                    .ok()
+                    .map(|id| id.serial)
+                    .filter(|serial| !serial.is_empty());
+                Some(Live {
+                    socket,
+                    instance,
+                    serial,
+                    identity,
+                })
+            })
+            .collect()
+    }
+
+    /// The daemon a live request is about.
+    ///
+    /// `?receiver=<serial>` names the daemon attached to that unit; a
+    /// unit no daemon is attached to has history and no live strip,
+    /// and the page is told so.  Without one, the only daemon, or the
+    /// first by instance name.
+    fn choose(&self, cache: &Cache, query: &str) -> Result<PathBuf> {
+        let asked = query.split('&').find_map(|pair| {
+            pair.split_once('=')
+                .filter(|(key, _)| *key == "receiver")
+                .map(|(_, value)| decode(value))
+        });
+        match asked {
+            Some(serial) => self
+                .live(cache)
+                .into_iter()
+                .find(|d| d.serial.as_deref() == Some(serial.as_str()))
+                .map(|d| d.socket)
+                .ok_or_else(|| anyhow::anyhow!("no daemon is attached to receiver {serial}")),
+            None => self
+                .sockets()
+                .into_iter()
+                .next()
+                .map(|(_, socket)| socket)
+                .ok_or_else(|| anyhow::anyhow!("no daemon is running")),
+        }
     }
 }
 
@@ -399,12 +523,43 @@ impl Logs {
     }
 }
 
-/// Every receiver the logs hold, for the page's selector.
-fn receivers(logs: &Logs) -> Result<serde_json::Value> {
-    let found = logs.receivers()?;
-    Ok(serde_json::to_value(
-        found.iter().map(|f| &f.receiver).collect::<Vec<_>>(),
-    )?)
+/// Every receiver the logs hold or a daemon is attached to, for the
+/// page's selector: live ones first, then by when last seen.
+///
+/// A unit a daemon is attached to but no log names yet -- answered
+/// `*IDN?` moments ago, first row not yet written -- is listed from
+/// its identity alone, so the selector never lacks the unit that is
+/// actually on the bench.
+fn receivers(logs: &Logs, daemons: &Daemons, cache: &Cache) -> Result<serde_json::Value> {
+    let live = daemons.live(cache);
+    let mut found: Vec<Receiver> = logs.receivers()?.into_iter().map(|f| f.receiver).collect();
+    for daemon in &live {
+        let Some(serial) = &daemon.serial else {
+            continue;
+        };
+        match found.iter_mut().find(|r| r.serial == *serial) {
+            Some(receiver) => receiver.instance = Some(daemon.instance.clone()),
+            None => {
+                let id = smartclock::parse::identity(&daemon.identity)?;
+                found.push(Receiver {
+                    id: 0,
+                    serial: id.serial,
+                    model: id.model,
+                    firmware: id.firmware,
+                    first_seen: String::new(),
+                    last_seen: String::new(),
+                    instance: Some(daemon.instance.clone()),
+                });
+            }
+        }
+    }
+    found.sort_by(|a, b| {
+        b.instance
+            .is_some()
+            .cmp(&a.instance.is_some())
+            .then_with(|| b.last_seen.cmp(&a.last_seen))
+    });
+    Ok(serde_json::to_value(found)?)
 }
 
 /// How much history a request that does not say gets.
@@ -481,6 +636,7 @@ mod tests {
     use super::Cache;
     use super::PAGE;
     use super::decode;
+    use std::path::Path;
     use std::sync::Arc;
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
@@ -499,7 +655,7 @@ mod tests {
                 let cache = Arc::clone(&cache);
                 let asks = Arc::clone(&asks);
                 std::thread::spawn(move || {
-                    Cache::get(&cache.latest, || {
+                    Cache::get(&cache.latest, Path::new("/nowhere"), || {
                         asks.fetch_add(1, Ordering::SeqCst);
                         std::thread::sleep(Duration::from_millis(300));
                         Err(anyhow::anyhow!("it did not answer"))

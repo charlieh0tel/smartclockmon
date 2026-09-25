@@ -148,6 +148,7 @@ impl Log {
                     firmware: row.get(3)?,
                     first_seen: row.get(4)?,
                     last_seen: row.get(5)?,
+                    instance: None,
                 })
             })?
             .collect::<std::result::Result<_, _>>()?)
@@ -517,6 +518,9 @@ pub(crate) struct Receiver {
     pub(crate) firmware: String,
     pub(crate) first_seen: String,
     pub(crate) last_seen: String,
+    /// The daemon instance attached to it now, if one is.  Not the
+    /// log's to know; filled in from the daemons that answer.
+    pub(crate) instance: Option<String>,
 }
 
 /// The most of each stream one request will return.

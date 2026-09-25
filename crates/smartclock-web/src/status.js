@@ -43,8 +43,15 @@ async function tick() {
   }
 }
 
+// The daemon attached to the chosen receiver, or whatever the address
+// names before the selector has run.
+function liveQuery() {
+  const serial = unit ?? new URLSearchParams(location.search).get("receiver");
+  return serial === null ? "" : `?receiver=${encodeURIComponent(serial)}`;
+}
+
 async function poll() {
-  const s = await getJson("/api/snapshot");
+  const s = await getJson("/api/snapshot" + liveQuery());
   if (s.error) {
     lost("no daemon", s.error);
     return;
@@ -308,10 +315,11 @@ function setAbsolute(from, to) {
 
 // Fill the receiver selector, and call `changed` when it changes.
 //
-// The unit comes from the address when it names one the logs hold,
-// and is otherwise the one seen most recently.  The bar is hidden for
-// one unit, or none: a control whose only option is the one already
-// chosen is noise.  Shown the moment a second unit's log appears.
+// The unit comes from the address when it names one the logs hold or
+// a daemon is attached to, and is otherwise the first the server
+// lists: live ones ahead of history.  The bar is hidden for one unit,
+// or none: a control whose only option is the one already chosen is
+// noise.  Shown the moment a second unit appears.
 async function chooseReceiver(changed) {
   const list = await getJson("/api/receivers");
   if (list.error || !Array.isArray(list) || list.length === 0) return;
@@ -329,7 +337,10 @@ async function chooseReceiver(changed) {
   select.value = unit;
   const seen = () => {
     const r = list.find((x) => x.serial === select.value);
-    $("unit-seen").textContent = r ? `last seen ${r.last_seen.slice(0, 19)}Z` : "";
+    $("unit-seen").textContent = !r ? ""
+      : r.instance !== null ? `live on smartclockd@${r.instance}`
+      : r.last_seen ? `last seen ${r.last_seen.slice(0, 19)}Z`
+      : "";
   };
   seen();
   select.onchange = () => {
@@ -337,6 +348,8 @@ async function chooseReceiver(changed) {
     carryUnit();
     seen();
     changed();
+    // The strip follows the unit at once, not on the next tick.
+    tick();
   };
   $("unit-bar").hidden = false;
 }

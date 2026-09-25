@@ -141,12 +141,14 @@ A second port is a second instance, exactly like the first:
 
 The instances share `/var/lib/smartclockd`, and since each writes the
 file named for the receiver on its own port, and a receiver is on one
-port at a time, they never write the same file.  `smartclock-web`
-reads the whole directory and offers every receiver it finds, live or
-historical, in its selector; it takes one daemon's socket for the live
-strip, so `SMARTCLOCK_WEB_SOCKET` names whichever instance the strip
-should show.  The exporter likewise scrapes one socket, so it is one
-exporter per daemon.
+port at a time, they never write the same file.  The viewers are
+host-wide and need no telling: `smartclock-web` reads every log in
+the directory and every socket under `/run/smartclockd`, offers every
+receiver it finds in its selector, and shows the live strip from
+whichever daemon is attached to the one selected -- a receiver with
+history and no daemon shows the history and says so in the strip.
+`smartclock-exporter` scrapes every daemon into one `/metrics`, each
+sample labelled `daemon="<instance>"`, `serial` and `model`.
 
 ## Unplugging the adapter
 

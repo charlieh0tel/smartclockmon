@@ -24,7 +24,7 @@ oscillator.  See `docs/efc.md`.
 | `smartclockd` | holds the serial port, logs to SQLite, serves clients over a local socket |
 | `smartclockmon` | terminal monitor: a dashboard, history graphs, the journal, the sky and stability |
 | `smartclock-cli` | one-shot queries, `diagnose`, transcript capture, and sweeping for undocumented commands |
-| `smartclock-exporter` | Prometheus metrics for the receiver, from the daemon's own readings |
+| `smartclock-exporter` | Prometheus metrics for every receiver on the host, from the daemons' own readings |
 | `smartclock-web` | a browser view: live state, history you can zoom, and pages for the sky and for stability |
 | `smartclock-sim` | a simulated receiver, in process for tests and over TCP for driving the real daemon |
 
@@ -51,9 +51,12 @@ diagnostic log, its error queue, and the changes in its alarm -- none of
 which is in the snapshot table or can be plotted, and all of which the
 browser view shows too.
 
-    smartclock-exporter            # http://127.0.0.1:9979/metrics
+    smartclock-exporter --socket /tmp/smartclockd.sock   # http://127.0.0.1:9979/metrics
 
-    smartclock-web                 # http://127.0.0.1:9980/
+    smartclock-web --socket /tmp/smartclockd.sock --log-dir .   # http://127.0.0.1:9980/
+
+Installed, neither needs telling: both read every daemon's socket
+under `/run/smartclockd` and every log under `/var/lib/smartclockd`.
 
 The GPS week rollover is treated as the ordinary condition it is.
 Firmware predating the 2019 wrap reports a date 1024 weeks behind, and
@@ -118,9 +121,10 @@ The chart library comes from a CDN, pinned with an integrity hash, so
 the page needs internet even though the daemon does not; the page says
 so rather than showing an empty frame if it cannot be fetched.
 
-The exporter answers a scrape from whatever the daemon last polled, so
-scraping costs the receiver nothing and cannot compete with the poll
-schedule.  It exports `smartclock_up`, and the age of each tier as
+The exporter answers a scrape from whatever each daemon last polled,
+so scraping costs the receivers nothing and cannot compete with the
+poll schedule.  Every sample is labelled with the daemon instance and
+the receiver's serial and model.  It exports `smartclock_up`, and the age of each tier as
 `smartclock_tier_age_seconds`, because a daemon that has stopped polling
 otherwise looks like a remarkably steady oscillator: every other value
 stays exactly where it was.  A reading the receiver declined is left out

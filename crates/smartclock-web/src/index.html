@@ -672,7 +672,7 @@ async function loadJournal() {
     load();
     loadJournal();
   });
-  const info = await getJson("/api/info");
+  const info = await getJson("/api/info" + liveQuery());
   $("about").textContent = info.error
     ? info.error
     : [info.identity, info.dialect, `smartclockd ${info.version ?? "?"}`, "read only"]

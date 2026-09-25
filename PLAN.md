@@ -801,9 +801,15 @@ its own device and socket -- and the daemon owns the port, so nothing
 in it becomes concurrent.  The template is the only daemon unit, even
 on a host with one port: two ways to run the same daemon, with
 different socket paths and configuration files, was one too many.
-The socket therefore has no default anywhere -- daemon, web view,
-exporter, monitor -- since a default would have to guess an instance
-name, and a guessed path fails less clearly than a missing flag.  What the instances share is the directory
+The daemon and the monitor therefore have no socket default, since a
+default would have to guess an instance name, and a guessed path
+fails less clearly than a missing flag.  The viewers are host-wide
+instead, the way they are for logs: `smartclock-web` and the exporter
+scan `/run/smartclockd/*/socket` as they scan the log directory, the
+web's live strip follows the selected receiver to the daemon attached
+to it, and the exporter labels every sample with the daemon instance
+and the receiver's serial and model, which is how Prometheus tells
+things apart.  Neither takes a socket unless told to read one.  What the instances share is the directory
 of logs, and the log a daemon writes is chosen by the receiver, not
 the port: after `*IDN?` it opens `/var/lib/smartclockd/<model>-
 <serial>.sqlite`.  A swap on a port switches files; a unit moved to
@@ -1220,7 +1226,7 @@ What each turned out to involve, which is the part worth keeping.
 | 8 | `smartclock-exporter`, `smartclock-web` | a scrape must cost the receiver nothing, so both read what the daemon already polled |
 | 9 | The receiver's own records: error queue, diagnostic log, condition registers | reading is what removes an entry, so the read and the write have to share a thread |
 | 10 | Adoption per connection; the alarm watched, not taken | the event registers turned out to be the wrong answer twice before `*STB?` was the right one |
-| 11 | One log per receiver, one daemon per port | done: the log opens after `*IDN?`, named by model and serial; `smartclockd@.service` is the only daemon unit; the web view reads the directory and keys by serial; the bench log split by hand |
+| 11 | One log per receiver, one daemon per port | done: the log opens after `*IDN?`, named by model and serial; `smartclockd@.service` is the only daemon unit; the web view and exporter read every log and every socket on the host, keyed by serial; the bench log split by hand |
 
 Suggest a commit at each phase boundary.
 

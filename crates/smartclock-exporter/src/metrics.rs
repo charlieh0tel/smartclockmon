@@ -6,6 +6,10 @@
 //! which metrics are absent: a field the receiver did not answer is
 //! left out rather than exported as zero, because zero is a reading and
 //! absence is not.
+//!
+//! One scrape covers every daemon on the host.  Each sample carries
+//! the labels that say which: the daemon instance, and the serial and
+//! model of the receiver it is attached to.
 
 use std::fmt::Write as _;
 
@@ -16,53 +20,126 @@ use smartclock::wire::Reading;
 /// Every metric this exporter emits, prefixed to keep the namespace.
 const PREFIX: &str = "smartclock";
 
-/// One gauge, with the help and type lines Prometheus wants.
-fn gauge(out: &mut String, name: &str, help: &str, value: f64) {
-    let _ = writeln!(out, "# HELP {PREFIX}_{name} {help}");
-    let _ = writeln!(out, "# TYPE {PREFIX}_{name} gauge");
-    let _ = writeln!(out, "{PREFIX}_{name} {value}");
+/// One daemon's part of a scrape: the labels that name it and what it
+/// answered.
+pub(crate) struct Scrape {
+    /// Already rendered, `daemon="bench",serial="...",model="..."`,
+    /// without braces; empty for an exporter pointed at one socket
+    /// with nothing known about it.
+    pub(crate) labels: String,
+    /// The daemon's last reading, or nothing if it could not be asked.
+    pub(crate) reading: Option<Reading>,
 }
 
-/// The same, for a value the receiver may not have answered.
+/// One metric's samples across every daemon scraped, in the order the
+/// metric was first written.
 ///
-/// `None` emits nothing at all.  Exporting a missing reading as zero
-/// would put a plausible number on a graph, which is the failure this
-/// whole project is written to avoid.
-fn maybe(out: &mut String, name: &str, help: &str, value: Option<f64>) {
-    if let Some(value) = value {
-        gauge(out, name, help, value);
+/// Prometheus wants a metric's HELP and TYPE once, ahead of all its
+/// samples, so samples from several daemons are gathered by name
+/// before anything is written.
+struct Family {
+    name: &'static str,
+    help: &'static str,
+    /// Rendered label set and value, one per daemon that had it.
+    samples: Vec<(String, f64)>,
+}
+
+/// The scrape being assembled, keyed by metric name in first-seen order.
+#[derive(Default)]
+struct Families(Vec<Family>);
+
+impl Families {
+    /// One sample of a gauge under `labels`.
+    fn gauge(&mut self, name: &'static str, help: &'static str, labels: &str, value: f64) {
+        let family = match self.0.iter_mut().find(|f| f.name == name) {
+            Some(family) => family,
+            None => {
+                self.0.push(Family {
+                    name,
+                    help,
+                    samples: Vec::new(),
+                });
+                self.0.last_mut().expect("just pushed")
+            }
+        };
+        family.samples.push((labels.to_owned(), value));
+    }
+
+    /// The same, for a value the receiver may not have answered.
+    ///
+    /// `None` emits nothing at all.  Exporting a missing reading as
+    /// zero would put a plausible number on a graph, which is the
+    /// failure this whole project is written to avoid.
+    fn maybe(&mut self, name: &'static str, help: &'static str, labels: &str, value: Option<f64>) {
+        if let Some(value) = value {
+            self.gauge(name, help, labels, value);
+        }
+    }
+
+    fn render(&self) -> String {
+        let mut out = String::with_capacity(4096);
+        for family in &self.0 {
+            let _ = writeln!(out, "# HELP {PREFIX}_{} {}", family.name, family.help);
+            let _ = writeln!(out, "# TYPE {PREFIX}_{} gauge", family.name);
+            for (labels, value) in &family.samples {
+                if labels.is_empty() {
+                    let _ = writeln!(out, "{PREFIX}_{} {value}", family.name);
+                } else {
+                    let _ = writeln!(out, "{PREFIX}_{}{{{labels}}} {value}", family.name);
+                }
+            }
+        }
+        out
     }
 }
 
-/// Render everything a scrape should see.
+/// `labels` with one more `key="value"` on the end.
+fn with(labels: &str, key: &str, value: &str) -> String {
+    if labels.is_empty() {
+        format!("{key}=\"{value}\"")
+    } else {
+        format!("{labels},{key}=\"{value}\"")
+    }
+}
+
+/// Render everything a scrape should see, from every daemon.
 ///
-/// `up` says whether the daemon answered at all.  When it did not, that
-/// is the only metric: a stale set of numbers with `up 0` beside them
+/// `up` says whether a daemon answered at all.  When it did not, that
+/// is its only metric: a stale set of numbers with `up 0` beside them
 /// invites a panel to keep drawing the numbers.
-pub(crate) fn render(reading: Option<&Reading>) -> String {
-    let mut out = String::with_capacity(2048);
-    gauge(
-        &mut out,
+pub(crate) fn render(scrapes: &[Scrape]) -> String {
+    let mut families = Families::default();
+    for scrape in scrapes {
+        one(&mut families, scrape);
+    }
+    families.render()
+}
+
+/// One daemon's samples.
+fn one(out: &mut Families, scrape: &Scrape) {
+    let labels = scrape.labels.as_str();
+    out.gauge(
         "up",
         "1 when the daemon answered this scrape",
-        f64::from(u8::from(reading.is_some())),
+        labels,
+        f64::from(u8::from(scrape.reading.is_some())),
     );
-    let Some(r) = reading else {
-        return out;
+    let Some(r) = &scrape.reading else {
+        return;
     };
 
     // Freshness as a number, so an alert can fire on the link being
     // down without parsing a label.
-    gauge(
-        &mut out,
+    out.gauge(
         "reading_live",
         "1 when every tier has been polled and none is failing",
+        labels,
         f64::from(u8::from(r.freshness == Freshness::Live)),
     );
-    gauge(
-        &mut out,
+    out.gauge(
         "reading_disconnected",
         "1 when the link to the receiver is down",
+        labels,
         f64::from(u8::from(r.freshness == Freshness::Disconnected)),
     );
 
@@ -75,77 +152,77 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
     let medium = current(Tier::Medium);
     let slow = current(Tier::Slow);
 
-    maybe(
-        &mut out,
+    out.maybe(
         "efc_percent",
         "Oscillator control as a share of its range, -100 to 100",
+        labels,
         r.efc.filter(|_| fast).map(|v| v.percent()),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "efc_raw",
         "Oscillator control as the raw 20-bit value",
+        labels,
         r.efc_raw.filter(|_| medium).map(f64::from),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "temperature_celsius",
         "Internal temperature; not the oscillator oven, which runs far hotter",
+        labels,
         r.temperature_c.filter(|_| medium),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "oven_current",
         "Oven current",
+        labels,
         r.oven_current.filter(|_| medium),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "oven_tempco",
         "Oscillator temperature coefficient, in parts in 10^12 per degree C; \
          measured against GPS while locked and kept in EPROM, so it sits \
          still for long stretches",
+        labels,
         r.oven_tempco.filter(|_| slow),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "time_interval_seconds",
         "Interval between the receiver's 1 PPS and GPS",
+        labels,
         r.time_interval_ns.filter(|_| fast).map(|ns| ns * 1e-9),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "tfom",
         "Time figure of merit, lower is better",
+        labels,
         r.tfom.filter(|_| fast).map(|v| f64::from(v.get())),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "ffom",
         "Frequency figure of merit, lower is better",
+        labels,
         r.ffom.filter(|_| fast).map(|v| f64::from(v.get())),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "hardware_bits",
         "Hardware condition register; 0 is healthy",
+        labels,
         r.hardware.filter(|_| fast).map(|h| f64::from(h.bits())),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "alarm",
         "1 while the receiver has something latched in a status group; \
          this is what its front-panel Alarm LED is showing",
+        labels,
         r.alarming
             .filter(|_| medium)
             .map(|v| f64::from(u8::from(v))),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "time_reset",
         "1 once the receiver has stepped its own clock to match the satellites, \
          which invalidates interval measurements taken across the step; \
          stays set until the alarm is cleared at the receiver",
+        labels,
         r.time_reset
             .filter(|_| medium)
             .map(|v| f64::from(u8::from(v))),
@@ -198,43 +275,43 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
             medium,
         ),
     ] {
-        maybe(
-            &mut out,
+        out.maybe(
             name,
             help,
+            labels,
             value.filter(|_| tier).map(|v| f64::from(u8::from(v))),
         );
     }
-    maybe(
-        &mut out,
+    out.maybe(
         "holdover_active",
         "1 while the receiver is in holdover",
+        labels,
         r.holdover_active
             .filter(|_| medium)
             .map(|v| f64::from(u8::from(v))),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "holdover_seconds",
         "How long the current or last holdover lasted",
+        labels,
         r.holdover_seconds.filter(|_| medium),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "holdover_predicted_seconds",
         "Predicted error after 24 hours of holdover",
+        labels,
         r.holdover_predicted_s.filter(|_| medium),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "holdover_present_seconds",
         "Error accumulated so far in the current holdover",
+        labels,
         r.holdover_present_s.filter(|_| medium),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "rollover_epochs",
         "GPS week epochs the receiver's calendar is behind",
+        labels,
         r.date
             .filter(|_| slow)
             .map(|d| f64::from(d.rollover().map_or(0, |s| s.epochs))),
@@ -243,33 +320,29 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
     // From the direct counts on the medium tier, not the status screen:
     // no tier reads the screen, so a count taken from it is whatever the
     // last sky plot saw, however long ago.
-    maybe(
-        &mut out,
+    out.maybe(
         "satellites_tracked",
         "Satellites being tracked",
+        labels,
         r.tracking.filter(|_| medium).map(f64::from),
     );
-    maybe(
-        &mut out,
+    out.maybe(
         "satellites_visible",
         "Satellites the almanac predicts are visible",
+        labels,
         r.visible.filter(|_| medium).map(f64::from),
     );
 
     // The age of each group of fields.  Without these a daemon that has
     // stopped polling looks like a remarkably steady oscillator: the
     // numbers above stay exactly where they were.
-    let _ = writeln!(
-        out,
-        "# HELP {PREFIX}_tier_age_seconds How long ago this group of fields was last read"
-    );
-    let _ = writeln!(out, "# TYPE {PREFIX}_tier_age_seconds gauge");
     let now = jiff::Timestamp::now();
     for (tier, state) in [
         ("fast", &r.polled.fast),
         ("medium", &r.polled.medium),
         ("slow", &r.polled.slow),
     ] {
+        let tiered = with(labels, "tier", tier);
         // Skipped rather than defaulted: an age of zero reads as
         // "polled just now", which is the one answer that must not be
         // invented for a tier whose age is unknown.
@@ -277,33 +350,25 @@ pub(crate) fn render(reading: Option<&Reading>) -> String {
             .at
             .and_then(|at| (now - at).total(jiff::Unit::Second).ok())
         {
-            let _ = writeln!(
-                out,
-                "{PREFIX}_tier_age_seconds{{tier=\"{tier}\"}} {}",
-                age.max(0.0)
+            out.gauge(
+                "tier_age_seconds",
+                "How long ago this group of fields was last read",
+                &tiered,
+                age.max(0.0),
             );
         }
+        out.gauge(
+            "tier_failing",
+            "1 when this group's last read failed",
+            &tiered,
+            f64::from(u8::from(state.error.is_some())),
+        );
     }
-
-    let _ = writeln!(
-        out,
-        "# HELP {PREFIX}_tier_failing 1 when this group's last read failed"
-    );
-    let _ = writeln!(out, "# TYPE {PREFIX}_tier_failing gauge");
-    for (tier, state) in [
-        ("fast", &r.polled.fast),
-        ("medium", &r.polled.medium),
-        ("slow", &r.polled.slow),
-    ] {
-        let failing = u8::from(state.error.is_some());
-        let _ = writeln!(out, "{PREFIX}_tier_failing{{tier=\"{tier}\"}} {failing}");
-    }
-
-    out
 }
 
 #[cfg(test)]
 mod tests {
+    use super::Scrape;
     use super::render;
     use smartclock::snapshot::Freshness;
     use smartclock::snapshot::Snapshot;
@@ -316,7 +381,10 @@ mod tests {
         // Not stale numbers with up 0 beside them: a panel that plots
         // the numbers and ignores the flag then shows a receiver that
         // looks perfectly steady while nothing is being read.
-        let out = render(None);
+        let out = render(&[Scrape {
+            labels: String::new(),
+            reading: None,
+        }]);
         assert!(out.contains("smartclock_up 0"));
         assert!(
             !out.contains("efc"),
@@ -340,10 +408,40 @@ mod tests {
     }
 
     #[test]
+    fn two_daemons_share_one_help_line_per_metric_and_keep_their_labels() {
+        let out = render(&[
+            Scrape {
+                labels: r#"daemon="a",serial="1""#.to_owned(),
+                reading: Some(Reading::from(&read_everywhere())),
+            },
+            Scrape {
+                labels: r#"daemon="b""#.to_owned(),
+                reading: None,
+            },
+        ]);
+        assert_eq!(out.matches("# HELP smartclock_up ").count(), 1);
+        assert!(out.contains(r#"smartclock_up{daemon="a",serial="1"} 1"#));
+        assert!(out.contains(r#"smartclock_up{daemon="b"} 0"#));
+        assert!(out.contains(r#"smartclock_efc_percent{daemon="a",serial="1"} 1"#));
+        assert!(!out.contains(r#"smartclock_efc_percent{daemon="b"}"#));
+        assert!(out.contains(r#"smartclock_tier_failing{daemon="a",serial="1",tier="fast"} 0"#));
+        // Every sample of a family sits under its one header.
+        let up = out.find("# TYPE smartclock_up gauge").expect("type line");
+        let next = out
+            .find("# HELP smartclock_reading_live")
+            .expect("next family");
+        let block = &out[up..next];
+        assert_eq!(block.matches("smartclock_up{").count(), 2);
+    }
+
+    #[test]
     fn a_disconnected_receiver_exports_no_readings() {
         let mut snapshot = read_everywhere();
         snapshot.freshness = Freshness::Disconnected;
-        let out = render(Some(&Reading::from(&snapshot)));
+        let out = render(&[Scrape {
+            labels: String::new(),
+            reading: Some(Reading::from(&snapshot)),
+        }]);
         assert!(out.contains("smartclock_reading_disconnected 1"));
         for absent in [
             "smartclock_efc_percent",
@@ -362,7 +460,10 @@ mod tests {
         let mut snapshot = read_everywhere();
         snapshot.polled.failed(Tier::Medium, "no answer");
         snapshot.settle_freshness();
-        let out = render(Some(&Reading::from(&snapshot)));
+        let out = render(&[Scrape {
+            labels: String::new(),
+            reading: Some(Reading::from(&snapshot)),
+        }]);
         assert!(!out.contains("smartclock_temperature_celsius"));
         assert!(out.contains("smartclock_efc_percent 1"));
         assert!(out.contains("smartclock_oven_tempco 0.5"));
@@ -374,7 +475,10 @@ mod tests {
         // centred, which is a very different thing from not having
         // asked, and Grafana cannot tell them apart after the fact.
         let empty = Reading::from(&Snapshot::new(jiff::Timestamp::now()));
-        let out = render(Some(&empty));
+        let out = render(&[Scrape {
+            labels: String::new(),
+            reading: Some(empty),
+        }]);
         assert!(out.contains("smartclock_up 1"));
         for absent in [
             "smartclock_efc_percent",
