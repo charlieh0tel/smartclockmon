@@ -1,3 +1,20 @@
+smartclockmon (0.6.15-1) unstable; urgency=low
+
+  * Measure the maximum time interval error from the phase record
+    beside the deviations: the largest peak-to-peak excursion in any
+    window of tau, with no window spanning a hole or a cut.  Checked
+    against allantools.  In the stability table, and on the seconds
+    chart from the legend.
+  * Draw ADEV at full strength beside MDEV.
+  * Carry the undocumented :SYSTem:PON in the command table as
+    dangerous and refuse it by name with :SYSTem:PRESet: the firmware
+    shows it restarts with the receiver's learned state discarded.
+  * Read the firmware's restarts: trap 12 behind PON and PRESet, the
+    INSTALL exit, and *TST?, which resets the GPS engine and re-runs
+    the loop's power-up rather than the processor.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Thu, 24 Sep 2026 19:27:00 -0700
+
 smartclockmon (0.6.14-1) unstable; urgency=low
 
   * Give the time deviation a chart of its own under the stability
