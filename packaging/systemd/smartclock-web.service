@@ -1,8 +1,6 @@
 [Unit]
 Description=Browser view of a SmartClock GPS receiver
 Documentation=https://github.com/charlieh0tel/smartclockmon
-Wants=smartclockd.service
-After=smartclockd.service
 
 [Service]
 Type=exec

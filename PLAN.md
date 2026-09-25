@@ -798,7 +798,12 @@ by the image's handler table and by 187 paired polls of the bench
 Decided and built 25 September 2026.  More than one receiver on
 a host means one daemon per port -- `smartclockd@<name>`, each with
 its own device and socket -- and the daemon owns the port, so nothing
-in it becomes concurrent.  What the instances share is the directory
+in it becomes concurrent.  The template is the only daemon unit, even
+on a host with one port: two ways to run the same daemon, with
+different socket paths and configuration files, was one too many.
+The socket therefore has no default anywhere -- daemon, web view,
+exporter, monitor -- since a default would have to guess an instance
+name, and a guessed path fails less clearly than a missing flag.  What the instances share is the directory
 of logs, and the log a daemon writes is chosen by the receiver, not
 the port: after `*IDN?` it opens `/var/lib/smartclockd/<model>-
 <serial>.sqlite`.  A swap on a port switches files; a unit moved to
@@ -877,7 +882,7 @@ Library layers, bottom up:
   come up and keep retrying with no receiver attached, so there is no
   moment that honestly counts as ready.
 - `Restart=on-failure` with a backoff and a start limit, so a bad
-  setting in `/etc/default/smartclockd` lands the unit in `failed`
+  setting in `/etc/default/smartclockd.<instance>` lands the unit in `failed`
   rather than restarting every five seconds forever.
 - No `BindsTo=` / `After=` for the adapter's `.device` unit.  The
   daemon reconnects on its own and binding would stop it dead while an
@@ -886,10 +891,12 @@ Library layers, bottom up:
   configuration file exists to avoid.  Offered as a drop-in recipe in
   `docs/running.md` instead.
 - Every option readable from `SMARTCLOCKD_*` in the environment, so
-  `/etc/default/smartclockd` is the only file an operator edits and
-  `ExecStart=` names no settings at all.
-- `StateDirectory=smartclockd` for the database,
-  `RuntimeDirectory=smartclockd` for the socket.
+  `/etc/default/smartclockd.<instance>` is the only file an operator
+  edits and `ExecStart=` names no settings at all.  The unit sets one
+  variable itself, the socket, from the instance name; the file may
+  override it.
+- `StateDirectory=smartclockd` for the logs, shared by every instance;
+  `RuntimeDirectory=smartclockd/<instance>` for the socket.
 - Dedicated user with `SupplementaryGroups=dialout` for port access;
   `RuntimeDirectoryMode` and socket group ownership set so the TUI runs
   unprivileged.
@@ -1213,7 +1220,7 @@ What each turned out to involve, which is the part worth keeping.
 | 8 | `smartclock-exporter`, `smartclock-web` | a scrape must cost the receiver nothing, so both read what the daemon already polled |
 | 9 | The receiver's own records: error queue, diagnostic log, condition registers | reading is what removes an entry, so the read and the write have to share a thread |
 | 10 | Adoption per connection; the alarm watched, not taken | the event registers turned out to be the wrong answer twice before `*STB?` was the right one |
-| 11 | One log per receiver, one daemon per port | done: the log opens after `*IDN?`, named by model and serial; `smartclockd@.service`; the web view reads the directory and keys by serial; the bench log split by hand |
+| 11 | One log per receiver, one daemon per port | done: the log opens after `*IDN?`, named by model and serial; `smartclockd@.service` is the only daemon unit; the web view reads the directory and keys by serial; the bench log split by hand |
 
 Suggest a commit at each phase boundary.
 

@@ -87,12 +87,9 @@ struct Cli {
     #[arg(long, env = "SMARTCLOCKD_DATABASE")]
     database: Option<PathBuf>,
 
-    /// Where to listen for clients.
-    #[arg(
-        long,
-        env = "SMARTCLOCKD_SOCKET",
-        default_value = "/run/smartclockd/socket"
-    )]
+    /// Where to listen for clients.  No default: the socket is per
+    /// instance, and the unit sets it from the instance name.
+    #[arg(long, env = "SMARTCLOCKD_SOCKET")]
     socket: PathBuf,
 
     /// Seconds between fast-tier polls.

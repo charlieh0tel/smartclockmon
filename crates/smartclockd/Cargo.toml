@@ -47,8 +47,8 @@ assets = [
     ["target/release/smartclockmon", "usr/bin/", "755"],
     ["target/release/smartclock-exporter", "usr/bin/", "755"],
     ["target/release/smartclock-web", "usr/bin/", "755"],
-    ["../../packaging/systemd/smartclockd.default", "etc/default/smartclockd", "644"],
-    ["../../packaging/systemd/smartclockd@.service", "lib/systemd/system/smartclockd@.service", "644"],
+    ["../../packaging/systemd/smartclockd@.service", "usr/lib/systemd/system/smartclockd@.service", "644"],
+    ["../../packaging/systemd/smartclockd.instance.default", "usr/share/doc/smartclockmon/examples/smartclockd.instance", "644"],
     ["../../packaging/systemd/smartclock-exporter.default", "etc/default/smartclock-exporter", "644"],
     ["../../packaging/systemd/smartclock-web.default", "etc/default/smartclock-web", "644"],
     ["../../README.md", "usr/share/doc/smartclockmon/README.md", "644"],
@@ -60,17 +60,17 @@ assets = [
     ["../../docs/OCXO.md", "usr/share/doc/smartclockmon/OCXO.md", "644"],
 ]
 conf-files = [
-    "/etc/default/smartclockd",
     "/etc/default/smartclock-exporter",
     "/etc/default/smartclock-web",
 ]
 maintainer-scripts = "../../packaging/debian/"
 changelog = "../../packaging/debian/changelog"
-# Both units ship disabled.  smartclockd will not start until it is
-# told which device to open, and the exporter is only wanted where
-# something scrapes it.
+# Both ship disabled: each needs a socket named first, and the exporter
+# is only wanted where something scrapes it.  The daemon is a template
+# unit, smartclockd@.service, installed as a plain asset above, since
+# cargo-deb's unit handling is for units enabled by name; an instance
+# is enabled by hand once its environment file exists.
 systemd-units = [
-    { unit-name = "smartclockd", unit-scripts = "../../packaging/systemd", enable = false, start = false },
     { unit-name = "smartclock-exporter", unit-scripts = "../../packaging/systemd", enable = false, start = false },
     { unit-name = "smartclock-web", unit-scripts = "../../packaging/systemd", enable = false, start = false },
 ]

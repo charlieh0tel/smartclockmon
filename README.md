@@ -31,9 +31,10 @@ oscillator.  See `docs/efc.md`.
 ## Running it
 
 Build with `make`, or `make deb` for a package.  Installed from the
-package, the daemon is configured entirely through
-`/etc/default/smartclockd` and started with `systemctl enable --now
-smartclockd`; see `docs/running.md`.
+package, the daemon runs as one instance per serial port, configured
+entirely through `/etc/default/smartclockd.<instance>` and started
+with `systemctl enable --now smartclockd@<instance>`; see
+`docs/running.md`.
 
 Run by hand, it holds the port and everything else is a client of it:
 

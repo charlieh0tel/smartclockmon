@@ -2,14 +2,21 @@
 
 ## Installing
 
-    sudo dpkg -i smartclockmon_0.1.0-1_amd64.deb
-    sudoedit /etc/default/smartclockd        # set SMARTCLOCKD_DEVICE
-    sudo systemctl enable --now smartclockd
-    sudo usermod -aG smartclockd $USER       # then log in again
+The daemon is a template unit, `smartclockd@.service`: one instance
+per serial port, named by you, even where there is one port.  The
+name is the port's, not the receiver's, since receivers move between
+ports and the log follows the receiver.
 
-The package puts the three binaries in `/usr/bin`, creates a
-`smartclockd` system user in `dialout`, and leaves the service
-disabled.
+    sudo dpkg -i smartclockmon_0.1.0-1_amd64.deb
+    sudo cp /usr/share/doc/smartclockmon/examples/smartclockd.instance \
+        /etc/default/smartclockd.bench
+    sudoedit /etc/default/smartclockd.bench   # set SMARTCLOCKD_DEVICE
+    sudo systemctl enable --now smartclockd@bench
+    sudo usermod -aG smartclockd $USER        # then log in again
+
+The package puts the binaries in `/usr/bin`, creates a `smartclockd`
+system user in `dialout`, and enables nothing: an instance exists
+once its environment file does.
 
 The last step is not optional: the socket is mode 0660 owned by
 `smartclockd`, so `smartclockmon` and `smartclock-cli` cannot reach the
@@ -19,7 +26,8 @@ whatever the daemon has been configured to allow.
 
 Check it took:
 
-    systemctl status smartclockd
+    systemctl status smartclockd@bench
+    smartclockmon --socket /run/smartclockd/bench/socket
     sudo -u smartclockd ls /var/lib/smartclockd/
     sudo -u smartclockd sqlite3 /var/lib/smartclockd/<model>-<serial>.sqlite \
         "select count(*), max(at) from snapshot;"
@@ -53,11 +61,13 @@ lamp does not lose the history.
 
 ## Configuring
 
-Everything is in `/etc/default/smartclockd`; the unit names none of it.
-Each `SMARTCLOCKD_*` variable matches the command line option of the
-same name, and `smartclockd --help` documents them.  Restart after a
-change -- the file is read only at startup -- and note it is a conffile,
-so upgrades will not overwrite your edits.
+Everything is in `/etc/default/smartclockd.<instance>`; the unit
+names none of it but the socket, `/run/smartclockd/<instance>/socket`,
+which it sets from the instance name.  Each `SMARTCLOCKD_*` variable
+matches the command line option of the same name, and `smartclockd
+--help` documents them.  Restart after a change -- the file is read
+only at startup.  The file is yours, not the package's: upgrades never
+touch it.
 
 `SMARTCLOCKD_DEVICE` is required and has no default, so the service will
 not start until you set it.  A default path does not fail when it is
@@ -101,11 +111,12 @@ newer version -- and `RestartPreventExitStatus=2` makes that final.
 
 ## Where things live
 
-| Path                                    | What                  |
-| --------------------------------------- | --------------------- |
-| `/etc/default/smartclockd`              | all configuration     |
-| `/var/lib/smartclockd/<model>-<serial>.sqlite` | one log per receiver |
-| `/run/smartclockd/socket`               | where clients connect |
+| Path                                             | What                       |
+| ------------------------------------------------ | -------------------------- |
+| `/etc/default/smartclockd.<instance>`            | one instance's configuration |
+| `/var/lib/smartclockd/<model>-<serial>.sqlite`   | one log per receiver       |
+| `/run/smartclockd/<instance>/socket`             | where clients connect      |
+| `/usr/share/doc/smartclockmon/examples/smartclockd.instance` | the file to copy |
 
 A log is named after the receiver that answered on the port, and is
 opened only once one has: a unit moved to another port or another
@@ -119,26 +130,23 @@ point of the record is to still have last year's holdover events.
 
 ## More than one receiver
 
-One daemon per port.  `smartclockd@.service` is a template: an
-instance `smartclockd@bench1` reads `/etc/default/smartclockd.bench1`,
-which names that port's adapter and can set anything the single unit's
-file can, and serves `/run/smartclockd/bench1/socket`.  Copy
-`/etc/default/smartclockd` to start each one.
+A second port is a second instance, exactly like the first:
 
-    sudo cp /etc/default/smartclockd /etc/default/smartclockd.bench1
-    sudoedit /etc/default/smartclockd.bench1     # set SMARTCLOCKD_DEVICE
-    sudo systemctl enable --now smartclockd@bench1
+    sudo cp /usr/share/doc/smartclockmon/examples/smartclockd.instance \
+        /etc/default/smartclockd.second
+    sudoedit /etc/default/smartclockd.second    # set SMARTCLOCKD_DEVICE
+    sudo systemctl enable --now smartclockd@second
 
-    smartclockmon --socket /run/smartclockd/bench1/socket
+    smartclockmon --socket /run/smartclockd/second/socket
 
 The instances share `/var/lib/smartclockd`, and since each writes the
 file named for the receiver on its own port, and a receiver is on one
 port at a time, they never write the same file.  `smartclock-web`
 reads the whole directory and offers every receiver it finds, live or
 historical, in its selector; it takes one daemon's socket for the live
-strip, so point `SMARTCLOCK_WEB_SOCKET` at whichever instance's socket
-the strip should show.  The exporter likewise scrapes one socket, so
-run one instance of it per daemon.
+strip, so `SMARTCLOCK_WEB_SOCKET` names whichever instance the strip
+should show.  The exporter likewise scrapes one socket, so it is one
+exporter per daemon.
 
 ## Unplugging the adapter
 
@@ -147,7 +155,7 @@ to a device unit -- binding stops it dead while an adapter is out, which
 is wrong for something meant to log continuously.  For that behaviour
 anyway, add a drop-in rather than editing the shipped unit:
 
-    sudo systemctl edit smartclockd
+    sudo systemctl edit smartclockd@bench
 
     [Unit]
     BindsTo=dev-serial-by\x2did-usb\x2dYOUR_ADAPTER.device

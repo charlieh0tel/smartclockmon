@@ -1,10 +1,14 @@
 # Settings for smartclock-web.  See `smartclock-web --help`.
 #
 # Every line below is commented out and shows the built-in default.
-# Uncomment one only to change it.
+# Uncomment one only to change it -- except the socket, which has no
+# default and must be set.
 
 #SMARTCLOCK_WEB_LISTEN=127.0.0.1:9980
-#SMARTCLOCK_WEB_SOCKET=/run/smartclockd/socket
+
+# REQUIRED.  The daemon instance whose live readings the status strip
+# shows; the history comes from every log in the directory.
+#SMARTCLOCK_WEB_SOCKET=/run/smartclockd/<instance>/socket
 # The daemon's logs, one per receiver.  Set SMARTCLOCK_WEB_DATABASE to
 # a file instead to read one log.
 #SMARTCLOCK_WEB_LOG_DIR=/var/lib/smartclockd

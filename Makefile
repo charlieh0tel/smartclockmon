@@ -138,7 +138,7 @@ release:
 	@echo "    git push origin main && git push origin v$(VERSION)"
 
 install-service:
-	install -m 0644 packaging/systemd/smartclockd.service /etc/systemd/system/
 	install -m 0644 packaging/systemd/smartclockd@.service /etc/systemd/system/
-	install -m 0644 -b packaging/systemd/smartclockd.default /etc/default/smartclockd
+	install -d /usr/share/doc/smartclockmon/examples
+	install -m 0644 packaging/systemd/smartclockd.instance.default /usr/share/doc/smartclockmon/examples/smartclockd.instance
 	systemctl daemon-reload

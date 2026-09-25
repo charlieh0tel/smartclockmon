@@ -1,12 +1,15 @@
 [Unit]
 Description=SmartClock GPS receiver logging daemon on port %i
 Documentation=https://github.com/charlieh0tel/smartclockmon
-# One instance per port.  `systemctl enable --now smartclockd@bench1`
-# reads /etc/default/smartclockd.bench1, which names that port's
-# adapter, and serves /run/smartclockd/bench1/socket.  The logs are
-# shared: every instance writes /var/lib/smartclockd/<model>-<serial>
-# .sqlite for whichever receiver answers on its port, so a unit moved
-# between ports keeps one history.  See docs/running.md.
+# The only daemon unit: one instance per port, even where there is
+# one port.  `systemctl enable --now smartclockd@bench1` reads
+# /etc/default/smartclockd.bench1, which names that port's adapter,
+# and serves /run/smartclockd/bench1/socket.  The logs are shared:
+# every instance writes /var/lib/smartclockd/<model>-<serial>.sqlite
+# for whichever receiver answers on its port, so a unit moved between
+# ports keeps one history.  Nothing here names the adapter; the daemon
+# reconnects by itself when a USB adapter re-enumerates, and Restart=
+# covers the cases it cannot.  See docs/running.md.
 
 StartLimitIntervalSec=300
 StartLimitBurst=10
@@ -18,6 +21,15 @@ Type=exec
 Environment=SMARTCLOCKD_SOCKET=/run/smartclockd/%i/socket
 EnvironmentFile=-/etc/default/smartclockd.%i
 ExecStart=/usr/bin/smartclockd
+# on-failure, not always, with a limit: a bad setting in the
+# environment file makes the daemon exit at startup, and without a
+# limit that is a restart every five seconds forever rather than a
+# unit that lands in "failed" where the operator can see it.  clap
+# exits 2 for a usage error, which here means the configuration is
+# wrong -- SMARTCLOCKD_DEVICE unset, a baud the receiver cannot do, an
+# allow flag that is not true or false.  Retrying cannot fix any of
+# those, so fail once and stay failed.  A runtime failure exits 1 and
+# still restarts.
 Restart=on-failure
 RestartSec=5
 RestartPreventExitStatus=2

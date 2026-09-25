@@ -27,9 +27,10 @@ use crate::source::Update;
 #[derive(Parser)]
 #[command(about, version = smartclock::VERSION)]
 struct Cli {
-    /// The daemon's socket.
-    #[arg(long, default_value = "/run/smartclockd/socket")]
-    socket: String,
+    /// The daemon's socket: one instance's
+    /// `/run/smartclockd/<instance>/socket`.
+    #[arg(long, required_unless_present = "device")]
+    socket: Option<String>,
 
     /// Talk to the receiver directly instead of to the daemon.  Needs
     /// the daemon stopped, since it holds the port, and records no
@@ -59,9 +60,11 @@ const SKY_REFRESH: Duration = Duration::from_secs(15);
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let (updates, attachment, console, policy, cadence) = match &cli.device {
-        Some(device) => source::from_device(device, cli.baud)?,
-        None => source::from_daemon(&cli.socket)?,
+    let (updates, attachment, console, policy, cadence) = match (&cli.device, &cli.socket) {
+        (Some(device), _) => source::from_device(device, cli.baud)?,
+        (None, Some(socket)) => source::from_daemon(socket)?,
+        // clap requires one of the two.
+        (None, None) => unreachable!("--socket is required without --device"),
     };
 
     let mut app = App::new(attachment, console, policy, cadence);

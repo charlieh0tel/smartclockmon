@@ -61,12 +61,10 @@ const STATUS: &str = include_str!("status.js");
 #[derive(Parser)]
 #[command(about, version = smartclock::VERSION)]
 struct Cli {
-    /// The daemon's socket, for live readings.
-    #[arg(
-        long,
-        env = "SMARTCLOCK_WEB_SOCKET",
-        default_value = "/run/smartclockd/socket"
-    )]
+    /// The daemon's socket, for live readings: one instance's
+    /// `/run/smartclockd/<instance>/socket`.  No default, since a
+    /// guessed instance name would point at a socket that is not there.
+    #[arg(long, env = "SMARTCLOCK_WEB_SOCKET")]
     socket: PathBuf,
 
     /// The daemon's logs, for history: one `.sqlite` file per receiver

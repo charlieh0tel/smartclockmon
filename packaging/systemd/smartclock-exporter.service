@@ -4,9 +4,9 @@ Documentation=https://github.com/charlieh0tel/smartclockmon
 # The exporter answers a scrape from the daemon's last reading, so it is
 # useless without it, but it need not fail when the daemon restarts: it
 # reports up 0 for as long as that lasts, which is the honest answer and
-# the one Prometheus can alert on.
-Wants=smartclockd.service
-After=smartclockd.service
+# the one Prometheus can alert on.  Which daemon is a setting in
+# /etc/default/smartclock-exporter, not a dependency here: the daemon
+# is a template instance, and this unit does not know its name.
 
 [Service]
 Type=exec

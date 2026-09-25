@@ -24,12 +24,10 @@ use smartclock_http::Response;
 #[derive(Parser)]
 #[command(about, version = smartclock::VERSION)]
 struct Cli {
-    /// The daemon's socket.
-    #[arg(
-        long,
-        env = "SMARTCLOCK_EXPORTER_SOCKET",
-        default_value = "/run/smartclockd/socket"
-    )]
+    /// The daemon's socket: one instance's
+    /// `/run/smartclockd/<instance>/socket`.  No default, since a
+    /// guessed instance name would point at a socket that is not there.
+    #[arg(long, env = "SMARTCLOCK_EXPORTER_SOCKET")]
     socket: PathBuf,
 
     /// Address to serve /metrics on.
