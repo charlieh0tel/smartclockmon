@@ -470,6 +470,23 @@ and their defaults are 12, 5, 12, −11.5, −11.5, −11.5, 250 and 50.  The
 loop reads channel 6, the oscillator current, so the term c·s is a
 stored constant times the oscillator current.
 
+What the record holds is not the latest reading.  Each channel's
+descriptor at `0x32596` + 0x2a·n names a conversion (`FUN_00031e66`
+for channel 6) that `FUN_00031eac(n)` applies to a fresh ADC read, and
+a writer that files the result: `FUN_00031f3e` for most channels,
+which averages ten readings; `FUN_00031fc4` and, for channel 6,
+`FUN_00032048`, which keep an exponential average, s ← 0.1·fresh +
+0.9·s (`0x3dcccccd`, `0x3f666666`) on each of the health monitor's
+passes.  So the loop's s follows the current with a lag of about ten
+passes, and a flicker of the reading between two ADC levels barely
+moves it.  The SCPI queries read different cells: `:DIAGnostic:
+ROSCillator:CURRent?` (handler `0x3b18c`) returns `FUN_00031eac(6)`, a
+fresh conversion, not the average the loop uses; `:DIAGnostic:
+ROSCillator:EFControl:ABSolute?` (`0x3b1f0`) and `:RELative?`
+(`0x3b1a2`) both read u at `0x10285e`, the value the loop's update
+writes, so on this firmware the DAC word a monitor logs is the whole
+of the update, c·s included.
+
 c is what `:DIAGnostic:ROSCillator:TCOefficient` reads and writes.
 The query's node names the handler `FUN_0003b248`, which formats the
 record at `0x43324`: the cell `0x1023cc`, the getter `FUN_00022bb8`,

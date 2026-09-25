@@ -166,16 +166,37 @@ values:
 | no change | 320,845 | 0.00 | -0.12 | -0.57 |
 
 No jump: the mean change at a step is within a count of the rows with
-no step, against 33 predicted.  Over the whole record, with a linear
-aging trend fitted alongside (-8.8 counts per day), the DAC does fall
-with the current, by **-52.9 counts per unit of the channel**, but
-over hours, which is the loop correcting whatever the oven current
-stands for rather than a term applied at the instant.
+no step, against 33 predicted.
 
-So one of three things is true, and the bench cannot say which: this
-58503A's firmware, which is not on hand, has no such term; the DAC
-word it reports is not the u of the Z3816A's update; or the current
-the loop uses is not the one the query returns.  The Z3816A image is
+That test is too blunt, though.  In the Z3816A image the s the loop
+reads is not the fresh reading the query returns but the health
+monitor's exponential average of it, s <- 0.1 x fresh + 0.9 x s on
+each of its passes (`firmware.md`, "s, the oscillator current"), and
+a one-level flicker of an 8-bit reading is mostly dither about a mean
+that moves slowly.  So the sharper test regresses the ten-second DAC
+change on the change of that average, for a range of monitor
+cadences, over the whole record on a 10 s grid (31,161 points):
+
+| Monitor pass assumed | Points | dDAC / ds, counts per unit | r |
+| -------------------- | ------ | -------------------------- | - |
+| 10 s | 30,995 | -2.2 | -0.016 |
+| 20 s | 15,528 | -2.7 | -0.023 |
+| 30 s | 10,352 | -0.9 | -0.006 |
+| 60 s | 5,176 | -0.3 | -0.003 |
+
+Against -33.65 predicted, a slope near zero with no correlation at
+any cadence: on this unit the DAC does not follow the smoothed
+current at the instant either.  Over the whole record, with a linear
+aging trend fitted alongside (-11.7 counts per day), the DAC does fall
+with the smoothed current, by **-53.1 counts per unit of the
+channel**, but over hours, which is the loop correcting whatever the
+oven current stands for rather than a term applied at the update.
+
+So this 58503A does not apply its -33.65 the way the Z3816A image
+applies its c: either its firmware, which is not on hand, has no such
+term or applies it to something else, or its reported DAC word is not
+the u the Z3816A's `EFControl:ABSolute?` returns (on the Z3816A that
+query reads the same cell the loop writes).  The Z3816A image is
 unambiguous about its own loop; what this receiver does with its
 -33.65 is not settled by the record.
 
