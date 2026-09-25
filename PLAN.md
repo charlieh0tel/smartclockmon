@@ -1238,11 +1238,6 @@ Things that are not decided, as distinct from the defects below.
    implementation of a deliberate acknowledgement and exactly the wrong
    thing to do on a timer.  Nothing needs it yet.
 
-6. **Whether the stability chart should show one curve or three.**
-   It shows MDEV, ADEV and TDEV together, with the legend to hide any;
-   a reader who wants one curve has to click.  Left as is until
-   someone reads it and objects.
-
 ## Known defects
 
 Known, unfixed, and each here because the fix is not obviously worth
