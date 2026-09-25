@@ -1192,7 +1192,10 @@ Things that are not decided, as distinct from the defects below.
    code.  The second is settled (`docs/firmware.md`, "s, the
    oscillator current"): it is a stored constant on the oscillator
    current in the loop's EFC, written only by its own setter.  The
-   other two are still inferred from the outside.
+   third is settled by the 58503A image (`firmware.md`, "The 58503A
+   image"): `RELative?` is (ABS − 2¹⁹) / 2¹⁹ × 100 and ABS is sixteen
+   times a 16-bit DAC word.  The first is still inferred from the
+   outside.
    `third_party/z3801a-3543.bin` and `z3816a-4001.bin` are the images; there is
    no 58503A dump, which is also why the front panel's strings are
    unknown.

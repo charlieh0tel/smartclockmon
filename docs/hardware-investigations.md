@@ -84,7 +84,10 @@ channels map to volts at P2/9, are owners' reports, not traced here.
 
 *Changes:* the ovens section's owner-report caveats become
 measurements; the health-monitor table gets a unit for the oven
-channels.
+channels.  The 58503A image (revision 3633) shows two oven channels
+with a default reading of 4.0 and a message naming one `Primary oven
+voltage`, so the unit to establish is volts at P2/9 against that
+reading.
 
 ## 6. The oscillator-current channel's unit
 

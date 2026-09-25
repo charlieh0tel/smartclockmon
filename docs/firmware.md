@@ -1077,10 +1077,30 @@ table.
   `:DIAGnostic:PTIMe:TINTerval?` (`0x2b344`) is the one-second
   reading and `:SYNChronization:TINTerval?` and `:PTIMe:TINTerval?`
   (both `0x2fbf6`) the mean, which is what the bench 58503A did.
+- *The EFC scale.*  `:EFControl:RELative?` (`FUN_0002b48e`) returns
+  (ABS − 2¹⁹) / 2¹⁹ × 100: the "value / 2²⁰ × 200 − 100" the command
+  table had inferred from readings, now read from code.  The EFC
+  writer `FUN_0002334e` clamps u to 0 and 1 048 560 (2²⁰ − 16) and
+  posts events 0x48 and 0x49 at the rails, and `FUN_0001b7b0` records
+  16 × the word it sends, so the DAC is written as a 16-bit word and
+  ABS is that word times sixteen.  (The bench 3704's ABS readings are
+  not multiples of sixteen, which is one more thing 3704 does
+  differently.)
+- *The channels.*  The reader's eight cases carry these defaults:
+  0 → 25.0, 1 → 4.0, 2 → 15.0, 3 → 250.0, 4 → 5.0, 5 → 4.0, 6 → −15.0,
+  7 → 50.0.  With the report strings, 0 is the temperature, 2, 4 and 6
+  the +15 V, 5 V and −15 V rails, 3 the oscillator current and 7 the
+  antenna current; 1 and 5, at 4.0, are the two oven readings, whose
+  tolerance messages call one `Primary oven voltage` (`0x23cb6`) --
+  which of the two is not determined here.
 - *The console.*  The diagnostic word table has 63 words, among them
-  `cal` where the Z3816A has `xcal`, `doven`, `dmes_curv`, `pll_debug`,
+  `cal` where the Z3816A has `xcal` -- the same routine, printing
+  `curr= %d efc= %.1f, sec remaining= %d` and `tempco = %f` and
+  storing nothing (`0x1bf0c`) -- `doven`, `dmes_curv`, `pll_debug`,
   `pr_pll`, `pll_restart`, `phase_off`, `eman` and `master_reset`; the
-  interpreter's banner `pForth $Revision` is at `0x18dbe`.
+  interpreter's banner `pForth $Revision` is at `0x18dbe`.  There is
+  no `PON` keyword, which agrees with owners' reports that
+  `:SYSTem:PON` came with later firmware.
 
 So revision 3633 applies its coefficient the way the Z3816A does, to
 the smoothed oscillator current, and reports the DAC word with the
