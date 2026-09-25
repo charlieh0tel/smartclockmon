@@ -3,7 +3,8 @@
 What `third_party/z3816a-4001.bin` shows about how the receiver measures the
 1 PPS time interval, how it disciplines the oscillator from it, and
 whether the Oncore's sawtooth correction enters either.  Every address
-below is in that image, which is loaded at address zero.
+below is in that image, which is loaded at address zero, except in the
+sections on the Z3801A's and the 58503A's images, which say so.
 
 The processor is a CPU32 part: the reset code at `0x400` sets the
 vector base with `movec` and programs the System Integration Module's
@@ -1029,6 +1030,64 @@ there.  The unpacker takes the same opcodes.
   Its G is the fixed +6.25 × 10⁻¹³ noted above, and `pll_debug`
   (`0x1b4d8`) stores to `0x102539`.
 
+### The 58503A image
+
+`third_party/58503a-3633.bin` is a 58503A's program flash, revision
+3633 (the string before the second copyright notice, at `0x12feb`),
+Hewlett-Packard 1993, assembled from four AM29F010 dumps as
+`third_party/NOTICE` describes.  It enters at `0x550` like the Z3801A's
+image and is 42 % byte-identical to it, the block `0x70000` to
+`0x7ffff` wholly so.  The bench receiver reports 3704-C, a later
+revision, so what follows is read from 3633 and stated of it.  Its
+SCPI tree has the same node layout, so the paths resolve the same
+way.
+
+- *The loop.*  `pll_normal` is `FUN_0004491e` (message `pll_normal -
+  Error with measurement` at `0x44ecc`), `startup_pll` reports from
+  `0x44e66`.  The constants are the Z3816A's: 29.75 at `0x44a00`,
+  2700 at `0x44750` and `0x447b6`, 150 s at `0x441cc` and `0x474c8`,
+  G = +6.25 × 10⁻¹³ at `0x476bc` -- the Z3801A's value and sign -- and
+  the clamp 6.25 × 10⁻¹⁰ at `0x475cc`.  The update has the c·s term:
+  at `0x4480a` to `0x4481e`, `0x44a18` and `0x44d26` it multiplies the
+  float at `0x102014` by D5, the value `FUN_00023120(3)` returned at
+  `0x44964`, and adds it to the EFC.
+- *`:DIAGnostic:ROSCillator:TCOefficient`.*  Its node (`0x5fe98`)
+  names the query handler `FUN_0002b534` and the setter
+  `FUN_0002b4fa`, both on the record at `0x337d4`: the cell
+  `0x102014` -- the loop's c above -- limits −200 and 200 (`0x337c4`,
+  `0x337c8`), getter `FUN_00012bac`, setter `FUN_000308f4`.  So on
+  this revision the coefficient is the loop's constant on the
+  oscillator current, exactly as on the Z3816A.
+- *The oscillator current.*  `FUN_00023120(n)` is a switch over eight
+  channel records at `0x101e78` + 0x30·n, value at +0x28, live flag at
+  +0x2c, a ROM default when the flag is clear; channel 3's default is
+  250.0, the Z3816A's oscillator-current default, and the health pass
+  `FUN_00022dec` writes it through `FUN_00022d30`: the same
+  exponential average, s ← 0.1·fresh + 0.9·s, which sets the live
+  flag on its first call.  The report strings name the channels
+  Temperature, 5V, +15V, −15V, Oven, Double oven and Antenna current
+  (`0x1c26c` on), and one format says `Oven current`.
+- *The queries.*  `:DIAGnostic:ROSCillator:CURRent?` (`FUN_0002b47e`)
+  returns `FUN_0001f36e`: a fresh ADC read, shifted right by two,
+  converted and scaled -- not the average the loop uses.
+  `:EFControl:ABSolute?` (`FUN_0002b4dc`) returns the float at
+  `0x1024a0`, which `FUN_0001b7b0` sets to sixteen times the DAC word
+  as it is written, so it is u after conversion, c·s included.
+  `:DIAGnostic:PTIMe:TINTerval?` (`0x2b344`) is the one-second
+  reading and `:SYNChronization:TINTerval?` and `:PTIMe:TINTerval?`
+  (both `0x2fbf6`) the mean, which is what the bench 58503A did.
+- *The console.*  The diagnostic word table has 63 words, among them
+  `cal` where the Z3816A has `xcal`, `doven`, `dmes_curv`, `pll_debug`,
+  `pr_pll`, `pll_restart`, `phase_off`, `eman` and `master_reset`; the
+  interpreter's banner `pForth $Revision` is at `0x18dbe`.
+
+So revision 3633 applies its coefficient the way the Z3816A does, to
+the smoothed oscillator current, and reports the DAC word with the
+term in it.  The bench receiver, revision 3704, shows no such response
+in its record (`efc.md`, "The regression"); that difference is
+between the two revisions, or in what 3704 reports, and 3704's image
+is not on hand.
+
 ## Restarting
 
 The image has one way to restart the processor from software: `trap
@@ -1160,7 +1219,8 @@ following, and how.
 - Only byte loads of offset 26 of the form `move.b (0x1a,An),Dn` were
   searched for.  A reader using another addressing form would have
   been missed.
-- None of this has been checked against a 58503A image.
+- The 58503A image on hand is revision 3633; the bench receiver runs
+  3704-C, and no image of that revision is available.
 
 ## Note on the disassembly
 

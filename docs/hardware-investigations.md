@@ -152,21 +152,16 @@ it needs `:SYSTem:LANGuage "PFORTH"`, which this project never sends.
 
 *Changes:* closes the console items, and item 1 without a probe.
 
-## 10. A 58503A image
+## 10. A 58503A image -- done for revision 3633
 
-*Open item:* nothing here has been checked against a 58503A, whose
-front-panel strings and any differences in the loop are unknown.
+`third_party/58503a-3633.bin`, assembled from willhb's flash dumps
+(`NOTICE`), answered the first questions (`firmware.md`, "The 58503A
+image"): the loop has the c·s term, `TCOefficient` is that c and its
+setter writes it, the oscillator current is channel 3 with the same
+exponential average, and `EFControl:ABSolute?` reports the DAC word
+with the term in it.
 
-- Read the program EPROM(s) of a 58503A with an EPROM programmer and
-  add the image to `third_party/` with the `NOTICE` entry the other
-  two have.
-
-- With it, the first things to read: whether its loop has the c·s
-  term the Z3816A's has, which the bench regression in `efc.md` says
-  this unit does not apply; what its `TCOefficient` setter writes;
-  and its own health-monitor channel table, whose oven-current unit
-  differs (readings of 93 to 118 against the Z3816A's nominal 250).
-
-*Changes:* every "the design family, not the 58503A" caveat can be
-checked, and the TCOefficient question is closed one way or the
-other.  This is the most useful single item on this list.
+*Still open:* the bench receiver is revision 3704-C and its record
+shows no response to the oven current where 3633's code would.  A
+dump of a 3704 unit -- the bench receiver's own flash, with the same
+programmer -- is what would settle it.

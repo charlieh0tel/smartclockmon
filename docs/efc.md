@@ -193,12 +193,13 @@ channel**, but over hours, which is the loop correcting whatever the
 oven current stands for rather than a term applied at the update.
 
 So this 58503A does not apply its -33.65 the way the Z3816A image
-applies its c: either its firmware, which is not on hand, has no such
-term or applies it to something else, or its reported DAC word is not
-the u the Z3816A's `EFControl:ABSolute?` returns (on the Z3816A that
-query reads the same cell the loop writes).  The Z3816A image is
-unambiguous about its own loop; what this receiver does with its
--33.65 is not settled by the record.
+applies its c.  A 58503A image of revision 3633 (`firmware.md`, "The
+58503A image") has the term in the same form, on the same smoothed
+current, and its `EFControl:ABSolute?` reports the DAC word with the
+term in it; this receiver is revision 3704-C, whose image is not on
+hand.  What this receiver does with its -33.65 is not settled by the
+record, and the difference lies between the two revisions or in what
+3704 reports.
 
 ### It is not feedforward
 
