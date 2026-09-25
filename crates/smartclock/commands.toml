@@ -1988,6 +1988,21 @@ doc = "Restore all receiver settings to factory values."
   evidence = "firmware"
 
 [[command]]
+id = "system_pon"
+class = "dangerous"
+doc = "Restart as from power-on: the loop state kept for a warm restart is discarded. Undocumented; refused by every tool here. See docs/firmware.md, Restarting."
+
+  [command.argument]
+  kind = "none"
+
+  [command.dialect.z3801]
+  scpi = ":SYSTem:PON"
+  response = "none"
+  models = ["Z3816A"]
+  cite = "firmware image z3816a-4001.bin, keyword 0x5a280, handler 0x3ff52"
+  evidence = "firmware"
+
+[[command]]
 id = "language"
 class = "query"
 doc = "Command language, PRIMARY or INSTALL."

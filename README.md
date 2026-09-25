@@ -194,9 +194,10 @@ environment variable, which is how the service is configured without
 touching its unit.
 
 `smartclock-cli` talking to the receiver directly has no such flags,
-and refuses outright to send `:SYSTem:PRESet`, anything under
-`:SYSTem:COMMunicate`, `:DIAGnostic:ERASe`, or a `:SYSTem:LANGuage`
-setting, before it opens the port.
+and refuses outright to send `:SYSTem:PRESet`, the undocumented
+`:SYSTem:PON`, anything under `:SYSTem:COMMunicate`,
+`:DIAGnostic:ERASe`, or a `:SYSTem:LANGuage` setting, before it opens
+the port.
 
 ## Hardware
 

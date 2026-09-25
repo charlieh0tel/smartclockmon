@@ -8,7 +8,7 @@ to regenerate; a test fails if this file and the table disagree.
 | Tree | Commands | Hardware | Firmware | Manual |
 | ---- | -------- | -------- | -------- | ------ |
 | 58503A/B, 59551A | 129 | 91 | 0 | 38 |
-| Z3801A, Z3816A | 81 | 18 | 62 | 1 |
+| Z3801A, Z3816A | 82 | 18 | 63 | 1 |
 
 **H** means the receiver answered it.  **F** means every keyword
 appears in the firmware's own keyword table, so the spelling is

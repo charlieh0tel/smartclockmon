@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 
 use smartclock::command::Class;
+use smartclock::command::CommandId;
 use smartclock::command::Dialect;
 use smartclock::command::Evidence;
 
@@ -108,8 +109,14 @@ fn non_queries_expect_no_response() {
 #[test]
 fn the_z3801_tree_is_a_subset_of_the_primary_one() {
     // Every Z3801A entry exists as a logical operation on the 58503A, so
-    // the id set stays one vocabulary rather than two.
+    // the id set stays one vocabulary rather than two.  The one
+    // exception is a keyword only the Z3816A image has, `:SYSTem:PON`,
+    // carried so the table can refuse it by name; no 58503A is known to
+    // accept it and nothing here invents an entry to say so.
     for spec in Dialect::Z3801.specs() {
+        if spec.id == CommandId::SystemPon {
+            continue;
+        }
         assert!(
             Dialect::Hp58503.spec(spec.id).is_some(),
             "{:?} exists only on the z3801 tree",

@@ -1024,9 +1024,10 @@ the same `FUN_00022172`, and jumps through vector 43 of the table at
 address 0 -- the boot ROM's own table, not the one at `0x20000` --
 which is how the installer in the low half of the image is entered.
 
-None of these is a command this project sends: `:SYSTem:PRESet` and
-`:SYSTem:LANGuage` are on its never-send list, and `:SYSTem:PON` is not
-in its command table.
+None of these is a command this project sends: `:SYSTem:PRESet`,
+`:SYSTem:PON` and `:SYSTem:LANGuage` are all on its never-send list,
+`:SYSTem:PON` in the command table as `system_pon` so that
+`docs/commands.md` shows it.
 
 ### `:DIAGnostic:GPSystem:UTC`
 

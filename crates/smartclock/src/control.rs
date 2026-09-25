@@ -122,15 +122,17 @@ impl<'a, T: Transport> Control<'a, T> {
 /// Which of the commands a tool talking to the receiver directly must
 /// never send `scpi` is, or `None` if it is none of them.
 ///
-/// `:SYSTem:PRESet`, anything under `:SYSTem:COMMunicate`,
+/// `:SYSTem:PRESet`, the undocumented `:SYSTem:PON` (a restart that
+/// discards the state a warm restart would keep; `docs/firmware.md`,
+/// "Restarting"), anything under `:SYSTem:COMMunicate`,
 /// `:DIAGnostic:ERASe`, and setting `:SYSTem:LANGuage`, which selects
 /// "INSTALL" or "PRIMARY" (097-59551-02 4-15).  Serial settings persist
 /// across power cycles, so a changed one strands the link.  There is no
 /// override: the daemon's `--allow-dangerous` is the one route to
 /// these, and a deliberate one.
 ///
-/// Matched on the mandatory abbreviations -- SYST, PRES, COMM, ERAS,
-/// LANG -- anywhere in the string, so every legal spelling and a
+/// Matched on the mandatory abbreviations -- SYST, PRES, PON, COMM,
+/// ERAS, LANG -- anywhere in the string, so every legal spelling and a
 /// compound command hiding one after a semicolon are both caught.
 pub fn forbidden(scpi: &str) -> Option<&'static str> {
     let upper = scpi.to_ascii_uppercase();
@@ -139,6 +141,8 @@ pub fn forbidden(scpi: &str) -> Option<&'static str> {
         Some(":SYSTem:COMMunicate")
     } else if upper.contains("SYST") && upper.contains("PRES") {
         Some(":SYSTem:PRESet")
+    } else if upper.contains("SYST") && upper.contains(":PON") {
+        Some(":SYSTem:PON")
     } else if upper.contains("ERAS") {
         Some(":DIAGnostic:ERASe")
     } else if upper.contains("LANG") && !bare_query {
@@ -153,10 +157,13 @@ mod tests {
     use super::forbidden;
 
     #[test]
-    fn the_four_are_refused_however_they_are_spelled() {
+    fn the_five_are_refused_however_they_are_spelled() {
         for scpi in [
             ":SYSTem:PRESet",
             ":syst:pres",
+            ":SYSTem:PON",
+            ":syst:pon",
+            "*IDN?;:SYST:PON",
             ":SYSTem:COMMunicate:SERial:BAUD 9600",
             ":SYST:COMM:SER:BAUD?",
             ":DIAGnostic:ERASe",

@@ -26,9 +26,10 @@ log records which receiver every row came from.  Do not write them down
 here, where they go stale unnoticed.
 
 - Do not send anything to the receiver without asking.
-- Never send `:SYSTem:PRESet`, `:SYSTem:COMMunicate:*`,
+- Never send `:SYSTem:PRESet`, `:SYSTem:PON`, `:SYSTem:COMMunicate:*`,
   `:DIAGnostic:ERASe`, or `:SYSTem:LANGuage "INSTALL"`.  Serial settings
-  persist across power cycles; changing them strands the link.
+  persist across power cycles; changing them strands the link; the
+  first two discard the receiver's learned state.
 - The daemon holds the port open.  Stop it before using a direct-mode
   tool, and say so.
 
