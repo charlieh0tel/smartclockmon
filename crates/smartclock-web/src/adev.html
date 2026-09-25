@@ -289,7 +289,7 @@ function draw(points) {
     {
       width: size.width,
       height: Math.round(size.height * 0.6),
-      title: "Time deviation and maximum time interval error",
+      title: "Time deviation",
       scales: { x: LOG, y: LOG },
       axes: [tauAxis(), sigmaAxis("seconds")],
       series: [
@@ -301,10 +301,15 @@ function draw(points) {
           points: { show: true, size: 5 },
           value: (_, v) => (Number.isFinite(v) ? `${decade(v)} s` : "--"),
         },
+        // Off by default: a worst case is one number per tau, often the
+        // same number at every tau once a single step dominates, and it
+        // sets the axis so that TDEV is squashed into the bottom decade.
+        // The table has it; the legend turns it on for a mask check.
         {
           label: "MTIE",
           stroke: "#f87171",
           width: 1.5,
+          show: false,
           points: { show: true, size: 5 },
           value: (_, v) => (Number.isFinite(v) ? `${decade(v)} s` : "--"),
         },
