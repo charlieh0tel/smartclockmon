@@ -1,3 +1,16 @@
+smartclockmon (0.6.20-1) unstable; urgency=low
+
+  * smartclock-web and smartclock-exporter read every daemon on the
+    host: both scan /run/smartclockd/*/socket as they scan the log
+    directory, so SMARTCLOCK_WEB_SOCKET and SMARTCLOCK_EXPORTER_SOCKET
+    are no longer required; delete them to get the host-wide
+    behaviour.  The web's selector lists every receiver, live or
+    historical, and its live strip follows the selection to the
+    daemon attached to it.  The exporter serves one /metrics with
+    daemon, serial and model labels on every sample.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Fri, 25 Sep 2026 15:59:57 -0700
+
 smartclockmon (0.6.19-1) unstable; urgency=low
 
   * smartclockd@.service is the only daemon unit: one instance per
