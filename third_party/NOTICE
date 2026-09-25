@@ -42,10 +42,23 @@ which claims about the command set are checked.  CPU32 code, big-endian, loaded 
                              Hewlett-Packard 1993.
   z3816a-4001.bin            Z3816A firmware, revision 4001.  Copyright
                              Hewlett-Packard 2000.
+  58503a-3633.bin            58503A firmware, revision 3633.  Copyright
+                             Hewlett-Packard 1993.  Assembled from the
+                             four AM29F010 dumps published by willhb at
+                             github.com/willhb/HP-58503A-Firmware
+                             (58503_80007..80010_RevA): the author
+                             interleaved each chip pair byte by byte
+                             into `58503a_1_LandM_Combined.BIN` and
+                             `58503a_2_LandM_Combined.BIN`; here the
+                             second is the low half and the first the
+                             high half, the order the reset vector at
+                             address 0 (stack `0x10fffe`, entry `0x550`)
+                             settles.
 
 The revision is the string the firmware puts in the third field of its
 `*IDN?` answer, stored just before the image's second copyright notice
-(`0x12eee` in the Z3801A image, `0x22ff8` in the Z3816A's).  The letter
+(`0x12eee` in the Z3801A image, `0x22ff8` in the Z3816A's, `0x12feb` in
+the 58503A's).  The letter
 that follows it in a real answer, as in 3704-C, is read from RAM and is
 not in the image.
 
