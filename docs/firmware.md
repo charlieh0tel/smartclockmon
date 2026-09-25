@@ -968,6 +968,9 @@ there.  The unpacker takes the same opcodes.
 
 ## What is not established
 
+`hardware-investigations.md` lists what a bench would settle of the
+following, and how.
+
 - Which SCPI keywords the handlers that return τ-block bytes hang
   from, other than `REC` for +6; what +3, +4, +5, +7 and +8 mean; and
   what the rest of the ROM defaults, `0x400de` to `0x40173`, hold.
