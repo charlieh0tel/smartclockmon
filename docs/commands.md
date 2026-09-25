@@ -179,3 +179,4 @@ anything reaching the receiver.
 | time offset | Query | `:DIAGnostic:TOFFset?` H (58503A) |  |
 | efc data | Query | `:DIAGnostic:ROSCillator:EFControl:DATA?` H (58503A) |  |
 | log oldest | Query | `:DIAGnostic:SLOG?` H (58503A) | `:DIAGnostic:SLOG?` H |
+| system pon | Dangerous |  | `:SYSTem:PON` F (Z3816A) |

@@ -144,6 +144,27 @@ fn table(out: &mut String) {
             other
         );
     }
+    // Then the few the primary tree has no spelling for at all, with
+    // that cell blank, so the table still shows every operation.
+    for spec in Dialect::Z3801.specs() {
+        if Dialect::Hp58503.spec(spec.id).is_some() {
+            continue;
+        }
+        let models = if spec.models.len() == 1 {
+            format!(" ({})", spec.models[0])
+        } else {
+            String::new()
+        };
+        let _ = writeln!(
+            out,
+            "| {} | {:?} |  | `{}` {}{} |",
+            name(spec.id),
+            spec.class,
+            spec.scpi,
+            mark(spec.evidence),
+            models
+        );
+    }
 }
 
 /// The operation's name as a reader would say it.
