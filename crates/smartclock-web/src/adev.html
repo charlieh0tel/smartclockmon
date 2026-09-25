@@ -324,9 +324,11 @@ function table(d) {
     `<th title="time deviation, τ·MDEV/√3, in seconds">TDEV, s</th>` +
     `<th title="overlapping Allan deviation, as data sheets quote it; ` +
     `low at the shortest τ because the readings are averaged">ADEV</th>` +
-    `<th title="averaged triples behind MDEV, second differences behind ` +
-    `ADEV; each needs its readings present, which is what a gap takes ` +
-    `away">triples MDEV / ADEV</th>` +
+    `<th title="how many estimates the MDEV figure averages; each needs ` +
+    `three whole windows of consecutive readings, so a gap costs it more ` +
+    `than ADEV">MDEV points</th>` +
+    `<th title="how many second differences the ADEV figure averages; ` +
+    `each needs three readings at the right spacing">ADEV points</th>` +
     "</tr></thead><tbody>" +
     d.points
       .map(
@@ -335,7 +337,8 @@ function table(d) {
           `<td>${p.modified ? esc(decade(p.modified.deviation)) : "--"}</td>` +
           `<td>${p.modified ? esc(decade(p.modified.time)) : "--"}</td>` +
           `<td>${esc(decade(p.deviation))}</td>` +
-          `<td class="muted">${p.modified ? p.modified.averages : "--"} / ${p.differences}</td></tr>`,
+          `<td class="muted">${p.modified ? p.modified.averages : "--"}</td>` +
+          `<td class="muted">${p.differences}</td></tr>`,
       )
       .join("") +
     "</tbody>";
