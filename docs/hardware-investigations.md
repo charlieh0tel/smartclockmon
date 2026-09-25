@@ -126,17 +126,23 @@ whether `*TST?` is one of them.
 
 ## 8. The one-second reading versus the ten-second mean
 
-*Open item:* `:PTIMe:TINTerval?` returns the latest one-second reading
-and `:SYNChronization:TINTerval?` the mean of ten; the MDEV argument
-in `PLAN.md` rests on that.
+*Open item:* in the Z3816A image `:DIAGnostic:PTIMe:TINTerval?`
+returns the latest one-second reading and `:SYNChronization:TINTerval?`
+the mean of ten; the MDEV argument in `PLAN.md` rests on the latter.
 
-- One-off, not for the daemon: poll both once a second for an hour
-  with `smartclock-cli` and check that the ten-second value equals the
-  mean of the ten one-second values in its window, and that the
-  one-second values carry the sawtooth the ten-second mean smooths.
+- Done for the wrong spelling: `:PTIMe:TINTerval?` polled once a second
+  through the daemon for 187 s on the bench 58503A (raw commands
+  enabled, 25 September 2026) gave the `:SYNC:TINT?` value to the
+  digit every time and held for ten polls, as the image's handler
+  table says it should -- that path shares the mean's handler.
+- Still to do: the same run with `:DIAGnostic:PTIMe:TINTerval?`, and
+  check that the ten-second value equals the mean of the ten
+  one-second values in its window and that the one-second values
+  carry the sawtooth the mean smooths.
 
-*Changes:* the MDEV-from-means claim gets a measured confirmation and
-the short-tau floor of the one-second data gets a number.
+*Changes:* the MDEV-from-means claim gets a measured confirmation, the
+short-tau floor of the one-second data gets a number, and the 58503A
+earns a command-table entry for the one-second reading.
 
 ## 9. The console, on a spare unit only
 

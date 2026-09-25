@@ -752,10 +752,13 @@ over windows of `m + 1` consecutive readings (SP 1065 section 5.2.9),
 linear in the run through monotone deques, and a window that would
 span a hole or a segment cut is not examined: a phase step the
 receiver's own relock made is not wander.  It is checked against
-allantools' `mtie`, whose window is the same `m + 1` readings.  `:PTIMe:TINTerval?`, which returns the latest one-second
-reading, would extend the curves below 10 s, and is not going to be
-polled: it costs a query a second and ten times the phase rows for
-the receiver-noise floor alone.
+allantools' `mtie`, whose window is the same `m + 1` readings.  `:DIAGnostic:PTIMe:TINTerval?`, which in the Z3816A image
+returns the latest one-second reading, would extend the curves below
+10 s, and is not going to be polled: it costs a query a second and ten
+times the phase rows for the receiver-noise floor alone.  (Plain
+`:PTIMe:TINTerval?` is the same mean as `:SYNChronization:TINTerval?`,
+by the image's handler table and by 187 paired polls of the bench
+58503A that agreed to the digit and held for ten polls alike.)
 
 ## Architecture
 

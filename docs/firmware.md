@@ -185,10 +185,16 @@ parents:
 | Node | Path | Query handler |
 | ---- | ---- | ------------- |
 | `0x5f854` | `:SOURce:SYNChronization:TINTerval` | `FUN_0003f8fa` |
-| `0x60dbc` | `TINTerval`, parents not resolved | `FUN_0003f8fa` |
-| `0x63fb2` | `...:PTIMe:TINTerval` | `FUN_0003b052` |
+| `0x60dbc` | `:SOURce:PTIMe:TINTerval` | `FUN_0003f8fa` |
+| `0x63fb2` | `:DIAGnostic:PTIMe:TINTerval` | `FUN_0003b052` |
 
-`:SOURce` is optional, so the first is `:SYNChronization:TINTerval?`.
+(The parents come from the child lists at `0x59000` to `0x5b000`: a
+node's word at +4 points at its list, and a node is found by which
+list holds it.)  `:SOURce` is optional, so the first is
+`:SYNChronization:TINTerval?` and the second `:PTIMe:TINTerval?`, and
+they share a handler: a bench 58503A polled once a second for 187 s
+answered `:PTIM:TINT?` with exactly its `:SYNC:TINT?` value every time,
+held for ten polls like it.
 Its handler copies the 32-bit value at `0x102c0c` into its reply,
 tagged with the halfword `0xfff6` (−10), when the flag at `0x102c10` is
 set.  That value is a single-precision float in seconds: `pll_normal`
@@ -204,8 +210,11 @@ place: under the lock `FUN_00023488` takes, it converts the double at
 `0x102666` -- the latest one-second reading, see "One reading" below
 -- to a float for the reply, with the halfword at `0x102670` as its
 tag, when the byte at `0x10266e` is set, and otherwise fails with code
-0xc.  So `:PTIMe:TINTerval?` is one reading and
-`:SYNChronization:TINTerval?` is the mean of ten.
+0xc.  So `:DIAGnostic:PTIMe:TINTerval?` is one reading and
+`:SYNChronization:TINTerval?` -- and `:PTIMe:TINTerval?` -- the mean of
+ten.  A Z3805A answered the `DIAGnostic` form in the keyword sweep
+(`z3801-tree.md`, "time interval, unlocked reading"); whether a 58503A
+does has not been tried.
 
 ### The ten-second average
 
