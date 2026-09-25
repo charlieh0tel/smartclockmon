@@ -148,6 +148,37 @@ word `xcal` makes by fitting EFC against current.  The earlier
 agreement in size was a coincidence of units, and the sign is the
 sign of the oven current's coupling to the EFC, not of temperature's.
 
+### The regression
+
+If this 58503A applied that term as the Z3816A image does, the DAC
+word (`:DIAGnostic:ROSCillator:EFControl:ABSolute?`) would move by
+c times each step of the current channel
+(`:DIAGnostic:ROSCillator:CURRent?`) at the update that saw it: the
+channel here reads 93 to 118 in steps of 0.980, so -33.65 x 0.980 is
+a jump of about 33 counts, down when the current rises.  Over the
+locked record of 20 to 25 September 2026, 326,626 rows with both
+values:
+
+| At a current step | Steps | DAC change in the same row | 60 s later | 300 s later |
+| ----------------- | ----- | -------------------------- | ---------- | ----------- |
+| current up by one level | 2909 | +0.22 | -0.34 | -1.59 |
+| current down by one level | 2905 | -0.13 | -0.05 | -0.48 |
+| no change | 320,845 | 0.00 | -0.12 | -0.57 |
+
+No jump: the mean change at a step is within a count of the rows with
+no step, against 33 predicted.  Over the whole record, with a linear
+aging trend fitted alongside (-8.8 counts per day), the DAC does fall
+with the current, by **-52.9 counts per unit of the channel**, but
+over hours, which is the loop correcting whatever the oven current
+stands for rather than a term applied at the instant.
+
+So one of three things is true, and the bench cannot say which: this
+58503A's firmware, which is not on hand, has no such term; the DAC
+word it reports is not the u of the Z3816A's update; or the current
+the loop uses is not the one the query returns.  The Z3816A image is
+unambiguous about its own loop; what this receiver does with its
+-33.65 is not settled by the record.
+
 ### It is not feedforward
 
 Kusters' design paper puts the temperature loop in holdover:

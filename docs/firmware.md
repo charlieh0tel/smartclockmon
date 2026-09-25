@@ -490,7 +490,13 @@ the ADC (`FUN_0002e3b0`, the reading shifted right by two) and the EFC
 in force at `0x10285e` -- then `now do a least square line fit to
 data...` and `tempco = %f` (`0x2c803`, `0x2c82f`), the slope of EFC
 on current.  It stores nothing; the value is entered afterwards with
-the SCPI command.  The Z3801A's image reads
+the SCPI command.
+
+Whether the 58503A does the same is not settled: on the bench its
+reported DAC word does not jump at a step of its reported oven
+current, where this image's loop would move it by c times the step
+(`efc.md`, "The regression").  There is no 58503A image to read.  The
+Z3801A's image reads
 channel 3 of its own function, `FUN_00022fd2`; its report strings list
 Temperature, 5V, +15V, −15V, Oven, Double oven and Antenna current, but
 which of those is its channel 3 was not traced.
