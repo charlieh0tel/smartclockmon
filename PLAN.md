@@ -785,7 +785,33 @@ over windows of `m + 1` consecutive readings (SP 1065 section 5.2.9),
 linear in the run through monotone deques, and a window that would
 span a hole or a segment cut is not examined: a phase step the
 receiver's own relock made is not wander.  It is checked against
-allantools' `mtie`, whose window is the same `m + 1` readings.  `:DIAGnostic:PTIMe:TINTerval?`, which in the Z3816A image
+allantools' `mtie`, whose window is the same `m + 1` readings.
+
+Each deviation carries a one-sigma confidence interval, drawn as a
+band and tabulated as its two bounds -- two bounds, not a plus-minus,
+since a chi-squared interval is asymmetric and the upper side is the
+one that matters.  The interval is SP 1065 equation 45 with
+Greenhall's equivalent degrees of freedom (section 5.4.1, the
+combined algorithm of Greenhall and Riley 2003) for the noise type
+the lag 1 autocorrelation method identifies at each tau (sections
+5.5.5 and 5.5.6, with a quadratic detrend as allantools applies).
+One sigma rather than 95 % because that is what stability plots are
+drawn with, and a 95 % band on a log axis swallows the curve at long
+tau.  Where a tau has too few decimated readings to identify its
+noise, the previous tau's answer is carried, as section 5.3.2 says;
+where the record is too short for the edf algorithm at all -- white PM
+with under three windows -- there is no interval rather than a
+guessed one.  Degrees of freedom are pooled across segments as the
+differences are, each segment's from the readings it holds.  MTIE has
+no standard interval and gets none.  The chi-squared quantile is
+Wilson and Hilferty's approximation, within 0.4 % of scipy's in the
+deviation from two degrees of freedom up and 2.6 % at one and a half,
+and the whole chain is tested against allantools' `autocorr_noise_id`,
+`edf_greenhall` and `confidence_interval` on the reference record.
+The TUI draws no band; its curve is the cursor readout's context, and
+ratatui has no fill.
+
+`:DIAGnostic:PTIMe:TINTerval?`, which in the Z3816A image
 returns the latest one-second reading, would extend the curves below
 10 s, and is not going to be polled: it costs a query a second and ten
 times the phase rows for the receiver-noise floor alone.  (Plain

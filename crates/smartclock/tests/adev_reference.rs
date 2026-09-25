@@ -51,9 +51,107 @@ const ALLANTOOLS_MTIE: [(f64, f64, usize); 8] = [
     (200.0, 8.043591440442759e-09, 800),
 ];
 
+/// One row of [`ALLANTOOLS_CONFIDENCE`].
+type Confidence = (f64, i32, f64, f64, f64, f64, f64, f64);
+
+/// `(tau, alpha, ADEV edf, lower, upper, MDEV edf, lower, upper)`:
+/// allantools 2024.06's `autocorr_noise_id`, `edf_greenhall` and
+/// `confidence_interval` on [`record`], from the same script.  Past
+/// 20 s the decimated record is under 30 readings and allantools
+/// refuses to identify the noise; the script carries the last answer
+/// forward there, as SP 1065 section 5.3.2 says to and the estimator
+/// does.
+const ALLANTOOLS_CONFIDENCE: [Confidence; 8] = [
+    (
+        1.0,
+        0,
+        781.2476904305386,
+        2.8512623470858836e-10,
+        2.99930302729298e-10,
+        781.2476904305386,
+        2.851262347085883e-10,
+        2.99930302729298e-10,
+    ),
+    (
+        2.0,
+        0,
+        540.1393885617488,
+        1.9526420236305432e-10,
+        2.0752281896443654e-10,
+        478.51575250794025,
+        1.534020608626519e-10,
+        1.6365444086664258e-10,
+    ),
+    (
+        5.0,
+        0,
+        252.3167462999645,
+        1.2769063522513976e-10,
+        1.3959694558486576e-10,
+        191.37750825996238,
+        9.260304422187647e-11,
+        1.0258874605315632e-10,
+    ),
+    (
+        10.0,
+        1,
+        247.05607572839637,
+        8.774414797004607e-11,
+        9.601656549717044e-11,
+        98.01619557149583,
+        5.77706256561351e-11,
+        6.667385171784683e-11,
+    ),
+    (
+        20.0,
+        0,
+        69.37549430068353,
+        4.969117735342777e-11,
+        5.8935060691368e-11,
+        46.10762995665464,
+        3.4393229691848016e-11,
+        4.242105061571357e-11,
+    ),
+    (
+        50.0,
+        0,
+        27.771428571428576,
+        3.5110974247420115e-11,
+        4.60682154813049e-11,
+        17.065461104964694,
+        2.4880991431272054e-11,
+        3.527691283733153e-11,
+    ),
+    (
+        100.0,
+        0,
+        12.8,
+        2.7514623534674184e-11,
+        4.1284945363384156e-11,
+        7.4069423739850135,
+        1.7723568254216228e-11,
+        3.052916081673161e-11,
+    ),
+    (
+        200.0,
+        0,
+        5.395795202485174,
+        1.3126653371066367e-11,
+        2.5096562073052028e-11,
+        2.7427174224573427,
+        5.281079742252766e-12,
+        1.387334461931952e-11,
+    ),
+];
+
 /// Agreement expected between two double-precision implementations of
 /// the same sum.
 const RELATIVE_TOLERANCE: f64 = 1e-9;
+
+/// Agreement expected between the Wilson-Hilferty chi-squared quantile
+/// and scipy's exact one, in the deviation, down to the 2.7 degrees of
+/// freedom the record's last point has.
+const BOUNDS_TOLERANCE: f64 = 5e-3;
 
 /// The phase record `adev_reference.py` builds, one reading a second.
 fn record() -> Vec<Sample> {
@@ -207,6 +305,57 @@ fn the_nist_test_data_set_gives_the_published_deviations() {
             assert!(
                 error < PUBLISHED_TOLERANCE,
                 "tau {tau}, {name} deviation: {got} against {want}, relative error {error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_gapless_record_agrees_with_allantools_on_the_confidence_intervals() {
+    let curve = Curve::measure(&record(), 1, |_, _| false);
+    for (tau, alpha, edf, lower, upper, edf_modified, lower_modified, upper_modified) in
+        ALLANTOOLS_CONFIDENCE
+    {
+        let point = curve
+            .points
+            .iter()
+            .find(|p| (p.tau - tau).abs() < 1e-9)
+            .unwrap_or_else(|| panic!("no point at tau {tau}"));
+        assert_eq!(point.noise, Some(alpha), "noise type at tau {tau}");
+        let bounds = point
+            .bounds
+            .unwrap_or_else(|| panic!("no interval at tau {tau}"));
+        let modified = point
+            .modified
+            .and_then(|m| m.bounds)
+            .unwrap_or_else(|| panic!("no modified interval at tau {tau}"));
+        for (name, got, want, tolerance) in [
+            ("edf", bounds.edf, edf, RELATIVE_TOLERANCE),
+            ("lower", bounds.lower, lower, BOUNDS_TOLERANCE),
+            ("upper", bounds.upper, upper, BOUNDS_TOLERANCE),
+            (
+                "modified edf",
+                modified.edf,
+                edf_modified,
+                RELATIVE_TOLERANCE,
+            ),
+            (
+                "modified lower",
+                modified.lower,
+                lower_modified,
+                BOUNDS_TOLERANCE,
+            ),
+            (
+                "modified upper",
+                modified.upper,
+                upper_modified,
+                BOUNDS_TOLERANCE,
+            ),
+        ] {
+            let error = (got - want).abs() / want;
+            assert!(
+                error < tolerance,
+                "tau {tau} {name}: {got} against {want}, relative error {error}"
             );
         }
     }

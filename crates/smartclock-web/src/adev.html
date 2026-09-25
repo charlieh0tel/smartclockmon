@@ -279,6 +279,55 @@ function resettable(u) {
   });
 }
 
+// The one-sigma interval on each curve, drawn as a shaded band between
+// its lower and upper bounds.  Painted by hand rather than as two more
+// uPlot series with a fill between them: series appear in the legend
+// and take a colour, and a band is not a curve.  `bands` maps a series
+// index to its [lower, upper] arrays; a point without an interval is a
+// break in the band, as it is in the line.
+function shadeBands(bands) {
+  return (u) => {
+    const { ctx } = u;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
+    ctx.clip();
+    for (const [idx, [lower, upper]] of Object.entries(bands)) {
+      const series = u.series[Number(idx)];
+      if (!series.show) continue;
+      ctx.fillStyle = series.stroke() + "30";
+      const xs = u.data[0];
+      let run = [];
+      const flush = () => {
+        if (run.length < 2) {
+          run = [];
+          return;
+        }
+        ctx.beginPath();
+        run.forEach(([x, hi], i) => {
+          const px = u.valToPos(x, "x", true), py = u.valToPos(hi, "y", true);
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        });
+        for (let i = run.length - 1; i >= 0; i--) {
+          const [x, , lo] = run[i];
+          ctx.lineTo(u.valToPos(x, "x", true), u.valToPos(lo, "y", true));
+        }
+        ctx.closePath();
+        ctx.fill();
+        run = [];
+      };
+      xs.forEach((x, i) => {
+        if (lower[i] === null || upper[i] === null) flush();
+        else run.push([x, upper[i], lower[i]]);
+      });
+      flush();
+    }
+    ctx.restore();
+  };
+}
+
+const bound = (b, side) => (b ? b[side] : null);
+
 function draw(points) {
   for (const old of [chart, tdevChart]) {
     if (old) old.destroy();
@@ -311,6 +360,15 @@ function draw(points) {
   const modified = points.map((p) => (p.modified ? p.modified.deviation : null));
   const time = points.map((p) => (p.modified ? p.modified.time : null));
   const mtie = points.map((p) => (p.mtie ? p.mtie.peak : null));
+  const band = (pick) => [
+    points.map((p) => bound(pick(p), "lower")),
+    points.map((p) => bound(pick(p), "upper")),
+  ];
+  const sigmaBands = {
+    1: band((p) => p.modified?.bounds),
+    2: band((p) => p.bounds),
+  };
+  const timeBands = { 1: band((p) => p.modified?.time_bounds) };
   // uPlot's legend is a live cursor readout, which is worth having on
   // a curve whose points are decades apart and hard to read off an
   // axis; the symbols say these are the coordinates of the point
@@ -320,7 +378,7 @@ function draw(points) {
     {
       width: size.width,
       height: size.height,
-      title: "Stability of the 1 PPS against GPS",
+      title: "Stability of the 1 PPS against GPS, shaded to one sigma",
       scales: { x: LOG, y: LOG },
       axes: [tauAxis(), sigmaAxis("deviation σy")],
       series: [
@@ -344,7 +402,7 @@ function draw(points) {
       ],
       legend: { show: true, live: true },
       cursor,
-      hooks: { setSeries: [followLegend(0)] },
+      hooks: { setSeries: [followLegend(0)], draw: [shadeBands(sigmaBands)] },
     },
     [tau, modified, points.map((p) => p.deviation)],
     $("chart"),
@@ -354,7 +412,7 @@ function draw(points) {
     {
       width: size.width,
       height: Math.round(size.height * 0.6),
-      title: "Time deviation",
+      title: "Time deviation, shaded to one sigma",
       scales: { x: LOG, y: LOG },
       axes: [tauAxis(), sigmaAxis("seconds")],
       series: [
@@ -378,13 +436,21 @@ function draw(points) {
       ],
       legend: { show: true, live: true },
       cursor,
-      hooks: { setSeries: [followLegend(1)] },
+      hooks: { setSeries: [followLegend(1)], draw: [shadeBands(timeBands)] },
     },
     [tau, time, mtie],
     $("chart-tdev"),
   );
   resettable(tdevChart);
 }
+
+// An interval as its two bounds; a dash where there is none, so an
+// absence is not read as zero width.
+const interval = (b) => (b ? `${esc(decade(b.lower))} – ${esc(decade(b.upper))}` : "--");
+
+// The power law exponent as the name people know it by.
+const NOISE = { 2: "W PM", 1: "F PM", 0: "W FM", "-1": "F FM", "-2": "RW FM" };
+const noiseName = (alpha) => `${NOISE[alpha] ?? "?"} (α=${alpha})`;
 
 function table(d) {
   if (!d.points.length) {
@@ -398,6 +464,8 @@ function table(d) {
     "<thead><tr><th>averaging time</th>" +
     `<th title="modified Allan deviation: exact for these readings, ` +
     `which are already ten-second means">MDEV</th>` +
+    `<th title="one-sigma interval on MDEV: chi-squared, with Greenhall's ` +
+    `degrees of freedom for the noise type identified at this τ">MDEV 1σ</th>` +
     `<th title="time deviation, τ·MDEV/√3, in seconds">TDEV, s</th>` +
     `<th title="maximum time interval error: the largest peak-to-peak ` +
     `phase excursion in any window of τ, in seconds; a worst case, so one ` +
@@ -405,6 +473,11 @@ function table(d) {
     `<th title="overlapping Allan deviation, as data sheets quote it; ` +
     `a factor √10 low wherever phase noise dominates, because the readings ` +
     `are averaged">ADEV</th>` +
+    `<th title="one-sigma interval on ADEV, as for MDEV">ADEV 1σ</th>` +
+    `<th title="the power law dominating at this τ, by the lag 1 ` +
+    `autocorrelation of the τ-sampled phase: α from +2, white PM, to −2, ` +
+    `random walk FM; carried from the previous τ once too few readings ` +
+    `remain to tell">noise</th>` +
     `<th title="how many estimates the MDEV figure averages; each needs ` +
     `three whole windows of consecutive readings, so a gap costs it more ` +
     `than ADEV">MDEV points</th>` +
@@ -416,9 +489,12 @@ function table(d) {
         (p) =>
           `<tr><td>${esc(inSeconds(p.tau))}</td>` +
           `<td>${p.modified ? esc(decade(p.modified.deviation)) : "--"}</td>` +
+          `<td class="muted">${interval(p.modified?.bounds)}</td>` +
           `<td>${p.modified ? esc(decade(p.modified.time)) : "--"}</td>` +
           `<td>${p.mtie ? esc(decade(p.mtie.peak)) : "--"}</td>` +
           `<td>${esc(decade(p.deviation))}</td>` +
+          `<td class="muted">${interval(p.bounds)}</td>` +
+          `<td class="muted">${p.noise === null ? "--" : esc(noiseName(p.noise))}</td>` +
           `<td class="muted">${p.modified ? p.modified.averages : "--"}</td>` +
           `<td class="muted">${p.differences}</td></tr>`,
       )
@@ -485,7 +561,11 @@ $("caveat").textContent =
   "which the modified deviation absorbs exactly and the plain Allan " +
   "deviation does not: wherever the receiver's phase noise dominates, " +
   "the plain deviation of these means sits a factor √10 below that of " +
-  "the 1 PPS itself.";
+  "the 1 PPS itself. The shading is the one-sigma interval on each " +
+  "curve, from chi-squared statistics with Greenhall's degrees of " +
+  "freedom for the noise type found at each τ by the lag 1 " +
+  "autocorrelation method (NIST SP 1065, sections 5.3 to 5.5). It is " +
+  "the estimator's own uncertainty, and says nothing about the √10.";
 
 addEventListener("resize", () => {
   if (!chart) return;

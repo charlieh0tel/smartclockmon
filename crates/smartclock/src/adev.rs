@@ -73,12 +73,16 @@
 //! modified form needs every reading of its three windows, so one hole
 //! costs it `3 m` triples where the plain form loses three.
 
+pub mod confidence;
+
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
 
 use jiff::Timestamp;
 use serde::Deserialize;
 use serde::Serialize;
+
+use crate::adev::confidence::Bounds;
 
 /// One phase reading.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -113,6 +117,15 @@ pub struct Point {
     /// The maximum time interval error at the same tau, when at least
     /// one window of `m + 1` consecutive readings exists.
     pub mtie: Option<Excursion>,
+    /// The power law exponent of the noise dominating at this tau, from
+    /// +2 (white PM) to -2 (random walk FM), by the lag 1
+    /// autocorrelation method; `None` when too few readings remain at
+    /// this tau to tell and no earlier tau's answer could stand in.
+    pub noise: Option<i32>,
+    /// The one-sigma interval on the deviation, when the noise type is
+    /// known.  Asymmetric, as a chi-squared interval is: the upper side
+    /// is the wider.
+    pub bounds: Option<Bounds>,
 }
 
 /// The maximum time interval error at one averaging time.
@@ -138,6 +151,10 @@ pub struct Modified {
     /// How many second differences of averaged phase went into it,
     /// each needing `3 m` consecutive readings present.
     pub averages: usize,
+    /// The one-sigma interval on the modified deviation.
+    pub bounds: Option<Bounds>,
+    /// The same interval on the time deviation, scaled as it is.
+    pub time_bounds: Option<Bounds>,
 }
 
 /// The fewest second differences a point may be computed from.
@@ -303,9 +320,12 @@ impl Run {
     /// data does.
     pub fn curve(&self) -> Vec<Point> {
         let longest = self.grids.iter().map(Vec::len).max().unwrap_or(0);
-        let mut points = Vec::new();
+        let mut points: Vec<Point> = Vec::new();
         for m in multipliers(longest, self.tau0) {
-            match self.at(m) {
+            // SP 1065 section 5.3.2: where a tau has too few readings
+            // to identify its noise, the previous tau's answer is used.
+            let carried = points.last().and_then(|p| p.noise);
+            match self.at_with(m, carried) {
                 Some(point) => points.push(point),
                 None => break,
             }
@@ -321,6 +341,17 @@ impl Run {
     /// makes a broken run usable at all -- averaging each segment's own
     /// deviation would weight a two-minute fragment like a two-day run.
     pub fn at(&self, m: usize) -> Option<Point> {
+        self.at_with(m, None)
+    }
+
+    /// As [`Run::at`], with a noise type to fall back on when this tau
+    /// has too few readings to identify its own.
+    ///
+    /// The degrees of freedom are pooled as the differences are: each
+    /// segment's, from the readings it holds, summed.  A segment's
+    /// holes are not subtracted from its count, so a segment with many
+    /// is credited slightly more freedom than it has.
+    fn at_with(&self, m: usize, carried: Option<i32>) -> Option<Point> {
         if m == 0 {
             return None;
         }
@@ -338,21 +369,48 @@ impl Run {
         }
         let tau = m as f64 * self.tau0;
         let deviation = |sum: f64, count: usize| (sum / (2.0 * count as f64 * tau * tau)).sqrt();
+        let noise = self
+            .grids
+            .iter()
+            .max_by_key(|grid| grid.len())
+            .and_then(|grid| confidence::noise_type(grid, m))
+            .or(carried);
+        let edf = |modified: bool| {
+            let alpha = noise?;
+            let pooled: f64 = self
+                .grids
+                .iter()
+                .map(|grid| grid.iter().flatten().count())
+                .filter_map(|present| confidence::edf(alpha, m, present, modified))
+                .sum();
+            (pooled > 0.0).then_some(pooled)
+        };
         let modified = (averages >= MIN_DIFFERENCES).then(|| {
             let deviation = deviation(averaged, averages);
+            let time = tau * deviation / 3f64.sqrt();
+            let bounds = edf(true).map(|edf| confidence::bounds(deviation, edf));
             Modified {
                 deviation,
-                time: tau * deviation / 3f64.sqrt(),
+                time,
                 averages,
+                bounds,
+                time_bounds: bounds.map(|b| Bounds {
+                    lower: tau * b.lower / 3f64.sqrt(),
+                    upper: tau * b.upper / 3f64.sqrt(),
+                    edf: b.edf,
+                }),
             }
         });
         let mtie = (windows > 0).then_some(Excursion { peak, windows });
+        let plain = deviation(total, differences);
         Some(Point {
             tau,
-            deviation: deviation(total, differences),
+            deviation: plain,
             differences,
             modified,
             mtie,
+            noise,
+            bounds: edf(false).map(|edf| confidence::bounds(plain, edf)),
         })
     }
 

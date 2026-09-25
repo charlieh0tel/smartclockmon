@@ -82,7 +82,11 @@ leads because the receiver's reading is already a ten-second mean,
 which is the innermost block of that form's own averaging, so it is
 exact here where the plain form sits a factor √10 low wherever the
 receiver's white phase noise dominates -- on the bench, the whole
-measured range; the plain form is kept because data sheets quote it.  The GPS
+measured range; the plain form is kept because data sheets quote it.
+Each curve is shaded to its one-sigma interval, from chi-squared
+statistics with Greenhall's degrees of freedom for the noise type the
+lag 1 autocorrelation method finds at each tau (NIST SP 1065 sections
+5.3 to 5.5), checked against allantools point by point.  The GPS
 receiver's 1 PPS is quantized to its own crystal, and while locked
 the OCXO is steered to follow it, so the curve is of the pair and of
 the loop between them rather than of the OCXO alone; the page says
