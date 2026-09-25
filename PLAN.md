@@ -715,6 +715,21 @@ receiver data sheets, which quote it.  Both are checked against
 allantools' `mdev` and `tdev` and against Table 31's modified Allan
 and time deviation columns.
 
+What the short end of every curve shows is the receiver's own 1 PPS
+against the GPS engine's, and the manual sets the scale of that.  The
+58503B specifications (097-58503-12, chapter 4) give time accuracy as
+"<110 ns with respect to UTC (USNO MC), 95% probability", and the
+1 PPS output's own edge jitter as "<750 ps rms" -- the latter is the
+divided-down OCXO, not the interval to GPS.  The GPS engine's pulse
+carries an uncorrected sawtooth the Oncore reports in a signed byte,
+"-128 .. 127 ns" (`VPCommands.pdf`, @@Bn/@@En), and no path from that
+report into the interval was found in the firmware.  A locked 58503A
+on the bench over six hours read between -62 and +81 ns with
+reading-to-reading jumps of up to 94 ns, all within the 110 ns the
+manual promises against UTC; so a MTIE of ~100 ns at short tau is the
+receiver meeting its specification, not a fault, and the deviations'
+short-tau floor is that jitter.
+
 TDEV gets a chart of its own under the sigma-y chart, sharing its tau
 axis and cursor, because it is in seconds and its slope is MDEV's plus
 one: white PM falls as tau^-1/2, flicker PM is flat, white FM rises as
