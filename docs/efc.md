@@ -134,15 +134,19 @@ orders larger.
 ### The reported tempco
 
 `:DIAGnostic:ROSCillator:TCOefficient?` returns -33.65 on this unit.
-It is undocumented, so its units had to be inferred: **parts in 10^12
-per degree C**, from -33.65x10^-12/C against the measured
-+4.1x10^-11/C -- the same size, opposite in sign as a correction should
-be.  The oscillator slows as it warms and the loop pushes the other
-way.
-
-The agreement proves less than it appears.  The receiver learns the
-coefficient from the corrections it applies against GPS, which is the
-regression above.
+It is undocumented, and before the firmware was read its units were
+inferred as parts in 10^12 per degree C, from -33.65x10^-12/C against
+the measured +4.1x10^-11/C -- the same size, opposite in sign.  The
+firmware says otherwise (`firmware.md`, "s, the oscillator current"):
+the value is the constant c in the loop's EFC, u = K.f + B + I + c.s,
+where s is the oscillator-current channel of the health monitor
+(nominal 250), so its unit is **EFC counts per unit of oscillator
+current**, and it is applied at every update, locked or not.  Nothing
+in the image learns it: it is written only by this command's setter,
+into the EEPROM calibration block, after a measurement the console
+word `xcal` makes by fitting EFC against current.  The earlier
+agreement in size was a coincidence of units, and the sign is the
+sign of the oven current's coupling to the EFC, not of temperature's.
 
 ### It is not feedforward
 
@@ -168,6 +172,13 @@ temperature would kick the DAC 30 counts at each 0.273 C boundary.
 Across the 49 sustained steps in the log -- level held a minute either
 side, rather than dithering across a boundary -- the mean DAC change
 ten seconds later is **+0.02 +/- 0.43 counts**.
+
+There is a feedforward term, but not from temperature: the firmware
+adds c times the oscillator current to the EFC at every update
+(`firmware.md`, "The loop").  The oven current moves with ambient,
+which is why a coefficient on it is called a temperature coefficient,
+but the reported temperature is not an input to it, which is what the
+step test above shows.
 
 ### Why the coefficient never changes
 

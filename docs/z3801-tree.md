@@ -60,7 +60,10 @@ slot holds `FUN_0002a93c`, so **the oscillator temperature coefficient
 can be overwritten** -- and the command appears in no manual in either
 direction.  Kusters describes the coefficient as measured against GPS
 while locked and kept in EPROM, which reads as something the receiver
-owns; the interface says otherwise.
+owns; the interface says otherwise, and the Z3816A image settles it:
+the setter is the only writer, the loop never adjusts the value, and a
+console word `xcal` measures it for an operator to enter
+(`firmware.md`, "s, the oscillator current").
 
 It is not in the command table.  The table requires every Z3801 entry
 to exist on the 58503 tree too, and the evidence here is a Z3801A

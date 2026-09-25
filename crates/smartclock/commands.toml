@@ -2119,7 +2119,7 @@ doc = "Oscillator EFC as a raw 20-bit value; relative percent is value / 2^20 * 
 [[command]]
 id = "oven_tempco"
 class = "query"
-doc = "Oscillator temperature coefficient, in parts in 10^12 per degree C.  Learned while locked, kept in EPROM, applied during holdover; it sits still for long stretches."
+doc = "Oscillator temperature coefficient: the constant the loop multiplies the oscillator current by in the EFC, in EFC counts per unit of that channel.  A calibration value in EEPROM, applied at every update and adjusted by nothing but its own setter, so it sits still.  See docs/firmware.md."
 
   [command.dialect.hp58503]
   scpi = ":DIAGnostic:ROSCillator:TCOefficient?"

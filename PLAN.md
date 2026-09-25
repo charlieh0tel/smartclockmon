@@ -1149,11 +1149,14 @@ Things that are not decided, as distinct from the defects below.
 
 1. **What Ghidra would say about the firmware.**  `strings` gives the
    tables -- the SCPI keywords, the screen formats, the state names --
-   but not the logic, so three questions stay outside: which state
+   but not the logic, so three questions stayed outside: which state
    machine drives the mode suffixes, how `:DIAGnostic:ROSCillator:
    TCOefficient?` is computed and where it is applied, and whether the
    scaling behind the undocumented `EFControl:ABSolute?` is visible in
-   code.  Each has been inferred from the outside and none is settled.
+   code.  The second is settled (`docs/firmware.md`, "s, the
+   oscillator current"): it is a stored constant on the oscillator
+   current in the loop's EFC, written only by its own setter.  The
+   other two are still inferred from the outside.
    `third_party/z3801a-3543.bin` and `z3816a-4001.bin` are the images; there is
    no 58503A dump, which is also why the front panel's strings are
    unknown.

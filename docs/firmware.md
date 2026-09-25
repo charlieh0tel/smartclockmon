@@ -325,7 +325,7 @@ floating point.  Written out, with the addresses the values live at:
 | B | `0x102be4` | a base EFC |
 | τ | `0x102548` | the loop's time constant |
 | G | `0x102c28` | a gain; `0x102c30` and `0x102c34` hold 1/G |
-| c | `0x1023cc` | a constant from the checksummed block at `0x400080` |
+| c | `0x1023cc` | the value `:DIAGnostic:ROSCillator:TCOefficient?` reports, from the checksummed block at `0x400080`; see "s, the oscillator current" |
 | s | -- | the oscillator current: `FUN_000324b0(6)`, channel 6 of 8 measured channels |
 | M | `0x102c38` | a clamp, set to 6.25 × 10⁻¹⁰ / \|G\| |
 | u | `0x10285e` | the EFC value the update produces |
@@ -468,7 +468,29 @@ e; `dmes_curv` (`0x2befe`) sets the byte at `0x103d8a`.
 
 and their defaults are 12, 5, 12, −11.5, −11.5, −11.5, 250 and 50.  The
 loop reads channel 6, the oscillator current, so the term c·s is a
-stored constant times the oscillator current.  The Z3801A's image reads
+stored constant times the oscillator current.
+
+c is what `:DIAGnostic:ROSCillator:TCOefficient` reads and writes.
+The query's node names the handler `FUN_0003b248`, which formats the
+record at `0x43324`: the cell `0x1023cc`, the getter `FUN_00022bb8`,
+the limits −200 and 200 (`0x43314`, `0x43318`) and the setter
+`FUN_000404be`, which writes the calibration block back to the EEPROM
+at `0x400080`.  Nothing else in the image writes the cell: the loop
+applies it at every update, `startup_pll` and the aging fit's sampler
+use it, and none of them adjusts it.  So in this firmware the
+"temperature coefficient" is a stored calibration constant that
+multiplies the oscillator current -- in EFC units per unit of that
+channel, whose nominal reading is 250 -- applied all the time, not a
+coefficient on temperature and not learned while locked.
+
+The console word that measures it is `xcal` (`0x2bf78`).  Given a
+number of seconds, it prints `curr= %d efc= %.1f, sec remaining= %d`
+(`0x2c7db`) every ten seconds for that long -- the raw current from
+the ADC (`FUN_0002e3b0`, the reading shifted right by two) and the EFC
+in force at `0x10285e` -- then `now do a least square line fit to
+data...` and `tempco = %f` (`0x2c803`, `0x2c82f`), the slope of EFC
+on current.  It stores nothing; the value is entered afterwards with
+the SCPI command.  The Z3801A's image reads
 channel 3 of its own function, `FUN_00022fd2`; its report strings list
 Temperature, 5V, +15V, −15V, Oven, Double oven and Antenna current, but
 which of those is its channel 3 was not traced.
