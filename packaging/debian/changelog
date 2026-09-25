@@ -1,3 +1,23 @@
+smartclockmon (0.6.17-1) unstable; urgency=low
+
+  * Carry :DIAGnostic:PTIMe:TINTerval?, the one-second interval reading,
+    now that a 58503A has answered it.  An hour of it beside the
+    ten-second mean showed the mean to be exactly that, MDEV of the
+    means equal to MDEV of the readings, and ADEV of the means a
+    factor root-ten low at every tau measured; the stability page and
+    the docs say so, correcting an earlier claim that ADEV was right
+    from 100 s up.
+  * Read the firmware further: TCOefficient is the loop's constant on
+    the oscillator current, set only by its own setter; *TST? resets
+    the GPS engine and re-runs power-up rather than the processor;
+    SYSTem:PON and PRESet restart the processor with the learned
+    state discarded; the console runs on the SCI, by the pSOS device
+    table; the tau block's bytes are the LED and holdover-recovery
+    settings.  PON is in the table as dangerous and refused by name.
+  * Keep the disciplining loop's block diagram in docs/loop.html.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Thu, 24 Sep 2026 23:22:03 -0700
+
 smartclockmon (0.6.16-1) unstable; urgency=low
 
   * Give the stability page a series picker like the history page's:
