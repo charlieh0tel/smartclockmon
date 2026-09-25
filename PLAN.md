@@ -1167,38 +1167,7 @@ Things that are not decided, as distinct from the defects below.
    has ever been on the line, so its behaviour is unobserved.  Until
    one is, `evidence = "firmware"` is as far as those entries can go.
 
-3. **What the receiver's `:STATus:<register>:ENABle` masks are set
-   to.**  They decide which bits within a group reach the alarm, so
-   they are what would say which events the receiver itself considers
-   alarm-worthy.
-
-   The reason recorded here for not having read them -- that it needs
-   the daemon stopped -- was wrong.  `smartclock-cli --socket query`
-   sends arbitrary SCPI through the running daemon; what stopped it is
-   that an unrecognised command is treated as control, and
-   `--allow-raw` is off.  The five queries are in the command table as
-   of this commit, so they are now an ordinary read.  Nothing has been
-   sent yet.
-
-   `097-59551-02` 5-87 and 5-88 give the factory defaults, which are
-   worth having either way:
-
-   | Register | ENABle | PTRansition |
-   | -------- | ------ | ----------- |
-   | `OPERation` | 36 | 127 |
-   | `OPERation:HARDware` | 8191 | 5119 |
-   | `OPERation:HOLDover` | 8 | 15 |
-   | `OPERation:POWerup` | 7 | 7 |
-   | `QUEStionable` | 3 | 2 |
-
-   with `*SRE` 136, `*ESE` 0 and every `NTRansition` 0.  All
-   non-volatile.  This unit matches on every one we have read: `*SRE`
-   136, `*ESE` 0, NTR all 0, and PTR 127 / 5087 / 15 / 7 / 2.  The lone
-   difference is hardware PTR 5087 against a default of 5119, which is
-   bit 5 -- documented "not used" in figure 5-1, so it signifies
-   nothing.
-
-4. **Asserting a known antenna position from the configuration.**  A
+3. **Asserting a known antenna position from the configuration.**  A
    receiver at a surveyed site does not need to survey: told where it
    is, it goes straight to position hold and starts serving time,
    where a survey leaves the 1 PPS invalid for as long as it runs.  A
@@ -1235,7 +1204,7 @@ Things that are not decided, as distinct from the defects below.
    time while the position was known the whole time.  Asserting it by
    hand took two commands.
 
-5. **Whether acknowledging from the monitor is wanted.**  Reading an
+4. **Whether acknowledging from the monitor is wanted.**  Reading an
    event register would say which bit latched rather than which group,
    and clears the alarm as it does so.  That makes it exactly the right
    implementation of a deliberate acknowledgement and exactly the wrong

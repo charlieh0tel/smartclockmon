@@ -163,5 +163,12 @@ front-panel strings and any differences in the loop are unknown.
   add the image to `third_party/` with the `NOTICE` entry the other
   two have.
 
+- With it, the first things to read: whether its loop has the c·s
+  term the Z3816A's has, which the bench regression in `efc.md` says
+  this unit does not apply; what its `TCOefficient` setter writes;
+  and its own health-monitor channel table, whose oven-current unit
+  differs (readings of 93 to 118 against the Z3816A's nominal 250).
+
 *Changes:* every "the design family, not the 58503A" caveat can be
-checked.
+checked, and the TCOefficient question is closed one way or the
+other.  This is the most useful single item on this list.
