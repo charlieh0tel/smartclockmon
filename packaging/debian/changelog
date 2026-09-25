@@ -1,3 +1,24 @@
+smartclockmon (0.6.18-1) unstable; urgency=low
+
+  * Keep one log per receiver, named <model>-<serial>.sqlite in
+    /var/lib/smartclockd and opened once the receiver has answered
+    *IDN?, so a unit keeps one history whichever port it is on and a
+    different unit on the same port gets its own file.
+    SMARTCLOCKD_LOG_DIR names the directory; SMARTCLOCKD_DATABASE still
+    names one fixed file instead.  The existing single log is not
+    migrated: split it by receiver_id into the named files by hand.
+  * smartclock-web reads the whole directory and keys receivers by
+    serial: ?receiver= is now the serial.  SMARTCLOCK_WEB_LOG_DIR
+    replaces the database default.
+  * smartclockd@.service: one daemon per port, each reading
+    /etc/default/smartclockd.<instance> and serving
+    /run/smartclockd/<instance>/socket.
+  * Choose the time range Grafana's way on the history and stability
+    pages: the last N units up to now, or a fixed pair from a drag,
+    stepped back and forward, kept in the address.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Fri, 25 Sep 2026 15:17:23 -0700
+
 smartclockmon (0.6.17-1) unstable; urgency=low
 
   * Carry :DIAGnostic:PTIMe:TINTerval?, the one-second interval reading,
