@@ -238,8 +238,10 @@ function draw(points) {
   // Two curves on the first chart.  The modified deviation is the one
   // this record supports exactly -- the receiver's reading is already
   // a ten-second mean, which is the innermost block of the modified
-  // form's own averaging -- so it leads; the plain Allan deviation is
-  // drawn dim beside it because data sheets quote that one.  A point
+  // form's own averaging; the plain Allan deviation is kept because
+  // data sheets quote that one.  Both are measured curves and both
+  // are drawn at full strength, told apart by colour and legend: a
+  // dashed or dimmed line reads as a reference or a fit.  A point
   // the modified form lacks (it needs three whole windows) is a hole
   // in its series, which uPlot leaves as a break in the line.
   const tau = points.map((p) => p.tau);
@@ -268,10 +270,9 @@ function draw(points) {
         },
         {
           label: "ADEV",
-          stroke: "#8b929c",
-          width: 1,
-          dash: [6, 4],
-          points: { show: true, size: 4 },
+          stroke: "#a78bfa",
+          width: 1.5,
+          points: { show: true, size: 5 },
           value: (_, v) => decade(v),
         },
       ],
