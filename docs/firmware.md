@@ -579,11 +579,11 @@ The rest of the 25-byte block, from its ROM defaults
 | Offset | Default | Read and written by |
 | ------ | ------- | ------------------- |
 | +0, word | 0 | nothing but the block copies |
-| +2 | 0 | an alarm summary: `FUN_00049f76`, called from `pllp`, gathers bits from `FUN_0003ed82`, the +0x18 flag, `FUN_000324fc` and `FUN_00049f06` into the byte at `0x102c16` and sets +2 when any is set (`0x4a008`); the health monitor folds it into a status bit (`0x33d12`); a SCPI handler at `0x3d3d0` returns it |
+| +2 | 0 | the alarm LED: `FUN_00049f76`, called from `pllp`, gathers bits from `FUN_0003ed82`, the +0x18 flag, `FUN_000324fc` and `FUN_00049f06` into the byte at `0x102c16` and sets +2 when any is set (`0x4a008`); the health monitor folds it into a status bit (`0x33d12`); `:LED:ALARm?` and `:LED:ALARm:MAJor?` return it (`FUN_0003d3d0`) |
 | +3 | 1 | a descriptor at `0x431bc` only |
-| +4 | 0 | a SCPI handler at `0x3d3b6` returns it |
-| +5 | 0 | a SCPI handler at `0x3d458` returns it |
-| +6 | 1 | set to 1 when the loop starts (`0x4af60`); consulted when holdover begins (`0x472bc`, under the stage byte's move to 3); returned by the handler at `0x3f57a`, whose node carries the keyword `REC` |
+| +4 | 0 | `:LED:ACTive?` returns it (`FUN_0003d3b6`) |
+| +5 | 0 | `:LED:ENABled?` returns it (`FUN_0003d458`) |
+| +6 | 1 | `:SYNChronization:HOLDover:RECovery:AUTO` (`FUN_0003f57a`; `:ROSCillator:HOLDover:RECovery:AUTO` is the same node): set to 1 when the loop starts (`0x4af60`); consulted when holdover begins (`0x472bc`, under the stage byte's move to 3) |
 | +7 | 0 | set to 1 by the `powerup` sub-state machine `FUN_0004a34a` (`0x4a764`); tested by SCPI handlers at `0x3c330` and `0x3c6de` |
 | +8, long | 0 | written by a SCPI setter (`0x3c35c`, through `FUN_00038f04`); its address is handed to the `powerup` sub-state machine (`0x4a382`) |
 | +0xc, +0x10 | 0 | no reader found by address |
@@ -915,9 +915,15 @@ phrase `0 !iodev` (`0x28f98`) and prints `pForth $Revision: 1.2 $`
 is D0 with the major number in its high byte and whose function code
 is D7, 0 to 5 -- `emit` writes with code 4 (`0x2932c`) and `expect`
 reads with code 3 (`0x29f3a`).  So the console's port is pSOS device
-0.  Which driver major number 0 selects is in the I/O switch table the
-pSOS configuration at `0x102cfc` points to; that table is built at
-run time and was not located in ROM.  The same `de_open(0)` is made at
+0.  Major number 0 is the SCI: the start-up code at `0x57fc4` copies
+the pSOS configuration from `0x581bc` to `0x102cfc` and the I/O switch
+table from `0x58670` to `0x102c90` (the configuration's word at +0x22,
+the highest major, is 2, and its long at +0x24 is `0x102c90`); the
+table is eighteen `jmp` stubs, six per major, and major 0's are the
+SCI driver's -- `FUN_0002ed56`, the initialisation that creates
+`sciR` and `sciW`, then `0x2ecae`, `0x2ebc0`, `0x2f15c`, `0x2f10e`
+and `0x2efb6` for open, close, read, write and control.  So the
+console reads and writes the same port SCPI does.  The same `de_open(0)` is made at
 `0x2f286`, and `de_open(1)` at `0x2f34a`.
 
 The word list (`0x2a500` to `0x2b100`, 89 kernel words, and the 69
@@ -1103,15 +1109,30 @@ with 0 or 1 is what owners describe.
 `hardware-investigations.md` lists what a bench would settle of the
 following, and how.
 
-- Which SCPI keywords the handlers that return τ-block bytes hang
-  from, other than `REC` for +6; what +3, +4, +5, +7 and +8 mean; and
-  what the rest of the ROM defaults, `0x400de` to `0x40173`, hold.
-- What HQ (`FUN_00045f94`) measures, and what the fit's mode is used
-  for beyond the debug print; `FUN_00045a78`, which sets c from three
-  trials, was not transcribed.
+- What τ-block bytes +3, +7 and +8 mean, and what the rest of the ROM
+  defaults, `0x400de` to `0x40173`, hold.
+- What HQ stands for.  `FUN_00045f94` computes it from the fit's
+  residuals: r = e − (a + b·y + c·w) at each sample, Σ½(Δr)² over
+  consecutive samples divided by n − 8 and rooted -- an Allan-like
+  deviation of the residual EFC at 2700 s -- combined with the fit's
+  rms, the ring's span in seconds (Δy·86400/32) raised to 1.5 by
+  `pow` (`0x68a32`), and the constants 0.00025, 10⁻¹¹, 1.6 × 10¹²,
+  86400, 345600 and a final 2.5·√(·); the operand order of two of the
+  double routines was not verified, so the formula is not transcribed.
+  By its constants it is a time error predicted over a day; nothing
+  but the debug print and the copy to `0x102866` reads it.
 - The console's `current drift = %.1e / day` (`0x2c3bf`) prints the
-  float at `0x102bcc` times 5.4 × 10⁻⁸.  Nothing that writes `0x102bcc`
-  was found.
+  float at `0x102bcc` times 5.4 × 10⁻⁸.  Nothing in the image writes
+  `0x102bcc`, and it lies in the RAM the start-up code clears, so the
+  word prints zero.
+- What the GPS task does with the message the `diag` stage posts:
+  `FUN_0004a13c(5, buffer, 0x59)` -- type 5, in the task's code table
+  at `0x5239a` -- reaches `FUN_0005086e`, which builds the Oncore
+  messages through `FUN_000504c2`; which messages was not transcribed.
+- The six-byte descriptor entries: `FUN_00046652` switches on the
+  first byte of the word (0 to 3) and compares the second with the
+  byte at `0x1026e0` before the loop task honours the entry; what the
+  four kinds are was not traced.
 - What the Z3801A's `Oven` and `Secondary oven voltage` channels
   measure, beyond the ADC inputs and coefficients above.
 - The units of the oscillator current: nominal 250 and limit 650 after
@@ -1127,11 +1148,10 @@ following, and how.
 - What drives bit 8 of the read-only port at `0x302000`, which
   chooses between the Z3816A's two values of G.  The image reads it
   once and looks at nothing else in that block.
-- Which driver pSOS device 0, the console's, selects: the I/O switch
-  table was not found in ROM.  Whether any sequence of the console's
-  pSOS words gets SCPI back short of a power cycle was not tried.
-  Nothing was sent to a receiver to find out; setting the language is
-  one of the commands this project never sends.
+- Whether any sequence of the console's pSOS words gets SCPI back
+  short of a power cycle was not tried.  Nothing was sent to a
+  receiver to find out; setting the language is one of the commands
+  this project never sends.
 - That the SCI is the port wired to J3: the firmware's SCPI port is the
   one it creates `sciR` and `sciW` for, but the board was not traced.
 - What drives the 59551A's PORT 2.  DUART channel B, idle here, is the
@@ -1143,6 +1163,13 @@ following, and how.
 - None of this has been checked against a 58503A image.
 
 ## Note on the disassembly
+
+A node of the SCPI tree is a record whose long at +0 points at its
+keyword -- stored as the short form, a NUL, and the rest of the long
+form -- whose long at +4 points at its child list in `0x59000` to
+`0x5b000`, and whose handler is the long at +18 (common commands such
+as `*IDN?` keep theirs there too).  A node's parent is the node whose
+child list holds it, which is how the paths above were resolved.
 
 Ghidra resolves the table address of this compiler's switch idiom,
 `move.w (d8,PC,Dn*2),Dn` followed by `jmp (d8,PC,Dn)`, twelve bytes
