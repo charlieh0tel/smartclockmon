@@ -966,6 +966,63 @@ there.  The unpacker takes the same opcodes.
   Its G is the fixed +6.25 × 10⁻¹³ noted above, and `pll_debug`
   (`0x1b4d8`) stores to `0x102539`.
 
+## Restarting
+
+The image has one way to restart the processor from software: `trap
+#12`, whose handler at `0x24b28` (vector 44 of the ROM table at
+`0x20000`) masks interrupts, runs `FUN_00022172` -- which turns off
+the GPT and QSM interrupt sources at `0xfff920` and `0xfffc1a` to
+`0xfffc1f`, clears SCCR1 so the SCI stops, and calls `FUN_0002dc72` --
+then executes the `RESET` instruction, reloads the VBR, and jumps
+through the ROM reset vector to the reset code at `0x2466e`.  RSR then
+shows SYS and nothing else, which is the reset-status value
+`FUN_00022c7c` asks for (see "τ and G").
+
+Two actions reach it, and the SCPI handlers that name them, through
+descriptor lists at `0x44c9a` to `0x44cb2` of six-byte entries (a word
+and a function), are:
+
+| Command | Handler | Action | What it does first |
+| ------- | ------- | ------ | ------------------ |
+| `:SYSTem:PON` | `FUN_0003ff52`, list at `0x44ca0` | `FUN_000496f8` | zeroes the whole region `0x100000` to `0x100c3b` that a warm restart would restore -- the loop state, the health records, the τ block -- so the restart loads the defaults, as a power-up does |
+| `:SYSTem:PRESet` | `FUN_0003ff78`, list at `0x44ca6` | `FUN_000496ca` | writes two settings records to the EEPROM at `0x4000c0` (`FUN_0004206a`, twice through `FUN_0004203e` and `FUN_000408fe`), clears the flag word at `0x100002` and recomputes the region's checksum into `0x100000` |
+
+The `:GPS:POSition` handler `FUN_0003c268` passes the list starting at
+`0x44c9a`, six bytes before `:SYSTem:PON`'s; what the parser does with
+a list and where it stops were not traced.  `PON` is a keyword only
+the Z3816A image has (`0x5a280`); the Z3801A's image has the same
+`:SYSTem:PRESet` action, `FUN_00045cca` (`0x2f66a` passes its list at
+`0x41392`), and no `PON`.  Owners report that `:SYSTem:PON` is accepted
+by newer firmware and refused by older, which matches.
+
+`*TST?` is reported by owners to restart the receiver as well, with a
+minute of GPS reacquisition after it.  Its node in the common-command
+table (`0x5cb36`) carries the integer reply formatter `FUN_00035a60`
+and no handler of its own, and no third path to `trap #12` exists, so
+how it restarts was not traced.
+
+`:SYSTem:LANGuage "INSTALL"` takes a different exit: `FUN_00023036`
+executes `trap #11`, whose handler at `0x24b18` masks interrupts, runs
+the same `FUN_00022172`, and jumps through vector 43 of the table at
+address 0 -- the boot ROM's own table, not the one at `0x20000` --
+which is how the installer in the low half of the image is entered.
+
+None of these is a command this project sends: `:SYSTem:PRESet` and
+`:SYSTem:LANGuage` are on its never-send list, and `:SYSTem:PON` is not
+in its command table.
+
+### `:DIAGnostic:GPSystem:UTC`
+
+The node's handler `FUN_0003a878` passes the record at `0x4322c`,
+whose subject is the byte at `0x102616`, with the same getter and
+setter as the τ-block bytes.  The GPS task reads that byte to choose
+between two paths in `FUN_0002075a` and `FUN_00049dfc`, requires it in
+`FUN_0002130c` when it parses a message, and folds it into bit 0x40 of
+a status byte in `FUN_00023bbc`.  Which Oncore message each path sends
+was not traced; the command table already carries the query form as
+`:DIAGnostic:GPSystem:UTC?`, discovered on a 58503A, and the set form
+with 0 or 1 is what owners describe.
+
 ## What is not established
 
 `hardware-investigations.md` lists what a bench would settle of the

@@ -105,16 +105,22 @@ limit 650 after 4.489 per ADC count, unit unknown.
 the reset-status register shows neither EXT nor POW and the RAM
 checksum holds; this was read, not exercised.
 
-- With the daemon logging, cause a RESET-instruction restart if any
-  documented command does one on this model (none is known to; do not
-  use `:SYSTem:PRESet`), or a brief external reset if the board has a
-  reset input.  Read `:DIAGnostic:LOG:READ?` afterwards: `Power on`
-  means the state was restored, `System preset` means defaults were
-  loaded.
+- The two software restarts the image has both discard that state
+  before resetting (`docs/firmware.md`, "Restarting"): `:SYSTem:PON`
+  zeroes the region and `:SYSTem:PRESet` clears its flag, so neither
+  exercises the warm path, and neither is a command this project
+  sends.  Owners report that `*TST?` restarts the receiver too, by a
+  path the image does not show; on a spare unit, send `*TST?` with
+  the daemon logging and read `:DIAGnostic:LOG:READ?` afterwards:
+  `Power on` means the state was restored, `System preset` means the
+  defaults were loaded.
+- Otherwise a brief external reset, if the board has a reset input,
+  answers whether EXT alone (without POW) is treated as warm.
 - Watch whether τ (loop time constant) and the aging fit survive: the
   EFC should not jump and the drift term should not go to zero.
 
-*Changes:* confirms which reset sources keep the loop's state.
+*Changes:* confirms which reset sources keep the loop's state, and
+whether `*TST?` is one of them.
 
 ## 8. The one-second reading versus the ten-second mean
 
