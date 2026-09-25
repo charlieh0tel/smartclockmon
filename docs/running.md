@@ -20,8 +20,12 @@ whatever the daemon has been configured to allow.
 Check it took:
 
     systemctl status smartclockd
-    sudo -u smartclockd sqlite3 /var/lib/smartclockd/snapshots.sqlite \
+    sudo -u smartclockd ls /var/lib/smartclockd/
+    sudo -u smartclockd sqlite3 /var/lib/smartclockd/<model>-<serial>.sqlite \
         "select count(*), max(at) from snapshot;"
+
+The log file appears once the receiver has answered `*IDN?`, since it
+is named after the receiver.
 
 ## What the daemon does to the receiver
 
@@ -100,11 +104,41 @@ newer version -- and `RestartPreventExitStatus=2` makes that final.
 | Path                                    | What                  |
 | --------------------------------------- | --------------------- |
 | `/etc/default/smartclockd`              | all configuration     |
-| `/var/lib/smartclockd/snapshots.sqlite` | the snapshot log      |
+| `/var/lib/smartclockd/<model>-<serial>.sqlite` | one log per receiver |
 | `/run/smartclockd/socket`               | where clients connect |
 
-The log grows without bound, a few MB a day.  Nothing rotates it: the
+A log is named after the receiver that answered on the port, and is
+opened only once one has: a unit moved to another port or another
+host's adapter keeps one continuous history, and a different unit
+plugged into the same port gets a file of its own.  Set
+`SMARTCLOCKD_DATABASE` to a file to log every receiver seen on the
+port into that one file instead.
+
+A log grows without bound, a few MB a day.  Nothing rotates it: the
 point of the record is to still have last year's holdover events.
+
+## More than one receiver
+
+One daemon per port.  `smartclockd@.service` is a template: an
+instance `smartclockd@bench1` reads `/etc/default/smartclockd.bench1`,
+which names that port's adapter and can set anything the single unit's
+file can, and serves `/run/smartclockd/bench1/socket`.  Copy
+`/etc/default/smartclockd` to start each one.
+
+    sudo cp /etc/default/smartclockd /etc/default/smartclockd.bench1
+    sudoedit /etc/default/smartclockd.bench1     # set SMARTCLOCKD_DEVICE
+    sudo systemctl enable --now smartclockd@bench1
+
+    smartclockmon --socket /run/smartclockd/bench1/socket
+
+The instances share `/var/lib/smartclockd`, and since each writes the
+file named for the receiver on its own port, and a receiver is on one
+port at a time, they never write the same file.  `smartclock-web`
+reads the whole directory and offers every receiver it finds, live or
+historical, in its selector; it takes one daemon's socket for the live
+strip, so point `SMARTCLOCK_WEB_SOCKET` at whichever instance's socket
+the strip should show.  The exporter likewise scrapes one socket, so
+run one instance of it per daemon.
 
 ## Unplugging the adapter
 

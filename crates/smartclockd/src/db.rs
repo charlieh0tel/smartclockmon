@@ -65,6 +65,34 @@ pub(crate) struct Log {
     current: Option<i64>,
 }
 
+/// The file a receiver's rows go in: `<model>-<serial>.sqlite`, so a
+/// unit keeps one history whichever port it is on.  Anything in the
+/// identity that a file name should not carry becomes an underscore.
+/// An identity that does not parse still gets its own file, named
+/// after the device, and never a shared "unknown" one.
+pub(crate) fn file_name(identity: &str, device: &str) -> String {
+    fn clean(s: &str) -> String {
+        s.chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || matches!(c, '.' | '-') {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect()
+    }
+    match smartclock::parse::identity(identity) {
+        Ok(id) if !id.serial.is_empty() => {
+            format!("{}-{}.sqlite", clean(&id.model), clean(&id.serial))
+        }
+        _ => {
+            let base = device.rsplit('/').next().unwrap_or(device);
+            format!("unknown-{}.sqlite", clean(base))
+        }
+    }
+}
+
 impl Log {
     /// Open or create the log.
     pub(crate) fn open(path: &Path) -> Result<Self> {
@@ -938,6 +966,7 @@ impl Log {
 mod tests {
     use super::Log;
     use super::SCHEMA;
+    use super::file_name;
     use super::stored;
     use rusqlite::Connection;
 
@@ -973,6 +1002,26 @@ mod tests {
         fn drop(&mut self) {
             self.wipe();
         }
+    }
+
+    #[test]
+    fn a_receiver_is_filed_by_model_and_serial_and_an_unparsed_one_by_device() {
+        assert_eq!(
+            file_name("HEWLETT-PACKARD,58503A,3710A01056,3704-C", "/dev/ttyUSB0"),
+            "58503A-3710A01056.sqlite"
+        );
+        assert_eq!(
+            file_name("SYMMETRICOM,Z3805A,3625A01487,3944-A", "/dev/ttyUSB0"),
+            "Z3805A-3625A01487.sqlite"
+        );
+        assert_eq!(
+            file_name("garbage", "/dev/serial/by-id/usb-x/y"),
+            "unknown-y.sqlite"
+        );
+        assert_eq!(
+            file_name("A,B/C,D:E,F", "tcp://host:1234"),
+            "B_C-D_E.sqlite"
+        );
     }
 
     #[test]

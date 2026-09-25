@@ -18,6 +18,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 use std::time::Instant;
 
+use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
 use smartclock::client::Daemon;
@@ -26,6 +27,7 @@ use smartclock_http::Response;
 
 use crate::history::Log;
 use crate::history::PLOTTABLE;
+use crate::history::Receiver;
 
 /// The page, built in rather than read from disk: one file to install,
 /// and a running server cannot be made to serve something else by
@@ -67,13 +69,19 @@ struct Cli {
     )]
     socket: PathBuf,
 
-    /// The daemon's log, for history.  Opened read-only.
+    /// The daemon's logs, for history: one `.sqlite` file per receiver
+    /// in this directory.  Opened read-only.
     #[arg(
         long,
-        env = "SMARTCLOCK_WEB_DATABASE",
-        default_value = "/var/lib/smartclockd/snapshots.sqlite"
+        env = "SMARTCLOCK_WEB_LOG_DIR",
+        default_value = "/var/lib/smartclockd"
     )]
-    database: PathBuf,
+    log_dir: PathBuf,
+
+    /// One log file in place of the directory, holding whichever
+    /// receivers the daemon logged into it.
+    #[arg(long, env = "SMARTCLOCK_WEB_DATABASE")]
+    database: Option<PathBuf>,
 
     /// Address to serve on.
     ///
@@ -89,7 +97,10 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     eprintln!("smartclock-web: serving http://{}/", cli.listen);
     let socket = cli.socket.clone();
-    let database = cli.database.clone();
+    let logs = match cli.database.clone() {
+        Some(file) => Logs::File(file),
+        None => Logs::Dir(cli.log_dir.clone()),
+    };
     let cache = Cache::default();
     smartclock_http::serve(&cli.listen, move |target| {
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
@@ -104,10 +115,10 @@ fn main() -> Result<()> {
             // Uncached, and the only endpoint that goes to the wire on
             // request: it is what the sky page is paying for.
             "/api/sky" => json(sky(&socket)),
-            "/api/history" => json(series(&database, query)),
-            "/api/journal" => json(journal(&database, query)),
-            "/api/receivers" => json(receivers(&database)),
-            "/api/adev" => json(deviation(&database, query)),
+            "/api/history" => json(series(&logs, query)),
+            "/api/journal" => json(journal(&logs, query)),
+            "/api/receivers" => json(receivers(&logs)),
+            "/api/adev" => json(deviation(&logs, query)),
             _ => Response::not_found(),
         }
     })
@@ -254,9 +265,8 @@ const JOURNAL_ROWS: usize = 100;
 
 /// The receiver's own record-keeping: its diagnostic log, the
 /// transitions taken from its event registers, and its error queue.
-fn journal(database: &Path, query: &str) -> Result<serde_json::Value> {
-    let log = Log::open(database)?;
-    let Some(receiver) = chosen_receiver(&log, query)? else {
+fn journal(logs: &Logs, query: &str) -> Result<serde_json::Value> {
+    let Some((log, receiver)) = logs.choose(query)? else {
         return Ok(serde_json::json!({ "entries": [], "events": [], "errors": [] }));
     };
     Ok(serde_json::to_value(log.journal(receiver, JOURNAL_ROWS)?)?)
@@ -269,7 +279,7 @@ fn journal(database: &Path, query: &str) -> Result<serde_json::Value> {
 /// whole run at full rate is what the estimator needs, since averaging
 /// readings together before it sees them is precisely the operation it
 /// exists to perform.
-fn deviation(database: &Path, query: &str) -> Result<serde_json::Value> {
+fn deviation(logs: &Logs, query: &str) -> Result<serde_json::Value> {
     let (mut from, mut to) = (None, None);
     for pair in query.split('&') {
         let Some((key, value)) = pair.split_once('=') else {
@@ -281,9 +291,8 @@ fn deviation(database: &Path, query: &str) -> Result<serde_json::Value> {
             _ => {}
         }
     }
-    let log = Log::open(database)?;
-    let Some(receiver) = chosen_receiver(&log, query)? else {
-        anyhow::bail!("this log names no receiver, so there is nothing to measure");
+    let Some((log, receiver)) = logs.choose(query)? else {
+        anyhow::bail!("no log names a receiver, so there is nothing to measure");
     };
     let (_, last) = log.extent(receiver)?;
     #[expect(clippy::cast_possible_truncation, reason = "unix seconds fit an i64")]
@@ -297,32 +306,107 @@ fn deviation(database: &Path, query: &str) -> Result<serde_json::Value> {
     Ok(value)
 }
 
-/// Every receiver the log holds, for the page's selector.
-fn receivers(database: &Path) -> Result<serde_json::Value> {
-    Ok(serde_json::to_value(Log::open(database)?.receivers()?)?)
+/// Where the history is.
+enum Logs {
+    /// The daemon's directory: one log per receiver, named
+    /// `<model>-<serial>.sqlite`.
+    Dir(PathBuf),
+    /// One file, holding whichever receivers were logged into it.
+    File(PathBuf),
 }
 
-/// Which receiver a request is about.
-///
-/// `?receiver=<id>` when the page has one selected, and otherwise the
-/// most recently seen -- the only one on a bench with one unit, and
-/// the attached one on a bench where they are swapped.  An id that
-/// names no receiver is refused rather than quietly serving a
-/// different unit's history under its name.
-fn chosen_receiver(log: &Log, query: &str) -> Result<Option<i64>> {
-    let asked = query.split('&').find_map(|pair| {
-        pair.split_once('=')
-            .filter(|(key, _)| *key == "receiver")
-            .and_then(|(_, value)| value.parse::<i64>().ok())
-    });
-    let Some(asked) = asked else {
-        return log.newest_receiver();
-    };
-    anyhow::ensure!(
-        log.receivers()?.iter().any(|r| r.id == asked),
-        "this log holds no receiver {asked}"
-    );
-    Ok(Some(asked))
+/// One receiver, and the log it was found in.
+struct Found {
+    path: PathBuf,
+    receiver: Receiver,
+}
+
+impl Logs {
+    fn files(&self) -> Result<Vec<PathBuf>> {
+        match self {
+            Self::File(file) => Ok(vec![file.clone()]),
+            Self::Dir(dir) => {
+                let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
+                    .with_context(|| format!("reading {}", dir.display()))?
+                    .filter_map(|entry| entry.ok())
+                    .map(|entry| entry.path())
+                    .filter(|path| path.extension().is_some_and(|ext| ext == "sqlite"))
+                    .collect();
+                files.sort();
+                Ok(files)
+            }
+        }
+    }
+
+    /// Every receiver in every log, newest first by when it was last
+    /// seen.
+    ///
+    /// A file in the directory that will not open is said on stderr
+    /// and passed over, so one bad file does not hide the others; the
+    /// one file named outright is not, since there is nothing else to
+    /// show.
+    fn receivers(&self) -> Result<Vec<Found>> {
+        let mut found = Vec::new();
+        for path in self.files()? {
+            let receivers = match Log::open(&path).and_then(|log| log.receivers()) {
+                Ok(receivers) => receivers,
+                Err(e) if matches!(self, Self::Dir(_)) => {
+                    eprintln!("smartclock-web: {e:#}; skipped");
+                    continue;
+                }
+                Err(e) => return Err(e),
+            };
+            found.extend(receivers.into_iter().map(|receiver| Found {
+                path: path.clone(),
+                receiver,
+            }));
+        }
+        found.sort_by(|a, b| b.receiver.last_seen.cmp(&a.receiver.last_seen));
+        // A serial is one unit, so the same serial in a second file --
+        // a copy left in the directory, or the old single log beside
+        // its split -- is the same unit, and the file seen most recently
+        // is the one with its history.
+        found.dedup_by(|later, earlier| later.receiver.serial == earlier.receiver.serial);
+        Ok(found)
+    }
+
+    /// The log and receiver a request is about.
+    ///
+    /// `?receiver=<serial>` when the page has one selected, and
+    /// otherwise the most recently seen -- the only one on a bench
+    /// with one unit, and the attached one on a bench where they are
+    /// swapped.  A serial that names no receiver is refused rather
+    /// than quietly serving a different unit's history under its name.
+    /// `None` when no log names a receiver.
+    fn choose(&self, query: &str) -> Result<Option<(Log, i64)>> {
+        let asked = query.split('&').find_map(|pair| {
+            pair.split_once('=')
+                .filter(|(key, _)| *key == "receiver")
+                .map(|(_, value)| decode(value))
+        });
+        let found = self.receivers()?;
+        let chosen = match &asked {
+            None => found.first(),
+            Some(serial) => found.iter().find(|f| f.receiver.serial == *serial),
+        };
+        let Some(chosen) = chosen else {
+            anyhow::ensure!(
+                asked.is_none(),
+                "no log holds receiver {}",
+                asked.unwrap_or_default()
+            );
+            return Ok(None);
+        };
+        Ok(Some((Log::open(&chosen.path)?, chosen.receiver.id)))
+    }
+}
+
+/// Every receiver the logs hold, for the page's selector.
+fn receivers(logs: &Logs) -> Result<serde_json::Value> {
+    let found = logs.receivers()?;
+    Ok(serde_json::to_value(
+        found.iter().map(|f| &f.receiver).collect::<Vec<_>>(),
+    )?)
 }
 
 /// How much history a request that does not say gets.
@@ -335,7 +419,7 @@ const DEFAULT_WINDOW: i64 = 3600;
 /// one, so stacked charts share a bucketing and therefore an x axis;
 /// `column=` singular is still accepted, since a bookmarked link from
 /// before this predates the plural.
-fn series(database: &Path, query: &str) -> Result<serde_json::Value> {
+fn series(logs: &Logs, query: &str) -> Result<serde_json::Value> {
     let mut columns: Vec<String> = Vec::new();
     let (mut from, mut to, mut points) = (None, None, 1500usize);
     for pair in query.split('&') {
@@ -362,9 +446,8 @@ fn series(database: &Path, query: &str) -> Result<serde_json::Value> {
         columns.push("efc_percent".to_owned());
     }
 
-    let log = Log::open(database)?;
-    let Some(receiver) = chosen_receiver(&log, query)? else {
-        anyhow::bail!("this log names no receiver, so there is nothing to plot");
+    let Some((log, receiver)) = logs.choose(query)? else {
+        anyhow::bail!("no log names a receiver, so there is nothing to plot");
     };
     let (first, last) = log.extent(receiver)?;
     // Default to the last hour of whatever exists, so a page loaded
@@ -387,7 +470,7 @@ fn series(database: &Path, query: &str) -> Result<serde_json::Value> {
         // What may be asked for, so the page builds its menu from the
         // server rather than from a copy that can drift.
         "plottable": PLOTTABLE.map(|(column, _)| column),
-        "receiver": receiver,
+        "receiver": log.receivers()?.iter().find(|r| r.id == receiver).map(|r| r.serial.clone()),
         // uPlot wants parallel arrays, not an array of points.  One
         // `at` for all of them: that is the alignment, stated once.
         "at": series.at,

@@ -12,7 +12,11 @@
 # be opened, to reach a receiver something else moved there.
 #SMARTCLOCKD_BAUD=19200
 
-#SMARTCLOCKD_DATABASE=/var/lib/smartclockd/snapshots.sqlite
+# One log per receiver, <model>-<serial>.sqlite in this directory,
+# opened once the receiver has answered *IDN?.  Set
+# SMARTCLOCKD_DATABASE to a file instead to log every receiver seen on
+# this port into that one file.
+#SMARTCLOCKD_LOG_DIR=/var/lib/smartclockd
 #SMARTCLOCKD_SOCKET=/run/smartclockd/socket
 
 # Seconds between polls of each tier.  The medium tier reads the

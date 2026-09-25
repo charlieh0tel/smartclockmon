@@ -5,4 +5,6 @@
 
 #SMARTCLOCK_WEB_LISTEN=127.0.0.1:9980
 #SMARTCLOCK_WEB_SOCKET=/run/smartclockd/socket
-#SMARTCLOCK_WEB_DATABASE=/var/lib/smartclockd/snapshots.sqlite
+# The daemon's logs, one per receiver.  Set SMARTCLOCK_WEB_DATABASE to
+# a file instead to read one log.
+#SMARTCLOCK_WEB_LOG_DIR=/var/lib/smartclockd

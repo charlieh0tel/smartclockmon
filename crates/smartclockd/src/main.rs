@@ -72,13 +72,20 @@ struct Cli {
     #[arg(long, env = "SMARTCLOCKD_BAUD", default_value_t = 19200)]
     baud: u32,
 
-    /// Where to keep the snapshot log.
+    /// Where the logs live: one file per receiver, named
+    /// `<model>-<serial>.sqlite` once the receiver has answered `*IDN?`,
+    /// so a unit keeps one history whichever port it is on.
     #[arg(
         long,
-        env = "SMARTCLOCKD_DATABASE",
-        default_value = "/var/lib/smartclockd/snapshots.sqlite"
+        env = "SMARTCLOCKD_LOG_DIR",
+        default_value = "/var/lib/smartclockd"
     )]
-    database: PathBuf,
+    log_dir: PathBuf,
+
+    /// One fixed log file for every receiver seen on this port, in
+    /// place of a file per receiver in --log-dir.
+    #[arg(long, env = "SMARTCLOCKD_DATABASE")]
+    database: Option<PathBuf>,
 
     /// Where to listen for clients.
     #[arg(
@@ -181,53 +188,9 @@ fn main() -> Result<()> {
         )
     })?;
 
-    if let Some(parent) = cli.database.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("creating {}", parent.display()))?;
-    }
-    // A database this binary cannot read is a configuration mistake,
-    // not a transient failure, so it exits like one: retrying cannot
-    // turn a newer schema into an older one, and Restart= would
-    // otherwise reopen it every five seconds forever.
-    let mut log = match db::Log::open(&cli.database) {
-        Ok(log) => log,
-        Err(e) => {
-            eprintln!("smartclockd: {e:#}");
-            std::process::exit(CONFIGURATION_ERROR);
-        }
-    };
     // First line in the journal, so "which build is running" is
     // answerable from the logs alone rather than by finding the binary.
     eprintln!("smartclockd: version {}", smartclock::VERSION);
-    let (errors, entries, events) = log.journal_counts()?;
-    // Said at startup rather than left to be discovered in SQL: a log
-    // holding two units' history is a thing to know before reading any
-    // trend out of it.
-    let receivers = log.receivers()?;
-    if receivers.len() > 1 {
-        eprintln!(
-            "smartclockd: this log holds history from {} receivers: {}",
-            receivers.len(),
-            receivers
-                .iter()
-                .map(|(serial, model)| format!("{model} {serial}"))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-    }
-    eprintln!(
-        "smartclockd: log at {} holds {} snapshots, {} commands, \
-         {errors} receiver errors, {entries} diagnostic log entries \
-         and {events} register events",
-        cli.database.display(),
-        log.count()?,
-        log.audit_count()?
-    );
-
-    let (audit_tx, audit_rx) = channel::<Entry>();
-
-    let shared = Shared::new();
-    let (requests_tx, requests_rx) = channel();
 
     // from_secs_f64 panics on a negative or non-finite value, so a
     // typo in a flag would abort rather than being reported.
@@ -236,11 +199,60 @@ fn main() -> Result<()> {
         medium: seconds(cli.medium, "--medium")?,
         slow: seconds(cli.slow, "--slow")?,
     };
-    // A reader judges whether a slower tier's value is still current by
-    // this, and has only the database to ask.
-    if let Err(e) = log.note_cadence(&cadence) {
-        eprintln!("smartclockd: could not record the cadence: {e}");
-    }
+    // A database this binary cannot read is a configuration mistake,
+    // not a transient failure, so it exits like one: retrying cannot
+    // turn a newer schema into an older one, and Restart= would
+    // otherwise reopen it every five seconds forever.  With a file per
+    // receiver the same applies to each file as a receiver answers,
+    // except that the daemon then keeps running without a log and
+    // says so, since the other files may be fine.
+    let (place, database) = match &cli.database {
+        Some(path) => {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)
+                    .with_context(|| format!("creating {}", parent.display()))?;
+            }
+            let log = match db::Log::open(path) {
+                Ok(log) => log,
+                Err(e) => {
+                    eprintln!("smartclockd: {e:#}");
+                    std::process::exit(CONFIGURATION_ERROR);
+                }
+            };
+            describe(&log, path)?;
+            (Place::Fixed(Some(log)), path.display().to_string())
+        }
+        None => {
+            std::fs::create_dir_all(&cli.log_dir)
+                .with_context(|| format!("creating {}", cli.log_dir.display()))?;
+            let mut existing: Vec<String> = std::fs::read_dir(&cli.log_dir)?
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|n| n.ends_with(".sqlite"))
+                .collect();
+            existing.sort();
+            eprintln!(
+                "smartclockd: logs in {}, one per receiver{}",
+                cli.log_dir.display(),
+                if existing.is_empty() {
+                    String::new()
+                } else {
+                    format!(": {}", existing.join(", "))
+                }
+            );
+            let place = Place::PerReceiver {
+                dir: cli.log_dir.clone(),
+                device: cli.device.clone(),
+            };
+            (place, String::new())
+        }
+    };
+
+    let (audit_tx, audit_rx) = channel::<Entry>();
+
+    let shared = Shared::new();
+    let (requests_tx, requests_rx) = channel();
+
     let policy = Policy {
         control: cli.allow_control,
         dangerous: cli.allow_dangerous,
@@ -256,7 +268,6 @@ fn main() -> Result<()> {
     // log thread needs the dialect too: the queries it sends are
     // resolved through the same table as every other one, and which
     // table that is only becomes known once a receiver has answered.
-    let database = cli.database.display().to_string();
     let info: server::SharedInfo = Arc::new(Mutex::new(server::Info {
         identity: String::new(),
         dialect: Dialect::Hp58503,
@@ -285,6 +296,7 @@ fn main() -> Result<()> {
              nearly full and every entry is held here"
         );
     }
+    let log_cadence = cadence.clone();
     thread::Builder::new()
         .name("smartclockd-log".to_owned())
         .spawn(move || {
@@ -292,7 +304,7 @@ fn main() -> Result<()> {
             if adopt_log {
                 journal = journal.clearing_when_full();
             }
-            let mut recorder = Recorder::new(log);
+            let mut recorder = Recorder::new(place, log_cadence);
             // Soon after startup rather than immediately: the first
             // pass wants a receiver that has answered, and the errors
             // worth catching are the ones raised as it comes up.
@@ -328,17 +340,11 @@ fn main() -> Result<()> {
                     // under whichever unit the last snapshot came from.
                     recorder.note(&identity);
                     let settled = recorder.noted.as_ref() == Some(&identity);
-                    if let (true, true, Some(receiver)) =
-                        (attached, settled, recorder.log.current_receiver())
+                    if let (true, true, Some(log)) = (attached, settled, recorder.log_mut())
+                        && let Some(receiver) = log.current_receiver()
                     {
-                        record_strays(&journal_handle, &identity, &mut recorder.log);
-                        journal.pass(
-                            &journal_handle,
-                            dialect,
-                            receiver,
-                            generation,
-                            &mut recorder.log,
-                        );
+                        record_strays(&journal_handle, &identity, log);
+                        journal.pass(&journal_handle, dialect, receiver, generation, log);
                     }
                     // From the end of the pass, not its start.  A pass
                     // can run longer than the interval, and timed from
@@ -407,6 +413,16 @@ fn supervise(
             current.identity = identity.clone();
             current.dialect = device.dialect();
             current.generation += 1;
+            // Named here, before the socket opens, rather than when the
+            // log thread gets round to opening it: a client asking on
+            // connection is told the file its history will be in.
+            if cli.database.is_none() {
+                current.database = cli
+                    .log_dir
+                    .join(db::file_name(&identity, &cli.device))
+                    .display()
+                    .to_string();
+            }
         }
 
         // The socket opens only once a receiver has answered, so a
@@ -519,10 +535,59 @@ fn queued<T>(writes: &Receiver<T>, wait: Duration) -> Option<Vec<T>> {
     }
 }
 
+/// What a log holds, said at startup.
+///
+/// A log holding two units' history is a thing to know before reading
+/// any trend out of it, so it is said here rather than left to be
+/// discovered in SQL.
+fn describe(log: &db::Log, path: &Path) -> Result<()> {
+    let (errors, entries, events) = log.journal_counts()?;
+    let receivers = log.receivers()?;
+    if receivers.len() > 1 {
+        eprintln!(
+            "smartclockd: this log holds history from {} receivers: {}",
+            receivers.len(),
+            receivers
+                .iter()
+                .map(|(serial, model)| format!("{model} {serial}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
+    eprintln!(
+        "smartclockd: log at {} holds {} snapshots, {} commands, \
+         {errors} receiver errors, {entries} diagnostic log entries \
+         and {events} register events",
+        path.display(),
+        log.count()?,
+        log.audit_count()?
+    );
+    Ok(())
+}
+
+/// Where the log thread's rows go.
+enum Place {
+    /// One file for everything, open from the start.
+    Fixed(Option<db::Log>),
+    /// A file per receiver in `dir`, opened once a receiver has
+    /// answered `*IDN?`; `device` names the file of one that will not
+    /// parse.
+    PerReceiver { dir: PathBuf, device: String },
+}
+
 /// The log thread's writer: the database, and what it has to remember
 /// between rows to file them correctly.
 struct Recorder {
-    log: db::Log,
+    place: Place,
+    /// The file open now, in the per-receiver case: `None` until a
+    /// receiver has answered, which is a real state -- nothing is
+    /// written before there is a unit to file it under.
+    log: Option<db::Log>,
+    /// Which file `log` is, so a swap to a different unit is a change
+    /// of file and a reconnection to the same one is not.
+    opened: Option<PathBuf>,
+    /// Written into each log as it is opened, for readers of it.
+    cadence: Cadence,
     /// The identity the log last noted, so it is noted again only on a
     /// change.
     noted: Option<String>,
@@ -542,12 +607,86 @@ struct Recorder {
 }
 
 impl Recorder {
-    fn new(log: db::Log) -> Self {
-        Self {
-            log,
+    fn new(mut place: Place, cadence: Cadence) -> Self {
+        let log = match &mut place {
+            Place::Fixed(log) => log.take(),
+            Place::PerReceiver { .. } => None,
+        };
+        let mut recorder = Self {
+            place,
+            log: None,
+            opened: None,
+            cadence,
             noted: None,
             last_alarm: None,
             alarm_seeded: false,
+        };
+        if let Some(log) = log {
+            recorder.adopt(log);
+        }
+        recorder
+    }
+
+    /// A recorder over one open log, for tests.
+    #[cfg(test)]
+    fn fixed(log: db::Log) -> Self {
+        let mut recorder = Self {
+            place: Place::Fixed(None),
+            log: None,
+            opened: None,
+            cadence: Cadence::default(),
+            noted: None,
+            last_alarm: None,
+            alarm_seeded: false,
+        };
+        recorder.adopt(log);
+        recorder
+    }
+
+    fn log_mut(&mut self) -> Option<&mut db::Log> {
+        self.log.as_mut()
+    }
+
+    /// Take a freshly opened log as the one being written.
+    ///
+    /// A reader judges whether a slower tier's value is still current
+    /// by the cadence, and has only the database to ask.
+    fn adopt(&mut self, mut log: db::Log) {
+        if let Err(e) = log.note_cadence(&self.cadence) {
+            eprintln!("smartclockd: could not record the cadence: {e}");
+        }
+        self.log = Some(log);
+        self.noted = None;
+        self.alarm_seeded = false;
+    }
+
+    /// Open the file `identity` belongs in, if it is not the one open.
+    ///
+    /// A file that cannot be opened is said out loud and left; the
+    /// daemon runs on without a log rather than exiting, since a
+    /// different receiver's file may open fine.
+    fn place(&mut self, identity: &str) {
+        let Place::PerReceiver { dir, device } = &self.place else {
+            return;
+        };
+        let path = dir.join(db::file_name(identity, device));
+        if self.opened.as_ref() == Some(&path) {
+            return;
+        }
+        match db::Log::open(&path) {
+            Ok(log) => {
+                if let Err(e) = describe(&log, &path) {
+                    eprintln!("smartclockd: could not read {}: {e:#}", path.display());
+                }
+                self.adopt(log);
+                self.opened = Some(path);
+            }
+            Err(e) => {
+                eprintln!("smartclockd: {e:#}; not logging {identity}");
+                self.log = None;
+                self.opened = None;
+                self.noted = None;
+            }
         }
     }
 
@@ -562,7 +701,11 @@ impl Recorder {
         if identity.is_empty() || self.noted.as_deref() == Some(identity) {
             return;
         }
-        match self.log.note_receiver(identity) {
+        self.place(identity);
+        let Some(log) = self.log.as_mut() else {
+            return;
+        };
+        match log.note_receiver(identity) {
             Ok(others) => {
                 if !others.is_empty() {
                     eprintln!(
@@ -584,10 +727,10 @@ impl Recorder {
     /// and at the time it ran.
     fn audit(&mut self, entry: &Entry) {
         self.note(&entry.receiver);
-        if let Err(e) = self
-            .log
-            .audit(entry.at, &entry.scpi, &entry.class, &entry.outcome, None)
-        {
+        let Some(log) = self.log.as_mut() else {
+            return;
+        };
+        if let Err(e) = log.audit(entry.at, &entry.scpi, &entry.class, &entry.outcome, None) {
             eprintln!("smartclockd: could not record a command: {e}");
         }
     }
@@ -606,11 +749,14 @@ impl Recorder {
         if let Some(identity) = &snapshot.receiver {
             self.note(identity);
         }
+        let Some(log) = self.log.as_mut() else {
+            return;
+        };
         if let Some(alarm) = snapshot.alarm {
             if !self.alarm_seeded
-                && let Some(receiver) = self.log.current_receiver()
+                && let Some(receiver) = log.current_receiver()
             {
-                match self.log.last_alarm(receiver) {
+                match log.last_alarm(receiver) {
                     Ok(bits) => {
                         self.last_alarm = bits.map(smartclock::types::AlarmCondition::from_bits);
                     }
@@ -619,11 +765,11 @@ impl Recorder {
                 self.alarm_seeded = true;
             }
             if snapshot.alarm != self.last_alarm {
-                record_alarm(&mut self.log, alarm, self.last_alarm);
+                record_alarm(log, alarm, self.last_alarm);
                 self.last_alarm = snapshot.alarm;
             }
         }
-        if let Err(e) = self.log.record(snapshot) {
+        if let Err(e) = log.record(snapshot) {
             eprintln!("smartclockd: could not record a snapshot: {e}");
         }
     }
@@ -724,6 +870,7 @@ fn start_server(listening: Listening<'_>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::Entry;
+    use super::Place;
     use super::Recorder;
     use super::db;
     use super::queued;
@@ -751,6 +898,55 @@ mod tests {
         assert_eq!(queued(&rx, Duration::ZERO), Some(Vec::new()));
         drop(tx);
         assert_eq!(queued::<i32>(&rx, Duration::ZERO), None);
+    }
+
+    #[test]
+    fn each_receiver_gets_its_own_file_and_a_swap_switches_files() {
+        let dir = std::env::temp_dir().join(format!("smartclockd-perunit-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("a scratch directory");
+        let mut recorder = Recorder {
+            place: Place::PerReceiver {
+                dir: dir.clone(),
+                device: "/dev/ttyUSB0".to_owned(),
+            },
+            log: None,
+            opened: None,
+            cadence: Cadence::default(),
+            noted: None,
+            last_alarm: None,
+            alarm_seeded: false,
+        };
+        let snapshot = |identity: &str| {
+            let mut snapshot = Snapshot::new(jiff::Timestamp::now());
+            snapshot.receiver = Some(identity.to_owned());
+            snapshot.freshness = Freshness::Live;
+            snapshot
+        };
+        // Nothing is open until a unit has answered.
+        assert!(recorder.log.is_none());
+        recorder.write(&snapshot("HEWLETT-PACKARD,58503A,3710A01056,3704-C"));
+        assert_eq!(
+            recorder.opened.as_deref(),
+            Some(dir.join("58503A-3710A01056.sqlite").as_path())
+        );
+        recorder.write(&snapshot("SYMMETRICOM,Z3805A,3625A01487,3944-A"));
+        assert_eq!(
+            recorder.opened.as_deref(),
+            Some(dir.join("Z3805A-3625A01487.sqlite").as_path())
+        );
+        recorder.write(&snapshot("HEWLETT-PACKARD,58503A,3710A01056,3704-C"));
+        recorder.write(&snapshot("HEWLETT-PACKARD,58503A,3710A01056,3704-C"));
+        // Each file holds only its own unit's rows, and knows one unit.
+        for (name, rows) in [
+            ("58503A-3710A01056.sqlite", 3),
+            ("Z3805A-3625A01487.sqlite", 1),
+        ] {
+            let log = db::Log::open(&dir.join(name)).expect("reopen");
+            assert_eq!(log.count().expect("count"), rows, "{name}");
+            assert_eq!(log.receivers().expect("receivers").len(), 1, "{name}");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -803,7 +999,7 @@ mod tests {
             }
         };
         wipe();
-        let mut recorder = Recorder::new(db::Log::open(&path).expect("open the database"));
+        let mut recorder = Recorder::fixed(db::Log::open(&path).expect("open the database"));
         let mut write = |serial: &str, bits: u16| {
             let mut snapshot = Snapshot::new(jiff::Timestamp::now());
             snapshot.freshness = Freshness::Live;
@@ -817,8 +1013,18 @@ mod tests {
         write("A", 0);
         write("B", 0);
 
-        let b = recorder.log.current_receiver().expect("B noted");
-        let last = recorder.log.last_alarm(b).expect("read the alarm");
+        let b = recorder
+            .log
+            .as_ref()
+            .expect("a log")
+            .current_receiver()
+            .expect("B noted");
+        let last = recorder
+            .log
+            .as_ref()
+            .expect("a log")
+            .last_alarm(b)
+            .expect("read the alarm");
         drop(recorder);
         wipe();
         assert_eq!(last, Some(0));
@@ -836,7 +1042,7 @@ mod tests {
             }
         };
         wipe();
-        let mut recorder = Recorder::new(db::Log::open(&path).expect("open the database"));
+        let mut recorder = Recorder::fixed(db::Log::open(&path).expect("open the database"));
         // Written after a swap, and after a journal pass kept the
         // writer busy: neither may change the row.
         recorder.note("HEWLETT-PACKARD,58503A,B,3704-C");
@@ -848,7 +1054,12 @@ mod tests {
             class: "control".to_owned(),
             outcome: "ok".to_owned(),
         });
-        let rows = recorder.log.audit_rows().expect("read");
+        let rows = recorder
+            .log
+            .as_ref()
+            .expect("a log")
+            .audit_rows()
+            .expect("read");
         drop(recorder);
         wipe();
         assert_eq!(
@@ -871,7 +1082,7 @@ mod tests {
             }
         };
         wipe();
-        let mut recorder = Recorder::new(db::Log::open(&path).expect("open the database"));
+        let mut recorder = Recorder::fixed(db::Log::open(&path).expect("open the database"));
         // The journal has already noted the new unit when a snapshot
         // read from the old one comes off the queue.
         recorder.note("HEWLETT-PACKARD,58503A,B,3704-C");
@@ -880,7 +1091,12 @@ mod tests {
         snapshot.receiver = Some("HEWLETT-PACKARD,58503A,A,3704-C".to_owned());
         recorder.write(&snapshot);
 
-        let serials = recorder.log.snapshot_serials().expect("read the rows");
+        let serials = recorder
+            .log
+            .as_ref()
+            .expect("a log")
+            .snapshot_serials()
+            .expect("read the rows");
         drop(recorder);
         wipe();
         assert_eq!(serials, vec![Some("A".to_owned())]);

@@ -1,0 +1,47 @@
+[Unit]
+Description=SmartClock GPS receiver logging daemon on port %i
+Documentation=https://github.com/charlieh0tel/smartclockmon
+# One instance per port.  `systemctl enable --now smartclockd@bench1`
+# reads /etc/default/smartclockd.bench1, which names that port's
+# adapter, and serves /run/smartclockd/bench1/socket.  The logs are
+# shared: every instance writes /var/lib/smartclockd/<model>-<serial>
+# .sqlite for whichever receiver answers on its port, so a unit moved
+# between ports keeps one history.  See docs/running.md.
+
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=exec
+# The environment file wins over this line, so an instance can still
+# put its socket elsewhere.
+Environment=SMARTCLOCKD_SOCKET=/run/smartclockd/%i/socket
+EnvironmentFile=-/etc/default/smartclockd.%i
+ExecStart=/usr/bin/smartclockd
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2
+
+User=smartclockd
+Group=smartclockd
+SupplementaryGroups=dialout
+
+# /var/lib/smartclockd for the logs, shared by every instance;
+# /run/smartclockd/<instance> for this one's socket.
+StateDirectory=smartclockd
+StateDirectoryMode=0750
+RuntimeDirectory=smartclockd/%i
+RuntimeDirectoryMode=0750
+
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

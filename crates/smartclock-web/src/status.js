@@ -308,34 +308,32 @@ function setAbsolute(from, to) {
 
 // Fill the receiver selector, and call `changed` when it changes.
 //
-// The unit comes from the address when it names one the log holds, and
-// is otherwise the one seen most recently.  The bar is hidden for a log
-// with one unit, or none: a control whose only option is the one
-// already chosen is noise.  Shown the moment a second unit appears in
-// the log, which is when the plots would otherwise start interleaving
-// two oscillators without saying so.
+// The unit comes from the address when it names one the logs hold,
+// and is otherwise the one seen most recently.  The bar is hidden for
+// one unit, or none: a control whose only option is the one already
+// chosen is noise.  Shown the moment a second unit's log appears.
 async function chooseReceiver(changed) {
   const list = await getJson("/api/receivers");
   if (list.error || !Array.isArray(list) || list.length === 0) return;
   const asked = new URLSearchParams(location.search).get("receiver");
-  unit = (list.find((r) => String(r.id) === asked) ?? list[0]).id;
+  unit = (list.find((r) => r.serial === asked) ?? list[0]).serial;
   carryUnit();
   if (list.length < 2) return;
   const select = $("unit");
   select.innerHTML = list
     .map((r) => {
       const name = [r.model, r.serial].filter(Boolean).join(" ");
-      return `<option value="${r.id}">${esc(name || `receiver ${r.id}`)}</option>`;
+      return `<option value="${esc(r.serial)}">${esc(name)}</option>`;
     })
     .join("");
-  select.value = String(unit);
+  select.value = unit;
   const seen = () => {
-    const r = list.find((x) => String(x.id) === select.value);
+    const r = list.find((x) => x.serial === select.value);
     $("unit-seen").textContent = r ? `last seen ${r.last_seen.slice(0, 19)}Z` : "";
   };
   seen();
   select.onchange = () => {
-    unit = Number(select.value);
+    unit = select.value;
     carryUnit();
     seen();
     changed();

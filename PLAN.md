@@ -14,7 +14,7 @@ defects** for what is wrong and unfixed.
 test-hw` is the hardware-only set and CI never runs it.
 
 Installed from the package and running as a service against the
-development unit, logging to `/var/lib/smartclockd/snapshots.sqlite`.
+development unit, logging to `/var/lib/smartclockd/<model>-<serial>.sqlite`.
 `docs/running.md` is the deployment note.  The socket protocol is
 documented in `smartclock::protocol`, where it is defined, and gets no
 document of its own; the reasoning is under **Decisions**.
@@ -795,7 +795,7 @@ by the image's handler table and by 187 paired polls of the bench
 
 ### One log per receiver, named by its serial
 
-Decided 25 September 2026, not yet built.  More than one receiver on
+Decided and built 25 September 2026.  More than one receiver on
 a host means one daemon per port -- `smartclockd@<name>`, each with
 its own device and socket -- and the daemon owns the port, so nothing
 in it becomes concurrent.  What the instances share is the directory
@@ -816,11 +816,13 @@ answered, and reconnection to a different unit is a change of file
 rather than a second receiver in one.  That branch of the adoption
 logic gets simpler.
 
-The viewers read the directory: `smartclock-web` and the exporter
-take it in place of one `--database`, list every `*.sqlite` in it,
-live or historical, and key everything by serial -- `?receiver=` in
-the address becomes the serial.  Comparing two units on one chart is
-two files, two queries bucketed the same way, one time axis.
+The viewer reads the directory: `smartclock-web` takes it in place
+of one `--database`, lists every `*.sqlite` in it, live or
+historical, and keys everything by serial -- `?receiver=` in the
+address is the serial.  The exporter reads a socket, not the log, so
+it is one instance per daemon and unchanged.  Comparing two units on
+one chart would be two files, two queries bucketed the same way, one
+time axis; not built.
 
 The one existing log, which holds two serials, is split by hand on
 the one host that has ever run this -- a one-off `sqlite3` job by
@@ -1211,7 +1213,7 @@ What each turned out to involve, which is the part worth keeping.
 | 8 | `smartclock-exporter`, `smartclock-web` | a scrape must cost the receiver nothing, so both read what the daemon already polled |
 | 9 | The receiver's own records: error queue, diagnostic log, condition registers | reading is what removes an entry, so the read and the write have to share a thread |
 | 10 | Adoption per connection; the alarm watched, not taken | the event registers turned out to be the wrong answer twice before `*STB?` was the right one |
-| 11 | One log per receiver, one daemon per port | planned: open the log after `*IDN?`; template unit; viewers read a directory and key by serial; the bench log split by hand |
+| 11 | One log per receiver, one daemon per port | done: the log opens after `*IDN?`, named by model and serial; `smartclockd@.service`; the web view reads the directory and keys by serial; the bench log split by hand |
 
 Suggest a commit at each phase boundary.
 

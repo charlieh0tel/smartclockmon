@@ -139,5 +139,6 @@ release:
 
 install-service:
 	install -m 0644 packaging/systemd/smartclockd.service /etc/systemd/system/
+	install -m 0644 packaging/systemd/smartclockd@.service /etc/systemd/system/
 	install -m 0644 -b packaging/systemd/smartclockd.default /etc/default/smartclockd
 	systemctl daemon-reload

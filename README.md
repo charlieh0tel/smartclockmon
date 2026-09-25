@@ -38,7 +38,7 @@ smartclockd`; see `docs/running.md`.
 Run by hand, it holds the port and everything else is a client of it:
 
     smartclockd --device /dev/serial/by-id/usb-... \
-                --database snapshots.sqlite \
+                --log-dir . \
                 --socket /tmp/smartclockd.sock
 
     smartclockmon --socket /tmp/smartclockd.sock

@@ -7,6 +7,8 @@ Documentation=https://github.com/charlieh0tel/smartclockmon
 # Restart= below covers the cases it cannot.  To have systemd stop the
 # daemon outright while the adapter is unplugged, add a drop-in with
 # BindsTo= and After= naming your device unit.  See docs/running.md.
+# For more than one receiver on a host, use smartclockd@.service, one
+# instance per port, instead of this unit.
 
 StartLimitIntervalSec=300
 StartLimitBurst=10
@@ -33,7 +35,7 @@ Group=smartclockd
 # The receiver's port is owned by the dialout group.
 SupplementaryGroups=dialout
 
-# /var/lib/smartclockd for the log, /run/smartclockd for the socket.
+# /var/lib/smartclockd for the logs, /run/smartclockd for the socket.
 StateDirectory=smartclockd
 StateDirectoryMode=0750
 RuntimeDirectory=smartclockd

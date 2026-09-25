@@ -48,6 +48,7 @@ assets = [
     ["target/release/smartclock-exporter", "usr/bin/", "755"],
     ["target/release/smartclock-web", "usr/bin/", "755"],
     ["../../packaging/systemd/smartclockd.default", "etc/default/smartclockd", "644"],
+    ["../../packaging/systemd/smartclockd@.service", "lib/systemd/system/smartclockd@.service", "644"],
     ["../../packaging/systemd/smartclock-exporter.default", "etc/default/smartclock-exporter", "644"],
     ["../../packaging/systemd/smartclock-web.default", "etc/default/smartclock-web", "644"],
     ["../../README.md", "usr/share/doc/smartclockmon/README.md", "644"],

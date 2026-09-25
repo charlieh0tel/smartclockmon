@@ -164,16 +164,6 @@ impl Log {
         })
     }
 
-    /// Which receiver a request that does not say gets.
-    ///
-    /// The one seen most recently, which on a bench with one unit is
-    /// the only one and on a bench where they are swapped is the one
-    /// attached now.  `None` when the log names none, and then nothing
-    /// can be filtered and nothing should be.
-    pub(crate) fn newest_receiver(&self) -> Result<Option<i64>> {
-        Ok(self.receivers()?.first().map(|r| r.id))
-    }
-
     /// Bucketed series for several columns at once, between two unix
     /// times and into at most `points` buckets each.
     ///
@@ -516,7 +506,9 @@ impl Log {
 /// One receiver the log holds rows for.
 #[derive(Debug, serde::Serialize)]
 pub(crate) struct Receiver {
-    /// The `receiver_id` every row of this unit's carries.
+    /// The `receiver_id` every row of this unit's carries.  Its own
+    /// log's numbering, so not published: pages name a unit by serial.
+    #[serde(skip)]
     pub(crate) id: i64,
     /// What the unit calls itself, and the only field it is known by:
     /// a firmware upgrade must not make it a different receiver.
@@ -1103,7 +1095,6 @@ mod tests {
         let scratch = two_units("newest");
         let path = scratch.path();
         let log = Log::open(path).expect("open");
-        assert_eq!(log.newest_receiver().expect("newest"), Some(2));
         let names: Vec<String> = log
             .receivers()
             .expect("list")
