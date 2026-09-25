@@ -302,6 +302,9 @@ frequency offset.  Its messages say so:
 
 ### The loop
 
+`loop.html` beside this file draws what follows as a block diagram,
+with the constants and the closed-loop poles; open it in a browser.
+
 `FUN_0004824a` is `pll_normal`: its failure
 message is `pll_normal - Error with measurement` (`0x487f8`) and its
 report is

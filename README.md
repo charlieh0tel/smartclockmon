@@ -303,6 +303,7 @@ The rest of `docs/`:
 | `z3801-tree.md` | every SCPI command path in the Z3801A firmware, read from the parser's tables |
 | `firmware.md` | what the Z3816A firmware shows: how it measures the 1 PPS time interval, the loop that disciplines the oscillator from it, where the Oncore's sawtooth goes, and its pForth console |
 | `hardware-investigations.md` | what `firmware.md` leaves open that only a bench can settle: what to measure and what each answer changes |
+| `loop.html` | the disciplining loop as a block diagram, with its update law, constants and closed-loop poles; a standalone page, open it in a browser |
 
 ## Licence
 

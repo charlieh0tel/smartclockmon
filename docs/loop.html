@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartClock Disciplining Loop</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#f6f5f1; --ink:#1d2126; --muted:#5d646c; --rule:#d9d6ce;
+  --panel:#ffffff; --accent:#1f6f8b; --ff:#b0661a; --line:#2b3138;
+  --box:#ffffff; --boxline:#2b3138; --sumfill:#f6f5f1;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#15181c; --ink:#e8e6e0; --muted:#a3a9b0; --rule:#343a41;
+    --panel:#1c2025; --accent:#5fb3d0; --ff:#e0a05a; --line:#d5d9de;
+    --box:#1c2025; --boxline:#d5d9de; --sumfill:#15181c;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#15181c; --ink:#e8e6e0; --muted:#a3a9b0; --rule:#343a41;
+  --panel:#1c2025; --accent:#5fb3d0; --ff:#e0a05a; --line:#d5d9de;
+  --box:#1c2025; --boxline:#d5d9de; --sumfill:#15181c;
+}
+body{background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.5;margin:0;padding-block:32px 64px;padding-inline:20px}
+main{max-width:920px;margin:0 auto;display:grid;gap:40px}
+h1{font-size:2rem;font-weight:600;line-height:1.15;margin:0 0 6px;text-wrap:balance}
+h2{font-size:1.25rem;font-weight:600;margin:0 0 12px;text-wrap:balance}
+h3{font-size:1rem;font-weight:600;margin:20px 0 6px}
+p{margin:0 0 12px;max-width:66ch}
+.eyebrow{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.lede{color:var(--muted);max-width:66ch}
+code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.92em}
+.fig{border:1px solid var(--rule);background:var(--panel);padding:16px 12px 8px;overflow-x:auto}
+.fig svg{display:block;min-width:820px;width:100%;height:auto}
+.fig figcaption{font-size:.85rem;color:var(--muted);padding:8px 4px 4px;max-width:none}
+.eq{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.95rem;line-height:1.7;background:var(--panel);border-left:3px solid var(--accent);padding:12px 16px;margin:12px 0;white-space:pre;overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.95rem;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-weight:600;font-size:.85rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+td:first-child{white-space:nowrap}
+.legend{display:flex;gap:20px;flex-wrap:wrap;font-size:.85rem;color:var(--muted);margin-top:4px}
+.legend span::before{content:"";display:inline-block;width:22px;height:0;border-top:2.5px solid var(--line);margin-right:6px;vertical-align:middle}
+.legend span.ffl::before{border-top-color:var(--ff);border-top-style:dashed}
+.note{font-size:.9rem;color:var(--muted)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<main>
+<header>
+  <div class="eyebrow">HP / Symmetricom SmartClock · Z3816A firmware 4001, Z3801A 3543</div>
+  <h1>SmartClock Disciplining Loop</h1>
+  <p class="lede">How the receiver steers its 10811 oscillator to GPS, as read from the firmware images: a proportional–integral loop on the ten-second mean of the phase error, with the oscillator's own aging curve fed forward into the integrator. Every constant below is one the code contains.</p>
+</header>
+
+<section>
+  <h2>The loop</h2>
+  <figure class="fig">
+    <svg id="loop" viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Block diagram of the disciplining loop"></svg>
+    <div class="legend"><span>signal path, one update every 10 s</span><span class="ffl">aging feed-forward, one sample every 2700 s</span></div>
+    <figcaption>x is the interval between the GPS 1 PPS and the 1 PPS derived from the oscillator. Everything left of the DAC runs in the <code>pllp</code> task in single-precision floating point; the aging fit runs in the <code>curv</code> task.</figcaption>
+  </figure>
+
+  <p>Once a second the firmware reads one interval from the FPGA counter. Every tenth second it takes the mean x̄ of the ten readings — the number <code>:SYNChronization:TINTerval?</code> reports — and runs one update:</p>
+  <div class="eq">e  = x̄ − x₀                              x₀ is a setpoint, normally 0
+f ← (1 − a)·f + a·e                      a = 29.75 / τ
+d  = clamp(b + c / y, −M, +M)             y = t / 2700 s, from the aging fit
+I ← I + 10·k·f + 10·d / 2700             k = 1 / (4·G·τ²)
+u  = K·f + B + I + c₀·s                   K = 1 / (G·τ)</div>
+  <p>u is the EFC word sent to the DAC. B is the EFC that was in force when the loop closed, less c₀·s, so closing the loop does not move the oscillator; s is the oscillator's measured oven current and c₀ a stored calibration constant, so that term tracks the oven rather than the phase.</p>
+</section>
+
+<section>
+  <h2>Symbols and constants</h2>
+  <table>
+    <thead><tr><th>Symbol</th><th>Meaning</th><th>Z3816A</th><th>Z3801A</th></tr></thead>
+    <tbody>
+      <tr><td>τ</td><td>loop time constant; <code>loop_time</code> on the console; kept across a warm restart</td><td>500 s</td><td>1000 s</td></tr>
+      <tr><td>G</td><td>oscillator gain the firmware assumes, fractional frequency per EFC unit</td><td>−1.25 × 10⁻¹² or −2.125 × 10⁻¹² by a hardware bit</td><td>+6.25 × 10⁻¹³</td></tr>
+      <tr><td>a</td><td>prefilter coefficient, 29.75 / τ per 10 s update</td><td>0.0595</td><td>0.02975</td></tr>
+      <tr><td>K</td><td>proportional gain, 1 / (G·τ)</td><td colspan="2">EFC units per second of error</td></tr>
+      <tr><td>k</td><td>integral gain per update, 1 / (4·G·τ²), applied ×10 for the ten seconds</td><td colspan="2"></td></tr>
+      <tr><td>M</td><td>clamp on the drift term, 6.25 × 10⁻¹⁰ / |G|</td><td colspan="2">±0.5 or ±0.29 EFC units per 2700 s</td></tr>
+      <tr><td>x₀</td><td>phase setpoint</td><td colspan="2">0 unless set from the console word <code>phase_off</code></td></tr>
+      <tr><td>startup τ</td><td>the ramp <code>startup_pll</code> runs before handing over</td><td>150 s → 500 s, +5 s per update, ≈ 700 s</td><td>150 s → 1000 s, ≈ 1700 s</td></tr>
+    </tbody>
+  </table>
+  <p class="note">The clamp figures come from M = 6.25 × 10⁻¹⁰ / |G| with the G values above. Which of the two Z3816A gains a given unit uses depends on bit 8 of a hardware word at <code>0x302000</code>; what that bit reads was not traced.</p>
+</section>
+
+<section>
+  <h2>What kind of loop that is</h2>
+  <div class="cols">
+    <div>
+      <p>Take the oscillator as an integrator: an EFC change of Δu shifts its fractional frequency by G·Δu, and frequency integrates into phase. With the proportional gain K = 1/(Gτ) and an integral gain of k per second, the closed loop is second order:</p>
+      <div class="eq">s² + (G·K)·s + G·k = s² + s/τ + 1/(4τ²)
+                    = (s + 1/(2τ))²</div>
+      <p>A double real pole at −1/(2τ): natural frequency 1/(2τ), damping ratio exactly 1. The loop's own settling time is 2τ — about 1000 s on the Z3816A and 2000 s on the Z3801A — and it does not overshoot.</p>
+    </div>
+    <div>
+      <p>Two things the continuous form leaves out:</p>
+      <p>The prefilter on the error is a first-order low-pass with time constant 10 s / a = τ / 2.975, about 168 s at τ = 500 s. It adds a third real pole roughly six times faster than the loop's pair.</p>
+      <p>The update is discrete at 10 s, which is short against 2τ, so the continuous approximation holds; the factor 10 on the integrator term is the sample period.</p>
+      <p>G cancels out of the closed-loop dynamics: it only scales the gains so the poles land at −1/(2τ) whatever the oscillator's actual sensitivity. If the real oscillator gain differs from the assumed G, the poles move by that ratio.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>The aging feed-forward</h2>
+  <p>The dashed path is what makes the receiver's holdover good. While the loop is closed, <code>pllp</code> averages the current-compensated EFC, u − c₀·s, over each 2700 s (45 min) window and pushes one sample into a ring of 64 — 48 hours. The <code>curv</code> task fits</p>
+  <div class="eq">EFC(t) = a + b·y + c·ln y                y = t / 2700 s, t the seconds since cold start</div>
+  <p>to those samples (a least-squares line, plus a one-dimensional search on c once there are enough points). The slope of that curve now, b + c/y, is d: the EFC change per 2700 s the fit predicts. Each update the integrator advances by 10·d/2700 — the predicted change over ten seconds — before the loop sees any phase error from it. In holdover the same curve keeps advancing the EFC with nothing to correct it; <code>startup_pll</code> also takes its first EFC from it after a restart.</p>
+  <p>Samples are weighted by how much of the window was averaged: 3 if all 2700 seconds, 2 if at least 675, else 1; and everything in the first three hours after a cold start gets weight 1. A fit needs at least three samples, so d is zero for the first hours after a power-up.</p>
+</section>
+
+<section>
+  <h2>Starting up</h2>
+  <p>Before <code>pll_normal</code>, <code>startup_pll</code> runs the same update law with its own time constant, recomputing K, k and a from it every update. It first waits for sixteen consecutive ten-second means within ±150 ns, then lengthens its constant from 150 s by 5 s per update until it is within 5 s of τ, sets it to τ, and hands over. The Z3801A's firmware does the same.</p>
+  <p class="note">Source: <code>docs/firmware.md</code> in smartclockmon, sections "The loop", "Starting up", "The aging fit" and "τ and G", with the addresses and the routine identities behind each number.</p>
+</section>
+</main>
+
+<script>
+(function(){
+  const svg=document.getElementById('loop');
+  const NS='http://www.w3.org/2000/svg';
+  const css=getComputedStyle(document.documentElement);
+  const line=css.getPropertyValue('--line').trim(), ff=css.getPropertyValue('--ff').trim();
+  const box=css.getPropertyValue('--box').trim(), boxline=css.getPropertyValue('--boxline').trim();
+  const ink=css.getPropertyValue('--ink').trim(), muted=css.getPropertyValue('--muted').trim();
+  const sumfill=css.getPropertyValue('--sumfill').trim();
+  function el(n,a,txt){const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);if(txt!=null)e.textContent=txt;svg.appendChild(e);return e;}
+  // arrow heads
+  const defs=el('defs',{});
+  for(const [id,col] of [['ah',line],['ahf',ff]]){
+    const m=document.createElementNS(NS,'marker');
+    for(const [k,v] of Object.entries({id,viewBox:'0 0 10 10',refX:'9',refY:'5',markerWidth:'8',markerHeight:'8',orient:'auto-start-reverse'}))m.setAttribute(k,v);
+    const p=document.createElementNS(NS,'path');p.setAttribute('d','M0,0 L10,5 L0,10 z');p.setAttribute('fill',col);m.appendChild(p);defs.appendChild(m);
+  }
+  const F='IBM Plex Sans, system-ui, sans-serif', FM='IBM Plex Mono, ui-monospace, monospace';
+  function block(x,y,w,h,lines,mono){
+    el('rect',{x,y,width:w,height:h,fill:box,stroke:boxline,'stroke-width':1.6});
+    const n=lines.length, lh=17, y0=y+h/2-(n-1)*lh/2;
+    lines.forEach((t,i)=>el('text',{x:x+w/2,y:y0+i*lh,'text-anchor':'middle','dominant-baseline':'middle',fill:ink,'font-family':(mono&&i>0)?FM:F,'font-size':(mono&&i>0)?12.5:13.5,'font-weight':i===0?500:400},t));
+    return {x,y,w,h,l:[x,y+h/2],r:[x+w,y+h/2],t:[x+w/2,y],b:[x+w/2,y+h]};
+  }
+  function sum(cx,cy,signs){
+    el('circle',{cx,cy,r:13,fill:sumfill,stroke:boxline,'stroke-width':1.6});
+    el('text',{x:cx,y:cy+0.5,'text-anchor':'middle','dominant-baseline':'middle',fill:ink,'font-size':16},'Σ');
+    for(const [k,v] of Object.entries(signs||{})){
+      const off={l:[-20,-8],r:[20,-8],t:[-11,-18],b:[-11,22]}[k];
+      el('text',{x:cx+off[0],y:cy+off[1],'text-anchor':'middle','font-size':12,fill:muted,'font-family':FM},v);
+    }
+    return {l:[cx-13,cy],r:[cx+13,cy],t:[cx,cy-13],b:[cx,cy+13]};
+  }
+  function wire(pts,opt){
+    opt=opt||{};
+    const d=pts.map((p,i)=>(i?'L':'M')+p[0]+','+p[1]).join(' ');
+    el('path',{d,fill:'none',stroke:opt.ff?ff:line,'stroke-width':opt.ff?1.8:2,'stroke-dasharray':opt.ff?'6 4':null,'marker-end':opt.noarrow?null:('url(#'+(opt.ff?'ahf':'ah')+')')});
+  }
+  function label(x,y,t,o){o=o||{};el('text',{x,y,'text-anchor':o.anchor||'middle',fill:o.color||muted,'font-size':o.size||12,'font-family':o.mono?FM:F,'font-style':o.italic?'italic':null},t);}
+  function dot(x,y){el('circle',{cx:x,cy:y,r:3,fill:line});}
+
+  // ---- main row (y = 110) ----
+  const Y=110;
+  label(48,Y-16,'GPS 1 PPS',{anchor:'middle',color:ink,size:13});
+  label(48,Y+2,'t₍GPS₎',{anchor:'middle',mono:true});
+  const s1=sum(110,Y,{l:'+',b:'−'});
+  wire([[70,Y],s1.l]);
+  label(140,Y-34,'x, the interval',{anchor:'start',mono:true});
+  const b1=block(150,Y-22,120,44,['FPGA counter','1 reading / s'],true);
+  wire([s1.r,b1.l]);
+  const b2=block(298,Y-22,104,44,['mean of 10','x̄ per 10 s'],true);
+  wire([b1.r,b2.l]);
+  const s2=sum(436,Y,{l:'+',b:'−'});
+  wire([b2.r,s2.l]);
+  label(436,Y+50,'x₀ setpoint',{anchor:'middle',mono:true});
+  wire([[436,Y+36],s2.b]);
+  const b3=block(468,Y-22,138,44,['prefilter','f←(1−a)f+a·e'],true);
+  wire([s2.r,b3.l]);
+  label(458,Y-8,'e',{mono:true,anchor:'middle'});
+  // split after prefilter
+  const sp=[626,Y]; wire([b3.r,sp],{noarrow:true}); dot(sp[0],sp[1]);
+  label(618,Y-10,'f',{mono:true,anchor:'end'});
+  // proportional branch (up)
+  const bK=block(650,Y-70,100,40,['K = 1/(G·τ)'],false);
+  wire([sp,[626,Y-50],bK.l]);
+  // integral branch (down)
+  const bk=block(650,Y+30,108,40,['10·k','k=1/(4Gτ²)'],true);
+  wire([sp,[626,Y+50],bk.l]);
+  const s3=sum(792,Y+50,{l:'+',b:'+'});
+  wire([bk.r,s3.l]);
+  const bI=block(828,Y+30,94,40,['integrator','I ← I+…'],true);
+  wire([s3.r,bI.l]);
+  // output sum: I from the left, K·f from above, B + c₀·s from below
+  const s4=sum(945,Y+50,{l:'+',t:'+',b:'+'});
+  wire([bI.r,s4.l]);
+  wire([bK.r,[945,Y-50],s4.t]); label(935,Y-56,'K·f',{mono:true,anchor:'end'});
+  label(945,Y+112,'B + c₀·s',{mono:true,anchor:'middle'});
+  wire([[945,Y+98],s4.b]);
+  // ---- return path: DAC, OCXO, divider (row y = 250) ----
+  const Y2=250;
+  const bD=block(800,Y2-22,120,44,['DAC','FUN_33798(u)'],true);
+  wire([s4.r,[972,Y+50],[972,Y2],bD.r]);  label(978,Y2-34,'u',{mono:true,anchor:'end',size:13});
+  const bO=block(540,Y2-22,224,44,['10811 OCXO','Δf/f = G·Δu, ∫ → phase'],true);
+  wire([bD.l,bO.r]);
+  const bP=block(300,Y2-22,190,44,['1 PPS divider','t₍OCXO₎ from 10 MHz'],true);
+  wire([bO.l,bP.r]);
+  wire([bP.l,[110,Y2],s1.b]);
+  label(130,Y2-8,'− t₍OCXO₎',{mono:true,anchor:'start'});
+  // ---- aging feed-forward (row y = 400) ----
+  const Y3=410;
+  label(120,Y3-52,'aging feed-forward (curv task)',{anchor:'start',color:ff,size:12.5});
+  const fA=block(120,Y3-22,150,44,['45-min mean','of u − c₀·s'],true);
+  const fB=block(300,Y3-22,150,44,['ring of 64','48 h of samples'],true);
+  const fC=block(480,Y3-22,180,44,['fit a + b·y + c·ln y','least squares, weighted'],true);
+  const fD=block(690,Y3-22,120,44,['d = b + c/y','clamp ±M'],true);
+  wire([fA.r,fB.l],{ff:true}); wire([fB.r,fC.l],{ff:true}); wire([fC.r,fD.l],{ff:true});
+  // tap of u from the DAC path down to the fit
+  dot(972,Y2); wire([[972,Y2],[972,Y3+60],[60,Y3+60],[60,Y3],fA.l],{ff:true});
+  label(470,Y3+48,'u − c₀·s, sampled every 2700 s',{mono:true,anchor:'middle',color:ff});
+  // d into the integrator sum
+  wire([fD.r,[850,Y3],[850,Y3-40],[792,Y3-40],s3.b],{ff:true});
+  label(780,Y3-48,'10·d / 2700 per update',{mono:true,anchor:'end',color:ff});
+})();
+</script>
+</body>
+</html>
