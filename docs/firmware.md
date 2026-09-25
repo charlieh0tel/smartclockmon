@@ -1040,7 +1040,8 @@ image and is 42 % byte-identical to it, the block `0x70000` to
 `0x7ffff` wholly so.  The bench receiver reports 3704-C, a later
 revision, so what follows is read from 3633 and stated of it.  Its
 SCPI tree has the same node layout, so the paths resolve the same
-way.
+way; `58503a-tree.md` lists them and checks them against the command
+table.
 
 - *The loop.*  `pll_normal` is `FUN_0004491e` (message `pll_normal -
   Error with measurement` at `0x44ecc`), `startup_pll` reports from
