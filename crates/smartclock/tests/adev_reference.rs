@@ -37,6 +37,20 @@ const ALLANTOOLS_MODIFIED: [(f64, f64, f64, usize); 8] = [
     (200.0, 6.993803402371697e-12, 8.075748554037241e-10, 401),
 ];
 
+/// `(tau, maximum time interval error, windows)`: allantools 2024.06's
+/// `mtie` on [`record`], from the same script.  Its window is `m + 1`
+/// readings, so a record of N gives N − m windows.
+const ALLANTOOLS_MTIE: [(f64, f64, usize); 8] = [
+    (1.0, 4.98628240078049e-10, 999),
+    (2.0, 9.434592318457829e-10, 998),
+    (5.0, 1.886488288820949e-09, 995),
+    (10.0, 2.7156027293371057e-09, 990),
+    (20.0, 3.7173854353453e-09, 980),
+    (50.0, 5.488951159636002e-09, 950),
+    (100.0, 6.463082877901885e-09, 900),
+    (200.0, 8.043591440442759e-09, 800),
+];
+
 /// Agreement expected between two double-precision implementations of
 /// the same sum.
 const RELATIVE_TOLERANCE: f64 = 1e-9;
@@ -110,6 +124,28 @@ fn a_gapless_record_agrees_with_allantools_on_the_modified_deviation() {
             error < RELATIVE_TOLERANCE,
             "tau {tau}: time {} against {want_time}, relative error {error}",
             modified.time
+        );
+    }
+}
+
+#[test]
+fn a_gapless_record_agrees_with_allantools_on_the_maximum_excursion() {
+    let curve = Curve::measure(&record(), 1, |_, _| false);
+    for (tau, want, want_windows) in ALLANTOOLS_MTIE {
+        let point = curve
+            .points
+            .iter()
+            .find(|p| (p.tau - tau).abs() < 1e-9)
+            .unwrap_or_else(|| panic!("no point at tau {tau}"));
+        let mtie = point
+            .mtie
+            .unwrap_or_else(|| panic!("no excursion at tau {tau}"));
+        assert_eq!(mtie.windows, want_windows, "windows at tau {tau}");
+        // A maximum of differences of the same doubles: exact.
+        assert!(
+            (mtie.peak - want).abs() <= want * 1e-15,
+            "tau {tau}: {} against {want}",
+            mtie.peak
         );
     }
 }

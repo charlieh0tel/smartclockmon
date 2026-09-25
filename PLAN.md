@@ -724,7 +724,20 @@ oscillator's or the loop's frequency noise takes over, while MDEV and
 ADEV are still falling or flat -- on one plot with a second axis that
 read as a contradiction.  It is plotted anyway because it answers the
 timing user's question directly: how far the 1 PPS wanders over tau,
-in seconds, without multiplying sigma-y by tau in one's head.  `:PTIMe:TINTerval?`, which returns the latest one-second
+in seconds, without multiplying sigma-y by tau in one's head.
+
+The maximum time interval error is on that chart too, computed rather
+than inferred.  TDEV gives MTIE's scale -- for Gaussian noise the
+worst window of a record is a few times the rms -- but MTIE is set by
+the single largest excursion, which a sawtooth step, a relock or a
+holdover hop supplies and the deviations average away, so a bound from
+TDEV can be an order of magnitude short on a record with one event in
+it.  The record is at hand, so MTIE is a sliding maximum and minimum
+over windows of `m + 1` consecutive readings (SP 1065 section 5.2.9),
+linear in the run through monotone deques, and a window that would
+span a hole or a segment cut is not examined: a phase step the
+receiver's own relock made is not wander.  It is checked against
+allantools' `mtie`, whose window is the same `m + 1` readings.  `:PTIMe:TINTerval?`, which returns the latest one-second
 reading, would extend the curves below 10 s, and is not going to be
 polled: it costs a query a second and ten times the phase rows for
 the receiver-noise floor alone.

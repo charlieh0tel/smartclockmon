@@ -75,10 +75,11 @@ const AXIS_FONT = "14px system-ui, sans-serif";
 const PLOT = { min: 360, ratio: 2.5, shortest: 300, tallest: 560 };
 
 let chart = null;
-// The time deviation on a chart of its own under the first: it is in
-// seconds where the others are dimensionless, and it rises where they
-// fall, so sharing their plot through a second axis pairs the wrong
-// curve with the wrong scale by eye.  The two share tau and a cursor.
+// The time deviation and the maximum time interval error on a chart of
+// their own under the first: both are in seconds where the deviations
+// are dimensionless, and TDEV rises where they fall, so sharing their
+// plot through a second axis paired the wrong curve with the wrong
+// scale by eye.  The two charts share tau and a cursor.
 let tdevChart = null;
 let range = 3600;
 const SYNC = "stability";
@@ -247,6 +248,7 @@ function draw(points) {
   const tau = points.map((p) => p.tau);
   const modified = points.map((p) => (p.modified ? p.modified.deviation : null));
   const time = points.map((p) => (p.modified ? p.modified.time : null));
+  const mtie = points.map((p) => (p.mtie ? p.mtie.peak : null));
   // uPlot's legend is a live cursor readout, which is worth having on
   // a curve whose points are decades apart and hard to read off an
   // axis; the symbols say these are the coordinates of the point
@@ -287,9 +289,9 @@ function draw(points) {
     {
       width: size.width,
       height: Math.round(size.height * 0.6),
-      title: "Time deviation",
+      title: "Time deviation and maximum time interval error",
       scales: { x: LOG, y: LOG },
-      axes: [tauAxis(), sigmaAxis("σx, seconds")],
+      axes: [tauAxis(), sigmaAxis("seconds")],
       series: [
         { label: "τ", value: (_, v) => seconds(v) },
         {
@@ -299,11 +301,18 @@ function draw(points) {
           points: { show: true, size: 5 },
           value: (_, v) => (Number.isFinite(v) ? `${decade(v)} s` : "--"),
         },
+        {
+          label: "MTIE",
+          stroke: "#f87171",
+          width: 1.5,
+          points: { show: true, size: 5 },
+          value: (_, v) => (Number.isFinite(v) ? `${decade(v)} s` : "--"),
+        },
       ],
       legend: { show: true, live: true },
       cursor,
     },
-    [tau, time],
+    [tau, time, mtie],
     $("chart-tdev"),
   );
   resettable(tdevChart);
@@ -322,6 +331,9 @@ function table(d) {
     `<th title="modified Allan deviation: exact for these readings, ` +
     `which are already ten-second means">MDEV</th>` +
     `<th title="time deviation, τ·MDEV/√3, in seconds">TDEV, s</th>` +
+    `<th title="maximum time interval error: the largest peak-to-peak ` +
+    `phase excursion in any window of τ, in seconds; a worst case, so one ` +
+    `step sets it">MTIE, s</th>` +
     `<th title="overlapping Allan deviation, as data sheets quote it; ` +
     `low at the shortest τ because the readings are averaged">ADEV</th>` +
     `<th title="how many estimates the MDEV figure averages; each needs ` +
@@ -336,6 +348,7 @@ function table(d) {
           `<tr><td>${esc(inSeconds(p.tau))}</td>` +
           `<td>${p.modified ? esc(decade(p.modified.deviation)) : "--"}</td>` +
           `<td>${p.modified ? esc(decade(p.modified.time)) : "--"}</td>` +
+          `<td>${p.mtie ? esc(decade(p.mtie.peak)) : "--"}</td>` +
           `<td>${esc(decade(p.deviation))}</td>` +
           `<td class="muted">${p.modified ? p.modified.averages : "--"}</td>` +
           `<td class="muted">${p.differences}</td></tr>`,

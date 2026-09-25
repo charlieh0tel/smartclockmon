@@ -71,9 +71,10 @@ pays for it.  The satellite counts are queried directly and are on the
 one-second tier with everything else.
 
 Stability is its own view in both, `/adev` in the browser: the
-modified Allan deviation, the time deviation and the overlapping Allan
-deviation of the interval between the 1 PPS from the GPS receiver and
-a 1 PPS divided down from the OCXO, on log axes.  The modified form
+modified Allan deviation, the time deviation, the maximum time
+interval error and the overlapping Allan deviation of the interval
+between the 1 PPS from the GPS receiver and a 1 PPS divided down from
+the OCXO, on log axes.  The modified form
 leads because the receiver's reading is already a ten-second mean,
 which is the innermost block of that form's own averaging, so it is
 exact here where the plain form is low at the shortest averaging

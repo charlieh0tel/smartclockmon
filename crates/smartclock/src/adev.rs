@@ -55,6 +55,14 @@
 //! where white or flicker phase noise dominates, and leaves it
 //! unchanged only from a few reading intervals up.
 //!
+//! The maximum time interval error (SP 1065 section 5.2.9) is the third
+//! figure: over every window of `m + 1` consecutive readings, the
+//! largest peak-to-peak excursion of the phase, in seconds.  It is the
+//! worst case, not an average, so one relock or sawtooth step sets it
+//! for every tau that spans the step; that is what a timing mask is
+//! written against, and why it is reported beside the deviations
+//! rather than inferred from them.
+//!
 //! Gaps are handled by counting only the differences that exist rather than
 //! by filling anything in.  That leaves the estimate unbiased so long as
 //! what is missing is unrelated to what was being measured -- readings
@@ -64,6 +72,7 @@
 //! costs it `3 m` triples where the plain form loses three.
 
 use std::collections::BTreeMap;
+use std::collections::VecDeque;
 
 use jiff::Timestamp;
 use serde::Deserialize;
@@ -99,6 +108,21 @@ pub struct Point {
     /// form, since each needs `3 m` consecutive readings, so a curve
     /// can carry the plain deviation a rung or two past the modified.
     pub modified: Option<Modified>,
+    /// The maximum time interval error at the same tau, when at least
+    /// one window of `m + 1` consecutive readings exists.
+    pub mtie: Option<Excursion>,
+}
+
+/// The maximum time interval error at one averaging time.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Excursion {
+    /// The largest peak-to-peak phase excursion within any window of
+    /// `tau`, in seconds.
+    pub peak: f64,
+    /// How many windows were examined, each needing `m + 1` consecutive
+    /// readings present.  A worst case over ten windows and one over
+    /// ten thousand mean different things, as with the deviations.
+    pub windows: usize,
 }
 
 /// The modified Allan deviation at one averaging time, with the time
@@ -302,7 +326,10 @@ impl Run {
         let mut differences = 0usize;
         let mut averaged = 0.0;
         let mut averages = 0usize;
+        let mut peak = 0.0f64;
+        let mut windows = 0usize;
         for grid in &self.grids {
+            Self::excursions(grid, m, &mut peak, &mut windows);
             if grid.len() <= 2 * m {
                 continue;
             }
@@ -352,12 +379,69 @@ impl Run {
                 averages,
             }
         });
+        let mtie = (windows > 0).then_some(Excursion { peak, windows });
         Some(Point {
             tau,
             deviation: (total / (2.0 * differences as f64 * tau * tau)).sqrt(),
             differences,
             modified,
+            mtie,
         })
+    }
+
+    /// Fold one grid's windows of `m + 1` consecutive readings into the
+    /// largest excursion seen and the count of windows.
+    ///
+    /// A sliding maximum and minimum over monotone deques, so the pass
+    /// is linear in the grid whatever `m` is.  A hole ends the run of
+    /// consecutive readings: the deques are emptied and the count
+    /// restarts, so no window spans it.
+    fn excursions(grid: &[Option<f64>], m: usize, peak: &mut f64, windows: &mut usize) {
+        // Indices into `grid`, values decreasing (for the maximum) or
+        // increasing (for the minimum) from front to back.
+        let mut highs: VecDeque<usize> = VecDeque::new();
+        let mut lows: VecDeque<usize> = VecDeque::new();
+        // How many consecutive readings end at the current index.
+        let mut run = 0usize;
+        for (i, slot) in grid.iter().enumerate() {
+            let Some(x) = *slot else {
+                highs.clear();
+                lows.clear();
+                run = 0;
+                continue;
+            };
+            run += 1;
+            while highs
+                .back()
+                .is_some_and(|&j| grid[j].is_some_and(|y| y <= x))
+            {
+                highs.pop_back();
+            }
+            highs.push_back(i);
+            while lows
+                .back()
+                .is_some_and(|&j| grid[j].is_some_and(|y| y >= x))
+            {
+                lows.pop_back();
+            }
+            lows.push_back(i);
+            if run < m + 1 {
+                continue;
+            }
+            let start = i - m;
+            while highs.front().is_some_and(|&j| j < start) {
+                highs.pop_front();
+            }
+            while lows.front().is_some_and(|&j| j < start) {
+                lows.pop_front();
+            }
+            if let (Some(&hi), Some(&lo)) = (highs.front(), lows.front())
+                && let (Some(high), Some(low)) = (grid[hi], grid[lo])
+            {
+                *peak = peak.max(high - low);
+                *windows += 1;
+            }
+        }
     }
 
     /// How many readings are on the grid, and how many places are
@@ -998,6 +1082,45 @@ mod tests {
         assert!((0.9..1.1).contains(&ratio), "ratio {ratio}");
         assert_eq!(of_fine.averages, 6000 - 300 + 1);
         assert_eq!(of_means.averages, 600 - 30 + 1);
+    }
+
+    #[test]
+    fn a_steady_ramp_has_an_excursion_of_exactly_its_slope_times_tau() {
+        // A clock 3 ns/s fast wanders by 3 ns per second of window,
+        // whichever window: the peak-to-peak over m + 1 readings is
+        // m times the step, and every window of the run is counted.
+        let ramp = gapless(&run(600, |i| 3e-9 * i as f64));
+        for m in [1, 10, 100] {
+            let mtie = ramp.at(m).and_then(|p| p.mtie).expect("an excursion");
+            assert!((mtie.peak - 3e-9 * m as f64).abs() < 1e-18, "{mtie:?}");
+            assert_eq!(mtie.windows, 600 - m);
+        }
+    }
+
+    #[test]
+    fn a_hole_ends_every_window_that_would_span_it() {
+        // One reading missing from six hundred: at m = 10 the eleven
+        // windows that would include it are not examined, and a
+        // spike buried in the missing reading cannot be seen.
+        let mut samples = run(600, |i| 3e-9 * i as f64);
+        samples.remove(200);
+        let mtie = gapless(&samples)
+            .at(10)
+            .and_then(|p| p.mtie)
+            .expect("an excursion");
+        assert_eq!(mtie.windows, 590 - 11);
+        assert!((mtie.peak - 3e-8).abs() < 1e-18, "{mtie:?}");
+    }
+
+    #[test]
+    fn a_single_spike_sets_the_excursion_at_every_tau_that_sees_it() {
+        // The deviations average a lone 1 us spike away; the maximum
+        // time interval error is the spike, at every tau.
+        let spiked = gapless(&run(600, |i| if i == 300 { 1e-6 } else { 0.0 }));
+        for point in spiked.curve() {
+            let mtie = point.mtie.expect("an excursion");
+            assert!((mtie.peak - 1e-6).abs() < 1e-18, "{point:?}");
+        }
     }
 
     #[test]

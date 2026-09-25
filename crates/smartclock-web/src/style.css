@@ -102,7 +102,7 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
 #chart-tdev { margin-top: 8px; }
 /* Five columns of figures now, so wide enough for them and no cell
    ever wraps: a deviation broken across two lines is unreadable. */
-#table-wrap { max-width: 70ch; margin-top: 10px; overflow-x: auto; }
+#table-wrap { max-width: 82ch; margin-top: 10px; overflow-x: auto; }
 #table td, #table th { white-space: nowrap; }
 .pad { padding: 24px 8px; }
 .note { font-size: 12px; margin: 10px 2px 0; }

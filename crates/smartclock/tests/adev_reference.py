@@ -38,3 +38,10 @@ _, times, _, _ = allantools.tdev(phase, rate=1.0, data_type="phase", taus=TAUS)
 print("mdev, tdev")
 for tau, deviation, time, count in zip(taus, modified, times, counts):
     print(f"({tau:.1f}, {float(deviation)!r}, {float(time)!r}, {int(count)}),")
+
+taus, peaks, _, counts = allantools.mtie(
+    phase, rate=1.0, data_type="phase", taus=TAUS
+)
+print("mtie")
+for tau, peak, count in zip(taus, peaks, counts):
+    print(f"({tau:.1f}, {float(peak)!r}, {int(count)}),")
