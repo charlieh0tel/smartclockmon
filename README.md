@@ -102,6 +102,17 @@ the stack together and a drag on any plot zooms all of them.  EFC
 against internal temperature is the pairing that earns its keep; see
 `docs/efc.md` for what that comparison settled.
 
+The time range is a pair of instants, chosen the way Grafana chooses
+one: "the last N units" up to now -- presets from an hour to thirty
+days and `all` fill the box in, and any other length can be typed --
+or a fixed pair once a drag has zoomed, which then steps earlier and
+later by its own length and returns to a moving window with `now`.
+The choice rides in the address (`?last=172800`, `?last=all`, or
+`?from=…&to=…`) beside the receiver and the columns, so a reload or a
+shared link shows the same window.  The stability page uses the same
+control; there a range is the record the estimator runs on, so
+changing it recomputes.
+
 The chart library comes from a CDN, pinned with an integrity hash, so
 the page needs internet even though the daemon does not; the page says
 so rather than showing an empty frame if it cannot be fetched.

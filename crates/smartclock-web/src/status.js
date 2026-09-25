@@ -168,6 +168,20 @@ function withUnit(q) {
   return q;
 }
 
+// Merge `params` into the address without touching the rest of it: a
+// null value removes the key.  Every control that is worth keeping on
+// a reload or a shared link -- the receiver, the range, the columns --
+// goes through here, so none of them wipes another's setting.
+function remember(params) {
+  const q = new URLSearchParams(location.search);
+  for (const [k, v] of Object.entries(params)) {
+    if (v === null || v === undefined) q.delete(k);
+    else q.set(k, String(v));
+  }
+  const s = q.toString();
+  history.replaceState(null, "", location.pathname + (s ? `?${s}` : ""));
+}
+
 // Carry the chosen receiver on the links between pages, so moving from
 // history to stability keeps the unit rather than falling back to the
 // newest.  In the address too, so a reload or a shared link does.
@@ -176,7 +190,120 @@ function carryUnit() {
   for (const a of document.querySelectorAll("nav a")) {
     a.search = q;
   }
-  history.replaceState(null, "", location.pathname + q);
+  remember({ receiver: unit });
+}
+
+// ---------------------------------------------------------- time range
+//
+// A range is a pair (from, to), and most of the time it is "the last
+// N units up to now": relative, moving with the clock.  Dragging on a
+// chart makes it absolute -- a fixed pair -- and stepping it back and
+// forth keeps it so; "now" returns to relative with the same length.
+// The presets only fill the "last" box in.  The whole thing lives in
+// the address (`last=SECONDS`, `last=all`, or `from=..&to=..`) so a
+// reload or a shared link shows the same window; the older
+// `range=SECONDS` is still read.
+
+const RANGE_UNITS = [["min", 60], ["h", 3600], ["d", 86400]];
+const RANGE_PRESETS = [
+  ["1h", 3600], ["6h", 21600], ["24h", 86400], ["48h", 172800],
+  ["7d", 604800], ["30d", 2592000],
+];
+
+// `last`: seconds, or "all"; `from`/`to`: unix seconds when absolute.
+let range = { last: 3600, from: null, to: null };
+
+function readRange(fallback) {
+  const v = new URLSearchParams(location.search);
+  if (v.has("from") && v.has("to")) {
+    const from = Number(v.get("from")), to = Number(v.get("to"));
+    if (Number.isFinite(from) && Number.isFinite(to) && to > from) {
+      range = { last: null, from, to };
+      return;
+    }
+  }
+  const last = v.get("last") ?? v.get("range");
+  if (last === "all" || last === "null") range = { last: "all", from: null, to: null };
+  else if (last && Number(last) > 0) range = { last: Number(last), from: null, to: null };
+  else range = { last: fallback ?? 3600, from: null, to: null };
+}
+
+// The bounds to ask the server for, in unix seconds; null is open.
+function rangeBounds() {
+  if (range.last === "all") return { from: 0, to: null, seconds: null };
+  if (range.last !== null) {
+    const to = Date.now() / 1000;
+    return { from: to - range.last, to, seconds: range.last };
+  }
+  return { from: range.from, to: range.to, seconds: range.to - range.from };
+}
+
+function rememberRange() {
+  if (range.last !== null) remember({ last: range.last, from: null, to: null });
+  else remember({ last: null, from: Math.round(range.from), to: Math.round(range.to) });
+}
+
+// A length in seconds as the biggest whole unit that divides it.
+function splitLength(secs) {
+  for (const [name, size] of [...RANGE_UNITS].reverse()) {
+    if (secs >= size && Number.isInteger(secs / size)) return [secs / size, size];
+  }
+  return [Math.max(1, Math.round(secs / 60)), 60];
+}
+
+function shortTime(t) {
+  const d = new Date(t * 1000);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Build the control into `el`; `changed` is called after every change.
+function rangeControl(el, changed) {
+  const apply = () => { rememberRange(); rangeControl(el, changed); changed(); };
+  const relative = range.last !== null;
+  const [n, size] = relative && range.last !== "all" ? splitLength(range.last) : [1, 3600];
+  el.innerHTML =
+    RANGE_PRESETS.map(([label, secs]) =>
+      `<button data-last="${secs}" aria-pressed="${range.last === secs}">${label}</button>`).join(" ") +
+    ` <button data-last="all" aria-pressed="${range.last === "all"}">all</button>` +
+    ` <label>last <input id="range-n" type="number" min="1" step="1" value="${n}" ` +
+    `style="width:5em"${relative ? "" : " disabled"}> ` +
+    `<select id="range-unit"${relative ? "" : " disabled"}>` +
+    RANGE_UNITS.map(([name, s]) =>
+      `<option value="${s}"${s === size ? " selected" : ""}>${name}</option>`).join("") +
+    `</select></label>` +
+    (relative ? "" :
+      ` <span class="muted">${esc(shortTime(range.from))} – ${esc(shortTime(range.to))}</span>` +
+      ` <button id="range-back" title="earlier by one window">&lsaquo;</button>` +
+      ` <button id="range-fwd" title="later by one window">&rsaquo;</button>` +
+      ` <button id="range-now" title="the same length, up to now">now</button>`);
+  for (const b of el.querySelectorAll("button[data-last]")) {
+    b.onclick = () => {
+      range = { last: b.dataset.last === "all" ? "all" : Number(b.dataset.last), from: null, to: null };
+      apply();
+    };
+  }
+  const setLast = () => {
+    const count = Number($("range-n").value), unitSize = Number($("range-unit").value);
+    if (!(count > 0)) return;
+    range = { last: count * unitSize, from: null, to: null };
+    apply();
+  };
+  $("range-n").onchange = setLast;
+  $("range-unit").onchange = setLast;
+  if (!relative) {
+    const len = range.to - range.from;
+    $("range-back").onclick = () => { range = { last: null, from: range.from - len, to: range.to - len }; apply(); };
+    $("range-fwd").onclick = () => { range = { last: null, from: range.from + len, to: range.to + len }; apply(); };
+    $("range-now").onclick = () => { range = { last: Math.max(60, Math.round(len)), from: null, to: null }; apply(); };
+  }
+}
+
+// A drag on a chart: fix the window.
+function setAbsolute(from, to) {
+  if (!(to > from)) return;
+  range = { last: null, from, to };
+  rememberRange();
 }
 
 // Fill the receiver selector, and call `changed` when it changes.

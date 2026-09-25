@@ -35,7 +35,6 @@
     <span class="grow"></span>
     <span id="series"></span>
     <span id="ranges"></span>
-    <button id="reset" title="Whole curve, last hour">reset</button>
   </div>
   <div id="pane">
     <div id="chart"></div>
@@ -52,14 +51,6 @@
         crossorigin="anonymous"></script>
 <script src="/status.js"></script>
 <script>
-
-// Ranges to measure over, as seconds back from now.  Longer than the
-// history page offers, because a deviation at a long tau needs a long
-// run and there is no point offering a window that cannot produce one.
-const RANGES = [
-  ["1h", 3600], ["6h", 21600], ["24h", 86400],
-  ["7d", 604800], ["30d", 2592000], ["all", null],
-];
 
 // Both axes are decades, which is the only way this curve is read: the
 // slope between decades is what names the noise.
@@ -149,7 +140,10 @@ let chart = null;
 // plot through a second axis paired the wrong curve with the wrong
 // scale by eye.  The two charts share tau and a cursor.
 let tdevChart = null;
-let range = 3600;
+// The range is the record the estimator runs on, not a viewport, so a
+// change recomputes; the control is the shared one in status.js and
+// the choice rides in the address beside the receiver and the series.
+readRange(3600);
 const SYNC = "stability";
 
 // Measured on the pane, never on the chart itself: the chart is a flex
@@ -441,12 +435,9 @@ async function load() {
   const mine = ++latest;
   $("state").innerHTML = `<span class="pill">measuring...</span>`;
   const q = new URLSearchParams();
-  if (range === null) {
-    q.set("from", "0");
-    q.set("to", "2000000000");
-  } else {
-    q.set("from", String(Math.floor(Date.now() / 1000) - range));
-  }
+  const { from, to } = rangeBounds();
+  q.set("from", String(Math.floor(from)));
+  q.set("to", String(Math.ceil(to ?? 2000000000)));
   try {
     const r = await fetch(`/api/adev?${withUnit(q)}`);
     if (!r.ok) throw new Error(`the server answered ${r.status}`);
@@ -482,26 +473,7 @@ async function load() {
   }
 }
 
-$("reset").onclick = () => {
-  range = 3600;
-  for (const b of $("ranges").querySelectorAll("button")) {
-    b.toggleAttribute("aria-current", b.dataset.span === "3600");
-  }
-  load();
-};
-
-$("ranges").innerHTML = RANGES.map(
-  ([label, secs]) => `<button data-span="${secs}">${label}</button>`,
-).join(" ");
-for (const button of $("ranges").querySelectorAll("button")) {
-  button.onclick = () => {
-    range = button.dataset.span === "null" ? null : Number(button.dataset.span);
-    for (const other of $("ranges").querySelectorAll("button")) {
-      other.toggleAttribute("aria-current", other === button);
-    }
-    load();
-  };
-}
+rangeControl($("ranges"), load);
 
 // Said once, plainly, because the number on the chart is not the number
 // most people come looking for.
@@ -523,9 +495,5 @@ addEventListener("resize", () => {
 });
 
 picker();
-chooseReceiver(load).then(() => {
-  // `carryUnit` rewrote the address with the receiver alone.
-  rememberSeries();
-  return load();
-});
+chooseReceiver(load).then(load);
 </script>

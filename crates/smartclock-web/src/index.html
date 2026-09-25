@@ -32,7 +32,6 @@
     <span id="columns"></span>
     <span class="grow"></span>
     <span id="ranges"></span>
-    <button id="reset" title="Back to the last hour">reset</button>
   </div>
   <div id="charts"></div>
   <div id="readout"></div>
@@ -61,10 +60,6 @@
 // than leaving an empty rectangle if it did not arrive.
 const haveUplot = typeof uPlot !== "undefined";
 
-const RANGES = [
-  ["1h", 3600], ["6h", 21600], ["24h", 86400],
-  ["7d", 604800], ["30d", 2592000], ["all", null],
-];
 // Label, and the factor that puts the column in units worth reading.
 // The interval is stored in seconds and is a few nanoseconds: plotted
 // as seconds, every axis tick rounds to 0.
@@ -113,8 +108,7 @@ const scaled = (values, c) =>
 const view = new URLSearchParams(location.search);
 
 let charts = [];
-let span = view.has("range") ? Number(view.get("range")) || null : 3600;
-let zoom = null;          // [from, to] once the user has dragged
+readRange(3600);
 // Several series, stacked, sharing one time axis.  `column` singular is
 // still read so an older bookmark still opens on what it named.
 // What is shown unless the URL says otherwise, in the order it is
@@ -142,8 +136,15 @@ const MATE = "#fbbf24";
 
 // ---------------------------------------------------------------- charts
 
-async function fetchSeries(cols, from, to) {
-  const q = new URLSearchParams({ columns: cols.join(","), points: 1500 });
+// Points to ask for: enough that a long window is not thinned to
+// half-hour bins, bounded by what the server will give.
+function pointsFor(seconds) {
+  if (!seconds) return 5000;
+  return Math.min(5000, Math.max(1500, Math.round(seconds / 30)));
+}
+
+async function fetchSeries(cols, from, to, seconds) {
+  const q = new URLSearchParams({ columns: cols.join(","), points: pointsFor(seconds) });
   if (from) q.set("from", Math.round(from));
   if (to) q.set("to", Math.round(to));
   return getJson("/api/history?" + withUnit(q));
@@ -293,11 +294,11 @@ async function draw() {
     $("note").textContent = "nothing selected";
     return;
   }
-  let to = null, from = null;
-  if (zoom) { [from, to] = zoom; }
-  else if (span) { to = Date.now() / 1000; from = to - span; }
+  const bounds = rangeBounds();
+  let { from, to } = bounds;
+  if (from === 0) from = null;
 
-  let got = await fetchSeries(columns, from, to);
+  let got = await fetchSeries(columns, from, to, bounds.seconds);
   // A later draw has started; this one's data belongs to a selection or
   // a range nobody is looking at any more.
   if (mine !== generation) return;
@@ -307,8 +308,8 @@ async function draw() {
   // server's default hour and the extent, the second asks for the
   // extent.  Without this the button quietly showed the last hour --
   // the range it names is the one range it did not fetch.
-  if (!span && !zoom && got.first && got.last > got.first) {
-    got = await fetchSeries(columns, got.first, got.last);
+  if (range.last === "all" && got.first && got.last > got.first) {
+    got = await fetchSeries(columns, got.first, got.last, got.last - got.first);
     if (mine !== generation) return;
   }
   if (got.error) { $("note").textContent = got.error; return; }
@@ -427,11 +428,10 @@ async function draw() {
         setCursor: [() => readout()],
         setSelect: [(u) => {
           if (u.select.width <= 0) return;
-          zoom = [
+          setAbsolute(
             u.posToVal(u.select.left, "x"),
             u.posToVal(u.select.left + u.select.width, "x"),
-          ];
-          span = null;
+          );
           buttons();
           load();
         }],
@@ -469,8 +469,11 @@ async function draw() {
           `<span style="color:${MATE}">${esc(theirs)}</span>`;
       }
     }
+    // Double click: back to a moving window of the same length.
     chart.over.addEventListener("dblclick", () => {
-      zoom = null;
+      const { seconds } = rangeBounds();
+      range = { last: Math.max(60, Math.round(seconds || 3600)), from: null, to: null };
+      rememberRange();
       buttons();
       load();
     });
@@ -585,18 +588,7 @@ function load() {
 }
 
 function buttons() {
-  $("ranges").innerHTML = RANGES
-    .map(([label, secs]) =>
-      `<button data-secs="${secs}" aria-pressed="${!zoom && span === secs}">${label}</button>`)
-    .join(" ");
-  for (const b of $("ranges").querySelectorAll("button")) {
-    b.onclick = () => {
-      span = b.dataset.secs === "null" ? null : Number(b.dataset.secs);
-      zoom = null;
-      buttons();
-      load();
-    };
-  }
+  rangeControl($("ranges"), load);
 }
 
 // ------------------------------------------------- the receiver's journal
@@ -692,8 +684,6 @@ async function loadJournal() {
   // drift from the columns the query will actually accept.
   const first = await fetchSeries(columns, null, null);
   pickers(first.plottable ?? columns);
-  $("reset").onclick = () => { zoom = null; span = 3600; buttons(); load(); };
-
   buttons();
   await draw();
   await tick();
@@ -704,7 +694,7 @@ async function loadJournal() {
   setInterval(tick, 1000);
   // History moves slowly next to the live tiles; redrawing it every
   // second would fight with the cursor for no gain.
-  setInterval(() => { if (!zoom) load(); }, 30000);
+  setInterval(() => { if (range.last !== null) load(); }, 30000);
   addEventListener("resize", load);
 })();
 </script>

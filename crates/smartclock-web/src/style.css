@@ -106,7 +106,9 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
 #table td, #table th { white-space: nowrap; }
 .pad { padding: 24px 8px; }
 .note { font-size: 12px; margin: 10px 2px 0; }
-#ranges button[aria-current] { color: var(--text); border-color: var(--accent); }
+#ranges { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#ranges input[type=number] { width: 5em; }
+#ranges input, #ranges select { padding: 3px 6px; }
 
 /* The strip painted from the previous page's snapshot, before this
    page's first poll has answered.  Muted, because the numbers are the
