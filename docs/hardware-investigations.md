@@ -124,25 +124,17 @@ checksum holds; this was read, not exercised.
 *Changes:* confirms which reset sources keep the loop's state, and
 whether `*TST?` is one of them.
 
-## 8. The one-second reading versus the ten-second mean
+## 8. The one-second reading versus the ten-second mean -- done
 
-*Open item:* in the Z3816A image `:DIAGnostic:PTIMe:TINTerval?`
-returns the latest one-second reading and `:SYNChronization:TINTerval?`
-the mean of ten; the MDEV argument in `PLAN.md` rests on the latter.
-
-- Done for the wrong spelling: `:PTIMe:TINTerval?` polled once a second
-  through the daemon for 187 s on the bench 58503A (raw commands
-  enabled, 25 September 2026) gave the `:SYNC:TINT?` value to the
-  digit every time and held for ten polls, as the image's handler
-  table says it should -- that path shares the mean's handler.
-- Still to do: the same run with `:DIAGnostic:PTIMe:TINTerval?`, and
-  check that the ten-second value equals the mean of the ten
-  one-second values in its window and that the one-second values
-  carry the sawtooth the mean smooths.
-
-*Changes:* the MDEV-from-means claim gets a measured confirmation, the
-short-tau floor of the one-second data gets a number, and the 58503A
-earns a command-table entry for the one-second reading.
+Measured 25 September 2026 on the bench 58503A: one hour of
+`:DIAGnostic:PTIMe:TINTerval?` beside `:SYNChronization:TINTerval?`,
+one pass a second through the daemon with raw commands enabled.  The
+ten-second value is the mean of the ten one-second readings to
+0.15 ns rms; MDEV of the means equals MDEV of the readings to 1 to
+3 % at every tau; ADEV of the means is √10 low at every tau to 500 s.
+The numbers are in `PLAN.md`, "Allan deviation is computed over
+segments".  Plain `:PTIMe:TINTerval?` is the ten-second mean, by the
+image and by 187 polls.
 
 ## 9. The console, on a spare unit only
 

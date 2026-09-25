@@ -409,7 +409,8 @@ function table(d) {
     `phase excursion in any window of τ, in seconds; a worst case, so one ` +
     `step sets it">MTIE, s</th>` +
     `<th title="overlapping Allan deviation, as data sheets quote it; ` +
-    `low at the shortest τ because the readings are averaged">ADEV</th>` +
+    `a factor √10 low wherever phase noise dominates, because the readings ` +
+    `are averaged">ADEV</th>` +
     `<th title="how many estimates the MDEV figure averages; each needs ` +
     `three whole windows of consecutive readings, so a gap costs it more ` +
     `than ADEV">MDEV points</th>` +
@@ -510,8 +511,9 @@ $("caveat").textContent =
   "divided down from the OCXO. While locked, the OCXO is steered to " +
   "follow it. Each reading is the receiver's own mean of ten seconds, " +
   "which the modified deviation absorbs exactly and the plain Allan " +
-  "deviation does not: its first points are low where phase noise " +
-  "dominates, and it is right from about ten readings up.";
+  "deviation does not: wherever the receiver's phase noise dominates, " +
+  "the plain deviation of these means sits a factor √10 below that of " +
+  "the 1 PPS itself.";
 
 addEventListener("resize", () => {
   if (!chart) return;

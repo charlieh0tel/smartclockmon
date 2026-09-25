@@ -77,8 +77,9 @@ between the 1 PPS from the GPS receiver and a 1 PPS divided down from
 the OCXO, on log axes.  The modified form
 leads because the receiver's reading is already a ten-second mean,
 which is the innermost block of that form's own averaging, so it is
-exact here where the plain form is low at the shortest averaging
-times; the plain form is kept because data sheets quote it.  The GPS
+exact here where the plain form sits a factor √10 low wherever the
+receiver's white phase noise dominates -- on the bench, the whole
+measured range; the plain form is kept because data sheets quote it.  The GPS
 receiver's 1 PPS is quantized to its own crystal, and while locked
 the OCXO is steered to follow it, so the curve is of the pair and of
 the loop between them rather than of the OCXO alone; the page says

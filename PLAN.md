@@ -698,11 +698,12 @@ for an hour, so the caller picks.
 The reading itself is already an average.  `docs/firmware.md` shows
 `:SYNChronization:TINTerval?` to be the mean of ten one-second
 readings, updated every ten seconds, so the record is phase averaged
-over contiguous 10 s windows.  That leaves the Allan deviation
-band-limited below about five window lengths -- the 10 s and 20 s
-points are low where white or flicker phase noise dominates, which is
-where receiver noise sits -- and exact from about 100 s up.  The
-modified Allan deviation has no such limit: its own averaging over n
+over contiguous 10 s windows.  That lowers the Allan deviation
+wherever white phase noise dominates -- not only at the shortest taus:
+for white PM the Allan variance is 3σx²/τ² at every tau, so averaging
+ten readings divides σx² by ten and the deviation by √10 across the
+whole range that noise rules.  The modified Allan deviation has no
+such limit: its own averaging over n
 consecutive samples of the 10 s means is the same window mean as over
 10n one-second readings, so MDEV computed from the record equals MDEV
 of the underlying one-second phase at every tau of 10 s and above,
@@ -714,6 +715,38 @@ and ADEV is kept, labelled, for comparison with the oscillator and
 receiver data sheets, which quote it.  Both are checked against
 allantools' `mdev` and `tdev` and against Table 31's modified Allan
 and time deviation columns.
+
+Measured, on the bench 58503A, 25 September 2026, one hour of
+`:DIAGnostic:PTIMe:TINTerval?` (the one-second reading, which the
+Z3816A image and this unit both answer) beside `:SYNChronization:
+TINTerval?`, one pass a second through the daemon:
+
+- the ten-second value is the mean of the ten one-second readings
+  ending one poll before it appears, to 0.15 ns rms over 352 holds --
+  the reply's 0.1 ns rounding;
+- the one-second readings run −72.5 to +45 ns with a standard
+  deviation of 30.6 ns, the GPS engine's sawtooth uncorrected;
+- the deviations, allantools on both series:
+
+  | tau, s | ADEV, 1 s readings | ADEV, 10 s means | MDEV, 1 s readings | MDEV, 10 s means |
+  | ------ | ------------------ | ---------------- | ------------------ | ---------------- |
+  | 10 | 5.34e-9 | 1.68e-9 | 1.69e-9 | 1.68e-9 |
+  | 20 | 2.60e-9 | 7.44e-10 | 5.57e-10 | 5.39e-10 |
+  | 50 | 1.03e-9 | 3.18e-10 | 1.68e-10 | 1.64e-10 |
+  | 100 | 5.25e-10 | 1.67e-10 | 6.89e-11 | 6.72e-11 |
+  | 200 | 2.71e-10 | 8.19e-11 | 2.76e-11 | 2.74e-11 |
+  | 500 | 1.08e-10 | 3.06e-11 | 6.02e-12 | 6.02e-12 |
+
+  MDEV from the means equals MDEV from the readings to within 1 to 3 %
+  at every tau, the difference being the count of overlapping windows.
+  ADEV from the means is a factor 3.1 to 3.5 below ADEV from the
+  readings at *every* tau to 500 s -- √10 is 3.16 -- because the
+  receiver's white phase noise dominates the whole range measured: the
+  one-second ADEV falls as 1/τ from 5.2 × 10⁻⁸ at 1 s all the way out.
+  So on this receiver the plain Allan deviation of the record is not
+  the Allan deviation of the 1 PPS anywhere the curve was measured,
+  and the earlier note that it was "exact from about 100 s up" was
+  wrong; MDEV is exact throughout, as the identity says.
 
 What the short end of every curve shows is the receiver's own 1 PPS
 against the GPS engine's, and the manual sets the scale of that.  The

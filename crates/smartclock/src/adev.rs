@@ -51,9 +51,11 @@
 //! does, and Mod sigma_y from the record equals Mod sigma_y of the
 //! underlying one-second phase at every tau of one reading and above.
 //! The plain Allan deviation has no such identity: the receiver's
-//! averaging is a low-pass filter that lowers it at the shortest taus
-//! where white or flicker phase noise dominates, and leaves it
-//! unchanged only from a few reading intervals up.
+//! averaging divides the white phase noise's variance by ten, and for
+//! white PM the Allan variance is `3 sigma_x^2 / tau^2` at every tau,
+//! so the plain deviation of the record sits a factor `sqrt(10)` below
+//! that of the 1 PPS wherever that noise dominates -- on a bench
+//! 58503A, everywhere out to 500 s (`PLAN.md`).
 //!
 //! The maximum time interval error (SP 1065 section 5.2.9) is the third
 //! figure: over every window of `m + 1` consecutive readings, the
