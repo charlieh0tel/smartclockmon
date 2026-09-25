@@ -73,7 +73,7 @@ f ← (1 − a)·f + a·e                      a = 29.75 / τ
 d  = clamp(b + c / y, −M, +M)             y = t / 2700 s, from the aging fit
 I ← I + 10·k·f + 10·d / 2700             k = 1 / (4·G·τ²)
 u  = K·f + B + I + c₀·s                   K = 1 / (G·τ)</div>
-  <p>u is the EFC word sent to the DAC. B is the EFC that was in force when the loop closed, less c₀·s, so closing the loop does not move the oscillator; s is the oscillator's measured oven current and c₀ a stored calibration constant, so that term tracks the oven rather than the phase.</p>
+  <p>u is the EFC word sent to the DAC. B is the EFC that was in force when the loop closed, less c₀·s, so closing the loop does not move the oscillator; s is the health monitor's exponential average of the oscillator's oven current (0.1 of each fresh reading, 0.9 of the last), and c₀ is the value <code>:DIAGnostic:ROSCillator:TCOefficient</code> reads and writes — a calibration constant in the EEPROM block, in EFC units per unit of the current channel, applied at every update and adjusted by nothing but its own setter. That term tracks the oven rather than the phase; the console word <code>xcal</code> measures it by fitting EFC against current.</p>
 </section>
 
 <section>
@@ -88,6 +88,8 @@ u  = K·f + B + I + c₀·s                   K = 1 / (G·τ)</div>
       <tr><td>k</td><td>integral gain per update, 1 / (4·G·τ²), applied ×10 for the ten seconds</td><td colspan="2"></td></tr>
       <tr><td>M</td><td>clamp on the drift term, 6.25 × 10⁻¹⁰ / |G|</td><td colspan="2">±0.5 or ±0.29 EFC units per 2700 s</td></tr>
       <tr><td>x₀</td><td>phase setpoint</td><td colspan="2">0 unless set from the console word <code>phase_off</code></td></tr>
+      <tr><td>c₀</td><td>coefficient on the oscillator current; <code>:DIAGnostic:ROSCillator:TCOefficient</code>, limits ±200, in EEPROM</td><td colspan="2">a calibration value per unit; −33.65 on the bench 58503A, whose loop does not appear to apply it this way</td></tr>
+      <tr><td>s</td><td>oscillator current as the health monitor holds it: an exponential average, not the fresh reading <code>:DIAGnostic:ROSCillator:CURRent?</code> returns</td><td>nominal 250</td><td>channel 3 of its own monitor</td></tr>
       <tr><td>startup τ</td><td>the ramp <code>startup_pll</code> runs before handing over</td><td>150 s → 500 s, +5 s per update, ≈ 700 s</td><td>150 s → 1000 s, ≈ 1700 s</td></tr>
     </tbody>
   </table>
