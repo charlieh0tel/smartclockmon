@@ -1,12 +1,17 @@
-# Settings for one smartclockd instance.  See `smartclockd --help`.
+# Settings shared by every smartclockd instance.  See `smartclockd
+# --help`.
 #
-# Copy to /etc/default/smartclockd.<instance>; `smartclockd@<instance>`
-# reads it.  Every line below is commented out and shows the built-in
-# default.  Uncomment one only to change it -- except the first, which
-# has no default and must be set.
+# Every instance, smartclockd@<port>, reads this file.  Every line
+# below is commented out and shows the built-in default.  Uncomment
+# one only to change it, for every instance at once; a setting for
+# one instance alone goes in its drop-in instead (`systemctl edit
+# smartclockd@ttyUSB0`, an Environment= line), and a setting made
+# here cannot be overridden there.
 
-# REQUIRED.  Uncomment and set; the daemon will not start otherwise.
-#SMARTCLOCKD_DEVICE=/dev/serial/by-id/usb-<your-adapter>-if00-port0
+# The unit sets this from the instance name, /dev/<port>; set it here
+# only to point every instance at the same thing, which is only ever
+# the simulator.
+#SMARTCLOCKD_DEVICE=/dev/<port>
 
 # The rate the receiver is set to.  The 58503A accepts 1200, 2400, 9600
 # or 19200 (097-59551-02 5-101); 4800, 38400, 57600 and 115200 can also
@@ -19,9 +24,8 @@
 # this port into that one file.
 #SMARTCLOCKD_LOG_DIR=/var/lib/smartclockd
 
-# The unit sets this from the instance name; set it here only to put
-# the socket somewhere else.
-#SMARTCLOCKD_SOCKET=/run/smartclockd/<instance>/socket
+# The unit sets this from the instance name.
+#SMARTCLOCKD_SOCKET=/run/smartclockd/<port>/socket
 
 # Seconds between polls of each tier.  The medium tier reads the
 # satellite counts, the oscillator, the condition registers and the

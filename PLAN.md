@@ -801,6 +801,12 @@ its own device and socket -- and the daemon owns the port, so nothing
 in it becomes concurrent.  The template is the only daemon unit, even
 on a host with one port: two ways to run the same daemon, with
 different socket paths and configuration files, was one too many.
+The instance is named by the port, as `serial-getty@` is, and the
+unit derives the device and the socket from the name; a per-instance
+environment file was considered and dropped, since the name already
+says the one thing that differs and a drop-in carries anything else.
+Shared settings stay in `/etc/default/smartclockd`, which every
+instance reads.
 The daemon and the monitor therefore have no socket default, since a
 default would have to guess an instance name, and a guessed path
 fails less clearly than a missing flag.  The viewers are host-wide
@@ -888,7 +894,7 @@ Library layers, bottom up:
   come up and keep retrying with no receiver attached, so there is no
   moment that honestly counts as ready.
 - `Restart=on-failure` with a backoff and a start limit, so a bad
-  setting in `/etc/default/smartclockd.<instance>` lands the unit in `failed`
+  setting in `/etc/default/smartclockd` lands the unit in `failed`
   rather than restarting every five seconds forever.
 - No `BindsTo=` / `After=` for the adapter's `.device` unit.  The
   daemon reconnects on its own and binding would stop it dead while an
@@ -897,10 +903,10 @@ Library layers, bottom up:
   configuration file exists to avoid.  Offered as a drop-in recipe in
   `docs/running.md` instead.
 - Every option readable from `SMARTCLOCKD_*` in the environment, so
-  `/etc/default/smartclockd.<instance>` is the only file an operator
-  edits and `ExecStart=` names no settings at all.  The unit sets one
-  variable itself, the socket, from the instance name; the file may
-  override it.
+  `/etc/default/smartclockd` and a drop-in are the only things an
+  operator edits and `ExecStart=` names no settings at all.  The unit
+  sets two variables itself, the device and the socket, from the
+  instance name.
 - `StateDirectory=smartclockd` for the logs, shared by every instance;
   `RuntimeDirectory=smartclockd/<instance>` for the socket.
 - Dedicated user with `SupplementaryGroups=dialout` for port access;

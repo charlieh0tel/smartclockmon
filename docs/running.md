@@ -2,21 +2,34 @@
 
 ## Installing
 
-The daemon is a template unit, `smartclockd@.service`: one instance
-per serial port, named by you, even where there is one port.  The
-name is the port's, not the receiver's, since receivers move between
-ports and the log follows the receiver.
+The daemon is a template unit, `smartclockd@.service`, one instance
+per serial port and named by the port, the way `serial-getty@` is:
+`smartclockd@ttyUSB0` opens `/dev/ttyUSB0`.  The name is the port's,
+not the receiver's, since receivers move between ports and the log
+follows the receiver.
 
     sudo dpkg -i smartclockmon_0.1.0-1_amd64.deb
-    sudo cp /usr/share/doc/smartclockmon/examples/smartclockd.instance \
-        /etc/default/smartclockd.bench
-    sudoedit /etc/default/smartclockd.bench   # set SMARTCLOCKD_DEVICE
-    sudo systemctl enable --now smartclockd@bench
+    sudo systemctl enable --now smartclockd@ttyUSB0
     sudo usermod -aG smartclockd $USER        # then log in again
 
 The package puts the binaries in `/usr/bin`, creates a `smartclockd`
-system user in `dialout`, and enables nothing: an instance exists
-once its environment file does.
+system user in `dialout`, and enables nothing: you name the port.
+
+`ttyUSB0` moves when another adapter is plugged in.  For a name that
+stays put, either escape the by-id path into the instance name:
+
+    sudo systemctl enable --now \
+        "smartclockd@$(systemd-escape --path /dev/serial/by-id/usb-...-port0 | sed 's,^dev-,,')"
+
+or give the adapter a short name with a udev rule and use that:
+
+    # /etc/udev/rules.d/70-smartclock.rules
+    SUBSYSTEM=="tty", ENV{ID_SERIAL}=="<from udevadm info>", SYMLINK+="smartclock/bench"
+
+    sudo systemctl enable --now smartclockd@smartclock-bench   # /dev/smartclock/bench
+
+The instance name is a path under `/dev` with `/` written as `-`;
+`systemd-escape` does the rest.
 
 The last step is not optional: the socket is mode 0660 owned by
 `smartclockd`, so `smartclockmon` and `smartclock-cli` cannot reach the
@@ -26,8 +39,8 @@ whatever the daemon has been configured to allow.
 
 Check it took:
 
-    systemctl status smartclockd@bench
-    smartclockmon --socket /run/smartclockd/bench/socket
+    systemctl status smartclockd@ttyUSB0
+    smartclockmon --socket /run/smartclockd/ttyUSB0/socket
     sudo -u smartclockd ls /var/lib/smartclockd/
     sudo -u smartclockd sqlite3 /var/lib/smartclockd/<model>-<serial>.sqlite \
         "select count(*), max(at) from snapshot;"
@@ -61,13 +74,27 @@ lamp does not lose the history.
 
 ## Configuring
 
-Everything is in `/etc/default/smartclockd.<instance>`; the unit
-names none of it but the socket, `/run/smartclockd/<instance>/socket`,
-which it sets from the instance name.  Each `SMARTCLOCKD_*` variable
-matches the command line option of the same name, and `smartclockd
---help` documents them.  Restart after a change -- the file is read
-only at startup.  The file is yours, not the package's: upgrades never
-touch it.
+The unit derives two things from the instance name: the device,
+`/dev/<port>`, and the socket, `/run/smartclockd/<port>/socket`.
+Everything else has a default.  Each `SMARTCLOCKD_*` variable matches
+the command line option of the same name, and `smartclockd --help`
+documents them.
+
+A setting for every instance goes in `/etc/default/smartclockd`, a
+conffile the package ships with every line commented out.  A setting
+for one instance goes in its drop-in:
+
+    sudo systemctl edit smartclockd@ttyUSB0
+
+    [Service]
+    Environment=SMARTCLOCKD_ALLOW_RAW=true
+
+A drop-in's `Environment=` beats the unit's own, so it can also
+replace the device -- `SMARTCLOCKD_DEVICE=tcp://127.0.0.1:5025` for
+the simulator -- but it cannot beat the file: systemd applies
+`EnvironmentFile=` over every `Environment=` wherever it is written.
+So make a setting in one place or the other, never both.  Restart
+after a change; both are read only at startup.
 
 `SMARTCLOCKD_DEVICE` is required and has no default, so the service will
 not start until you set it.  A default path does not fail when it is
@@ -113,10 +140,10 @@ newer version -- and `RestartPreventExitStatus=2` makes that final.
 
 | Path                                             | What                       |
 | ------------------------------------------------ | -------------------------- |
-| `/etc/default/smartclockd.<instance>`            | one instance's configuration |
+| `/etc/default/smartclockd`                       | settings for every instance |
+| `/etc/systemd/system/smartclockd@<port>.service.d/` | one instance's settings |
 | `/var/lib/smartclockd/<model>-<serial>.sqlite`   | one log per receiver       |
-| `/run/smartclockd/<instance>/socket`             | where clients connect      |
-| `/usr/share/doc/smartclockmon/examples/smartclockd.instance` | the file to copy |
+| `/run/smartclockd/<port>/socket`                 | where clients connect      |
 
 A log is named after the receiver that answered on the port, and is
 opened only once one has: a unit moved to another port or another
@@ -132,12 +159,9 @@ point of the record is to still have last year's holdover events.
 
 A second port is a second instance, exactly like the first:
 
-    sudo cp /usr/share/doc/smartclockmon/examples/smartclockd.instance \
-        /etc/default/smartclockd.second
-    sudoedit /etc/default/smartclockd.second    # set SMARTCLOCKD_DEVICE
-    sudo systemctl enable --now smartclockd@second
+    sudo systemctl enable --now smartclockd@ttyUSB1
 
-    smartclockmon --socket /run/smartclockd/second/socket
+    smartclockmon --socket /run/smartclockd/ttyUSB1/socket
 
 The instances share `/var/lib/smartclockd`, and since each writes the
 file named for the receiver on its own port, and a receiver is on one
@@ -157,7 +181,7 @@ to a device unit -- binding stops it dead while an adapter is out, which
 is wrong for something meant to log continuously.  For that behaviour
 anyway, add a drop-in rather than editing the shipped unit:
 
-    sudo systemctl edit smartclockd@bench
+    sudo systemctl edit smartclockd@ttyUSB0
 
     [Unit]
     BindsTo=dev-serial-by\x2did-usb\x2dYOUR_ADAPTER.device

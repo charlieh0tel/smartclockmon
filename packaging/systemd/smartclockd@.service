@@ -1,35 +1,42 @@
 [Unit]
-Description=SmartClock GPS receiver logging daemon on port %i
+Description=SmartClock GPS receiver logging daemon on /dev/%I
 Documentation=https://github.com/charlieh0tel/smartclockmon
 # The only daemon unit: one instance per port, even where there is
-# one port.  `systemctl enable --now smartclockd@bench1` reads
-# /etc/default/smartclockd.bench1, which names that port's adapter,
-# and serves /run/smartclockd/bench1/socket.  The logs are shared:
-# every instance writes /var/lib/smartclockd/<model>-<serial>.sqlite
-# for whichever receiver answers on its port, so a unit moved between
-# ports keeps one history.  Nothing here names the adapter; the daemon
-# reconnects by itself when a USB adapter re-enumerates, and Restart=
-# covers the cases it cannot.  See docs/running.md.
+# one port, named by the port as getty does it.
+# `systemctl enable --now smartclockd@ttyUSB0` opens /dev/ttyUSB0 and
+# serves /run/smartclockd/ttyUSB0/socket; a udev symlink or an escaped
+# by-id path (systemd-escape --path) gives a stable name.  Settings
+# shared by every instance go in /etc/default/smartclockd; one
+# instance's differences go in a drop-in, `systemctl edit
+# smartclockd@ttyUSB0`, as Environment= lines -- which beat the two
+# below but not the file, so a setting is made in one place or the
+# other.  The logs are shared: every instance writes
+# /var/lib/smartclockd/<model>-<serial>.sqlite for whichever receiver
+# answers on its port, so a unit moved between ports keeps one
+# history.  The daemon reconnects by itself when a USB adapter
+# re-enumerates, and Restart= covers the cases it cannot.  See
+# docs/running.md.
 
 StartLimitIntervalSec=300
 StartLimitBurst=10
 
 [Service]
 Type=exec
-# The environment file wins over this line, so an instance can still
-# put its socket elsewhere.
+# Both derived from the instance name; a drop-in's Environment= or
+# the file below overrides either.
+Environment=SMARTCLOCKD_DEVICE=/dev/%I
 Environment=SMARTCLOCKD_SOCKET=/run/smartclockd/%i/socket
-EnvironmentFile=-/etc/default/smartclockd.%i
+EnvironmentFile=-/etc/default/smartclockd
 ExecStart=/usr/bin/smartclockd
-# on-failure, not always, with a limit: a bad setting in the
-# environment file makes the daemon exit at startup, and without a
-# limit that is a restart every five seconds forever rather than a
-# unit that lands in "failed" where the operator can see it.  clap
-# exits 2 for a usage error, which here means the configuration is
-# wrong -- SMARTCLOCKD_DEVICE unset, a baud the receiver cannot do, an
-# allow flag that is not true or false.  Retrying cannot fix any of
-# those, so fail once and stay failed.  A runtime failure exits 1 and
-# still restarts.
+# on-failure, not always, with a limit: a bad setting makes the daemon
+# exit at startup, and without a limit that is a restart every five
+# seconds forever rather than a unit that lands in "failed" where the
+# operator can see it.  clap exits 2 for a usage error, which here
+# means the configuration is wrong -- a baud the receiver cannot do,
+# an allow flag that is not true or false.  Retrying cannot fix any
+# of those, so fail once and stay failed.  A runtime failure exits 1
+# and still restarts, which covers an instance named for a port that
+# is not plugged in yet.
 Restart=on-failure
 RestartSec=5
 RestartPreventExitStatus=2

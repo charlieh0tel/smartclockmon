@@ -48,7 +48,7 @@ assets = [
     ["target/release/smartclock-exporter", "usr/bin/", "755"],
     ["target/release/smartclock-web", "usr/bin/", "755"],
     ["../../packaging/systemd/smartclockd@.service", "usr/lib/systemd/system/smartclockd@.service", "644"],
-    ["../../packaging/systemd/smartclockd.instance.default", "usr/share/doc/smartclockmon/examples/smartclockd.instance", "644"],
+    ["../../packaging/systemd/smartclockd.default", "etc/default/smartclockd", "644"],
     ["../../packaging/systemd/smartclock-exporter.default", "etc/default/smartclock-exporter", "644"],
     ["../../packaging/systemd/smartclock-web.default", "etc/default/smartclock-web", "644"],
     ["../../README.md", "usr/share/doc/smartclockmon/README.md", "644"],
@@ -60,6 +60,7 @@ assets = [
     ["../../docs/OCXO.md", "usr/share/doc/smartclockmon/OCXO.md", "644"],
 ]
 conf-files = [
+    "/etc/default/smartclockd",
     "/etc/default/smartclock-exporter",
     "/etc/default/smartclock-web",
 ]
