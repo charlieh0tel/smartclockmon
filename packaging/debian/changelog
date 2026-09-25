@@ -1,3 +1,15 @@
+smartclockmon (0.6.14-1) unstable; urgency=low
+
+  * Give the time deviation a chart of its own under the stability
+    chart, sharing its tau axis and cursor: it is in seconds and rises
+    where the sigma-y curves fall, so a second axis on one plot paired
+    the wrong curve with the wrong scale.
+  * Draw ADEV at full strength beside MDEV; larger axis text; the table
+    holds its five columns without wrapping a figure and names the
+    MDEV and ADEV point counts in columns of their own.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Thu, 24 Sep 2026 18:42:01 -0700
+
 smartclockmon (0.6.13-1) unstable; urgency=low
 
   * Measure the modified Allan deviation and the time deviation beside
