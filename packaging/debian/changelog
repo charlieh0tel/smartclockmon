@@ -1,3 +1,13 @@
+smartclockmon (0.6.22-1) unstable; urgency=low
+
+  * Shade MDEV, ADEV and TDEV to their one-sigma confidence intervals
+    on the stability page, and tabulate the bounds and the noise type
+    at each tau.  Chi-squared with Greenhall's degrees of freedom for
+    the noise the lag 1 autocorrelation method identifies (NIST SP
+    1065 sections 5.3 to 5.5), checked against allantools.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Fri, 25 Sep 2026 16:48:37 -0700
+
 smartclockmon (0.6.21-1) unstable; urgency=low
 
   * Name a daemon instance by its port: smartclockd@ttyUSB0 opens
