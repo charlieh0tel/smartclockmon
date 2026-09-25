@@ -1,3 +1,15 @@
+smartclockmon (0.6.21-1) unstable; urgency=low
+
+  * Name a daemon instance by its port: smartclockd@ttyUSB0 opens
+    /dev/ttyUSB0 and serves /run/smartclockd/ttyUSB0/socket.  The
+    per-instance file /etc/default/smartclockd.<instance> is gone;
+    /etc/default/smartclockd is back as the settings every instance
+    shares, and one instance's differences go in its drop-in
+    (systemctl edit smartclockd@ttyUSB0).  Re-enable your instance
+    under the port's name.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Fri, 25 Sep 2026 16:21:52 -0700
+
 smartclockmon (0.6.20-1) unstable; urgency=low
 
   * smartclock-web and smartclock-exporter read every daemon on the
