@@ -30,12 +30,12 @@ D-11):
 | -------- | ----- | ------- |
 | SYPCR `0xfffa21` | `0xcc` | SWE, SWP, HME, BME: software watchdog on and prescaled by 512, halt and bus monitors on (D.3.12) |
 | CSBARBT `0xfffa48` | `0x0006` | boot chip select: `0x000000`, 512 KB -- the ROM this image is |
-| CSBAR0, 2, 3 | `0x1003` | `0x100000`, 64 KB -- the RAM |
+| CSBAR0, 2, 3 | `0x1003` | `0x100000`, 64 KB -- the RAM: CSOR0 `0x6830` reads both bytes, CSOR2 `0x5030` writes the upper, CSOR3 `0x3030` the lower |
 | CSBAR1 | `0x3000` | `0x300000`, 2 KB |
 | CSBAR4 | `0xfff8` | `0xfff800`, 2 KB |
 | CSBAR5 | `0x3040` | `0x304000`, 2 KB |
-| CSBAR6 | `0x0006` | `0x000000`, 512 KB |
-| CSBAR7 | `0x3020` | `0x302000`, 2 KB -- the word G is chosen by |
+| CSBAR6 | `0x0006` | `0x000000`, 512 KB, CSOR6 `0x7070`: write only -- the boot ROM's own range, for writing it |
+| CSBAR7 | `0x3020` | `0x302000`, 2 KB -- the word G is chosen by; CSOR7 `0x6870`: both bytes, read only, one wait state, and CSPAR1 `0x2af` makes CS7 a 16-bit port (Tables D-9, D-10, D-12) |
 | CSBAR8 | `0x2000` | `0x200000`, 2 KB -- the DUART |
 | CSBAR9 | `0x4001` | `0x400000`, 8 KB -- the checksummed block at `0x400080` |
 | CSBAR10 | `0x5000` | `0x500000`, 2 KB |
@@ -546,8 +546,17 @@ lock at `0x1023fa`.
 G is a constant.  `FUN_0004b088` reads the hardware word at
 `0x302000` and passes −1.25 × 10⁻¹² if bit 8 is set and
 −2.125 × 10⁻¹² if it is clear (`0x4b14c` to `0x4b166`); the Z3801A's
-image passes a fixed +6.25 × 10⁻¹³ (`0x475bc`).  What the bit or the
-sign stand for was not traced.
+image passes a fixed +6.25 × 10⁻¹³ (`0x475bc`).  That word is the
+whole of what the firmware does with chip select 7: the reset code
+makes `0x302000` a 2 KB, 16-bit, read-only block with one wait state
+(see the chip-select table above), `0x4b14c` is the only access to it
+in the image -- every other form of the address was searched for --
+and only bit 8 of the word is ever looked at.  So it is an input port
+the processor reads once, when the loop task starts, and what drives
+its bit 8 -- a link, a switch, or a signal from the oscillator or
+DAC board -- is on the board, not in the image.  The Z3801A's reset
+code sets no chip select there and its image never reads the address.
+What the sign of G stands for was not traced.
 
 `FUN_0004b022(G)` stores G, sets both gain constants to 1/G, sets M to
 6.25 × 10⁻¹⁰ / |G|, and sets a second limit at `0x102c3c` to
@@ -980,7 +989,9 @@ there.  The unpacker takes the same opcodes.
   manual's and the `0xfff900` block rules out the 68332, but the part
   name comes from an owner's description of the board, not from the
   image.
-- What sits on chip select 7 at `0x302000`, whose bit 8 chooses G.
+- What drives bit 8 of the read-only port at `0x302000`, which
+  chooses between the Z3816A's two values of G.  The image reads it
+  once and looks at nothing else in that block.
 - Which driver pSOS device 0, the console's, selects: the I/O switch
   table was not found in ROM.  Whether any sequence of the console's
   pSOS words gets SCPI back short of a power cycle was not tried.
