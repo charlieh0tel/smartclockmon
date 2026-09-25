@@ -7,8 +7,8 @@ to regenerate; a test fails if this file and the table disagree.
 
 | Tree | Commands | Hardware | Firmware | Manual |
 | ---- | -------- | -------- | -------- | ------ |
-| 58503A/B, 59551A | 129 | 91 | 0 | 38 |
-| Z3801A, Z3816A | 82 | 18 | 63 | 1 |
+| 58503A/B, 59551A | 130 | 92 | 0 | 38 |
+| Z3801A, Z3816A | 83 | 19 | 63 | 1 |
 
 **H** means the receiver answered it.  **F** means every keyword
 appears in the firmware's own keyword table, so the spelling is
@@ -17,19 +17,20 @@ it was transcribed from a manual and nothing more.
 
 | Class | Commands | Gate |
 | ----- | -------- | ---- |
-| Query | 90 | none |
+| Query | 91 | none |
 | Control | 31 | `--allow-control` |
 | Dangerous | 8 | `--allow-dangerous` |
 
 ## Undocumented
 
-11 commands appear in none of the manuals here.  They were found
+12 commands appear in none of the manuals here.  They were found
 by building candidate paths from the firmware's keyword table and
 sending them to a receiver: an unknown header returns -113 and
 changes nothing, so a sweep is safe and settles the question.
 
 | Command | Operation | Found on |
 | ------- | --------- | -------- |
+| `:DIAGnostic:PTIMe:TINTerval?` | tinterval reading | a 58503A |
 | `:DIAGnostic:TEMPerature?` | temperature | a 58503A |
 | `:DIAGnostic:ROSCillator:CURRent?` | oven current | a 58503A |
 | `:DIAGnostic:ROSCillator:EFControl:ABSolute?` | efc absolute | a 58503A |
@@ -93,6 +94,7 @@ anything reaching the receiver.
 | ffom | Query | `:SYNChronization:FFOMerit?` H | `:PTIMe:FFOMerit?` F |
 | tfom | Query | `:SYNChronization:TFOMerit?` H | `:PTIMe:TFOMerit?` H |
 | tinterval | Query | `:SYNChronization:TINTerval?` H | `:PTIMe:TINTerval?` F |
+| tinterval reading | Query | `:DIAGnostic:PTIMe:TINTerval?` H (58503A) | `:DIAGnostic:PTIMe:TINTerval?` H |
 | holdover unc pred | Query | `:SYNChronization:HOLDover:TUNCertainty:PREDicted?` H | `:ROSCillator:HOLDover:TUNCertainty:PREDicted?` F |
 | holdover unc now | Query | `:SYNChronization:HOLDover:TUNCertainty:PRESent?` H | `:ROSCillator:HOLDover:TUNCertainty:PRESent?` F |
 | holdover duration | Query | `:SYNChronization:HOLDover:DURation?` H | `:ROSCillator:HOLDover:DURation?` F |

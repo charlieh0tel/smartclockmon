@@ -827,6 +827,24 @@ doc = "1 PPS to GPS 1 PPS interval, seconds."
   evidence = "firmware"
 
 [[command]]
+id = "tinterval_reading"
+class = "query"
+doc = "The latest one-second 1 PPS to GPS 1 PPS interval, seconds, before the ten-second averaging behind `tinterval`; carries the GPS engine's sawtooth uncorrected.  The daemon does not poll it.  See docs/firmware.md, What the query returns."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:PTIMe:TINTerval?"
+  response = "real"
+  models = ["58503A"]
+  cite = "discovered on a 58503A"
+  evidence = "hardware"
+  [command.dialect.z3801]
+  scpi = ":DIAGnostic:PTIMe:TINTerval?"
+  response = "real"
+  models = ["Z3805A"]
+  cite = "discovered on a Z3805A"
+  evidence = "hardware"
+
+[[command]]
 id = "holdover_unc_pred"
 class = "query"
 doc = "Predicted one-day holdover time error, seconds."
