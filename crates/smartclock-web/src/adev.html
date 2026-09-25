@@ -38,6 +38,7 @@
   </div>
   <div id="pane">
     <div id="chart"></div>
+    <div id="chart-tdev"></div>
   </div>
   <div id="table-wrap">
     <table id="table"><tbody class="muted"><tr><td>loading...</td></tr></tbody></table>
@@ -63,6 +64,10 @@ const RANGES = [
 // slope between decades is what names the noise.
 const LOG = { distr: 3, log: 10 };
 
+// uPlot's axis text defaults to 12px, which is small for numbers that
+// are read off, not just glanced at.
+const AXIS_FONT = "14px system-ui, sans-serif";
+
 // The plot fills what the pane has left after the table, between these
 // bounds.  uPlot draws its text at a fixed size however wide the plot
 // is, so width buys plotting area rather than magnifying everything --
@@ -70,7 +75,13 @@ const LOG = { distr: 3, log: 10 };
 const PLOT = { min: 360, ratio: 2.5, shortest: 300, tallest: 560 };
 
 let chart = null;
+// The time deviation on a chart of its own under the first: it is in
+// seconds where the others are dimensionless, and it rises where they
+// fall, so sharing their plot through a second axis pairs the wrong
+// curve with the wrong scale by eye.  The two share tau and a cursor.
+let tdevChart = null;
 let range = 3600;
+const SYNC = "stability";
 
 // Measured on the pane, never on the chart itself: the chart is a flex
 // item that is emptied before being rebuilt, and measuring it at that
@@ -165,12 +176,54 @@ function inSeconds(v) {
   return `${v.toFixed(v < 10 ? 2 : 0)} s`;
 }
 
+// The tau axis, the same on both charts.
+function tauAxis() {
+  return {
+    scale: "x",
+    stroke: "#8b929c",
+    grid: { stroke: "#2b3038" },
+    label: "averaging time τ, seconds",
+    labelSize: 28,
+    font: AXIS_FONT,
+    labelFont: AXIS_FONT,
+    splits: graduations,
+    values: (_, splits) => splits.map((v) => (whole(v) ? plain(v) : null)),
+  };
+}
+
+function sigmaAxis(label) {
+  return {
+    scale: "y",
+    stroke: "#8b929c",
+    grid: { stroke: "#2b3038" },
+    size: 72,
+    label,
+    labelSize: 28,
+    font: AXIS_FONT,
+    labelFont: AXIS_FONT,
+    splits: graduations,
+    values: (_, splits) => splits.map((v) => (whole(v) ? power(v) : null)),
+  };
+}
+
+// uPlot drags to zoom by default, and on two log axes it is easy to
+// end up somewhere with no way back.  Double click returns to the
+// whole curve, as it does on the history page.
+function resettable(u) {
+  u.over.addEventListener("dblclick", () => {
+    u.setScale("x", { min: null, max: null });
+    u.setScale("y", { min: null, max: null });
+  });
+}
+
 function draw(points) {
-  if (chart) {
-    chart.destroy();
-    chart = null;
+  for (const old of [chart, tdevChart]) {
+    if (old) old.destroy();
   }
+  chart = null;
+  tdevChart = null;
   $("chart").innerHTML = "";
+  $("chart-tdev").innerHTML = "";
   if (!points.length) {
     $("chart").innerHTML = `<p class="muted pad">nothing to plot in this range</p>`;
     return;
@@ -182,54 +235,28 @@ function draw(points) {
   }
   const size = { width: width(), height: 0 };
   size.height = height(size.width);
-  // Three curves.  The modified deviation is the one this record
-  // supports exactly -- the receiver's reading is already a ten-second
-  // mean, which is the innermost block of the modified form's own
-  // averaging -- so it leads; the plain Allan deviation is drawn dim
-  // beside it because data sheets quote that one; and the time
-  // deviation, in seconds, has an axis of its own on the right.  A
-  // point the modified form lacks (it needs three whole windows) is a
-  // hole in its series, which uPlot leaves as a break in the line.
+  // Two curves on the first chart.  The modified deviation is the one
+  // this record supports exactly -- the receiver's reading is already
+  // a ten-second mean, which is the innermost block of the modified
+  // form's own averaging -- so it leads; the plain Allan deviation is
+  // drawn dim beside it because data sheets quote that one.  A point
+  // the modified form lacks (it needs three whole windows) is a hole
+  // in its series, which uPlot leaves as a break in the line.
+  const tau = points.map((p) => p.tau);
   const modified = points.map((p) => (p.modified ? p.modified.deviation : null));
   const time = points.map((p) => (p.modified ? p.modified.time : null));
+  // uPlot's legend is a live cursor readout, which is worth having on
+  // a curve whose points are decades apart and hard to read off an
+  // axis; the symbols say these are the coordinates of the point
+  // under the cursor.  The cursor is shared between the two charts.
+  const cursor = { points: { size: 8 }, sync: { key: SYNC, setSeries: false } };
   chart = new uPlot(
     {
       width: size.width,
       height: size.height,
       title: "Stability of the 1 PPS against GPS",
-      scales: { x: LOG, y: LOG, t: LOG },
-      axes: [
-        {
-          scale: "x",
-          stroke: "#8b929c",
-          grid: { stroke: "#2b3038" },
-          label: "averaging time τ, seconds",
-          labelSize: 26,
-          splits: graduations,
-          values: (_, splits) => splits.map((v) => (whole(v) ? plain(v) : null)),
-        },
-        {
-          scale: "y",
-          stroke: "#8b929c",
-          grid: { stroke: "#2b3038" },
-          size: 62,
-          label: "deviation σy",
-          labelSize: 26,
-          splits: graduations,
-          values: (_, splits) => splits.map((v) => (whole(v) ? power(v) : null)),
-        },
-        {
-          scale: "t",
-          side: 1,
-          stroke: "#8b929c",
-          grid: { show: false },
-          size: 62,
-          label: "time deviation σx, seconds",
-          labelSize: 26,
-          splits: graduations,
-          values: (_, splits) => splits.map((v) => (whole(v) ? power(v) : null)),
-        },
-      ],
+      scales: { x: LOG, y: LOG },
+      axes: [tauAxis(), sigmaAxis("deviation σy")],
       series: [
         { label: "τ", value: (_, v) => seconds(v) },
         {
@@ -247,35 +274,38 @@ function draw(points) {
           points: { show: true, size: 4 },
           value: (_, v) => decade(v),
         },
+      ],
+      legend: { show: true, live: true },
+      cursor,
+    },
+    [tau, modified, points.map((p) => p.deviation)],
+    $("chart"),
+  );
+  resettable(chart);
+  tdevChart = new uPlot(
+    {
+      width: size.width,
+      height: Math.round(size.height * 0.6),
+      title: "Time deviation",
+      scales: { x: LOG, y: LOG },
+      axes: [tauAxis(), sigmaAxis("σx, seconds")],
+      series: [
+        { label: "τ", value: (_, v) => seconds(v) },
         {
           label: "TDEV",
-          scale: "t",
           stroke: "#f59e0b",
-          width: 1,
-          points: { show: true, size: 4 },
+          width: 1.5,
+          points: { show: true, size: 5 },
           value: (_, v) => (Number.isFinite(v) ? `${decade(v)} s` : "--"),
         },
       ],
-      // uPlot's legend is a live cursor readout, which is worth having
-      // on a curve whose points are decades apart and hard to read off
-      // an axis.  It confused because it was labelled "tau" and
-      // "sigma_y" under a single trace, as though two things were
-      // plotted; the symbols say plainly that these are the two
-      // coordinates of the point under the cursor.
       legend: { show: true, live: true },
-      cursor: { points: { size: 8 } },
+      cursor,
     },
-    [points.map((p) => p.tau), modified, points.map((p) => p.deviation), time],
-    $("chart"),
+    [tau, time],
+    $("chart-tdev"),
   );
-  // uPlot drags to zoom by default, and on two log axes it is easy to
-  // end up somewhere with no way back.  Double click returns to the
-  // whole curve, as it does on the history page.
-  chart.over.addEventListener("dblclick", () => {
-    chart.setScale("x", { min: null, max: null });
-    chart.setScale("y", { min: null, max: null });
-    chart.setScale("t", { min: null, max: null });
-  });
+  resettable(tdevChart);
 }
 
 function table(d) {
@@ -396,6 +426,7 @@ addEventListener("resize", () => {
   if (!chart) return;
   const w = width();
   chart.setSize({ width: w, height: height(w) });
+  if (tdevChart) tdevChart.setSize({ width: w, height: Math.round(height(w) * 0.6) });
 });
 
 chooseReceiver(load).then(load);

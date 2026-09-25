@@ -98,7 +98,8 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
    narrow column of tau and sigma_y next to a single curve reads as a
    legend for a chart that has only one thing on it. */
 #pane { display: block; }
-#chart { width: 100%; }
+#chart, #chart-tdev { width: 100%; }
+#chart-tdev { margin-top: 8px; }
 /* Five columns of figures now, so wide enough for them and no cell
    ever wraps: a deviation broken across two lines is unreadable. */
 #table-wrap { max-width: 70ch; margin-top: 10px; overflow-x: auto; }
