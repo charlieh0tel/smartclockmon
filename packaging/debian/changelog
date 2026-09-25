@@ -1,3 +1,26 @@
+smartclockmon (0.6.13-1) unstable; urgency=low
+
+  * Measure the modified Allan deviation and the time deviation beside
+    the plain one.  The receiver's reading is already a ten-second
+    mean, which the modified form's own averaging absorbs exactly and
+    the plain form does not, so MDEV leads; ADEV stays for comparison
+    with data sheets.  Checked against allantools and NIST SP 1065
+    Table 31.  The browser plots all three, TDEV on its own axis; the
+    monitor draws MDEV over ADEV.
+  * Give the stability table's averaging times in seconds only.
+  * Share a silent daemon's failure among the browser requests waiting
+    on it, rather than letting each time out in turn.
+  * Read the firmware further: docs/firmware.md now covers the loop's
+    aging feed-forward, the startup ramp, the pForth console and its
+    port, the stage names, the tau block and the processor's
+    chip-select map, citing the MC68331 manual added to third_party/
+    beside the firmware images and an owner's description of the
+    Z3801A outer oven.
+  * List the hardware investigations that would settle what the images
+    cannot, in docs/hardware-investigations.md.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Thu, 24 Sep 2026 18:14:44 -0700
+
 smartclockmon (0.6.12-1) unstable; urgency=low
 
   * Store timestamps with nine fractional digits, so the log sorts in
