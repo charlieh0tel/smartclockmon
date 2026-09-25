@@ -290,21 +290,21 @@ function table(d) {
     "<thead><tr><th>averaging time</th>" +
     `<th title="modified Allan deviation: exact for these readings, ` +
     `which are already ten-second means">MDEV</th>` +
-    `<th title="time deviation, τ·MDEV/√3">TDEV</th>` +
+    `<th title="time deviation, τ·MDEV/√3, in seconds">TDEV, s</th>` +
     `<th title="overlapping Allan deviation, as data sheets quote it; ` +
     `low at the shortest τ because the readings are averaged">ADEV</th>` +
-    `<th title="second differences behind ADEV / averaged triples behind ` +
-    `MDEV; each needs its readings present, which is what a gap takes ` +
-    `away">differences</th>` +
+    `<th title="averaged triples behind MDEV, second differences behind ` +
+    `ADEV; each needs its readings present, which is what a gap takes ` +
+    `away">triples MDEV / ADEV</th>` +
     "</tr></thead><tbody>" +
     d.points
       .map(
         (p) =>
           `<tr><td>${esc(inSeconds(p.tau))}</td>` +
           `<td>${p.modified ? esc(decade(p.modified.deviation)) : "--"}</td>` +
-          `<td>${p.modified ? esc(decade(p.modified.time)) + " s" : "--"}</td>` +
+          `<td>${p.modified ? esc(decade(p.modified.time)) : "--"}</td>` +
           `<td>${esc(decade(p.deviation))}</td>` +
-          `<td class="muted">${p.differences} / ${p.modified ? p.modified.averages : "--"}</td></tr>`,
+          `<td class="muted">${p.modified ? p.modified.averages : "--"} / ${p.differences}</td></tr>`,
       )
       .join("") +
     "</tbody>";
