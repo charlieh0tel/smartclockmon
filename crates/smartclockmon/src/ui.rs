@@ -748,11 +748,20 @@ fn stability(frame: &mut Frame, area: Rect, app: &App) {
         return;
     }
 
-    let points: Vec<(f64, f64)> = curve
+    // The modified deviation is the one this record supports exactly
+    // (see `smartclock::adev`); the plain one is drawn beside it, dim,
+    // for comparison with the figures data sheets quote.
+    let plain: Vec<(f64, f64)> = curve
         .points
         .iter()
         .map(|p| (p.tau.log10(), p.deviation.log10()))
         .collect();
+    let modified: Vec<(f64, f64)> = curve
+        .points
+        .iter()
+        .filter_map(|p| Some((p.tau.log10(), p.modified?.deviation.log10())))
+        .collect();
+    let points: Vec<(f64, f64)> = plain.iter().chain(&modified).copied().collect();
     let bounds = |values: &[f64]| {
         let low = values.iter().copied().fold(f64::INFINITY, f64::min).floor();
         let high = values
@@ -779,10 +788,17 @@ fn stability(frame: &mut Frame, area: Rect, app: &App) {
 
     let datasets = vec![
         Dataset::default()
+            .name("ADEV")
+            .marker(ratatui::symbols::Marker::Braille)
+            .graph_type(ratatui::widgets::GraphType::Line)
+            .style(Style::new().fg(Color::DarkGray))
+            .data(&plain),
+        Dataset::default()
+            .name("MDEV")
             .marker(ratatui::symbols::Marker::Braille)
             .graph_type(ratatui::widgets::GraphType::Line)
             .style(Style::new().fg(Color::Cyan))
-            .data(&points),
+            .data(&modified),
     ];
     let axis = Style::new().fg(Color::DarkGray);
     // The coverage is in the title because the curve cannot show it: a
@@ -803,7 +819,7 @@ fn stability(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(
         Chart::new(datasets)
             .block(block(&title))
-            .legend_position(None)
+            .legend_position(Some(ratatui::widgets::LegendPosition::TopRight))
             .x_axis(
                 Axis::default()
                     .style(axis)

@@ -31,7 +31,7 @@
 
 <div class="panel">
   <div class="controls">
-    <h2>Allan deviation</h2>
+    <h2>Stability</h2>
     <span class="grow"></span>
     <span id="ranges"></span>
     <button id="reset" title="Whole curve, last hour">reset</button>
@@ -182,12 +182,22 @@ function draw(points) {
   }
   const size = { width: width(), height: 0 };
   size.height = height(size.width);
+  // Three curves.  The modified deviation is the one this record
+  // supports exactly -- the receiver's reading is already a ten-second
+  // mean, which is the innermost block of the modified form's own
+  // averaging -- so it leads; the plain Allan deviation is drawn dim
+  // beside it because data sheets quote that one; and the time
+  // deviation, in seconds, has an axis of its own on the right.  A
+  // point the modified form lacks (it needs three whole windows) is a
+  // hole in its series, which uPlot leaves as a break in the line.
+  const modified = points.map((p) => (p.modified ? p.modified.deviation : null));
+  const time = points.map((p) => (p.modified ? p.modified.time : null));
   chart = new uPlot(
     {
       width: size.width,
       height: size.height,
-      title: "Allan deviation of the 1 PPS against GPS",
-      scales: { x: LOG, y: LOG },
+      title: "Stability of the 1 PPS against GPS",
+      scales: { x: LOG, y: LOG, t: LOG },
       axes: [
         {
           scale: "x",
@@ -208,15 +218,42 @@ function draw(points) {
           splits: graduations,
           values: (_, splits) => splits.map((v) => (whole(v) ? power(v) : null)),
         },
+        {
+          scale: "t",
+          side: 1,
+          stroke: "#8b929c",
+          grid: { show: false },
+          size: 62,
+          label: "time deviation σx, seconds",
+          labelSize: 26,
+          splits: graduations,
+          values: (_, splits) => splits.map((v) => (whole(v) ? power(v) : null)),
+        },
       ],
       series: [
         { label: "τ", value: (_, v) => seconds(v) },
         {
-          label: "σy",
+          label: "MDEV",
           stroke: "#38bdf8",
           width: 1.5,
           points: { show: true, size: 5 },
           value: (_, v) => decade(v),
+        },
+        {
+          label: "ADEV",
+          stroke: "#8b929c",
+          width: 1,
+          dash: [6, 4],
+          points: { show: true, size: 4 },
+          value: (_, v) => decade(v),
+        },
+        {
+          label: "TDEV",
+          scale: "t",
+          stroke: "#f59e0b",
+          width: 1,
+          points: { show: true, size: 4 },
+          value: (_, v) => (Number.isFinite(v) ? `${decade(v)} s` : "--"),
         },
       ],
       // uPlot's legend is a live cursor readout, which is worth having
@@ -228,7 +265,7 @@ function draw(points) {
       legend: { show: true, live: true },
       cursor: { points: { size: 8 } },
     },
-    [points.map((p) => p.tau), points.map((p) => p.deviation)],
+    [points.map((p) => p.tau), modified, points.map((p) => p.deviation), time],
     $("chart"),
   );
   // uPlot drags to zoom by default, and on two log axes it is easy to
@@ -237,6 +274,7 @@ function draw(points) {
   chart.over.addEventListener("dblclick", () => {
     chart.setScale("x", { min: null, max: null });
     chart.setScale("y", { min: null, max: null });
+    chart.setScale("t", { min: null, max: null });
   });
 }
 
@@ -249,15 +287,24 @@ function table(d) {
     return;
   }
   $("table").innerHTML =
-    "<thead><tr><th>averaging time</th><th>deviation</th>" +
-    `<th title="second differences behind this point; each needs three ` +
-    `phase readings, which is what a gap takes away">differences</th>` +
+    "<thead><tr><th>averaging time</th>" +
+    `<th title="modified Allan deviation: exact for these readings, ` +
+    `which are already ten-second means">MDEV</th>` +
+    `<th title="time deviation, τ·MDEV/√3">TDEV</th>` +
+    `<th title="overlapping Allan deviation, as data sheets quote it; ` +
+    `low at the shortest τ because the readings are averaged">ADEV</th>` +
+    `<th title="second differences behind ADEV / averaged triples behind ` +
+    `MDEV; each needs its readings present, which is what a gap takes ` +
+    `away">differences</th>` +
     "</tr></thead><tbody>" +
     d.points
       .map(
         (p) =>
-          `<tr><td>${esc(inSeconds(p.tau))}</td><td>${esc(decade(p.deviation))}</td>` +
-          `<td class="muted">${p.differences}</td></tr>`,
+          `<tr><td>${esc(inSeconds(p.tau))}</td>` +
+          `<td>${p.modified ? esc(decade(p.modified.deviation)) : "--"}</td>` +
+          `<td>${p.modified ? esc(decade(p.modified.time)) + " s" : "--"}</td>` +
+          `<td>${esc(decade(p.deviation))}</td>` +
+          `<td class="muted">${p.differences} / ${p.modified ? p.modified.averages : "--"}</td></tr>`,
       )
       .join("") +
     "</tbody>";
@@ -340,7 +387,10 @@ $("caveat").textContent =
   "The interval measured is between the 1 PPS from the GPS receiver, " +
   "which is quantized to that receiver's own crystal, and a 1 PPS " +
   "divided down from the OCXO. While locked, the OCXO is steered to " +
-  "follow it.";
+  "follow it. Each reading is the receiver's own mean of ten seconds, " +
+  "which the modified deviation absorbs exactly and the plain Allan " +
+  "deviation does not: its first points are low where phase noise " +
+  "dominates, and it is right from about ten readings up.";
 
 addEventListener("resize", () => {
   if (!chart) return;

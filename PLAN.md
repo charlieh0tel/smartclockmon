@@ -707,10 +707,13 @@ consecutive samples of the 10 s means is the same window mean as over
 10n one-second readings, so MDEV computed from the record equals MDEV
 of the underlying one-second phase at every tau of 10 s and above,
 with only the count of overlapping estimates reduced.  TDEV follows as
-tau times MDEV over root three.  The decision is to add MDEV and TDEV
-as the primary curves and keep ADEV, labelled, for comparison with the
-oscillator and receiver data sheets, which quote ADEV; this is open
-question 6.  `:PTIMe:TINTerval?`, which returns the latest one-second
+tau times MDEV over root three.  So MDEV and TDEV are the primary
+curves, computed beside ADEV from the same gridded segments -- a hole
+voids every window that spans it, `3m` triples rather than three --
+and ADEV is kept, labelled, for comparison with the oscillator and
+receiver data sheets, which quote it.  Both are checked against
+allantools' `mdev` and `tdev` and against Table 31's modified Allan
+and time deviation columns.  `:PTIMe:TINTerval?`, which returns the latest one-second
 reading, would extend the curves below 10 s, and is not going to be
 polled: it costs a query a second and ten times the phase rows for
 the receiver-noise floor alone.
@@ -1196,15 +1199,10 @@ Things that are not decided, as distinct from the defects below.
    implementation of a deliberate acknowledgement and exactly the wrong
    thing to do on a timer.  Nothing needs it yet.
 
-6. **MDEV and TDEV beside ADEV.**  Decided but not built; see "Allan
-   deviation is computed over segments" for why MDEV is exact on this
-   record where ADEV is filtered.  To do: overlapping MDEV over
-   cumulative sums of the gridded phase, with the same segment and gap
-   handling; TDEV from it; the reference tests extended to
-   allantools' `mdev` and `tdev` and to NIST SP 1065 Table 31's MDEV
-   and TDEV columns; the web chart showing MDEV and TDEV by default
-   with ADEV selectable, and the TUI likewise.  Not decided: whether
-   the chart shows one curve or both by default.
+6. **Whether the stability chart should show one curve or three.**
+   It shows MDEV, ADEV and TDEV together, with the legend to hide any;
+   a reader who wants one curve has to click.  Left as is until
+   someone reads it and objects.
 
 ## Known defects
 

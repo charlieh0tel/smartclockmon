@@ -28,11 +28,37 @@
 //!
 //! with `tau = m * tau0` and `N` the number of differences that existed.
 //!
+//! Beside it, the modified Allan deviation (NIST SP 1065 section 5.2.5,
+//! equation 14) takes the same second difference of phase *averaged*
+//! over `m` consecutive readings, `A[j] = mean(x[j..j+m])`:
+//!
+//! ```text
+//!                        1
+//! Mod sigma_y(tau)^2 = ------------  sum ( A[j+2m] - 2 A[j+m] + A[j] )^2
+//!                      2 N tau^2
+//! ```
+//!
+//! and the time deviation is `tau * Mod sigma_y(tau) / sqrt(3)` (equation
+//! 15).  The modified form is the one that fits this record exactly.
+//! The receiver's reading is already the mean of ten one-second
+//! readings over a contiguous window (`docs/firmware.md`, "The
+//! ten-second average"), so the mean of `m` consecutive readings is the
+//! mean of `10 m` consecutive one-second readings: the averaging the
+//! receiver did is the innermost block of the averaging the estimator
+//! does, and Mod sigma_y from the record equals Mod sigma_y of the
+//! underlying one-second phase at every tau of one reading and above.
+//! The plain Allan deviation has no such identity: the receiver's
+//! averaging is a low-pass filter that lowers it at the shortest taus
+//! where white or flicker phase noise dominates, and leaves it
+//! unchanged only from a few reading intervals up.
+//!
 //! Gaps are handled by counting only the differences that exist rather than
 //! by filling anything in.  That leaves the estimate unbiased so long as
 //! what is missing is unrelated to what was being measured -- readings
 //! lost to a daemon restart are; readings lost *because* the receiver
-//! was misbehaving would not be, and no estimator can rescue that.
+//! was misbehaving would not be, and no estimator can rescue that.  The
+//! modified form needs every reading of its three windows, so one hole
+//! costs it `3 m` triples where the plain form loses three.
 
 use std::collections::BTreeMap;
 
@@ -65,6 +91,24 @@ pub struct Point {
     /// nine thousand are drawn the same size and mean very different
     /// things.
     pub differences: usize,
+    /// The modified Allan deviation at the same tau, when enough
+    /// averaged triples exist for it.  Fewer do than for the plain
+    /// form, since each needs `3 m` consecutive readings, so a curve
+    /// can carry the plain deviation a rung or two past the modified.
+    pub modified: Option<Modified>,
+}
+
+/// The modified Allan deviation at one averaging time, with the time
+/// deviation that follows from it.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Modified {
+    /// Modified Allan deviation, dimensionless.
+    pub deviation: f64,
+    /// Time deviation, `tau * deviation / sqrt(3)`, in seconds.
+    pub time: f64,
+    /// How many second differences of averaged phase went into it,
+    /// each needing `3 m` consecutive readings present.
+    pub averages: usize,
 }
 
 /// The fewest second differences a point may be computed from.
@@ -253,6 +297,8 @@ impl Run {
         }
         let mut total = 0.0;
         let mut differences = 0usize;
+        let mut averaged = 0.0;
+        let mut averages = 0usize;
         for grid in &self.grids {
             if grid.len() <= 2 * m {
                 continue;
@@ -265,15 +311,49 @@ impl Run {
                 total += difference * difference;
                 differences += 1;
             }
+            // Window means from running sums, with a running count of
+            // readings so a window with a hole in it is known to be
+            // short and is skipped rather than averaged over fewer.
+            let mut sums = Vec::with_capacity(grid.len() + 1);
+            let mut counts = Vec::with_capacity(grid.len() + 1);
+            sums.push(0.0);
+            counts.push(0usize);
+            for slot in grid {
+                sums.push(sums.last().unwrap_or(&0.0) + slot.unwrap_or(0.0));
+                counts.push(counts.last().unwrap_or(&0) + usize::from(slot.is_some()));
+            }
+            let mean = |j: usize| {
+                (counts[j + m] - counts[j] == m).then(|| (sums[j + m] - sums[j]) / m as f64)
+            };
+            if grid.len() < 3 * m {
+                continue;
+            }
+            for j in 0..=grid.len() - 3 * m {
+                let (Some(a), Some(b), Some(c)) = (mean(j), mean(j + m), mean(j + 2 * m)) else {
+                    continue;
+                };
+                let difference = c - 2.0 * b + a;
+                averaged += difference * difference;
+                averages += 1;
+            }
         }
         if differences < MIN_DIFFERENCES {
             return None;
         }
         let tau = m as f64 * self.tau0;
+        let modified = (averages >= MIN_DIFFERENCES).then(|| {
+            let deviation = (averaged / (2.0 * averages as f64 * tau * tau)).sqrt();
+            Modified {
+                deviation,
+                time: tau * deviation / 3f64.sqrt(),
+                averages,
+            }
+        });
         Some(Point {
             tau,
             deviation: (total / (2.0 * differences as f64 * tau * tau)).sqrt(),
             differences,
+            modified,
         })
     }
 
@@ -838,6 +918,97 @@ mod tests {
         // identity.
         let ratio = first.deviation / decade.deviation;
         assert!((3.0..30.0).contains(&ratio), "ratio {ratio}");
+    }
+
+    #[test]
+    fn at_one_reading_the_modified_deviation_is_the_plain_one() {
+        // With m = 1 each window mean is one reading, so the two sums
+        // are the same sum over the same triples.
+        let noise = |i: usize| {
+            let x = ((i as f64) * 12.9898).sin() * 43758.5453;
+            (x - x.floor()) - 0.5
+        };
+        let point = gapless(&run(500, |i| 1e-8 * noise(i)))
+            .at(1)
+            .expect("a point at tau = 1");
+        let modified = point.modified.expect("a modified deviation");
+        assert_eq!(modified.averages, point.differences);
+        let error = (modified.deviation - point.deviation).abs() / point.deviation;
+        assert!(error < 1e-12, "{point:?}");
+        let time = point.tau * modified.deviation / 3f64.sqrt();
+        assert!((modified.time - time).abs() < 1e-30, "{modified:?}");
+    }
+
+    #[test]
+    fn white_phase_noise_falls_faster_on_the_modified_deviation() {
+        // The modified form averages white phase noise down inside
+        // each window, so it falls as tau^-3/2 where the plain form
+        // falls as 1/tau: a decade of tau costs about a decade and a
+        // half.
+        let noise = |i: usize| {
+            let x = ((i as f64) * 12.9898).sin() * 43758.5453;
+            (x - x.floor()) - 0.5
+        };
+        let curve = gapless(&run(4000, |i| 1e-8 * noise(i))).curve();
+        let at = |tau: f64| {
+            curve
+                .iter()
+                .find(|p| (p.tau - tau).abs() < 1e-9)
+                .and_then(|p| p.modified)
+                .unwrap_or_else(|| panic!("no modified point at tau {tau}"))
+        };
+        let ratio = at(1.0).deviation / at(10.0).deviation;
+        assert!((10.0..100.0).contains(&ratio), "ratio {ratio}");
+    }
+
+    #[test]
+    fn the_modified_deviation_of_window_means_is_that_of_the_readings() {
+        // The receiver's reading is the mean of ten one-second
+        // readings.  Averaging a one-second record into contiguous
+        // ten-second means and measuring at the same tau must give the
+        // same modified deviation, since the estimator's own windows
+        // are made of whole means; the estimates differ only in how
+        // many overlapping windows each record offers.
+        let noise = |i: usize| {
+            let x = ((i as f64) * 12.9898).sin() * 43758.5453;
+            (x - x.floor()) - 0.5
+        };
+        let fine = run(6000, |i| 1e-8 * noise(i));
+        let start = Timestamp::from_second(1_700_000_000).expect("a timestamp");
+        let means: Vec<Sample> = fine
+            .chunks(10)
+            .enumerate()
+            .map(|(k, block)| Sample {
+                at: start + jiff::SignedDuration::from_secs(10 * k as i64),
+                interval: block.iter().map(|s| s.interval).sum::<f64>() / 10.0,
+            })
+            .collect();
+        let of_fine = gapless(&fine)
+            .at(100)
+            .and_then(|p| p.modified)
+            .expect("fine");
+        let of_means = Run::from_samples(&means, 10.0, |_, _| false)
+            .at(10)
+            .and_then(|p| p.modified)
+            .expect("means");
+        let ratio = of_means.deviation / of_fine.deviation;
+        assert!((0.9..1.1).contains(&ratio), "ratio {ratio}");
+        assert_eq!(of_fine.averages, 6000 - 300 + 1);
+        assert_eq!(of_means.averages, 600 - 30 + 1);
+    }
+
+    #[test]
+    fn a_hole_costs_the_modified_deviation_every_window_that_spans_it() {
+        // One reading missing from six hundred.  The plain form loses
+        // the three triples that use it; the modified form at m = 10
+        // loses the thirty whose three windows cover it.
+        let mut samples = run(600, |i| 3e-9 * i as f64);
+        samples.remove(200);
+        let point = gapless(&samples).at(10).expect("a point at tau = 10");
+        assert_eq!(point.differences, 580 - 3);
+        let modified = point.modified.expect("a modified deviation");
+        assert_eq!(modified.averages, 571 - 30);
+        assert!(modified.deviation < 1e-15, "{modified:?}");
     }
 
     #[test]

@@ -22,9 +22,19 @@ for _ in range(READINGS - 1):
     n = (16807 * n) % 2147483647
     phase.append(phase[-1] + (n / 2147483647 - 0.5) * 1e-9)
 
+print(f"allantools {allantools.__version__}")
 taus, deviations, _, counts = allantools.oadev(
     phase, rate=1.0, data_type="phase", taus=TAUS
 )
-print(f"allantools {allantools.__version__}")
+print("oadev")
 for tau, deviation, count in zip(taus, deviations, counts):
     print(f"({tau:.1f}, {float(deviation)!r}, {int(count)}),")
+
+# The modified and time deviations share a count: TDEV is MDEV scaled.
+taus, modified, _, counts = allantools.mdev(
+    phase, rate=1.0, data_type="phase", taus=TAUS
+)
+_, times, _, _ = allantools.tdev(phase, rate=1.0, data_type="phase", taus=TAUS)
+print("mdev, tdev")
+for tau, deviation, time, count in zip(taus, modified, times, counts):
+    print(f"({tau:.1f}, {float(deviation)!r}, {float(time)!r}, {int(count)}),")
