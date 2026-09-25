@@ -713,7 +713,18 @@ voids every window that spans it, `3m` triples rather than three --
 and ADEV is kept, labelled, for comparison with the oscillator and
 receiver data sheets, which quote it.  Both are checked against
 allantools' `mdev` and `tdev` and against Table 31's modified Allan
-and time deviation columns.  `:PTIMe:TINTerval?`, which returns the latest one-second
+and time deviation columns.
+
+TDEV gets a chart of its own under the sigma-y chart, sharing its tau
+axis and cursor, because it is in seconds and its slope is MDEV's plus
+one: white PM falls as tau^-1/2, flicker PM is flat, white FM rises as
+tau^1/2, flicker FM as tau, random-walk FM as tau^3/2.  So TDEV keeps
+falling only while phase noise dominates and turns up as soon as the
+oscillator's or the loop's frequency noise takes over, while MDEV and
+ADEV are still falling or flat -- on one plot with a second axis that
+read as a contradiction.  It is plotted anyway because it answers the
+timing user's question directly: how far the 1 PPS wanders over tau,
+in seconds, without multiplying sigma-y by tau in one's head.  `:PTIMe:TINTerval?`, which returns the latest one-second
 reading, would extend the curves below 10 s, and is not going to be
 polled: it costs a query a second and ten times the phase rows for
 the receiver-noise floor alone.

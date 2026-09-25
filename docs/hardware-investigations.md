@@ -109,13 +109,15 @@ checksum holds; this was read, not exercised.
   before resetting (`docs/firmware.md`, "Restarting"): `:SYSTem:PON`
   zeroes the region and `:SYSTem:PRESet` clears its flag, so neither
   exercises the warm path, and neither is a command this project
-  sends.  Owners report that `*TST?` restarts the receiver too, by a
-  path the image does not show; on a spare unit, send `*TST?` with
-  the daemon logging and read `:DIAGnostic:LOG:READ?` afterwards:
-  `Power on` means the state was restored, `System preset` means the
-  defaults were loaded.
-- Otherwise a brief external reset, if the board has a reset input,
-  answers whether EXT alone (without POW) is treated as warm.
+  sends.  `*TST?` does not reset the processor at all: it resets the
+  GPS engine and sends the loop back through `powerup`, with the
+  loop's RAM intact, so it is not a test of this path either -- though
+  on a spare unit it is the one way to watch the receiver re-acquire
+  from the daemon's log without touching the power.
+- A brief external reset, if the board has a reset input, answers
+  whether EXT alone (without POW) is treated as warm; a RESET-
+  instruction restart with the flag intact has no command that
+  triggers it.
 - Watch whether τ (loop time constant) and the aging fit survive: the
   EFC should not jump and the drift term should not go to zero.
 

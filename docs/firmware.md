@@ -996,10 +996,27 @@ the Z3816A image has (`0x5a280`); the Z3801A's image has the same
 by newer firmware and refused by older, which matches.
 
 `*TST?` is reported by owners to restart the receiver as well, with a
-minute of GPS reacquisition after it.  Its node in the common-command
-table (`0x5cb36`) carries the integer reply formatter `FUN_00035a60`
-and no handler of its own, and no third path to `trap #12` exists, so
-how it restarts was not traced.
+minute of GPS reacquisition after it.  It does not reset the
+processor; it restarts the loop.  A node's handler pointer sits at
+byte 18 of its record, so its node (`0x5cb36`) names `FUN_00039aa8`,
+which posts the entry at `0x44c88` -- `FUN_00049d60` -- to the `pllc`
+queue (id at `0x103d6a`, created at `0x23204`) that the loop task
+drains through `FUN_00046cc8`, and replies with the word at
+`0x100eae`.  The entry sets a request flag at `0x102c61` and stores
+the argument at `0x102c64`; the loop task's pass sees the flag
+(`0x4b25c`) and moves the stage byte to 7, `diag`.  That stage,
+`FUN_0004ad3e`, is a sub-state machine at `0x102850`: it sends the
+GPS task a reset and waits up to thirty passes for its acknowledgement
+(`Error in DIAG GPS RST ack`, `0x4b806`, otherwise), sends a test
+message and waits for that (`Error in DIAG GPS TST ack`, `0x4b822`),
+records the results at `0x100e88`, runs `FUN_00048b62`, and in its
+last state compiles the self-test result with `FUN_00028c56`, clears
+the flag and returns 1.  On that return the loop task runs
+`FUN_0004afb6`: loop state cleared, events 0x2f and 0x35 posted, and
+the stage byte set to 1, `powerup` (`0x4b016`).  So `*TST?` resets
+the GPS engine and sends the receiver back through warm-up, coarse and
+fine acquisition, which is the "reboot" owners see; the loop block,
+the τ block and the aging fit stay in RAM, and RSR is untouched.
 
 `:SYSTem:LANGuage "INSTALL"` takes a different exit: `FUN_00023036`
 executes `trap #11`, whose handler at `0x24b18` masks interrupts, runs

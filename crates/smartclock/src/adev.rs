@@ -39,7 +39,10 @@
 //! ```
 //!
 //! and the time deviation is `tau * Mod sigma_y(tau) / sqrt(3)` (equation
-//! 15).  The modified form is the one that fits this record exactly.
+//! 15): the phase wander over `tau`, in seconds, whose log-log slope
+//! is the modified deviation's plus one -- falling only while phase
+//! noise dominates, rising once frequency noise does.  The modified
+//! form is the one that fits this record exactly.
 //! The receiver's reading is already the mean of ten one-second
 //! readings over a contiguous window (`docs/firmware.md`, "The
 //! ten-second average"), so the mean of `m` consecutive readings is the
