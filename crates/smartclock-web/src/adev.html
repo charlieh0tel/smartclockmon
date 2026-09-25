@@ -33,6 +33,7 @@
   <div class="controls">
     <h2>Stability</h2>
     <span class="grow"></span>
+    <span id="series"></span>
     <span id="ranges"></span>
     <button id="reset" title="Whole curve, last hour">reset</button>
   </div>
@@ -73,6 +74,73 @@ const AXIS_FONT = "14px system-ui, sans-serif";
 // is, so width buys plotting area rather than magnifying everything --
 // which is the difference between this and scaling a drawing to fit.
 const PLOT = { min: 360, ratio: 2.5, shortest: 300, tallest: 560 };
+
+// Which curves are drawn, as the history page's column picker does it:
+// checkboxes on the controls row, the choice kept in the address so a
+// reload or a shared link shows the same curves.  MTIE is off unless
+// asked for: a worst case is often the same number at every tau, and
+// it sets the axis so that TDEV is squashed into the bottom decade.
+const SERIES = ["MDEV", "ADEV", "TDEV", "MTIE"];
+const DEFAULT_SERIES = ["MDEV", "ADEV", "TDEV"];
+const view = new URLSearchParams(location.search);
+let shown = new Set(
+  (view.get("series") ?? DEFAULT_SERIES.join(","))
+    .split(",")
+    .filter((name) => SERIES.includes(name)),
+);
+
+// Where each curve lives: which chart, and its series index there.
+function placed(name) {
+  return { MDEV: [0, 1], ADEV: [0, 2], TDEV: [1, 1], MTIE: [1, 2] }[name];
+}
+
+function rememberSeries() {
+  const q = new URLSearchParams(location.search);
+  q.set("series", SERIES.filter((name) => shown.has(name)).join(","));
+  history.replaceState(null, "", `${location.pathname}?${q}`);
+}
+
+function picker() {
+  $("series").innerHTML = SERIES.map(
+    (name) =>
+      `<label><input type="checkbox" data-series="${name}"` +
+      `${shown.has(name) ? " checked" : ""}> ${name}</label>`,
+  ).join(" ");
+  for (const box of $("series").querySelectorAll("input")) {
+    box.onchange = () => {
+      const name = box.dataset.series;
+      if (box.checked) {
+        shown.add(name);
+      } else {
+        shown.delete(name);
+      }
+      const [which, idx] = placed(name);
+      const u = [chart, tdevChart][which];
+      if (u) u.setSeries(idx, { show: box.checked });
+      rememberSeries();
+    };
+  }
+}
+
+// The legend toggles a series too; keep the boxes telling the truth.
+function followLegend(which) {
+  return (u, idx, opts) => {
+    if (idx === 0 || !opts || typeof opts.show !== "boolean") return;
+    const name = SERIES.find((n) => {
+      const [w, i] = placed(n);
+      return w === which && i === idx;
+    });
+    if (!name) return;
+    if (opts.show) {
+      shown.add(name);
+    } else {
+      shown.delete(name);
+    }
+    const box = $("series").querySelector(`input[data-series="${name}"]`);
+    if (box) box.checked = opts.show;
+    rememberSeries();
+  };
+}
 
 let chart = null;
 // The time deviation and the maximum time interval error on a chart of
@@ -267,6 +335,7 @@ function draw(points) {
           label: "MDEV",
           stroke: "#38bdf8",
           width: 1.5,
+          show: shown.has("MDEV"),
           points: { show: true, size: 5 },
           value: (_, v) => decade(v),
         },
@@ -274,12 +343,14 @@ function draw(points) {
           label: "ADEV",
           stroke: "#a78bfa",
           width: 1.5,
+          show: shown.has("ADEV"),
           points: { show: true, size: 5 },
           value: (_, v) => decade(v),
         },
       ],
       legend: { show: true, live: true },
       cursor,
+      hooks: { setSeries: [followLegend(0)] },
     },
     [tau, modified, points.map((p) => p.deviation)],
     $("chart"),
@@ -298,24 +369,22 @@ function draw(points) {
           label: "TDEV",
           stroke: "#f59e0b",
           width: 1.5,
+          show: shown.has("TDEV"),
           points: { show: true, size: 5 },
           value: (_, v) => (Number.isFinite(v) ? `${decade(v)} s` : "--"),
         },
-        // Off by default: a worst case is one number per tau, often the
-        // same number at every tau once a single step dominates, and it
-        // sets the axis so that TDEV is squashed into the bottom decade.
-        // The table has it; the legend turns it on for a mask check.
         {
           label: "MTIE",
           stroke: "#f87171",
           width: 1.5,
-          show: false,
+          show: shown.has("MTIE"),
           points: { show: true, size: 5 },
           value: (_, v) => (Number.isFinite(v) ? `${decade(v)} s` : "--"),
         },
       ],
       legend: { show: true, live: true },
       cursor,
+      hooks: { setSeries: [followLegend(1)] },
     },
     [tau, time, mtie],
     $("chart-tdev"),
@@ -451,5 +520,10 @@ addEventListener("resize", () => {
   if (tdevChart) tdevChart.setSize({ width: w, height: Math.round(height(w) * 0.6) });
 });
 
-chooseReceiver(load).then(load);
+picker();
+chooseReceiver(load).then(() => {
+  // `carryUnit` rewrote the address with the receiver alone.
+  rememberSeries();
+  return load();
+});
 </script>
