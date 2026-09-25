@@ -1,3 +1,18 @@
+smartclockmon (0.6.19-1) unstable; urgency=low
+
+  * smartclockd@.service is the only daemon unit: one instance per
+    serial port, even where there is one.  An instance reads
+    /etc/default/smartclockd.<instance>, copied from the example under
+    /usr/share/doc/smartclockmon/examples, and serves
+    /run/smartclockd/<instance>/socket.  smartclockd.service and
+    /etc/default/smartclockd are gone: rename the file to the instance's
+    and enable smartclockd@<instance>.
+  * No socket default anywhere.  SMARTCLOCK_WEB_SOCKET and
+    SMARTCLOCK_EXPORTER_SOCKET must name an instance's socket, and
+    smartclockmon needs --socket or --device.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Fri, 25 Sep 2026 15:35:22 -0700
+
 smartclockmon (0.6.18-1) unstable; urgency=low
 
   * Keep one log per receiver, named <model>-<serial>.sqlite in
