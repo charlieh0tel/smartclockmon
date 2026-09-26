@@ -963,6 +963,27 @@ no word that starts the SCPI task again; `FUN_00039732`, which creates
 that task (named `sci`, entry `0x39706`, task id `0x103d5a`), is not in
 the table.
 
+### Reading the ROM through it
+
+The console's `c@` and `@` read the running unit's own memory, so its
+ROM can be read without opening it.  Loops are compile-only here, so
+one word does it, and defining it touches nothing but the dictionary
+in RAM:
+
+    : rd ( addr n -- ) over + swap do i @ u. 4 +loop ;
+
+In `hex`, `<addr> <n> rd` prints the 32-bit words from `addr` for `n`
+bytes.  On the bench Z3801A (3542A01548, 3543-A), on 2026-09-26, the
+whole 512 KB from address 0 came back in 1 KB requests at 19200 baud,
+7O1, in 689 seconds, and is byte-identical to `z3801a-3543.bin`:
+SHA-256 `29e33b6d85b7371cef16cbf68b071f8a4ca047a8ab391d3c1e8087e553199bed`
+for both.  So the image is this unit's firmware, not only its revision.
+The session is `docs/z3801a-pforth.txt`; a power cycle returns the port
+to SCPI.
+
+The 58503A image, revision 3633, accepts the same `PFORTH` value and
+carries the same Forth words.
+
 ### Which port
 
 One.  The Z3801A manual (097-z3801-01) describes a single serial

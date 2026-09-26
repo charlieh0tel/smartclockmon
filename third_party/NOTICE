@@ -39,7 +39,9 @@ which claims about the command set are checked.  CPU32 code, big-endian, loaded 
 `docs/firmware.md` for which part.
 
   z3801a-3543.bin            Z3801A firmware, revision 3543.  Copyright
-                             Hewlett-Packard 1993.
+                             Hewlett-Packard 1993.  Identical, byte for
+                             byte, to the ROM of the bench Z3801A read
+                             back through its console (`docs/firmware.md`).
   z3816a-4001.bin            Z3816A firmware, revision 4001.  Copyright
                              Hewlett-Packard 2000.
   58503a-3633.bin            58503A firmware, revision 3633.  Copyright
