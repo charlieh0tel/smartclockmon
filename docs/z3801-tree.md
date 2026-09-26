@@ -50,7 +50,7 @@ pointer and a query at +18.  A setter of zero means the command is
 read-only, and that is a fact about the firmware rather than about any
 manual.  Of the 513 paths, 277 are writable and 236 are not.
 
-Checked against the 71 Z3801-dialect entries in `commands.toml`, 70
+Checked against the 70 Z3801-dialect entries in `commands.toml`, 69
 agree.  The ten that look like disagreements are not: the table gives a
 query and its setter separate ids where the firmware has one node with
 both slots.

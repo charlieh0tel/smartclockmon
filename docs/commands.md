@@ -8,7 +8,7 @@ to regenerate; a test fails if this file and the table disagree.
 | Tree | Commands | Hardware | Firmware | Manual |
 | ---- | -------- | -------- | -------- | ------ |
 | 58503A/B, 59551A | 130 | 92 | 0 | 38 |
-| Z3801A, Z3816A | 83 | 19 | 63 | 1 |
+| Z3801A, Z3816A | 82 | 18 | 63 | 1 |
 
 **H** means the receiver answered it.  **F** means every keyword
 appears in the firmware's own keyword table, so the spelling is
@@ -170,7 +170,7 @@ anything reaching the receiver.
 | language | Query | `:SYSTem:LANGuage?` H | `:SYSTem:LANGuage?` F |
 | language set | Dangerous | `:SYSTem:LANGuage` M | `:SYSTem:LANGuage` F |
 | flash erase | Dangerous | `:DIAGnostic:ERASe` M | `:DIAGnostic:ERASe` M |
-| temperature | Query | `:DIAGnostic:TEMPerature?` H (58503A) | `:DIAGnostic:TEMPerature?` H |
+| temperature | Query | `:DIAGnostic:TEMPerature?` H (58503A) |  |
 | oven current | Query | `:DIAGnostic:ROSCillator:CURRent?` H (58503A) | `:DIAGnostic:ROSCillator:CURRent?` H |
 | efc absolute | Query | `:DIAGnostic:ROSCillator:EFControl:ABSolute?` H (58503A) | `:DIAGnostic:ROSCillator:EFControl:ABSolute?` H |
 | oven tempco | Query | `:DIAGnostic:ROSCillator:TCOefficient?` H (58503A) | `:DIAGnostic:ROSCillator:TCOefficient?` H |

@@ -2080,19 +2080,13 @@ doc = "Erase flash. Firmware download only."
 [[command]]
 id = "temperature"
 class = "query"
-doc = "Internal temperature, degrees Celsius. Not the oven: this reads 34 to 38 C where a 10811 oven runs at 75 to 85. Where the sensor sits is unknown, the command being undocumented."
+doc = "Internal temperature, degrees Celsius. Not the oven: this reads 34 to 38 C where a 10811 oven runs at 75 to 85. Undocumented; both the 58503A and Z3801A images answer it with the low byte of ADC channel 0 times 0.273 and no offset (docs/firmware.md). The Z3801 dialect leaves it out: the same query on a Z3801A and a Z3805A reads 0 or 1 count, 0.0 or 0.273, which is not a temperature."
 
   [command.dialect.hp58503]
   scpi = ":DIAGnostic:TEMPerature?"
   response = "seconds_or_real"
   models = ["58503A"]
   cite = "discovered on a 58503A"
-  evidence = "hardware"
-  [command.dialect.z3801]
-  scpi = ":DIAGnostic:TEMPerature?"
-  response = "seconds_or_real"
-  models = ["Z3805A"]
-  cite = "discovered on a Z3805A"
   evidence = "hardware"
 
 

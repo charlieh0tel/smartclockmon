@@ -1030,6 +1030,26 @@ there.  The unpacker takes the same opcodes.
   Its G is the fixed +6.25 × 10⁻¹³ noted above, and `pll_debug`
   (`0x1b4d8`) stores to `0x102539`.
 
+### `:DIAGnostic:TEMPerature?`
+
+Undocumented, and the same code in both images.  The query handler
+(`FUN_0002aae2` in the Z3801A image, `FUN_0002b6a0` in the 58503A's)
+calls a routine (`0x1f010`, `0x1f1f0`) that reads ADC channel 0
+through the converter routine (`0x1efc8`, `0x1f1a8`: command word
+`channel << 11 | 0xc000`, result shifted right by two), keeps the low
+byte, converts it to a float and multiplies by 0.273
+(`0x3e8bc6a8`), with no offset.  So the answer is 0.273 °C per count
+from a 0 V zero, and cannot exceed 69.6.  In the Z3801A image nothing
+else reads channel 0: the other eleven calls to the converter pass
+channels 1 to 6, or one from a register.  Both images carry the same
+`Temperature: %f` and `Temperature: %.2f` strings.
+
+The bench 58503A reads 34 to 38 °C, about 130 counts.  The bench
+Z3801A (3543-A) and the Z3805A read 0 or 1 count on every poll logged
+-- 1,422 and 36,867 of them -- so on those boards channel 0 is at or
+near 0 V.  Whether a sensor is absent there or wired elsewhere is on
+the board, not in the image.  The Z3801 dialect no longer asks.
+
 ### The 58503A image
 
 `third_party/58503a-3633.bin` is a 58503A's program flash, revision
