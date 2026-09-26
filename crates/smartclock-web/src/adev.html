@@ -55,10 +55,29 @@
 // Both axes are decades, which is the only way this curve is read: the
 // slope between decades is what names the noise.
 const LOG = { distr: 3, log: 10 };
-// The tau axis is padded a few percent past the data, so a curve that
-// starts at 10.0004 s -- the receiver's ten-second cadence is not
-// exactly ten -- still gets its graduation at 10.
-const TAU_SCALE = { ...LOG, range: (_, min, max) => [min / 1.05, max * 1.05] };
+
+// An axis ends on a named graduation -- 1, 2 or 5 in some decade --
+// at or beyond the data, so the ends of the axis are labelled and a
+// curve that starts at 10.0004 s (the receiver's ten-second cadence
+// is not exactly ten) still gets its graduation at 10.  uPlot's own
+// log range rounds out to whole decades, which for a curve ending
+// just past 10⁻⁹ leaves most of a decade empty above it.
+// A value within a percent of a graduation counts as on it: the
+// last tau of a run is 1000.04 s, not 1000, and an axis to 2000 for
+// that would be most of a decade of nothing.
+const STEPS = [1, 2, 5, 10];
+const SNAP = 0.01;
+function snapDown(v) {
+  const e = Math.floor(Math.log10(v) + 1e-9);
+  const m = v / 10 ** e;
+  return [...STEPS].reverse().find((s) => s <= m * (1 + SNAP)) * 10 ** e;
+}
+function snapUp(v) {
+  const e = Math.floor(Math.log10(v) - 1e-9);
+  const m = v / 10 ** e;
+  return STEPS.find((s) => s >= m * (1 - SNAP)) * 10 ** e;
+}
+const TAU_SCALE = { ...LOG, range: (_, min, max) => [snapDown(min), snapUp(max)] };
 
 // uPlot's axis text defaults to 12px, which is small for numbers that
 // are read off, not just glanced at.
@@ -347,15 +366,15 @@ function shadeBands(bands) {
 
 const bound = (b, side) => (b ? b[side] : null);
 
-// A y scale that ranges over the bands as well as the lines, padded
-// a little, so a wide interval at long tau is not cut off at the
-// axis.  uPlot ranges from the series alone; the shading is not one.
+// A y scale that ranges over the bands as well as the lines, so a wide
+// interval at long tau is not cut off at the axis.  uPlot ranges from
+// the series alone; the shading is not one.
 function sigmaScale(bands) {
   const values = Object.values(bands).flat(2).filter((v) => v !== null && v > 0);
   const lo = Math.min(...values), hi = Math.max(...values);
   return {
     ...LOG,
-    range: (_, min, max) => [Math.min(min, lo) / 1.1, Math.max(max, hi) * 1.1],
+    range: (_, min, max) => [snapDown(Math.min(min, lo)), snapUp(Math.max(max, hi))],
   };
 }
 
