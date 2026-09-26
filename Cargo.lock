@@ -1642,7 +1642,7 @@ checksum = "ba467056f1b547ed52077911161fc86985becbc60e8e1857c8a144dab0def891"
 
 [[package]]
 name = "smartclock"
-version = "0.6.24"
+version = "0.6.25"
 dependencies = [
  "interprocess",
  "jiff",
@@ -1656,7 +1656,7 @@ dependencies = [
 
 [[package]]
 name = "smartclock-cli"
-version = "0.6.24"
+version = "0.6.25"
 dependencies = [
  "anyhow",
  "clap",
@@ -1668,7 +1668,7 @@ dependencies = [
 
 [[package]]
 name = "smartclock-exporter"
-version = "0.6.24"
+version = "0.6.25"
 dependencies = [
  "anyhow",
  "clap",
@@ -1680,14 +1680,14 @@ dependencies = [
 
 [[package]]
 name = "smartclock-http"
-version = "0.6.24"
+version = "0.6.25"
 dependencies = [
  "anyhow",
 ]
 
 [[package]]
 name = "smartclock-sim"
-version = "0.6.24"
+version = "0.6.25"
 dependencies = [
  "jiff",
  "smartclock",
@@ -1695,7 +1695,7 @@ dependencies = [
 
 [[package]]
 name = "smartclock-web"
-version = "0.6.24"
+version = "0.6.25"
 dependencies = [
  "anyhow",
  "clap",
@@ -1709,7 +1709,7 @@ dependencies = [
 
 [[package]]
 name = "smartclockd"
-version = "0.6.24"
+version = "0.6.25"
 dependencies = [
  "anyhow",
  "clap",
@@ -1724,7 +1724,7 @@ dependencies = [
 
 [[package]]
 name = "smartclockmon"
-version = "0.6.24"
+version = "0.6.25"
 dependencies = [
  "anyhow",
  "clap",
