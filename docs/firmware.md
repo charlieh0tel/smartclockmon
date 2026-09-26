@@ -1007,8 +1007,23 @@ Z3816A image; and from `0x1c0` holds the diagnostic log, starting
 with `Log cleared`.  The rest of its layout is not worked out here.
 The first session is `docs/z3801a-pforth.txt`.
 
-The 58503A image, revision 3633, accepts the same `PFORTH` value and
-carries the same Forth words.
+The bench 58503A (3710A01056, 3704-C) works the same way at 19200 8N1.
+On the same day its ROM came back in 647 seconds and is now
+`third_party/58503a-3704.bin`, SHA-256
+`d13b9ff1e4a0a59517aac4d066c60e22b290cf4ff6810c5c2bf01f1bc9491ca3`:
+the same reset vector as 3633, its revision string `3704` at
+`0x1309c`, and 345 of its 512 kilobytes different from the 3633
+image.  Its EEPROM is `third_party/58503a-3710A01056-eeprom.bin`.
+While the console runs, only the SCPI task has ended: the loop, the
+GPS task and the health monitor carry on, and the front panel with
+them.
+
+The two units' firmware words differ.  The 58503A's has
+`force_ext_1pps` and `force_gps_1pps` where the Z3801A's has
+`force_1pps`, and lacks the Z3801A's `adc_5v`, `adc_p15v`, `adc_m15v`,
+`adc_oven`, `adc_doven`, `adc_ant_curr` and `adc_temp`; the rest are
+the same.  The sessions are `docs/58503a-pforth.txt` and
+`docs/z3801a-pforth.txt`.
 
 ### Which port
 

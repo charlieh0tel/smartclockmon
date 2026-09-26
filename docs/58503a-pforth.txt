@@ -1,0 +1,114 @@
+HEWLETT-PACKARD 58503A, serial 3710A01056, firmware 3704-C
+GPS engine: Motorola B4121P1115, serial SSG0220999
+Captured 2026-09-26 at about 22:33 UTC, in the pForth console reached
+with :SYSTem:LANGuage "PFORTH", while the receiver was locked.  The
+three rd entries at the top of the word list are the word
+smartclock-cli read-memory defined, once for each read.
+
+
+p4th D > words
+rd                 rd                 rd                 fp_u
+es_ascii           sync_imm           efc_rep            pll_rep
+loop_time          pr_hold_cause      gps_query          gps_change
+pstat              disable_gps_cmds   pr_time_raim       pr_1pps
+pr_gps_id          pr_gps_istate      pr_avg             pr_gps_cmds
+clr_gps_debug      pr_gps_debug       master_reset       quiet_status
+gps_query_all      init_gps           clr_avg            avg
+q_gps_cable_dly    q_gps_php          q_eman             eman
+leapsec            crash              print_clk_list     log_send
+pr_pll             phase_off          lock               pll_debug
+pll_restart        pr_efc             efc_wr             force_ext_1pps
+force_gps_1pps     gps_cable_dly      gps_ph             gps_php
+gps_date           gps_time           print_bc           print_ext_msg
+xdop_stat_rate     ext_msg_rate       print_vis          vis_stat_rate
+stat_rate          print_stat         abr_stat           set_time
+get_time           clk_synch          debug_psos         clear_nv
+wr_eeprom          dmes_all           dmes_curv          dmes_spoo
+dmes_scpi          dmes_root          dmes_pllp          dmes_klok
+dmes_hmon          dmes_gpsm          dmessage           doven
+hdac_all           hdac_write         efc_write          pr_adc_avg
+adc_read           cal                s_rep              mem_rep
+ps                 user               !iodev             dev_ctrl
+dev_write          dev_read           dev_close          dev_open
+dev_init           ident              mode               pause
+get_v              wait_v             signal_v           request_x
+send_x             delete_x           create_x           jam_x
+priority           resume             suspend            delete
+ver                spawn              ?^C                my_pid
+root               watch              execute            0x
+number             unfence            fence              immediate
+recurse            does>              pad                tib
+count              word               type               expect
+interpret          startup            words              forget
+]                  [                  [']                '
+state              base               hex                decimal
+.s                 u.x                u.                 .
+(.")               ."                 cr                 spaces
+space              emit               cos                sin
+>>                 <<                 2*                 2/
+2-                 2+                 1-                 1+
++!                 +                  -                  *
+/                  */                 */mod              /mod
+mod                ;                  :                  literal
+constant           create             variable           !
+@                  i                  j                  k
+leave              +loop              loop               ?do
+do                 until              again              repeat
+while              begin              endif              then
+else               if                 depth              dup
+swap               drop               2drop              cmove>
+cmove              ?dup               0>                 0=
+0<                 <                  >                  =
+xor                not                and                or
+true               false              halt               abort
+(                  2swap              2dup               allot
+-rot               rot                c,                 w,
+,                  pick               fill               r>
+>r                 here               negate             c!
+c@                 w!                 w@                 min
+max                abs                over
+p4th D >
+pr_gps_id
+p4th D >
+
+GPS Receiver Identification
+-----------------------------------------------------
+Model Number:       MODEL #    B4121P1115
+Serial Number:      SERIAL #   SSG0220999
+Manufacture Date:   MANUFACTUR DATE 7D01
+Installed Options:  OPTIONS LIST    IB
+
+Hardware P/N:       HDWR P/N # _
+Software P/N:       SFTW P/N # 98-P36830P
+Software Version:   SOFTWARE VER # 8
+Software Revision:  SOFTWARE REV # 8
+Software Date:      SOFTWARE DATE  06 Aug 1996
+
+Copyright Notice:   COPYRIGHT 1991-1996 MOTOROLA INC.
+pr_gps_istate
+p4th D >
+------------------------- Instrument State Settings --------------------------
+TIME   00:00:00    GMT CORR  +00h:00m                        DATE   00/00/0000
+
+POS HOLD   Enabled                                           APPL   Static
+FIX ALG    N-in-view                                         OPER   Pos Fix
+
+Hold Position _____________________________   Initial Position _______________
+LAT        N  37:22:30.277  = +134550277 ms   N   0:00:00.000  =         +0 ms
+LON        W 122:05:34.816  = -439534816 ms   E   0:00:00.000  =         +0 ms
+GPS HGT                                                    +0 cm
+MSL HGT              +4351 cm                              +0 cm
+
+Satellite Options _________________________   PRNs Ignored ___________________
+ELEV MASK  10                                 (none ignored)
+SELECTION  Highest-in-sky
+DOP TYPE   GDOP           DOP HYST      1.0
+ION CORR   Enabled        DOP 3D/2D     6.0
+
+Correction Factors and Thresholds _________   General Status _________________
+UTC CORR   Enabled                            LEAP SEC  None pending
+1PPS OFFS          0 ns   POS FIX THR   0
+CABLE DLY          0 ns   DIF OUT THR  32 s
+get_time
+02/10/2007	22:33:46, 0, valid: 1
+p4th D >
