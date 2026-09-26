@@ -1,3 +1,10 @@
+smartclockmon (0.6.23-1) unstable; urgency=low
+
+  * Name the 1, 2 and 5 graduations on the stability page's tau axis,
+    and pad the axis so the graduation at the first decade shows.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Fri, 25 Sep 2026 20:04:10 -0700
+
 smartclockmon (0.6.22-1) unstable; urgency=low
 
   * Shade MDEV, ADEV and TDEV to their one-sigma confidence intervals
