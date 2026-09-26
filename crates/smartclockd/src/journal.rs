@@ -177,6 +177,11 @@ pub(crate) struct Journal {
     /// per connection still catches someone else having changed them
     /// while the daemon was away, which is the only way they move.
     filters_read: bool,
+    /// Whether the GPS engine's identity has been read on this
+    /// connection.  Once per connection, for the same reason as the
+    /// filters, and because an engine can be replaced while the link is
+    /// down.
+    engine_read: bool,
     /// Whether the held span has been checked against the receiver on
     /// this connection.
     ///
@@ -232,9 +237,19 @@ impl Journal {
             self.connection = Some(connection);
             self.stuck = None;
             self.filters_read = false;
+            self.engine_read = false;
             self.verified = false;
         }
         let deadline = Instant::now() + PASS_BUDGET;
+        if !self.engine_read {
+            // One attempt per connection whatever it returns: a refusal
+            // is an answer, and a timeout is asked again on the next
+            // connection rather than every ten seconds.
+            self.engine_read = true;
+            if let Err(e) = read_engine(handle, dialect, log) {
+                eprintln!("smartclockd: could not read the GPS engine's identity: {e:#}");
+            }
+        }
         if !self.filters_read {
             match self.read_filters(handle, dialect, log) {
                 Ok(complete) => self.filters_read = complete,
@@ -580,6 +595,62 @@ fn scpi(dialect: Dialect, id: CommandId, argument: Option<i64>) -> Result<String
     })
 }
 
+/// Read the GPS engine's identity and record it against the current
+/// receiver, saying so when it is new or has changed.
+///
+/// Stored exactly as answered; the journal line picks out the fields a
+/// person wants.  A dialect without the query records nothing.
+fn read_engine(handle: &Handle, dialect: Dialect, log: &mut Log) -> Result<()> {
+    if dialect.spec(CommandId::GpsEngineIdentity).is_none() {
+        return Ok(());
+    }
+    let line = ask(handle, dialect, CommandId::GpsEngineIdentity, None)?;
+    match log.note_gps_engine(&line)? {
+        Some(None) => eprintln!("smartclockd: GPS engine: {}", engine_summary(&line)),
+        Some(Some(_)) => eprintln!(
+            "smartclockd: GPS engine changed; now {}",
+            engine_summary(&line)
+        ),
+        None => {}
+    }
+    Ok(())
+}
+
+/// The fields of a GPS engine identity worth a journal line.
+///
+/// The answer is a list of quoted, space-padded `LABEL value` strings
+/// (`"MODEL #    B4121P1115     "`); the model, the software part number,
+/// version, revision and date, and the serial are picked out by label.
+/// An answer in another shape is shown whole.
+fn engine_summary(line: &str) -> String {
+    const LABELS: [(&str, &str); 6] = [
+        ("MODEL #", "model"),
+        ("SFTW P/N #", "software"),
+        ("SOFTWARE VER #", "version"),
+        ("SOFTWARE REV #", "revision"),
+        ("SOFTWARE DATE", "dated"),
+        ("SERIAL #", "serial"),
+    ];
+    let fields: Vec<&str> = line
+        .split("\",\"")
+        .map(|f| f.trim_matches(|c: char| c == '"' || c.is_whitespace()))
+        .collect();
+    let picked: Vec<String> = LABELS
+        .iter()
+        .filter_map(|(label, name)| {
+            fields
+                .iter()
+                .find_map(|f| f.strip_prefix(label))
+                .map(|value| format!("{name} {}", value.trim()))
+        })
+        .collect();
+    if picked.is_empty() {
+        line.trim().to_owned()
+    } else {
+        picked.join(", ")
+    }
+}
+
 /// Send one logical query and return its single reply line.
 fn ask(handle: &Handle, dialect: Dialect, id: CommandId, argument: Option<i64>) -> Result<String> {
     let reply = handle.request_within(scpi(dialect, id, argument)?, TIMEOUT)?;
@@ -751,6 +822,17 @@ mod tests {
         let (stamp, message) = split_entry("Log 001:20050528.00:00:00: Log cleared");
         assert_eq!(stamp, Some("20050528.00:00:00"));
         assert_eq!(message, "Log cleared");
+    }
+
+    #[test]
+    fn a_gps_engine_identity_is_summarised_by_its_labels() {
+        let line = r#""COPYRIGHT 1991-1996 MOTOROLA INC.","SFTW P/N # 98-P36830P     ","SOFTWARE VER # 8          ","SOFTWARE REV # 8          ","SOFTWARE DATE  06 Aug 1996","MODEL #    B4121P1115     ","HDWR P/N # _              ","SERIAL #   SSG0220999     ","MANUFACTUR DATE 7D01      ","OPTIONS LIST    IB        ""#;
+        assert_eq!(
+            super::engine_summary(line),
+            "model B4121P1115, software 98-P36830P, version 8, revision 8, \
+             dated 06 Aug 1996, serial SSG0220999"
+        );
+        assert_eq!(super::engine_summary("  something else "), "something else");
     }
 
     #[test]

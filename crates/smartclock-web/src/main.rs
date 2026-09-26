@@ -548,6 +548,7 @@ fn receivers(logs: &Logs, daemons: &Daemons, cache: &Cache) -> Result<serde_json
                     firmware: id.firmware,
                     first_seen: String::new(),
                     last_seen: String::new(),
+                    gps_engine: None,
                     instance: Some(daemon.instance.clone()),
                 });
             }

@@ -126,11 +126,18 @@ impl Log {
     /// Empty on a log written before receivers were recorded, which is
     /// not an error: such a log has one unit's rows and no name for it.
     pub(crate) fn receivers(&self) -> Result<Vec<Receiver>> {
-        let mut statement = match self.conn.prepare(
+        // The engine's identity arrived with schema 9; a log no daemon
+        // of that version has opened lacks the column.
+        let engine = if self.has_column("receiver", "gps_engine") {
+            "gps_engine"
+        } else {
+            "NULL"
+        };
+        let mut statement = match self.conn.prepare(&format!(
             "SELECT id, serial, COALESCE(model, ''), COALESCE(firmware, ''),
-                    COALESCE(first_seen, ''), COALESCE(last_seen, '')
-             FROM receiver ORDER BY last_seen DESC",
-        ) {
+                    COALESCE(first_seen, ''), COALESCE(last_seen, ''), {engine}
+             FROM receiver ORDER BY last_seen DESC"
+        )) {
             Ok(statement) => statement,
             Err(rusqlite::Error::SqliteFailure(_, Some(ref why)))
                 if why.contains("no such table") =>
@@ -148,10 +155,23 @@ impl Log {
                     firmware: row.get(3)?,
                     first_seen: row.get(4)?,
                     last_seen: row.get(5)?,
+                    gps_engine: row.get(6)?,
                     instance: None,
                 })
             })?
             .collect::<std::result::Result<_, _>>()?)
+    }
+
+    fn has_column(&self, table: &str, column: &str) -> bool {
+        self.conn
+            .prepare(&format!("PRAGMA table_info({table})"))
+            .and_then(|mut statement| {
+                let found = statement
+                    .query_map([], |row| row.get::<_, String>(1))?
+                    .any(|name| name.is_ok_and(|n| n == column));
+                Ok(found)
+            })
+            .unwrap_or(false)
     }
 
     /// How often the daemon ran each tier, as it recorded.
@@ -518,6 +538,9 @@ pub(crate) struct Receiver {
     pub(crate) firmware: String,
     pub(crate) first_seen: String,
     pub(crate) last_seen: String,
+    /// The internal GPS engine's identity as the receiver answered it,
+    /// once a daemon has read it.
+    pub(crate) gps_engine: Option<String>,
     /// The daemon instance attached to it now, if one is.  Not the
     /// log's to know; filled in from the daemons that answer.
     pub(crate) instance: Option<String>,

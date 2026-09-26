@@ -25,7 +25,7 @@ use smartclock::snapshot::Tier;
 use smartclock::task::Cadence;
 
 /// Bumped when the tables change shape, or what a column holds.
-const SCHEMA: i64 = 8;
+const SCHEMA: i64 = 9;
 
 /// The first schema whose timestamps all carry nine fractional digits.
 const FIXED_WIDTH_STAMPS: i64 = 8;
@@ -231,7 +231,12 @@ impl Log {
                 -- As last seen, since an upgrade changes it.
                 firmware     TEXT,
                 first_seen   TEXT NOT NULL,
-                last_seen    TEXT NOT NULL
+                last_seen    TEXT NOT NULL,
+                -- The internal GPS engine's identity, exactly as
+                -- :DIAGnostic:IDENtification:GPSystem? answered it, as
+                -- last read.  NULL until a daemon of schema 9 or later
+                -- has asked.
+                gps_engine   TEXT
             );
 
             -- Every change in the receiver's alarm condition register.
@@ -365,6 +370,10 @@ impl Log {
                 self.conn
                     .execute_batch(&format!("ALTER TABLE snapshot ADD COLUMN {column} {kind}"))?;
             }
+        }
+        if !self.has_column("receiver", "gps_engine")? {
+            self.conn
+                .execute_batch("ALTER TABLE receiver ADD COLUMN gps_engine TEXT")?;
         }
         for table in ["audit", "receiver_error", "receiver_log"] {
             if !self.has_column(table, "receiver_id")? {
@@ -665,6 +674,29 @@ impl Log {
     ///
     /// Returns the serials of any other units that have written here,
     /// which is worth saying out loud the first time it happens.
+    /// Record the current receiver's GPS engine identity, returning
+    /// what was held before when it differs -- `Some(None)` on the first
+    /// record -- and `None` when it is unchanged or no receiver is
+    /// current.
+    pub(crate) fn note_gps_engine(&mut self, engine: &str) -> Result<Option<Option<String>>> {
+        let Some(receiver) = self.current else {
+            return Ok(None);
+        };
+        let held: Option<String> = self.conn.query_row(
+            "SELECT gps_engine FROM receiver WHERE id = ?1",
+            params![receiver],
+            |row| row.get(0),
+        )?;
+        if held.as_deref() == Some(engine) {
+            return Ok(None);
+        }
+        self.conn.execute(
+            "UPDATE receiver SET gps_engine = ?1 WHERE id = ?2",
+            params![engine, receiver],
+        )?;
+        Ok(Some(held))
+    }
+
     pub(crate) fn note_receiver(&mut self, identity: &str) -> Result<Vec<String>> {
         // The joined form is exactly what the receiver answered, so the
         // library's own parser reads it rather than a second splitter
@@ -1107,6 +1139,21 @@ mod tests {
                 "{column} should have been added"
             );
         }
+    }
+
+    #[test]
+    fn a_gps_engine_is_recorded_once_and_again_only_when_it_changes() {
+        let scratch = Scratch::new("engine");
+        let mut log = Log::open(scratch.path()).expect("open");
+        assert_eq!(log.note_gps_engine("A").expect("no receiver yet"), None);
+        log.note_receiver("HEWLETT-PACKARD,Z3801A,3542A01548,3543-A")
+            .expect("receiver");
+        assert_eq!(log.note_gps_engine("A").expect("first"), Some(None));
+        assert_eq!(log.note_gps_engine("A").expect("same"), None);
+        assert_eq!(
+            log.note_gps_engine("B").expect("changed"),
+            Some(Some("A".to_owned()))
+        );
     }
 
     #[test]

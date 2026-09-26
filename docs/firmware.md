@@ -163,6 +163,31 @@ negative sawtooth -- to record offsets 17 to 26.  The `Bn` program at
 `0x57e25` is the same apart from its channel count.  **The sawtooth is
 at offset 26 of the decoded record.**
 
+### The engines on the bench
+
+`:DIAGnostic:IDENtification:GPSystem?` returns the engine's own
+identity, a list of quoted `LABEL value` strings.  Read on 2026-09-26:
+
+| | 58503A 3710A01056 | Z3801A 3542A01548 |
+| - | ----------------- | ----------------- |
+| Copyright | Motorola 1991-1996 | Motorola 1991-1995 |
+| Model | B4121P1115 | B1121P1114 |
+| Software P/N | 98-P36830P | 98-P39972M |
+| Version, revision | 8, 8 | 8, 4 |
+| Software date | 06 Aug 1996 | 13 Jul 1995 |
+| Serial | SSG0220999 | SSG0178541 |
+| Manufactured | 7D01 | 6J25 |
+| Options | IB | IB |
+
+The Z3805A's was not read before it left the bench.  From schema 9
+the daemon reads it once per connection and keeps it, as answered, in
+the receiver table of each unit's log, and says so in the journal when
+it is first seen or changes.
+
+The Z3801A's answered while it tracked no satellites on an antenna the
+58503A tracks on, so its engine is powered and on the link, and what
+kept it deaf was on the RF side.
+
 ### Where the sawtooth is read
 
 The one reader of offset 26 found is `FUN_0004c062`, at `0x4c2b4`,
