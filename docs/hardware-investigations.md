@@ -172,7 +172,9 @@ setter writes it, the oscillator current is channel 3 with the same
 exponential average, and `EFControl:ABSolute?` reports the DAC word
 with the term in it.
 
-*Still open:* the bench receiver is revision 3704-C and its record
-shows no response to the oven current where 3633's code would.  A
-dump of a 3704 unit -- the bench receiver's own flash, with the same
-programmer -- is what would settle it.
+The bench receiver's own flash, revision 3704-C, was read through its
+pForth console (`firmware.md`, "Reading memory through it"): its loop
+has the same term, on the same current renumbered as channel 6.
+
+*Still open:* why the bench receiver's record shows no response to the
+oven current when its firmware applies the term.

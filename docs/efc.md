@@ -224,10 +224,10 @@ So this 58503A does not apply its -33.65 the way the Z3816A image
 applies its c.  A 58503A image of revision 3633 (`firmware.md`, "The
 58503A image") has the term in the same form, on the same smoothed
 current, and its `EFControl:ABSolute?` reports the DAC word with the
-term in it; this receiver is revision 3704-C, whose image is not on
-hand.  What this receiver does with its -33.65 is not settled by the
-record, and the difference lies between the two revisions or in what
-3704 reports.
+term in it.  This receiver's own firmware, revision 3704-C, read
+through its console, has the term too, on the same current renumbered
+as channel 6 (`firmware.md`, "The 58503A image").  So the term is in
+the firmware and absent from the record, and why is not settled.
 
 ### It is not feedforward
 

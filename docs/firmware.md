@@ -1193,8 +1193,8 @@ table.
   posts events 0x48 and 0x49 at the rails, and `FUN_0001b7b0` records
   16 × the word it sends, so the DAC is written as a 16-bit word and
   ABS is that word times sixteen.  (The bench 3704's ABS readings are
-  not multiples of sixteen, which is one more thing 3704 does
-  differently.)
+  not multiples of sixteen; 3704 writes its cell from the same places,
+  so why is not worked out.)
 - *The channels.*  The reader's eight cases carry these defaults:
   0 → 25.0, 1 → 4.0, 2 → 15.0, 3 → 250.0, 4 → 5.0, 5 → 4.0, 6 → −15.0,
   7 → 50.0.  With the report strings, 0 is the temperature, 2, 4 and 6
@@ -1213,10 +1213,26 @@ table.
 
 So revision 3633 applies its coefficient the way the Z3816A does, to
 the smoothed oscillator current, and reports the DAC word with the
-term in it.  The bench receiver, revision 3704, shows no such response
-in its record (`efc.md`, "The regression"); that difference is
-between the two revisions, or in what 3704 reports, and 3704's image
-is not on hand.
+term in it.
+
+Revision 3704, read from the bench receiver itself
+(`third_party/58503a-3704.bin`), has the same term in the same three
+places.  Its `pll_normal` is `FUN_0004495a` (message at `0x44f22`); at
+`0x44848`, `0x44a54` and `0x44d7c` it multiplies the float at
+`0x102014` -- the cell its `TCOefficient` record also names -- by the
+oven current held in D6, and the sum goes to the EFC writer
+`FUN_00023592`, which clamps it as 3633's `FUN_0002334e` does.  The
+current comes from channel 6, not 3: 3704's reader, `FUN_000222a6`,
+takes a channel's filtered value from `0x101ea0` + 0x30·n or, while
+the channel is not live, a default from a table of 42-byte
+descriptors, and that table names the channels Temperature, 5V, (none),
+Oven, 15V, −15V, Primary oven current and Antenna current, the sixth
+with the default 250 that 3633 gives its channel 3.  Its
+`EFControl:ABSolute?` handler, `FUN_0002b58a`, returns the cell at
+`0x1024aa`, written from the same places 3633 writes its `0x1024a0`.
+So the bench receiver's lack of a response to the oven current in its
+record (`efc.md`, "The regression") is not the term missing from its
+firmware; what does account for it is not worked out.
 
 ## Restarting
 
@@ -1349,8 +1365,9 @@ following, and how.
 - Only byte loads of offset 26 of the form `move.b (0x1a,An),Dn` were
   searched for.  A reader using another addressing form would have
   been missed.
-- The 58503A image on hand is revision 3633; the bench receiver runs
-  3704-C, and no image of that revision is available.
+- The 58503A tree and the loop were read from revision 3633 first;
+  3704, the bench receiver's own, is now on hand and has been compared
+  only where this document says so.
 
 ## Note on the disassembly
 
