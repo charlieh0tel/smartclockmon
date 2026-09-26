@@ -106,7 +106,36 @@ enum Command {
         #[arg(long)]
         from: PathBuf,
     },
+    /// Read memory through the pForth debug console, which must already
+    /// be running on the port (docs/firmware.md, "Reading memory through
+    /// it").  Defines one word in the console's RAM and writes nothing
+    /// else.
+    ReadMemory {
+        /// First address, as 0x-prefixed hex or decimal.
+        #[arg(long, value_parser = address)]
+        from: u32,
+        /// How many bytes.
+        #[arg(long, value_parser = address)]
+        length: u32,
+        /// Where to write what was read.
+        #[arg(long)]
+        out: PathBuf,
+        /// An image to check each chunk against, from its first byte.
+        #[arg(long)]
+        compare: Option<PathBuf>,
+    },
 }
+
+/// A `--from` or `--length`: 0x-prefixed hex, or decimal.
+fn address(text: &str) -> std::result::Result<u32, String> {
+    let parsed = match text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
+        Some(hex) => u32::from_str_radix(hex, 16),
+        None => text.parse(),
+    };
+    parsed.map_err(|e| format!("{text} is not an address: {e}"))
+}
+
+mod pforth;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -152,6 +181,37 @@ fn main() -> Result<()> {
     let port = transport::open(&settings)
         .with_context(|| format!("opening {device} at {} baud", cli.baud))?;
 
+    // The console has its own prompt, so this skips the SCPI session.
+    if let Command::ReadMemory {
+        from,
+        length,
+        out,
+        compare,
+    } = &cli.command
+    {
+        let expected = compare
+            .as_ref()
+            .map(|path| std::fs::read(path).with_context(|| format!("reading {}", path.display())))
+            .transpose()?;
+        let mut file = File::create(out).with_context(|| format!("creating {}", out.display()))?;
+        let summary = pforth::read_memory(port, *from, *length, &mut file, expected.as_deref())?;
+        eprintln!(
+            "read {length:#x} bytes from {from:#x} into {} in {} s",
+            out.display(),
+            summary.took.as_secs()
+        );
+        if let Some(path) = compare {
+            if summary.differing.is_empty() {
+                eprintln!("identical to {}", path.display());
+            } else {
+                for chunk in &summary.differing {
+                    eprintln!("differs from {} in the 1 KB at {chunk:#x}", path.display());
+                }
+            }
+        }
+        return Ok(());
+    }
+
     // Capture wraps the port, so a recording covers the sync exchange
     // too, not just the commands the subcommand issues.
     match &cli.capture {
@@ -194,6 +254,7 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command) -> Result<()> {
         Command::Probe { dialect } => probe(session, dialect),
         Command::Sweep { from } => sweep(session, from),
         Command::Diagnose => unreachable!("handled above, since it takes the session"),
+        Command::ReadMemory { .. } => unreachable!("handled before the session is opened"),
         // Handled before the port is opened.
         Command::Commands => Ok(()),
     }
@@ -205,7 +266,10 @@ fn typed(command: &Command) -> Result<Vec<String>> {
     Ok(match command {
         Command::Query { commands } => commands.clone(),
         Command::Sweep { from } => candidates(from)?,
-        Command::Probe { .. } | Command::Diagnose | Command::Commands => Vec::new(),
+        Command::Probe { .. }
+        | Command::Diagnose
+        | Command::Commands
+        | Command::ReadMemory { .. } => Vec::new(),
     })
 }
 
@@ -594,6 +658,10 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
         Command::Probe { .. } | Command::Sweep { .. } => anyhow::bail!(
             "probe and sweep send hundreds of commands and need the port to themselves; \
              stop smartclockd and use --device"
+        ),
+        Command::ReadMemory { .. } => anyhow::bail!(
+            "read-memory talks to the pForth console, not to the daemon; \
+             stop smartclockd, enter the console, and use --device"
         ),
     }
 }

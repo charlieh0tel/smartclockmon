@@ -24,7 +24,7 @@ oscillator.  See `docs/efc.md`.
 | `smartclock` | the library: transports, SCPI framing, the command table, parsers, the status screen scraper, the polling task, and the Allan deviation |
 | `smartclockd` | holds the serial port, logs to SQLite, serves clients over a local socket |
 | `smartclockmon` | terminal monitor: a dashboard, history graphs, the journal, the sky and stability |
-| `smartclock-cli` | one-shot queries, `diagnose`, transcript capture, and sweeping for undocumented commands |
+| `smartclock-cli` | one-shot queries, `diagnose`, transcript capture, sweeping for undocumented commands, and reading a unit's ROM and EEPROM through its debug console |
 | `smartclock-exporter` | Prometheus metrics for every receiver on the host, from the daemons' own readings |
 | `smartclock-web` | a browser view: live state, history you can zoom, and pages for the sky and for stability |
 | `smartclock-sim` | a simulated receiver, in process for tests and over TCP for driving the real daemon |

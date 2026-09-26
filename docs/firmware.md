@@ -963,23 +963,49 @@ no word that starts the SCPI task again; `FUN_00039732`, which creates
 that task (named `sci`, entry `0x39706`, task id `0x103d5a`), is not in
 the table.
 
-### Reading the ROM through it
+### Reading memory through it
 
 The console's `c@` and `@` read the running unit's own memory, so its
-ROM can be read without opening it.  Loops are compile-only here, so
-one word does it, and defining it touches nothing but the dictionary
-in RAM:
+ROM and its EEPROM can be read without opening it.  Loops are
+compile-only here, so one word does it, and defining it touches
+nothing but the dictionary in RAM:
 
     : rd ( addr n -- ) over + swap do i @ u. 4 +loop ;
 
 In `hex`, `<addr> <n> rd` prints the 32-bit words from `addr` for `n`
-bytes.  On the bench Z3801A (3542A01548, 3543-A), on 2026-09-26, the
-whole 512 KB from address 0 came back in 1 KB requests at 19200 baud,
-7O1, in 689 seconds, and is byte-identical to `z3801a-3543.bin`:
+bytes.  `smartclock-cli read-memory` does the rest: it checks the
+port is at the console prompt, defines `rd`, reads 1 KB per request
+with retries, writes the bytes to a file and, given `--compare`,
+checks each kilobyte against an image.  The procedure:
+
+1. Stop the unit's daemon, which holds the port:
+   `sudo systemctl stop smartclockd@<port>`.
+2. From a terminal at the unit's framing (19200 7O1 for a Z3801A),
+   send `:SYSTem:LANGuage "PFORTH"`.  The prompt becomes
+   `p4th D > `.  Leave the terminal so the port is free.
+3. Read the ROM, 512 KB at address 0, and the EEPROM, 8 KB at
+   `0x400000` (chip select 9, as the reset code programs it):
+
+       smartclock-cli --device /dev/<port> --framing 7O1 read-memory \
+           --from 0 --length 0x80000 --out rom.bin \
+           --compare third_party/z3801a-3543.bin
+       smartclock-cli --device /dev/<port> --framing 7O1 read-memory \
+           --from 0x400000 --length 0x2000 --out eeprom.bin
+
+4. Power cycle the unit, which returns the port to SCPI, and start
+   the daemon again.
+
+On the bench Z3801A (3542A01548, 3543-A), on 2026-09-26, the ROM came
+back in 689 seconds and is byte-identical to `z3801a-3543.bin`:
 SHA-256 `29e33b6d85b7371cef16cbf68b071f8a4ca047a8ab391d3c1e8087e553199bed`
-for both.  So the image is this unit's firmware, not only its revision.
-The session is `docs/z3801a-pforth.txt`; a power cycle returns the port
-to SCPI.
+for both.  So the image is this unit's firmware, not only its
+revision.  Its EEPROM took 6 seconds.  It begins with the model
+`Z3801A`, the serial `3542A01548` and `AQ`; holds two records at
+`0x0c0` and `0x140`, each starting with the revision `3543` -- the
+two settings records `:SYSTem:PRESet` writes at `0x4000c0` in the
+Z3816A image; and from `0x1c0` holds the diagnostic log, starting
+with `Log cleared`.  The rest of its layout is not worked out here.
+The first session is `docs/z3801a-pforth.txt`.
 
 The 58503A image, revision 3633, accepts the same `PFORTH` value and
 carries the same Forth words.
