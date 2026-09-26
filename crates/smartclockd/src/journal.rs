@@ -586,8 +586,15 @@ fn ask(handle: &Handle, dialect: Dialect, id: CommandId, argument: Option<i64>) 
     Ok(reply.one_line("a single line")?.to_owned())
 }
 
-/// Split `Log NNN:YYYYMMDD.HH:MM:SS: message` into its timestamp and
-/// its message.
+/// Split a diagnostic log entry into its timestamp and its message.
+///
+/// Two forms are written, both in the Z3801A image, revision 3543, as
+/// format strings: `Log %03d:%04d%02d%02d.%02d:%02d:%02d`, a calendar
+/// date and time, which the 58503A and the Z3805A return; and
+/// `Log %03d:H%08X`, an unsigned hex count, which the bench Z3801A
+/// returns.  The manual defines that `H` notation for the time code,
+/// `:PTIMe:TCODe?`, as "the number of seconds that have elapsed since
+/// January 6, 1980", referenced to GPS time (`097-z3801-01` 4-13).
 ///
 /// The entry number is dropped: it was in the request, and the receiver
 /// pads it at one end of its log and not the other.  The timestamp is
@@ -600,6 +607,8 @@ fn ask(handle: &Handle, dialect: Dialect, id: CommandId, argument: Option<i64>) 
 /// message.  An entry whose text we do not recognise is still the
 /// receiver telling us something.
 fn split_entry(text: &str) -> (Option<&str>, &str) {
+    /// `H` and eight hex digits.
+    const HEX_STAMP_LEN: usize = 9;
     let whole = (None, text);
     let Some(rest) = text.strip_prefix("Log ") else {
         return whole;
@@ -608,8 +617,16 @@ fn split_entry(text: &str) -> (Option<&str>, &str) {
         return whole;
     };
     let rest = rest.trim_start();
-    // The timestamp has two colons of its own, so the one that ends it
-    // is the third.
+    // The hex form is `H` and eight digits, then the colon that ends it.
+    if let Some((stamp, message)) = rest.split_once(':')
+        && stamp.len() == HEX_STAMP_LEN
+        && stamp.starts_with('H')
+        && stamp[1..].bytes().all(|b| b.is_ascii_hexdigit())
+    {
+        return (Some(stamp), message.trim());
+    }
+    // The calendar form has two colons of its own, so the one that ends
+    // it is the third.
     let mut colons = rest.match_indices(':').map(|(at, _)| at);
     let (Some(_), Some(_), Some(end)) = (colons.next(), colons.next(), colons.next()) else {
         return whole;
@@ -734,6 +751,23 @@ mod tests {
         let (stamp, message) = split_entry("Log 001:20050528.00:00:00: Log cleared");
         assert_eq!(stamp, Some("20050528.00:00:00"));
         assert_eq!(message, "Log cleared");
+    }
+
+    #[test]
+    fn the_entries_a_z3801a_actually_returns_split() {
+        let (stamp, message) = split_entry("Log 033:H45108480: Power on");
+        assert_eq!(stamp, Some("H45108480"));
+        assert_eq!(message, "Power on");
+
+        // A message carrying a stamp of its own keeps it.
+        let (stamp, message) =
+            split_entry("Log 003:H37FFD7D0: First satellite tracked at H44C97002");
+        assert_eq!(stamp, Some("H37FFD7D0"));
+        assert_eq!(message, "First satellite tracked at H44C97002");
+
+        // Not eight hex digits: not the hex form, so kept whole.
+        let text = "Log 004:H44C9726: GPS lock started";
+        assert_eq!(split_entry(text), (None, text));
     }
 
     #[test]

@@ -1093,6 +1093,19 @@ assumption.
 If a variant's tree cannot be pinned down from the manuals, the
 fallback is the unit's EEPROM.
 
+The bench Z3801A (3543-A) differs from the 58503A on the wire in two
+more ways.  It does not echo, so a command with no reply comes back as
+the previous prompt's trailing space and the prompt alone, which the
+prompt matcher now allows for.  And it stamps its diagnostic log
+`Log NNN:H%08X: message`, a hex count, where the 58503A and the Z3805A
+write a calendar date; the manual defines the `H` notation for the
+time code as seconds of GPS time since 1980-01-06 (`097-z3801-01`
+4-13).  The stamp is stored as written and the web view shows it
+decoded, the hex in the tooltip.  Its `-230 Data corrupt or stale` on
+`:PTIMe:TINTerval?` and `:PTIMe:FFOMerit?` while it tracks no
+satellites is the manual's documented answer for an unavailable value
+(4-6, 4-7), taken as a state refusal like the 58503A's.
+
 The line framing differs too: the 58503A's is settable, the Z3801A's
 fixed at 7O1 (`097-z3801-01` 1-8, 2-10).  It is a setting, `--framing`,
 named per port rather than probed: a probe at the wrong framing sends

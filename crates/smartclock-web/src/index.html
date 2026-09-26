@@ -617,9 +617,23 @@ let stream = view.get("journal");
 // correction belongs where the rollover is known, not here.
 const rows = {
   events: (r) => [local(r.at), `${esc(r.decoded)} <span class="muted">(${esc(r.register)} ${r.bits})</span>`],
-  entries: (r) => [esc(r.stamp) || local(r.at), `<span class="muted">#${r.entry}</span> ${esc(r.message)}`],
+  entries: (r) => [stamped(r), `<span class="muted">#${r.entry}</span> ${esc(r.message)}`],
   errors: (r) => [local(r.at), `<span class="muted">${r.code}</span> ${esc(r.message)}`],
 };
+
+// The receiver's own stamp as it wrote it, or when the daemon read the
+// entry if it wrote none.  The Z3801A's hex stamp is seconds of GPS
+// time since 1980-01-06 (097-z3801-01 4-13), shown as a date with the
+// hex in the tooltip; like the calendar stamps, it is on the receiver's
+// clock and carries whatever week rollover that clock has.
+const GPS_EPOCH_MS = Date.UTC(1980, 0, 6);
+function stamped(r) {
+  if (!r.stamp) return local(r.at);
+  const hex = /^H([0-9A-F]{8})$/i.exec(r.stamp);
+  if (!hex) return esc(r.stamp);
+  const at = new Date(GPS_EPOCH_MS + parseInt(hex[1], 16) * 1000);
+  return `<span title="${esc(r.stamp)}">${esc(at.toISOString().slice(0, 19).replace("T", " "))} GPS</span>`;
+}
 
 const local = (iso) => {
   const at = new Date(iso);
