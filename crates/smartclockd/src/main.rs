@@ -54,6 +54,7 @@ use smartclock::transport;
 use smartclock::transport::Transport;
 use smartclock::transport::serial::Settings;
 use smartclock::types::BaudRate;
+use smartclock::types::Framing;
 
 #[derive(Parser)]
 #[command(about, version = smartclock::VERSION)]
@@ -71,6 +72,11 @@ struct Cli {
     /// Bits per second.  Checked against the rates a port can be opened at.
     #[arg(long, env = "SMARTCLOCKD_BAUD", default_value_t = 19200)]
     baud: u32,
+
+    /// Character framing, `8N1` or `7O1`.  The 58503A's is settable
+    /// and 8N1 here; the Z3801A's is fixed at 7O1.
+    #[arg(long, env = "SMARTCLOCKD_FRAMING", default_value = "8N1")]
+    framing: Framing,
 
     /// Where the logs live: one file per receiver, named
     /// `<model>-<serial>.sqlite` once the receiver has answered `*IDN?`,
@@ -384,6 +390,7 @@ fn supervise(
     let settings = Settings {
         path: cli.device.clone(),
         baud,
+        framing: cli.framing,
         read_timeout: Duration::from_millis(250),
     };
     let mut requests = requests_rx;

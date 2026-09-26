@@ -18,6 +18,11 @@
 # be opened, to reach a receiver something else moved there.
 #SMARTCLOCKD_BAUD=19200
 
+# Character framing, 8N1 or 7O1.  The Z3801A's port is fixed at 7O1
+# (097-z3801-01 1-8, 2-10).  This belongs to a port, so on a host with
+# receivers of both kinds set it in each instance's drop-in, not here.
+#SMARTCLOCKD_FRAMING=8N1
+
 # One log per receiver, <model>-<serial>.sqlite in this directory,
 # opened once the receiver has answered *IDN?.  Set
 # SMARTCLOCKD_DATABASE to a file instead to log every receiver seen on

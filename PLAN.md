@@ -1093,6 +1093,12 @@ assumption.
 If a variant's tree cannot be pinned down from the manuals, the
 fallback is the unit's EEPROM.
 
+The line framing differs too: the 58503A's is settable, the Z3801A's
+fixed at 7O1 (`097-z3801-01` 1-8, 2-10).  It is a setting, `--framing`,
+named per port rather than probed: a probe at the wrong framing sends
+the receiver garbage and reads garbage back, and the port is the thing
+that knows which receiver is on it.
+
 ### The status screen scraper is mandatory
 
 `:GPS:SATellite:TRACking?` returns PRN numbers only.  Per-satellite

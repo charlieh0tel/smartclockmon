@@ -27,6 +27,7 @@ use smartclock::transport::Transport;
 use smartclock::transport::serial::Settings;
 use smartclock::transport::tee::TeeTransport;
 use smartclock::types::BaudRate;
+use smartclock::types::Framing;
 use smartclock::types::Seconds;
 use smartclock::wire::Reading;
 
@@ -48,6 +49,10 @@ struct Cli {
     /// produces garbage that looks like a dead receiver.
     #[arg(long, default_value_t = 19200, global = true)]
     baud: u32,
+
+    /// Character framing, `8N1` or `7O1`.  The Z3801A's is fixed at 7O1.
+    #[arg(long, default_value = "8N1", global = true)]
+    framing: Framing,
 
     /// Seconds to wait for a prompt.
     #[arg(long, default_value_t = 5.0, global = true)]
@@ -137,6 +142,7 @@ fn main() -> Result<()> {
     let settings = Settings {
         path: device.clone(),
         baud,
+        framing: cli.framing,
         read_timeout: Duration::from_millis(250),
     };
     let config = Config {

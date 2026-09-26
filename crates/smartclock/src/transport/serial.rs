@@ -7,6 +7,7 @@ use std::time::Duration;
 use crate::error::Result;
 use crate::transport::Transport;
 use crate::types::BaudRate;
+use crate::types::Framing;
 
 /// Serial line settings.  The receiver stores its own settings in
 /// non-volatile memory, so these must match whatever it was last told,
@@ -19,6 +20,9 @@ pub struct Settings {
     /// Line rate.  The receiver stores its own, so this is not
     /// necessarily the factory default.
     pub baud: BaudRate,
+    /// Character framing: settable on the 58503A, fixed at 7O1 on the
+    /// Z3801A.
+    pub framing: Framing,
     /// How long a single read waits before returning empty.
     pub read_timeout: Duration,
 }
@@ -28,6 +32,7 @@ impl Default for Settings {
         Self {
             path: "/dev/ttyUSB0".to_owned(),
             baud: BaudRate::B19200,
+            framing: Framing::EightNone,
             read_timeout: Duration::from_millis(250),
         }
     }
@@ -41,12 +46,20 @@ pub struct SerialTransport {
 }
 
 impl SerialTransport {
-    /// Open the port.  8N1 with no flow control, which is the only
-    /// combination the 58503A offers when parity is none.
+    /// Open the port, at the settings' framing, with no flow control.
     pub fn open(settings: &Settings) -> Result<Self> {
+        let data_bits = match settings.framing.data_bits() {
+            7 => serialport::DataBits::Seven,
+            _ => serialport::DataBits::Eight,
+        };
+        let parity = match settings.framing.odd_parity() {
+            None => serialport::Parity::None,
+            Some(true) => serialport::Parity::Odd,
+            Some(false) => serialport::Parity::Even,
+        };
         let port = serialport::new(&settings.path, settings.baud.get())
-            .data_bits(serialport::DataBits::Eight)
-            .parity(serialport::Parity::None)
+            .data_bits(data_bits)
+            .parity(parity)
             .stop_bits(serialport::StopBits::One)
             .flow_control(serialport::FlowControl::None)
             .timeout(settings.read_timeout)

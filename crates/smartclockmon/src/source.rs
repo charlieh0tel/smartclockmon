@@ -31,6 +31,7 @@ use smartclock::task::Handle;
 use smartclock::transport;
 use smartclock::transport::serial::Settings;
 use smartclock::types::BaudRate;
+use smartclock::types::Framing;
 use smartclock::wire::Reading;
 
 /// How the monitor is attached.
@@ -420,6 +421,7 @@ fn forward(reader: Reader, tx: &Sender<Update>) -> Result<(), ()> {
 pub(crate) fn from_device(
     device: &str,
     baud: u32,
+    framing: Framing,
 ) -> Result<(Receiver<Update>, Attachment, Console, Policy, Cadence)> {
     let baud = BaudRate::new(baud).with_context(|| {
         let supported = BaudRate::ALL.map(|b| b.to_string()).join(", ");
@@ -428,6 +430,7 @@ pub(crate) fn from_device(
     let settings = Settings {
         path: device.to_owned(),
         baud,
+        framing,
         read_timeout: Duration::from_millis(250),
     };
     // Through the same opener as the other tools, so `tcp://host:port`
@@ -481,6 +484,7 @@ pub(crate) fn from_device(
 mod tests {
     use super::Update;
     use super::from_device;
+    use smartclock::types::Framing;
     use smartclock_sim::net::serve;
     use smartclock_sim::receiver::Receiver;
     use smartclock_sim::transport::SimTransport;
@@ -501,7 +505,8 @@ mod tests {
 
     #[test]
     fn direct_mode_reads_the_sky_when_asked() {
-        let (updates, _, console, ..) = from_device(&simulator(), 9600).expect("open");
+        let (updates, _, console, ..) =
+            from_device(&simulator(), 9600, Framing::default()).expect("open");
         console.sky().expect("ask for the sky");
         let deadline = std::time::Instant::now() + Duration::from_secs(10);
         loop {
@@ -518,7 +523,8 @@ mod tests {
     fn direct_mode_opens_a_receiver_by_network_address() {
         // The console is kept: it holds the task's handle, and the task
         // stops when that goes.
-        let (updates, _, _console, ..) = from_device(&simulator(), 9600).expect("open by address");
+        let (updates, _, _console, ..) =
+            from_device(&simulator(), 9600, Framing::default()).expect("open by address");
         match updates.recv_timeout(Duration::from_secs(10)) {
             Ok(Update::Reading(_)) => {}
             other => panic!("expected a reading, got {other:?}"),

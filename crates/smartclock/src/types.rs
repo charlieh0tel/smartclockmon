@@ -1001,16 +1001,101 @@ impl fmt::Display for BaudRate {
     }
 }
 
+/// How each character is framed on the serial line.
+///
+/// The 58503A's framing is settable and this project never sets it;
+/// the Z3801A's is fixed at seven data bits, odd parity, one stop bit
+/// (`097-z3801-01` 1-8: "Parity: Odd, Data Bits: 7/char"; 2-10: the
+/// port "has a fixed configuration").  Opened at the wrong framing a
+/// port does not fail, it exchanges garbage, so the setting is named
+/// rather than guessed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Framing {
+    /// Eight data bits, no parity, one stop bit.
+    #[default]
+    EightNone,
+    /// Seven data bits, odd parity, one stop bit: the Z3801A's.
+    SevenOdd,
+}
+
+impl Framing {
+    /// Every framing a port can be opened with.
+    pub const ALL: [Framing; 2] = [Self::EightNone, Self::SevenOdd];
+
+    /// Recognise a framing by its usual name, `8N1` or `7O1`, in either
+    /// case.
+    pub fn new(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|f| f.to_string().eq_ignore_ascii_case(name))
+    }
+
+    /// Data bits per character.
+    pub fn data_bits(self) -> u8 {
+        match self {
+            Self::EightNone => 8,
+            Self::SevenOdd => 7,
+        }
+    }
+
+    /// Whether a parity bit is sent, and which.
+    pub fn odd_parity(self) -> Option<bool> {
+        match self {
+            Self::EightNone => None,
+            Self::SevenOdd => Some(true),
+        }
+    }
+}
+
+/// A framing name that is not one a port can be opened with.
+#[derive(Debug, thiserror::Error)]
+#[error("{0} is not a framing these tools can open (8N1, 7O1)")]
+pub struct UnknownFraming(String);
+
+impl std::str::FromStr for Framing {
+    type Err = UnknownFraming;
+
+    fn from_str(name: &str) -> Result<Self, Self::Err> {
+        Self::new(name).ok_or_else(|| UnknownFraming(name.to_owned()))
+    }
+}
+
+impl fmt::Display for Framing {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::EightNone => "8N1",
+            Self::SevenOdd => "7O1",
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::BaudRate;
     use super::Ffom;
+    use super::Framing;
     use super::HoldoverWaitReason;
     use super::Seconds;
     use super::SmartClockMode;
     use super::Tfom;
     use super::TimeOfDay;
     use super::UtcOffset;
+
+    #[test]
+    fn a_framing_is_known_by_its_usual_name_in_either_case() {
+        assert_eq!(Framing::new("7o1"), Some(Framing::SevenOdd));
+        assert_eq!(Framing::new("8N1"), Some(Framing::EightNone));
+        assert_eq!(Framing::new("7E1"), None);
+        assert!(
+            "7E1"
+                .parse::<Framing>()
+                .is_err_and(|e| e.to_string().contains("8N1, 7O1")),
+            "the refusal names what is accepted"
+        );
+        for framing in Framing::ALL {
+            assert_eq!(Framing::new(&framing.to_string()), Some(framing));
+        }
+    }
 
     #[test]
     fn a_figure_of_merit_says_the_range_it_accepts() {

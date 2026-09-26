@@ -163,6 +163,31 @@ A second port is a second instance, exactly like the first:
 
     smartclockmon --socket /run/smartclockd/ttyUSB1/socket
 
+A Z3801A needs one setting the 58503A does not: its port is fixed at
+seven data bits and odd parity (`097-z3801-01` 1-8 and 2-10), where
+the daemon opens 8N1 unless told otherwise.  Opened at the wrong
+framing a port does not fail, it exchanges garbage, so name it in that
+instance's drop-in:
+
+    sudo systemctl edit smartclockd@ttyUSB1
+
+    [Service]
+    Environment=SMARTCLOCKD_FRAMING=7O1
+
+`smartclock-cli` and `smartclockmon` take `--framing 7O1` for direct
+mode the same way.
+
+Anything that differs between the ports -- the framing, and whether
+to adopt that receiver's log -- goes in the drop-ins, not in
+`/etc/default/smartclockd`: a setting in the shared file applies to
+every instance and a drop-in cannot override it.
+
+With two adapters, `ttyUSB0` and `ttyUSB1` can swap when either is
+replugged or the host reboots, and each instance would then open the
+other receiver's port at the other's framing.  Give each adapter a
+stable name first (see "Installing" for the udev rule or the escaped
+by-id path) and name the instances after those.
+
 The instances share `/var/lib/smartclockd`, and since each writes the
 file named for the receiver on its own port, and a receiver is on one
 port at a time, they never write the same file.  The viewers are

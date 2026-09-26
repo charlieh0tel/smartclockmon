@@ -21,6 +21,8 @@ use crossterm::event::KeyCode;
 use crossterm::event::KeyEventKind;
 
 use crate::app::App;
+use smartclock::types::Framing;
+
 use crate::app::View;
 use crate::source::Update;
 
@@ -41,6 +43,11 @@ struct Cli {
     /// Bits per second, for direct mode.
     #[arg(long, default_value_t = 19200)]
     baud: u32,
+
+    /// Character framing for direct mode, `8N1` or `7O1`.  The Z3801A's
+    /// is fixed at 7O1.
+    #[arg(long, default_value = "8N1")]
+    framing: Framing,
 }
 
 /// How often to redraw when nothing has arrived, so the clock in the
@@ -61,7 +68,7 @@ const SKY_REFRESH: Duration = Duration::from_secs(15);
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let (updates, attachment, console, policy, cadence) = match (&cli.device, &cli.socket) {
-        (Some(device), _) => source::from_device(device, cli.baud)?,
+        (Some(device), _) => source::from_device(device, cli.baud, cli.framing)?,
         (None, Some(socket)) => source::from_daemon(socket)?,
         // clap requires one of the two.
         (None, None) => unreachable!("--socket is required without --device"),
