@@ -338,12 +338,17 @@ fn split_prompt(buf: &str) -> Option<(&str, Prompt)> {
         None => ("", buf),
     };
     // The manuals render the prompt "scpi>", but the wire carries
-    // "scpi > ", with a space on both sides of the angle bracket.
-    let token = tail.trim_end().strip_suffix('>')?.trim_end();
+    // "scpi > ", with a space on both sides of the angle bracket.  The
+    // previous prompt's trailing space can also land at the front of
+    // this one: the Z3801A, which does not echo, sends a command with
+    // no reply as nothing but " E-230> " -- no newline to split on, so
+    // the stray space is part of the tail.
+    let tail = tail.trim();
+    let token = tail.strip_suffix('>')?.trim_end();
     let prompt = if token.eq_ignore_ascii_case("scpi") {
         Prompt::Ready
     } else if token.starts_with('E') || token.starts_with('e') {
-        Prompt::Error(tail.trim_end().to_owned())
+        Prompt::Error(tail.to_owned())
     } else {
         return None;
     };
@@ -409,6 +414,19 @@ mod tests {
                 "did not recognise {form:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_prompt_behind_the_last_ones_stray_space_is_still_a_prompt() {
+        // Seen on a Z3801A: a command with no reply, from a receiver
+        // that does not echo, arrives as the previous prompt's trailing
+        // space and then the prompt, with no newline between.
+        assert_eq!(
+            split_prompt(" E-230> "),
+            Some(("", Prompt::Error("E-230>".to_owned())))
+        );
+        assert_eq!(split_prompt(" scpi> "), Some(("", Prompt::Ready)));
+        assert!(split_prompt(" scp").is_none());
     }
 
     #[test]
