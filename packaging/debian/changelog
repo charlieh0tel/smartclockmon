@@ -1,3 +1,11 @@
+smartclockmon (0.6.24-1) unstable; urgency=low
+
+  * Graduate the stability page's deviation axes at 1, 2 and 5 as the
+    tau axis is, every graduation on a span under a decade, and range
+    them over the shaded intervals so none is cut off.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Fri, 25 Sep 2026 20:10:46 -0700
+
 smartclockmon (0.6.23-1) unstable; urgency=low
 
   * Name the 1, 2 and 5 graduations on the stability page's tau axis,
