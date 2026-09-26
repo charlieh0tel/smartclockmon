@@ -1,3 +1,15 @@
+smartclockmon (0.6.31-1) unstable; urgency=low
+
+  * Record each unit's GPS engine identity: the daemon reads it once
+    per connection, keeps it in the receiver table of the unit's log
+    (schema 9), and names the engine in the journal when it is first
+    seen or changes.
+  * smartclock-cli read-memory reads a unit's ROM or EEPROM through its
+    pForth debug console, entered by hand first, with an optional
+    comparison against an image.  docs/firmware.md has the procedure.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sat, 26 Sep 2026 15:36:16 -0700
+
 smartclockmon (0.6.30-1) unstable; urgency=low
 
   * Redraw the history charts as soon as the receiver is switched.
