@@ -28,9 +28,11 @@ specification and its sources.
 ## The pin follows the count
 
 Each row is an external measurement at the oscillator's EFC pin, taken
-with an HP 34401A -- black lead on ground, red on the pin, the same two
-points each time -- recorded with the raw value the receiver reported
-at that moment.
+with an HP 34401A or a Keysight 34461A -- black lead on ground, red on
+the pin, the same two points each time -- recorded with the raw value
+the receiver reported at that moment.  Both are 6½-digit bench meters,
+good to well under a millivolt on these readings; which took each row
+was not recorded.
 
 | When (UTC) | EFC pin | Raw | Relative | Temperature |
 | ---------- | ------- | --- | -------- | ----------- |
@@ -114,6 +116,32 @@ where zero lies, not a measurement of it.  (An earlier version gave
 +/- 15,500 counts, having scaled the slope's error by the whole count
 rather than by the distance from the data.)
 
+### At full scale
+
+On 2026-09-26, between 17:30 and 17:37 UTC, the receiver held the
+count at 0 -- reported -100.0000 percent, the hardware condition
+register showing both EFC full-scale bits -- and the pin read
+**4.568 V**, case temperature 28.1 C, on one of the same two meters.
+(The events that put it there are under "The pull, measured" below.)
+
+The seven-point fit predicted 4.614 V at count 0, 713,000 counts from
+its data; the reading is 1.0 percent below that.  The count drives the
+pin linearly to within a percent across the whole lower half of the
+range, which the fit alone could not show.
+
+The line from the seven points' mean (713,047 counts, 54.03 mV) to the
+full-scale reading has a slope of **6.33 uV per count**, 1.3 percent
+above the designed 6.25 uV (100 uV per 16-count DAC step), and within
+the seven-point slope's error.  At exactly 6.25 uV the pin would read
+4.511 V at count 0; the 57 mV difference is far beyond either meter's
+error, so it is this unit's DAC chain spanning 1.3 percent more than
+nominal, not the measurement.  It crosses 0 V at count 721,580,
+**+37.63 percent** -- the zero the extrapolation above indicated, now
+with a point at the far end behind it.  The receiver corroborated it:
+with the crystal retrimmed to 10 MHz at 0 V, it relocked and settled
+through +37.79 percent at 17:48 UTC and +37.67 at 17:51 (counts
+722,390 and 721,776), where the line puts the pin at -5 mV and -1 mV.
+
 ## What the count does with ambient
 
 The count does follow the room: over 46 hours and 137,333 samples, with
@@ -123,8 +151,8 @@ r = +0.88.  This is the oven's normal residual, not a failure of it.
 The coupling is **+109 counts per degree C**, and the count is a
 frequency knob:
 
-    109 counts/C  x  1.907x10^-4 %/count  x  2.0x10^-9 per %
-        = 4.1x10^-11 per C
+    109 counts/C  x  3.94x10^-13 per count  (measured; see "The pull, measured")
+        = 4.3x10^-11 per C
 
 The 10811 specification is <2.5x10^-9 over 0 C to 71 C, an average of
 about 3.5x10^-11 per C.  The measured residual sits right at it.  A
@@ -136,7 +164,7 @@ orders larger.
 `:DIAGnostic:ROSCillator:TCOefficient?` returns -33.65 on this unit.
 It is undocumented, and before the firmware was read its units were
 inferred as parts in 10^12 per degree C, from -33.65x10^-12/C against
-the measured +4.1x10^-11/C -- the same size, opposite in sign.  The
+the measured +4.3x10^-11/C -- the same size, opposite in sign.  The
 firmware says otherwise (`firmware.md`, "s, the oscillator current"):
 the value is the constant c in the loop's EFC, u = K.f + B + I + c.s,
 where s is the oscillator-current channel of the health monitor
@@ -244,52 +272,79 @@ step test above shows.
 The two kinds are kept differently on purpose.  A tempco that sits
 still across days is the design working, not a value failing to update.
 
+## The pull, measured
+
+On 2026-09-26 the oscillator's crystal was retrimmed by hand.  The
+sequence, from the operator's counter and the daemon's log:
+
+1. With the EFC input disconnected and floating, the crystal read more
+   than 3 Hz flat of 10 MHz, and was trimmed to within a few
+   millihertz.
+2. Reconnected, the receiver came up on its stored count, 711,375
+   (+35.68 percent, the pin near +65 mV), and its coarse frequency
+   adjustment stepped the count to 0 within eleven seconds of a valid
+   GPS reference (17:30:00 to 17:30:13 UTC).  At count 0 the
+   operator's counter read the output **0.9 Hz high**, and the 1 PPS
+   interval ramped at -88.7 ns/s, a fractional frequency of
+   +8.87x10^-8: the two agree.
+3. With the EFC input grounded, the crystal was trimmed to within
+   **+/- 6 mHz** (6x10^-10) of 10 MHz.
+4. Reconnected, still at count 0 (holdover, 17:39:32 to 17:40:43 UTC,
+   the count creeping to 10), the interval ramped at **+284.0 ns/s**:
+   the output **2.840x10^-7 low**.  A power cycle then ran the coarse
+   adjustment again and the receiver relocked at +37.8 percent (above).
+
+Step 4 is the measurement.  Between 0 V, where the crystal sat within
+6x10^-10 of nominal, and the 4.568 V count 0 drives, the output moved
+by -2.840x10^-7:
+
+| | This unit, measured | Specification | Firmware assumes |
+| - | ------------------- | ------------- | ---------------- |
+| Per volt at the pin | **-6.22x10^-8** | at least -4.0x10^-8 | -- |
+| Per count | **+3.94x10^-13** | 3.8x10^-13 | +6.25x10^-13 |
+
+The specification column is the -60159's "> +/- 2.0x10^-7" over -5 V
+to +5 V, spread across 2^20 counts as before; the measured gain is 1.55
+times that minimum, inside it.  The firmware column is the loop's G
+in the 58503A image, revision 3633 (`firmware.md`), where the bench
+unit is 3704-C: the sign agrees -- count up, frequency up -- and the
+magnitude is 0.63 of what the loop assumes.  Per count, the measured
+figure is over the 721,580 counts from the 0 V point to count 0.
+
+The sign is measured as well as specified: a positive pin lowered the
+output, as `HP-10811AB-Manual` section 2-13 says it should.
+
+Step 1 is a caution.  By the measured gain, the crystal after the
+floating-input trim sat **3.7x10^-7 sharp** at the receiver's old pin
+voltage -- the 0.9 Hz it still read at count 0, plus the 2.80x10^-7
+between +65 mV and 4.568 V.  A floating EFC input is not 0 V, and a
+trim made against one is off by most of the receiver's range.  Trim
+with the input grounded.
+
+Two figures now stand on counters, a third apart on parts that differ
+by one dash number:
+
+| | Per count | Over -5 V to +5 V, if linear |
+| - | --------- | ---------------------------- |
+| 58503A, `-60159`, this unit, measured | 3.94x10^-13 | +/- 3.1x10^-7 |
+| Z3801A, `-60161`, Van Baak's measurement | 5.2x10^-13 | +/- 2.7x10^-7 |
+
+The span column extrapolates each gain across the whole input; neither
+oscillator has been driven to both ends.  The `-60161` remains
+undocumented in anything to hand, so treat its row as indicative.
+
 ## Where the unit stands
 
-Reading the reported percentage as position in the pull range,
-36.06 percent of +/- 2.0x10^-7 is 7.2x10^-8 used with about 1.3x10^-7
-left -- on the order of a decade of headroom at typical aging.  Under
-the sliver mapping there would be single-digit nanohertz per hertz of
-range, most of a year at best.
+Since the retrim the receiver locks with the pin within millivolts of
+0 V, at +37.8 percent.  Downward, to count 0, it has **2.84x10^-7**
+of pull, measured.  Upward the pin has not been driven: the count's
+top end, 2^20 - 16, is 326,000 counts away, and neither the pin
+voltage there nor the gain over that half is measured.
 
-The offset above argues for more headroom still, not less.  If the pin
-is 0 V near +37.6 percent, this unit at +36.0 percent has pulled only
-about 1.6 percentage points, some 3x10^-9, and has most of the range in
-both directions.  Both readings are comfortable and the difference
-between them does not matter yet, so the conservative one is quoted.
+Which way the crystal ages decides which half matters.  The measured
+downward half alone is 2.8 years at the -60159's specified maximum
+aging of 1x10^-7 per year (`OCXO.md`).
 
-The measured 6.40 uV per count settles it for the specification
-mapping.  That slope is measured over 987 of 2^20 counts and
-extrapolated, so it establishes that the receiver drives volts rather
-than millivolts; it does not certify linearity across a range nobody
-has driven it over.  The receiver's own judgement agrees: the hardware
-condition register has neither the near-full-scale nor the full-scale
-EFC bit set, and its health monitor reports EFC OK.
-
-## What is still unmeasured
-
-Frequency pull per EFC unit on this unit.  Van Baak measures 5.2x10^-13
-per unit on a Z3801A, but that is a different assembly -- the Z3801A is
-reported to use a `-60161`, which does not appear among the 27 variants
-in `10811-90027-1`, so its specification is not to hand.
-
-Dividing this oscillator's span, 4.0x10^-7 end to end, across 2^20
-counts gives about **3.8x10^-13 per count** if the receiver drives the
-whole range.  That is a working number, not a measurement.
-
-It does settle whether the Z3801A's EFC range is wider.  It is, by
-about a third -- though only one side of the comparison has a
-specification behind it:
-
-| | Per count | Implied span |
-| - | --------- | ------------ |
-| 58503A, `-60159`, from specification | 3.8x10^-13 | +/- 2.0x10^-7 |
-| Z3801A, `-60161`, from Van Baak's measurement | 5.2x10^-13 | +/- 2.7x10^-7 |
-
-Two figures reached independently, from a datasheet and from a counter,
-landing a third apart on parts that differ by one dash number.  The
-`-60161` remains undocumented in anything to hand, so treat its row as
-indicative rather than as a specification.
-
-Measuring this unit properly still means logging `EFC:ABSolute?` against
-a counter while the receiver corrects itself out of a long holdover.
+During the coarse adjustment that ran into count 0 the hardware
+condition register set both EFC bits, near full scale and at full
+scale; with the retrimmed crystal both are clear.

@@ -72,29 +72,30 @@ reads near zero rather than the expected EFC voltage.
 
 ## What this means for the receiver
 
-The EFC input is a -5 V to +5 V span covering ±2.0x10^-7.  The receiver
-reports its position on that span as a percentage, and across the 2^20
-counts of its internal value that works out to about **3.8x10^-13 per
-count**, assuming it drives the whole range.
+The EFC input is a -5 V to +5 V span covering at least ±2.0x10^-7,
+which across the 2^20 counts of the receiver's internal value is about
+3.8x10^-13 per count.
 
-That is the specification.  What the receiver actually applies is not
-settled: the pin measures about 50 mV at 36.06 percent where the
-specification mapping predicts 1.80 V.  How much frequency headroom
-remains therefore depends on which mapping holds, by more than an order
-of magnitude.  See `efc.md` for both readings and for the measurement
-that distinguishes them.
+On this unit both ends of that are measured (`efc.md`).  The receiver
+drives the pin at 6.33 uV per count, crossing 0 V at +37.6 percent and
+reaching 4.568 V at count 0.  The oscillator pulls **-6.22x10^-8 per
+volt**, 1.55 times the specified minimum, which is **3.94x10^-13 per
+count**.  Since a retrim on 2026-09-26, made with the EFC input
+grounded, the receiver locks with the pin within millivolts of 0 V, and
+has 2.84x10^-7 of pull below it, measured.
 
-Independent of that, the receiver's own hardware condition register has
-neither the near-full-scale nor the full-scale EFC bit set, and its
-health monitor reports EFC OK.
+The EFC input must be grounded, not left floating, when the crystal is
+trimmed: a trim against a floating input landed 3.7x10^-7 away from
+where the receiver needed it, and the receiver drove its EFC to full
+scale trying to reach it.
 
 ## The Z3801A's oscillator is a different part
 
 The Z3801A is reported to use a **10811-60161**, which appears in none
 of the sources here: not among the 27 variants in `10811-90027-1`, and
 not among the six on the etoysbox page.  Van Baak measured 5.2x10^-13
-per EFC count on one, implying about ±2.7x10^-7, a third wider than the
--60159.  That is a measurement of a single oscillator, not a
+per EFC count on one, implying about ±2.7x10^-7, a third more per count
+than this unit's measured 3.94x10^-13.  That is a measurement of a single oscillator, not a
 specification, and should be treated as indicative.
 
 ## Sources

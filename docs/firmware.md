@@ -1047,7 +1047,9 @@ table.
   Error with measurement` at `0x44ecc`), `startup_pll` reports from
   `0x44e66`.  The constants are the Z3816A's: 29.75 at `0x44a00`,
   2700 at `0x44750` and `0x447b6`, 150 s at `0x441cc` and `0x474c8`,
-  G = +6.25 × 10⁻¹³ at `0x476bc` -- the Z3801A's value and sign -- and
+  G = +6.25 × 10⁻¹³ at `0x476bc` -- the Z3801A's value and sign;
+  the bench 58503A (3704-C) measures +3.94 × 10⁻¹³, 0.63 of it
+  (`efc.md`) -- and
   the clamp 6.25 × 10⁻¹⁰ at `0x475cc`.  The update has the c·s term:
   at `0x4480a` to `0x4481e`, `0x44a18` and `0x44d26` it multiplies the
   float at `0x102014` by D5, the value `FUN_00023120(3)` returned at

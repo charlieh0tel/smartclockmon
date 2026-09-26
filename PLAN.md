@@ -1121,6 +1121,10 @@ than a crystal, since an oscillator drifting out of range does not
 recover nineteen times.  And the EFC measurement below settles the
 mapping in favour of the specification, which leaves about a decade of
 tuning headroom rather than the year the pessimistic reading implied.
+On 2026-09-26 the crystal was retrimmed with the EFC input grounded;
+the receiver now locks with the pin near 0 V, and the retrim measured
+the pull, 3.94 × 10⁻¹³ per count, 0.63 of the loop's assumed G
+(`docs/efc.md`).
 
 The diagnosis is "not the oscillator, on this evidence".
 

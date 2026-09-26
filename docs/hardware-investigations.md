@@ -42,6 +42,14 @@ measured.
   percent, scaled by whatever the EFC word is per percent, is the real
   G.
 
+*Measured on the bench 58503A, 3704-C, 2026-09-26* (`efc.md`, "The pull,
+measured"): **+3.94 × 10⁻¹³ per count**, count up raising the frequency,
+from a retrim that left the crystal on 10 MHz at 0 V and the receiver
+holding count 0, 4.568 V, with the output 2.840 × 10⁻⁷ low.  The
+58503A image, revision 3633, assumes G = +6.25 × 10⁻¹³: the sign
+agrees and the real gain is 0.63 of the assumed.  Still open for the
+Z3816A, whose image picks one of two negative values, and the Z3801A.
+
 *Changes:* whether the loop's poles sit where the doc's derivation
 puts them (−1/(2τ)) or are scaled by the ratio of real to assumed G.
 

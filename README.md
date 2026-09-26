@@ -11,8 +11,9 @@ the design decisions and their reversals, what is still undecided, and
 the defects that are known and unfixed.
 
 The receiver it was written to diagnose looks healthier than expected:
-locked rather than stuck in holdover, with its EFC mapping measured and
-about a decade of tuning headroom.  Its own diagnostic log, once
+locked rather than stuck in holdover, with its EFC mapping and pull
+measured and, since a retrim in September 2026, its crystal at the
+electrical centre of its tuning range.  Its own diagnostic log, once
 recovered, points at GPS reception in March 2025 rather than at the
 oscillator.  See `docs/efc.md`.
 
