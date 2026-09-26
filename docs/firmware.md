@@ -1230,9 +1230,24 @@ Oven, 15V, −15V, Primary oven current and Antenna current, the sixth
 with the default 250 that 3633 gives its channel 3.  Its
 `EFControl:ABSolute?` handler, `FUN_0002b58a`, returns the cell at
 `0x1024aa`, written from the same places 3633 writes its `0x1024a0`.
+Channel 6 has its own per-call routine in the health monitor,
+`FUN_00021dba` (the others share `FUN_00021d34`), and its own check and
+act routines: on its first call it sets the channel's live flag and
+stores the reading; on every later one it keeps s ← 0.1·fresh + 0.9·s
+(`0x3dcccccd`, `0x3f666666`) and clears s if it falls below
+`0x1e3ce508`, about 10⁻²⁰.  So once the monitor has reached channel 6
+the loop uses the averaged measurement, not the default.
+`:DIAGnostic:ROSCillator:CURRent?` (`FUN_0002b526`) returns a fresh
+conversion of that same channel 6 (`FUN_00021ca2(6)`).
+
 So the bench receiver's lack of a response to the oven current in its
 record (`efc.md`, "The regression") is not the term missing from its
-firmware; what does account for it is not worked out.
+firmware, not the loop reading a default, and not the regression
+having used a different current; what does account for it is not
+worked out.  The values the running unit holds would narrow it: the
+average at `0x101fc0`, its live flag at `0x101fc4` and the coefficient
+at `0x102014`, readable in the console with `hex 101FC0 @ .` and the
+like.
 
 ## Restarting
 
