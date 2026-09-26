@@ -1,3 +1,13 @@
+smartclockmon (0.6.30-1) unstable; urgency=low
+
+  * Redraw the history charts as soon as the receiver is switched.
+    The change handler threw, so the charts waited for the next
+    thirty-second refresh.
+  * Stop reading temperature on the Z3801 family.  The query reads an
+    ADC input that is at 0 V on those boards, and was charted as 0 C.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sat, 26 Sep 2026 13:38:43 -0700
+
 smartclockmon (0.6.29-1) unstable; urgency=low
 
   * Split the Z3801A's hex-stamped diagnostic log entries, and show
