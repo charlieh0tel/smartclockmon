@@ -189,7 +189,6 @@ function decade(v) {
 function graduations(u, axis, min, max) {
   const first = Math.floor(Math.log10(min) - 1e-9);
   const last = Math.ceil(Math.log10(max) + 1e-9);
-  if (last - first < 2) return null;
   const out = [];
   for (let e = first; e <= last; e++) {
     for (let m = 1; m < 10; m++) {
@@ -208,14 +207,15 @@ function mantissa(v) {
   return Math.round(v / 10 ** e);
 }
 
-// Whether a graduation is a whole decade, and so the one that is
-// named on the sigma axis.
-const whole = (v) => mantissa(v) === 1;
-
-// The tau axis names 1, 2 and 5 in each decade as well: a curve
-// spanning two decades has only three decade lines, and the reader
-// is left counting grid lines to place 50 s.
-const named = (v) => [1, 2, 5].includes(mantissa(v));
+// Both axes name 1, 2 and 5 in each decade: a curve spanning two
+// decades has only three decade lines, and the reader is left
+// counting grid lines to place 50 s or 2 × 10⁻¹⁰.  An axis spanning
+// less than that has too few of those, and names every graduation.
+function labels(splits, format) {
+  const sparse = splits.filter((v) => [1, 2, 5].includes(mantissa(v)));
+  const name = sparse.length >= 3 ? (v) => sparse.includes(v) : () => true;
+  return splits.map((v) => (name(v) ? format(v) : null));
+}
 
 // A decade of sigma_y, which is dimensionless and always small.
 // Written 10 to the power rather than as 1e-9, which is a programming
@@ -225,8 +225,9 @@ const SUPERSCRIPT = { "-": "⁻", 0: "⁰", 1: "¹", 2: "²",
                       7: "⁷", 8: "⁸", 9: "⁹" };
 function power(v) {
   if (!Number.isFinite(v) || v <= 0) return "";
-  const exponent = String(Math.round(Math.log10(v)));
-  return "10" + [...exponent].map((c) => SUPERSCRIPT[c]).join("");
+  const exponent = String(Math.floor(Math.log10(v) + 1e-9));
+  const m = mantissa(v);
+  return (m === 1 ? "" : `${m}×`) + "10" + [...exponent].map((c) => SUPERSCRIPT[c]).join("");
 }
 
 // A graduation as the number itself: 1, 2, 5, 10, 20, 50.  Past six figures
@@ -267,7 +268,7 @@ function tauAxis() {
     // uPlot's own filter for a log axis keeps only the decades; which
     // graduations are named is decided in `values` instead.
     filter: (_, splits) => splits,
-    values: (_, splits) => splits.map((v) => (named(v) ? plain(v) : null)),
+    values: (_, splits) => labels(splits, plain),
   };
 }
 
@@ -282,7 +283,8 @@ function sigmaAxis(label) {
     font: AXIS_FONT,
     labelFont: AXIS_FONT,
     splits: graduations,
-    values: (_, splits) => splits.map((v) => (whole(v) ? power(v) : null)),
+    filter: (_, splits) => splits,
+    values: (_, splits) => labels(splits, power),
   };
 }
 
@@ -345,6 +347,18 @@ function shadeBands(bands) {
 
 const bound = (b, side) => (b ? b[side] : null);
 
+// A y scale that ranges over the bands as well as the lines, padded
+// a little, so a wide interval at long tau is not cut off at the
+// axis.  uPlot ranges from the series alone; the shading is not one.
+function sigmaScale(bands) {
+  const values = Object.values(bands).flat(2).filter((v) => v !== null && v > 0);
+  const lo = Math.min(...values), hi = Math.max(...values);
+  return {
+    ...LOG,
+    range: (_, min, max) => [Math.min(min, lo) / 1.1, Math.max(max, hi) * 1.1],
+  };
+}
+
 function draw(points) {
   for (const old of [chart, tdevChart]) {
     if (old) old.destroy();
@@ -396,7 +410,7 @@ function draw(points) {
       width: size.width,
       height: size.height,
       title: "Stability of the 1 PPS against GPS, shaded to one sigma",
-      scales: { x: TAU_SCALE, y: LOG },
+      scales: { x: TAU_SCALE, y: sigmaScale(sigmaBands) },
       axes: [tauAxis(), sigmaAxis("deviation σy")],
       series: [
         { label: "τ", value: (_, v) => seconds(v) },
@@ -430,7 +444,7 @@ function draw(points) {
       width: size.width,
       height: Math.round(size.height * 0.6),
       title: "Time deviation, shaded to one sigma",
-      scales: { x: TAU_SCALE, y: LOG },
+      scales: { x: TAU_SCALE, y: sigmaScale(timeBands) },
       axes: [tauAxis(), sigmaAxis("seconds")],
       series: [
         { label: "τ", value: (_, v) => seconds(v) },
