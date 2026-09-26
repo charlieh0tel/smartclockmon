@@ -185,8 +185,8 @@ the receiver table of each unit's log, and says so in the journal when
 it is first seen or changes.
 
 The Z3801A's answered while it tracked no satellites on an antenna the
-58503A tracks on, so its engine is powered and on the link, and what
-kept it deaf was on the RF side.
+58503A tracks on: its engine is powered and answering on the link
+while it hears nothing.
 
 ### Where the sawtooth is read
 
