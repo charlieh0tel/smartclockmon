@@ -1,3 +1,14 @@
+smartclockmon (0.6.29-1) unstable; urgency=low
+
+  * Split the Z3801A's hex-stamped diagnostic log entries, and show
+    the stamp in the web journal as a GPS date.  Stored entries from
+    earlier versions need a one-off split before 0.6.29 runs, or the
+    daemon copies the log a second time.
+  * Clear the history charts before reporting a failed request, so a
+    newly selected receiver never shows the previous one's graphs.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sat, 26 Sep 2026 12:44:13 -0700
+
 smartclockmon (0.6.28-1) unstable; urgency=low
 
   * Recognise the prompt when the previous prompt's trailing space
