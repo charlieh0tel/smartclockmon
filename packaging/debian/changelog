@@ -1,3 +1,10 @@
+smartclockmon (0.6.25-1) unstable; urgency=low
+
+  * End every stability axis on a named 1, 2 or 5 graduation just
+    beyond the data, so the top and bottom of an axis are labelled.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Fri, 25 Sep 2026 20:24:57 -0700
+
 smartclockmon (0.6.24-1) unstable; urgency=low
 
   * Graduate the stability page's deviation axes at 1, 2 and 5 as the
