@@ -55,6 +55,10 @@
 // Both axes are decades, which is the only way this curve is read: the
 // slope between decades is what names the noise.
 const LOG = { distr: 3, log: 10 };
+// The tau axis is padded a few percent past the data, so a curve that
+// starts at 10.0004 s -- the receiver's ten-second cadence is not
+// exactly ten -- still gets its graduation at 10.
+const TAU_SCALE = { ...LOG, range: (_, min, max) => [min / 1.05, max * 1.05] };
 
 // uPlot's axis text defaults to 12px, which is small for numbers that
 // are read off, not just glanced at.
@@ -196,13 +200,22 @@ function graduations(u, axis, min, max) {
   return out.length > 1 ? out : null;
 }
 
-// Whether a graduation is a whole decade, and so the one that is
-// named.  Compared as a rounded exponent rather than by dividing,
-// because 1e-9 divided out does not land exactly on 1.
-function whole(v) {
-  const e = Math.round(Math.log10(v));
-  return Math.abs(v / 10 ** e - 1) < 1e-6;
+// The mantissa of a graduation, 1 to 9, as an integer.  Found from the
+// rounded exponent rather than by dividing, because 1e-9 divided out
+// does not land exactly on 1.
+function mantissa(v) {
+  const e = Math.floor(Math.log10(v) + 1e-9);
+  return Math.round(v / 10 ** e);
 }
+
+// Whether a graduation is a whole decade, and so the one that is
+// named on the sigma axis.
+const whole = (v) => mantissa(v) === 1;
+
+// The tau axis names 1, 2 and 5 in each decade as well: a curve
+// spanning two decades has only three decade lines, and the reader
+// is left counting grid lines to place 50 s.
+const named = (v) => [1, 2, 5].includes(mantissa(v));
 
 // A decade of sigma_y, which is dimensionless and always small.
 // Written 10 to the power rather than as 1e-9, which is a programming
@@ -216,12 +229,13 @@ function power(v) {
   return "10" + [...exponent].map((c) => SUPERSCRIPT[c]).join("");
 }
 
-// A decade as the number itself: 1, 10, 100, 1000.  Past six figures
+// A graduation as the number itself: 1, 2, 5, 10, 20, 50.  Past six figures
 // the exponent is shorter than the number and just as readable.
 function plain(v) {
   if (!Number.isFinite(v) || v <= 0) return "";
-  const exponent = Math.round(Math.log10(v));
-  return exponent < 6 ? String(10 ** exponent) : `1e${exponent}`;
+  const exponent = Math.floor(Math.log10(v) + 1e-9);
+  const m = mantissa(v);
+  return exponent < 6 ? String(m * 10 ** exponent) : `${m}e${exponent}`;
 }
 
 function seconds(v) {
@@ -250,7 +264,10 @@ function tauAxis() {
     font: AXIS_FONT,
     labelFont: AXIS_FONT,
     splits: graduations,
-    values: (_, splits) => splits.map((v) => (whole(v) ? plain(v) : null)),
+    // uPlot's own filter for a log axis keeps only the decades; which
+    // graduations are named is decided in `values` instead.
+    filter: (_, splits) => splits,
+    values: (_, splits) => splits.map((v) => (named(v) ? plain(v) : null)),
   };
 }
 
@@ -379,7 +396,7 @@ function draw(points) {
       width: size.width,
       height: size.height,
       title: "Stability of the 1 PPS against GPS, shaded to one sigma",
-      scales: { x: LOG, y: LOG },
+      scales: { x: TAU_SCALE, y: LOG },
       axes: [tauAxis(), sigmaAxis("deviation σy")],
       series: [
         { label: "τ", value: (_, v) => seconds(v) },
@@ -413,7 +430,7 @@ function draw(points) {
       width: size.width,
       height: Math.round(size.height * 0.6),
       title: "Time deviation, shaded to one sigma",
-      scales: { x: LOG, y: LOG },
+      scales: { x: TAU_SCALE, y: LOG },
       axes: [tauAxis(), sigmaAxis("seconds")],
       series: [
         { label: "τ", value: (_, v) => seconds(v) },
