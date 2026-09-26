@@ -1,3 +1,12 @@
+smartclockmon (0.6.28-1) unstable; urgency=low
+
+  * Recognise the prompt when the previous prompt's trailing space
+    arrives in front of it with no newline between, as it does from
+    the Z3801A, which does not echo.  Every poll of a Z3801A timed
+    out on it, and its daemon logged no readings.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sat, 26 Sep 2026 12:25:37 -0700
+
 smartclockmon (0.6.27-1) unstable; urgency=low
 
   * Open the serial port at 7O1 when told to: --framing on smartclockd
