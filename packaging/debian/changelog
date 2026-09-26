@@ -1,3 +1,9 @@
+smartclockmon (0.6.27-1) unstable; urgency=low
+
+  * 
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sat, 26 Sep 2026 12:05:13 -0700
+
 smartclockmon (0.6.26-1) unstable; urgency=low
 
   * Give a departed client's connection slot back within a second
