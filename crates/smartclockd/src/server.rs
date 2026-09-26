@@ -17,7 +17,9 @@ use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
+use std::sync::mpsc::RecvTimeoutError;
 use std::thread;
+use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -56,6 +58,17 @@ const MAX_REQUEST: u64 = 8192;
 /// mode for that used to be a daemon that looked healthy and could
 /// never be reached again.
 const MAX_CLIENTS: usize = 16;
+
+/// How often a client's push thread wakes, with no snapshot to send,
+/// to see whether its client has gone.
+///
+/// The thread holds the client's slot, and it used to sleep until the
+/// next snapshot.  With the receiver's link down there is no next
+/// snapshot, so every client that came and went during an outage kept
+/// its slot, and the web view's once-a-second connections filled all
+/// sixteen within seconds -- refusing the monitor and the command line
+/// at exactly the moment they were wanted.
+const HANGUP_CHECK: Duration = Duration::from_secs(1);
 
 /// What a client is permitted to do.
 ///
@@ -263,8 +276,7 @@ fn talk(stream: Stream, handle: &Handle, info: &SharedInfo, slot: Slot) -> Resul
     }
 
     // Tells the push thread to stop when this one does.  It notices on
-    // the next snapshot rather than at once, which is a second or so at
-    // the fast tier, because it is parked on the subscription.
+    // its next snapshot or within `HANGUP_CHECK`, whichever is first.
     let serving = Arc::new(AtomicBool::new(true));
     let _hangup = Hangup(Arc::clone(&serving));
 
@@ -276,12 +288,19 @@ fn talk(stream: Stream, handle: &Handle, info: &SharedInfo, slot: Slot) -> Resul
             // The slot lives here, and is released when this thread
             // ends rather than when the request thread does.
             let _slot = slot;
-            for snapshot in updates {
+            loop {
+                let next = updates.recv_timeout(HANGUP_CHECK);
                 if !serving.load(Ordering::Relaxed) {
                     return;
                 }
-                if write_line(&pusher, &Message::event(&snapshot)).is_err() {
-                    return;
+                match next {
+                    Ok(snapshot) => {
+                        if write_line(&pusher, &Message::event(&snapshot)).is_err() {
+                            return;
+                        }
+                    }
+                    Err(RecvTimeoutError::Timeout) => {}
+                    Err(RecvTimeoutError::Disconnected) => return,
                 }
             }
         })
@@ -939,6 +958,7 @@ mod tests {
 
 #[cfg(test)]
 mod socket_tests {
+    use super::HANGUP_CHECK;
     use super::Info;
     use super::MAX_CLIENTS;
     use super::MAX_REQUEST;
@@ -1162,7 +1182,10 @@ mod socket_tests {
             .collect();
         assert_eq!(held.len(), MAX_CLIENTS);
 
-        // Long enough that the request threads have all seen EOF.
+        // Long enough that the request threads have all seen EOF, and
+        // short of `HANGUP_CHECK`, so the push threads -- which hold the
+        // slots, the subscriptions and the sockets together, and let
+        // them go together -- have not yet woken to notice.
         thread::sleep(Duration::from_millis(200));
 
         let extra = daemon.connect();
@@ -1172,6 +1195,29 @@ mod socket_tests {
         assert!(
             line.contains("already connected"),
             "half-closed clients gave their slots back: {line:?}"
+        );
+    }
+
+    #[test]
+    fn clients_that_left_while_nothing_was_published_give_their_slots_back() {
+        // Nothing publishes here, as nothing does while the receiver's
+        // link is down.  The push threads used to wait for a snapshot
+        // before noticing their clients had gone, so a full house of
+        // departed clients held every slot until the link came back.
+        let daemon = Daemon::start("outage");
+        for _ in 0..MAX_CLIENTS {
+            drop(daemon.connect());
+        }
+        thread::sleep(HANGUP_CHECK + Duration::from_millis(500));
+
+        let mut client = daemon.connect();
+        writeln!(client, r#"{{"v":1,"id":"1","op":{{"kind":"info"}}}}"#).expect("send");
+        let mut reader = BufReader::new(client.try_clone().expect("clone"));
+        let mut line = String::new();
+        reader.read_line(&mut line).expect("read");
+        assert!(
+            !line.contains("already connected") && line.contains(r#""id":"1""#),
+            "a client was refused after every earlier one had left: {line:?}"
         );
     }
 

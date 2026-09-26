@@ -213,8 +213,8 @@ fn json(result: Result<serde_json::Value>) -> Response {
 /// admits sixteen clients: a couple of browser tabs could take every
 /// slot and lock the operator's own monitor out of a receiver they
 /// have local access to.  A slot is released by the daemon's push
-/// thread on its next snapshot, so the crowding outlasts the request
-/// that caused it.
+/// thread up to a second after its client leaves, so the crowding
+/// outlasts the request that caused it.
 const CACHE_FOR: Duration = Duration::from_millis(900);
 
 /// The daemon's answers, kept briefly.
