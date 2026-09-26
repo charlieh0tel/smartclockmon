@@ -312,12 +312,15 @@ async function draw() {
     got = await fetchSeries(columns, got.first, got.last, got.last - got.first);
     if (mine !== generation) return;
   }
-  if (got.error) { $("note").textContent = got.error; return; }
-  $("note").textContent = got.at.length ? "" : "no readings in this range";
-
+  // Clear the previous charts before reporting anything, including an
+  // error.  Left in place, they showed the previous receiver's history
+  // under the newly selected receiver's name.
   for (const c of charts) c.destroy();
   charts = [];
   $("charts").innerHTML = "";
+  $("readout").innerHTML = "";
+  if (got.error) { $("note").textContent = got.error; return; }
+  $("note").textContent = got.at.length ? "" : "no readings in this range";
 
   const drawn = pairCounts(got.plots);
   const height = plotHeight(drawn.length);
