@@ -1,6 +1,8 @@
 smartclockmon (0.6.27-1) unstable; urgency=low
 
-  * 
+  * Open the serial port at 7O1 when told to: --framing on smartclockd
+    (SMARTCLOCKD_FRAMING), smartclock-cli and smartclockmon.  The
+    Z3801A's port is fixed at 7O1; the default stays 8N1.
 
  -- Christopher Hoover <ch@murgatroid.com>  Sat, 26 Sep 2026 12:05:13 -0700
 
