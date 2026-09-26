@@ -1,3 +1,13 @@
+smartclockmon (0.6.26-1) unstable; urgency=low
+
+  * Give a departed client's connection slot back within a second
+    while the receiver's link is down.  Clients that came and went
+    during an outage kept their slots until the link returned, so the
+    web view filled all sixteen and the daemon refused the monitor and
+    the command line when they were most wanted.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sat, 26 Sep 2026 11:35:31 -0700
+
 smartclockmon (0.6.25-1) unstable; urgency=low
 
   * End every stability axis on a named 1, 2 or 5 graduation just
