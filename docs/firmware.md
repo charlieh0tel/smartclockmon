@@ -181,9 +181,8 @@ identity, a list of quoted `LABEL value` strings.  Read on 2026-09-26:
 
 The Z3805A's was recorded by the daemon on 2026-09-26 when it
 reattached (below).  The two Z380x engines are the same model with
-the same software, and on the bench both answer while tracking no
-satellites; the 58503A's, a different model with later software,
-tracked until its unit's supply failed.  From schema 9
+the same software; the 58503A's is a different model with later
+software.  From schema 9
 the daemon reads it once per connection and keeps it, as answered, in
 the receiver table of each unit's log, and says so in the journal when
 it is first seen or changes.
