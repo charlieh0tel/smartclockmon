@@ -49,7 +49,7 @@
 <script src="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.iife.min.js"
         integrity="sha384-Gx3t0zdBAuQOuvvmaLZj7HKEiSgWTAs+VdtNY7wt19QDPTDQjFIwAuXDj0zeN00c"
         crossorigin="anonymous"></script>
-<script src="/status.js"></script>
+<script src="/common.js"></script>
 <script>
 
 // Both axes are decades, which is the only way this curve is read: the
@@ -164,7 +164,7 @@ let chart = null;
 // scale by eye.  The two charts share tau and a cursor.
 let tdevChart = null;
 // The range is the record the estimator runs on, not a viewport, so a
-// change recomputes; the control is the shared one in status.js and
+// change recomputes; the control is the shared one in common.js and
 // the choice rides in the address beside the receiver and the series.
 readRange(3600);
 const SYNC = "stability";
@@ -552,54 +552,46 @@ function table(d) {
     "</tbody>";
 }
 
-// Which load is the latest.  A long range can take longer to measure
-// than a short one asked for after it, and the slower answer must not
-// land on top of the one the reader is now looking at.
-let latest = 0;
+// How long one measurement may take: a long range is a lot of log to
+// read and a lot of arithmetic.
+const MEASURE_TIMEOUT = 60000;
+// How often a range that moves with the clock is measured again.
+const MEASURE_EVERY = 60000;
 
-async function load() {
-  const mine = ++latest;
-  $("state").innerHTML = `<span class="pill">measuring...</span>`;
+// Everything the page shows for one measurement, or nothing.
+function measured(d) {
+  draw(d?.points ?? []);
+  table(d ?? { points: [] });
+}
+
+async function load(signal) {
+  $("state").innerHTML = pill("measuring...");
   const q = new URLSearchParams();
   const { from, to } = rangeBounds();
   q.set("from", String(Math.floor(from)));
   q.set("to", String(Math.ceil(to ?? 2000000000)));
-  try {
-    const r = await fetch(`/api/adev?${withUnit(q)}`);
-    if (!r.ok) throw new Error(`the server answered ${r.status}`);
-    const d = await r.json();
-    if (mine !== latest) return;
-    // A failure the server could describe comes back as 200 with an
-    // error in it, not as an HTTP status.
-    if (d.error) throw new Error(d.error);
-    draw(d.points);
-    table(d);
-    // Coverage travels with the curve because the curve cannot show
-    // it: one drawn from a run that is mostly holes, or that broke into
-    // forty pieces, looks exactly like one drawn from a clean day.
-    const total = d.present + d.holes;
-    const complete = total ? ((100 * d.present) / total).toFixed(1) : "0.0";
-    const stat = (v, k) =>
-      `<span class="stat"><span class="v">${esc(v)}</span>` +
-      `<span class="k">${esc(k)}</span></span>`;
-    $("state").innerHTML =
-      stat(d.present, "readings") +
-      stat(seconds(d.tau0), "spacing") +
-      stat(d.segments, "unbroken runs") +
-      stat(`${complete}%`, "complete") +
-      stat(d.holes, "holes") +
-      (d.truncated
-        ? ` <span class="pill stale">longer than one measurement reads; this is its newest part</span>`
-        : "");
-  } catch (e) {
-    if (mine !== latest) return;
-    draw([]);
-    table({ points: [] });
-    $("state").innerHTML = `<span class="pill down">${esc(e.message)}</span>`;
-  }
+  const d = await ask(`/api/adev?${withUnit(q)}`, signal, MEASURE_TIMEOUT);
+  measured(d);
+  // Coverage travels with the curve because the curve cannot show
+  // it: one drawn from a run that is mostly holes, or that broke into
+  // forty pieces, looks exactly like one drawn from a clean day.
+  const total = d.present + d.holes;
+  const complete = total ? ((100 * d.present) / total).toFixed(1) : "0.0";
+  const stat = (v, k) =>
+    `<span class="stat"><span class="v">${esc(v)}</span>` +
+    `<span class="k">${esc(k)}</span></span>`;
+  $("state").innerHTML =
+    stat(d.present, "readings") +
+    stat(seconds(d.tau0), "spacing") +
+    stat(d.segments, "unbroken runs") +
+    stat(`${complete}%`, "complete") +
+    stat(d.holes, "holes") +
+    (d.truncated
+      ? ` <span class="pill stale">longer than one measurement reads; this is its newest part</span>`
+      : "");
 }
 
-rangeControl($("ranges"), load);
+rangeControl($("ranges"), renew);
 
 // Said once, plainly, because the number on the chart is not the number
 // most people come looking for.
@@ -625,5 +617,14 @@ addEventListener("resize", () => {
 });
 
 picker();
-chooseReceiver(load).then(load);
+content({
+  daemon: false,
+  every: MEASURE_EVERY,
+  auto: () => range.last !== null,
+  clear(why, bad) {
+    measured(null);
+    $("state").innerHTML = pill(why, bad);
+  },
+  load,
+});
 </script>

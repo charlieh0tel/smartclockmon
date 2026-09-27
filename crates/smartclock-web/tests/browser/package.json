@@ -1,0 +1,14 @@
+{
+  "name": "smartclock-web-browser-tests",
+  "private": true,
+  "description": "Browser tests for smartclock-web's pages: switching receivers, a daemon going and coming back, and the other edges every page must handle alike.",
+  "type": "module",
+  "scripts": {
+    "test": "PLAYWRIGHT_BROWSERS_PATH=0 playwright test",
+    "install-browser": "PLAYWRIGHT_BROWSERS_PATH=0 playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "uplot": "1.6.32"
+  }
+}

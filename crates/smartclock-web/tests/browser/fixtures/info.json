@@ -1,0 +1,12 @@
+{
+    "allow_control": false,
+    "allow_dangerous": false,
+    "allow_raw": false,
+    "cadence_fast": 1.0,
+    "cadence_medium": 10.0,
+    "cadence_slow": 60.0,
+    "database": "/tmp/claude-1000/-home-ch-src-smartclockmon/51355d90-48ee-4071-9d9f-6dc751cd9001/scratchpad/st.sqlite",
+    "dialect": "hp58503",
+    "identity": "HEWLETT-PACKARD,58503A,0000A00000,3704-C",
+    "version": "0.6.35-0~git415.gc8ba1f9+dirty"
+}

@@ -1,0 +1,613 @@
+{
+    "entries": [
+        {
+            "at": "2026-09-27T20:10:08.834876136Z",
+            "entry": 222,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:42:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.835204094Z",
+            "entry": 221,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:41:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.835444539Z",
+            "entry": 220,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:40:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.835681043Z",
+            "entry": 219,
+            "message": "Power on",
+            "stamp": "20050727.06:39:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.835996297Z",
+            "entry": 218,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:38:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.836331562Z",
+            "entry": 217,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:37:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.836675357Z",
+            "entry": 216,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:36:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.837105654Z",
+            "entry": 215,
+            "message": "Power on",
+            "stamp": "20050727.06:35:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.837475466Z",
+            "entry": 214,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:34:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.837850694Z",
+            "entry": 213,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:33:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.838136703Z",
+            "entry": 212,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:32:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.838317623Z",
+            "entry": 211,
+            "message": "Power on",
+            "stamp": "20050727.06:31:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.838513455Z",
+            "entry": 210,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:30:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.838698156Z",
+            "entry": 209,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:29:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.838902571Z",
+            "entry": 208,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:28:34"
+        },
+        {
+            "at": "2026-09-27T20:10:08.839071976Z",
+            "entry": 207,
+            "message": "Power on",
+            "stamp": "20050727.06:27:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.500201716Z",
+            "entry": 206,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:26:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.501251061Z",
+            "entry": 205,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:25:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.502250545Z",
+            "entry": 204,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:24:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.503184322Z",
+            "entry": 203,
+            "message": "Power on",
+            "stamp": "20050727.06:23:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.504114409Z",
+            "entry": 202,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:22:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.504954766Z",
+            "entry": 201,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:21:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.505863685Z",
+            "entry": 200,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:20:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.506672687Z",
+            "entry": 199,
+            "message": "Power on",
+            "stamp": "20050727.06:19:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.507196761Z",
+            "entry": 198,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:18:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.507709890Z",
+            "entry": 197,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:17:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.508126504Z",
+            "entry": 196,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:16:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.508556998Z",
+            "entry": 195,
+            "message": "Power on",
+            "stamp": "20050727.06:15:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.508951591Z",
+            "entry": 194,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:14:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.509493342Z",
+            "entry": 193,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:13:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.509847467Z",
+            "entry": 192,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:12:34"
+        },
+        {
+            "at": "2026-09-27T20:10:19.510158457Z",
+            "entry": 191,
+            "message": "Power on",
+            "stamp": "20050727.06:11:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.099892516Z",
+            "entry": 190,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:10:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.100411479Z",
+            "entry": 189,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:09:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.100960020Z",
+            "entry": 188,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:08:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.101213997Z",
+            "entry": 187,
+            "message": "Power on",
+            "stamp": "20050727.06:07:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.101407980Z",
+            "entry": 186,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:06:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.101687019Z",
+            "entry": 185,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:05:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.102041328Z",
+            "entry": 184,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:04:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.102524603Z",
+            "entry": 183,
+            "message": "Power on",
+            "stamp": "20050727.06:03:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.102901817Z",
+            "entry": 182,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:02:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.103114757Z",
+            "entry": 181,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:01:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.103314060Z",
+            "entry": 180,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:00:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.103474508Z",
+            "entry": 179,
+            "message": "Power on",
+            "stamp": "20050727.06:59:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.103572211Z",
+            "entry": 178,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:58:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.103652891Z",
+            "entry": 177,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:57:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.103732451Z",
+            "entry": 176,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:56:34"
+        },
+        {
+            "at": "2026-09-27T20:10:30.103885643Z",
+            "entry": 175,
+            "message": "Power on",
+            "stamp": "20050727.06:55:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.693256820Z",
+            "entry": 174,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:54:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.694447172Z",
+            "entry": 173,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:53:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.695549029Z",
+            "entry": 172,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:52:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.696579206Z",
+            "entry": 171,
+            "message": "Power on",
+            "stamp": "20050727.06:51:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.697442996Z",
+            "entry": 170,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:50:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.698230317Z",
+            "entry": 169,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:49:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.699108988Z",
+            "entry": 168,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:48:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.699713193Z",
+            "entry": 167,
+            "message": "Power on",
+            "stamp": "20050727.06:47:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.700151218Z",
+            "entry": 166,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:46:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.700585319Z",
+            "entry": 165,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:45:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.700942109Z",
+            "entry": 164,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:44:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.701509538Z",
+            "entry": 163,
+            "message": "Power on",
+            "stamp": "20050727.06:43:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.702026319Z",
+            "entry": 162,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:42:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.702568490Z",
+            "entry": 161,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:41:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.703073342Z",
+            "entry": 160,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:40:34"
+        },
+        {
+            "at": "2026-09-27T20:10:40.703536789Z",
+            "entry": 159,
+            "message": "Power on",
+            "stamp": "20050727.06:39:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.357360276Z",
+            "entry": 158,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:38:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.358119201Z",
+            "entry": 157,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:37:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.358667657Z",
+            "entry": 156,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:36:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.359176495Z",
+            "entry": 155,
+            "message": "Power on",
+            "stamp": "20050727.06:35:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.359533774Z",
+            "entry": 154,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:34:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.360069774Z",
+            "entry": 153,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:33:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.360482845Z",
+            "entry": 152,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:32:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.360897969Z",
+            "entry": 151,
+            "message": "Power on",
+            "stamp": "20050727.06:31:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.361326694Z",
+            "entry": 150,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:30:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.361601472Z",
+            "entry": 149,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:29:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.361881617Z",
+            "entry": 148,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:28:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.362131957Z",
+            "entry": 147,
+            "message": "Power on",
+            "stamp": "20050727.06:27:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.362404723Z",
+            "entry": 146,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:26:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.362612187Z",
+            "entry": 145,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:25:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.362824232Z",
+            "entry": 144,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:24:34"
+        },
+        {
+            "at": "2026-09-27T20:10:51.363024738Z",
+            "entry": 143,
+            "message": "Power on",
+            "stamp": "20050727.06:23:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.901189725Z",
+            "entry": 142,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:22:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.901715297Z",
+            "entry": 141,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:21:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.902121455Z",
+            "entry": 140,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:20:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.902472992Z",
+            "entry": 139,
+            "message": "Power on",
+            "stamp": "20050727.06:19:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.902872891Z",
+            "entry": 138,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:18:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.903222984Z",
+            "entry": 137,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:17:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.903565125Z",
+            "entry": 136,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:16:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.903934328Z",
+            "entry": 135,
+            "message": "Power on",
+            "stamp": "20050727.06:15:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.904236008Z",
+            "entry": 134,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:14:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.904495942Z",
+            "entry": 133,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:13:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.904767323Z",
+            "entry": 132,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:12:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.905042934Z",
+            "entry": 131,
+            "message": "Power on",
+            "stamp": "20050727.06:11:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.905295845Z",
+            "entry": 130,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:10:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.905543364Z",
+            "entry": 129,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:09:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.905803804Z",
+            "entry": 128,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:08:34"
+        },
+        {
+            "at": "2026-09-27T20:11:01.906288001Z",
+            "entry": 127,
+            "message": "Power on",
+            "stamp": "20050727.06:07:34"
+        },
+        {
+            "at": "2026-09-27T20:11:12.492940014Z",
+            "entry": 126,
+            "message": "Position survey complete",
+            "stamp": "20050727.06:06:34"
+        },
+        {
+            "at": "2026-09-27T20:11:12.494166262Z",
+            "entry": 125,
+            "message": "Holdover ended",
+            "stamp": "20050727.06:05:34"
+        },
+        {
+            "at": "2026-09-27T20:11:12.495166729Z",
+            "entry": 124,
+            "message": "Holdover started, not tracking GPS",
+            "stamp": "20050727.06:04:34"
+        },
+        {
+            "at": "2026-09-27T20:11:12.496251274Z",
+            "entry": 123,
+            "message": "Power on",
+            "stamp": "20050727.06:03:34"
+        }
+    ],
+    "errors": [],
+    "events": [
+        {
+            "at": "2026-09-27T20:10:03.783993559Z",
+            "bits": 0,
+            "decoded": "clear",
+            "register": "alarm"
+        }
+    ]
+}

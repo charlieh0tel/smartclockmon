@@ -184,10 +184,15 @@ errors, diagnostic log entries and audit trail all carry its id.  A
 bench where units are swapped otherwise accumulates two oscillators'
 history in one file with no way to tell the rows apart, which makes
 every long-run comparison in it a comparison between two crystals.
-The browser's history and stability pages show one receiver at a time,
-chosen by a selector that appears once a file holds more than one; the
-choice is carried in the address as `?receiver=<id>`, so it survives a
-reload and moving between pages.
+Every browser page -- live, status and stability -- shows one receiver
+at a time, chosen by a selector that appears once there is more than
+one and follows receivers and daemons as they come and go; the choice
+is carried in the address as `?receiver=<id>`, so it survives a reload
+and moving between pages.  The pages behave alike at the edges: a
+change of receiver clears what was shown before the new one is read,
+an answer that arrives for the last receiver is dropped, and when a
+daemon goes, what was read from it is cleared and read again once it
+is back.  `make test-web` checks all of that in a browser.
 
 `smartclockmon --device ...` talks to the receiver directly, which needs
 the daemon stopped and records no history; the header says so.

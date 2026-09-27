@@ -53,12 +53,10 @@ const DEVIATION: &str = include_str!("adev.html");
 /// Shared by every page.
 const STYLE: &str = include_str!("style.css");
 
-/// The status strip, shared by every page.
-///
-/// The state of the receiver is the context for whatever else a page
-/// shows: a sky plot or a stability curve read without knowing the
-/// unit is in holdover is read wrongly.
-const STATUS: &str = include_str!("status.js");
+/// What every page shares: the status strip, the receiver picker, the
+/// range control, and the lifecycle that decides when a page reads and
+/// what it does when the receiver changes or its daemon goes away.
+const COMMON: &str = include_str!("common.js");
 
 #[derive(Parser)]
 #[command(about, version = smartclock::VERSION)]
@@ -120,7 +118,7 @@ fn main() -> Result<()> {
             "/status" => Response::ok("text/html; charset=utf-8", STATUS_PAGE.to_owned()),
             "/adev" => Response::ok("text/html; charset=utf-8", DEVIATION.to_owned()),
             "/style.css" => Response::ok("text/css; charset=utf-8", STYLE.to_owned()),
-            "/status.js" => Response::ok("text/javascript; charset=utf-8", STATUS.to_owned()),
+            "/common.js" => Response::ok("text/javascript; charset=utf-8", COMMON.to_owned()),
             "/api/snapshot" => json(
                 daemons
                     .choose(&cache, query)

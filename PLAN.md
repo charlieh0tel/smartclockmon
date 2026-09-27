@@ -1063,6 +1063,20 @@ repository's preference.
 
 `make ci` remains the local command and remains the stricter one.
 
+The browser pages have tests of their own, `make test-web`, in
+Playwright, installed into `crates/smartclock-web/tests/browser` by
+`make web-deps` -- its Chromium too, so nothing lands in the home
+directory.  They serve the pages from the real server and fake its
+API, because the cases worth testing are the ones a live daemon cannot
+be made to show on demand: which receivers exist, when a daemon goes,
+how late an answer arrives.  Every test runs against every page,
+because the pages had drifted apart at exactly those edges -- one
+cleared on a change of receiver while the others kept the last unit's
+charts up, one noticed its daemon going and the others did not, and the
+live page polled the strip twice a second.  What they share is now one
+lifecycle in `common.js`, which each page describes its content to
+once.  Not in `make ci` yet: it needs Node and a 110 MB browser.
+
 The one wrinkle is that some tests need the receiver.  Those are
 `#[ignore]`d and reachable only through `make test-hw`, which CI never
 runs, because they need hardware CI does not have and a daemon that must

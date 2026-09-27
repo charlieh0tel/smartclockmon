@@ -17,7 +17,7 @@ CARGO ?= cargo
 # identical version as a no-op: the binaries change or they do not, and
 # nothing from the outside says which.
 
-.PHONY: all build ci fmt fmt-check clippy test test-hw doc docs clean deb release install-service
+.PHONY: all build ci fmt fmt-check clippy test test-hw web-deps test-web doc docs clean deb release install-service
 
 all: build
 
@@ -44,6 +44,19 @@ test:
 # the serial port open.  Never run in CI.
 test-hw:
 	$(CARGO) test --workspace --all-features -- --ignored
+
+# The browser tests' own Playwright and Chromium, into the test
+# directory's node_modules rather than the home directory.
+WEB_TESTS := crates/smartclock-web/tests/browser
+web-deps:
+	cd $(WEB_TESTS) && npm ci --no-fund --no-audit && npm run install-browser
+
+# The web pages in a browser, against a faked API: switching receivers,
+# a daemon going and coming back, and the other edges every page must
+# handle alike.  Needs `make web-deps` once.
+test-web:
+	$(CARGO) build -p smartclock-web
+	cd $(WEB_TESTS) && npm test
 
 doc:
 	$(CARGO) doc --workspace --no-deps --all-features

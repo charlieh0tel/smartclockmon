@@ -9,3 +9,9 @@
 *.sqlite
 *.sqlite-journal
 
+# The browser tests' Playwright, its Chromium and its output, installed
+# by `make web-deps`.
+/crates/smartclock-web/tests/browser/node_modules
+/crates/smartclock-web/tests/browser/test-results
+/crates/smartclock-web/tests/browser/playwright-report
+

@@ -52,7 +52,7 @@
 <script src="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.iife.min.js"
         integrity="sha384-Gx3t0zdBAuQOuvvmaLZj7HKEiSgWTAs+VdtNY7wt19QDPTDQjFIwAuXDj0zeN00c"
         crossorigin="anonymous"></script>
-<script src="/status.js"></script>
+<script src="/common.js"></script>
 <script>
 "use strict";
 
@@ -143,12 +143,14 @@ function pointsFor(seconds) {
   return Math.min(5000, Math.max(1500, Math.round(seconds / 30)));
 }
 
-async function fetchSeries(cols, from, to, seconds) {
+function seriesQuery(cols, from, to, seconds) {
   const q = new URLSearchParams({ columns: cols.join(","), points: pointsFor(seconds) });
   if (from) q.set("from", Math.round(from));
   if (to) q.set("to", Math.round(to));
-  return getJson("/api/history?" + withUnit(q));
+  return "/api/history?" + withUnit(q);
 }
+
+const fetchSeries = (signal, ...args) => ask(seriesQuery(...args), signal);
 
 // A y scale that begins and ends on a labelled gridline.
 //
@@ -278,30 +280,30 @@ function plotHeight(count) {
   return count === 1 ? 420 : Math.max(150, Math.round(560 / count));
 }
 
-let generation = 0;
-async function draw() {
-  const mine = ++generation;
+// Take the charts down, saying why in their place.
+function clearCharts(why) {
+  for (const c of charts) c.destroy();
+  charts = [];
+  $("charts").innerHTML = "";
+  $("readout").innerHTML = "";
+  $("note").textContent = why;
+}
+
+async function draw(signal) {
   if (!haveUplot) {
     $("note").textContent =
       "The chart library did not load. It comes from a CDN, so this page needs internet access; the readings above do not.";
     return;
   }
   if (!columns.length) {
-    for (const c of charts) c.destroy();
-    charts = [];
-    $("charts").innerHTML = "";
-    $("readout").innerHTML = "";
-    $("note").textContent = "nothing selected";
+    clearCharts("nothing selected");
     return;
   }
   const bounds = rangeBounds();
   let { from, to } = bounds;
   if (from === 0) from = null;
 
-  let got = await fetchSeries(columns, from, to, bounds.seconds);
-  // A later draw has started; this one's data belongs to a selection or
-  // a range nobody is looking at any more.
-  if (mine !== generation) return;
+  let got = await fetchSeries(signal, columns, from, to, bounds.seconds);
 
   // How far back the log goes is only knowable once it has been asked,
   // so "all" costs a second request: the first answers with the
@@ -309,18 +311,9 @@ async function draw() {
   // extent.  Without this the button quietly showed the last hour --
   // the range it names is the one range it did not fetch.
   if (range.last === "all" && got.first && got.last > got.first) {
-    got = await fetchSeries(columns, got.first, got.last, got.last - got.first);
-    if (mine !== generation) return;
+    got = await fetchSeries(signal, columns, got.first, got.last, got.last - got.first);
   }
-  // Clear the previous charts before reporting anything, including an
-  // error.  Left in place, they showed the previous receiver's history
-  // under the newly selected receiver's name.
-  for (const c of charts) c.destroy();
-  charts = [];
-  $("charts").innerHTML = "";
-  $("readout").innerHTML = "";
-  if (got.error) { $("note").textContent = got.error; return; }
-  $("note").textContent = got.at.length ? "" : "no readings in this range";
+  clearCharts(got.at.length ? "" : "no readings in this range");
 
   const drawn = pairCounts(got.plots);
   const height = plotHeight(drawn.length);
@@ -583,11 +576,14 @@ function pickers(plottable) {
   }
 }
 
+// A change the reader made -- the columns, the range, a drag -- reads
+// again, abandoning any read in flight.  Coalesced, because dragging
+// fires setScale repeatedly.
+const COALESCE = 120;
 let pending = null;
 function load() {
-  // Coalesce: dragging fires setScale repeatedly.
   clearTimeout(pending);
-  pending = setTimeout(draw, 120);
+  pending = setTimeout(renew, COALESCE);
 }
 
 function buttons() {
@@ -672,45 +668,63 @@ function showStream(journal) {
     : `<span class="muted">nothing recorded</span>`;
 }
 
-async function loadJournal() {
-  const journal = await getJson("/api/journal?" + withUnit(new URLSearchParams()));
-  if (journal.error) {
-    $("journal").innerHTML = `<span class="muted">${esc(journal.error)}</span>`;
-    return;
-  }
-  drawJournal(journal);
+async function loadJournal(signal) {
+  drawJournal(await ask("/api/journal?" + withUnit(new URLSearchParams()), signal));
 }
+
+// What the daemon says it is attached to, in the footer.
+async function loadAbout(signal) {
+  const info = await ask("/api/info" + liveQuery(), signal);
+  $("about").textContent =
+    [info.identity, info.dialect, `smartclockd ${info.version ?? "?"}`, "read only"]
+      .filter(Boolean)
+      .join("  --  ");
+}
+
+// Each part reports its own failure in its own place, so a daemon that
+// has gone takes the footer with it and leaves the history, which the
+// logs still hold, where it is.
+async function part(read, signal, failed) {
+  try {
+    await read(signal);
+  } catch (e) {
+    if (e instanceof Superseded) throw e;
+    failed(e.message);
+  }
+}
+
+const muted = (text) => `<span class="muted">${esc(text)}</span>`;
 
 // ------------------------------------------------------------------ boot
 
-(async function () {
-  await chooseReceiver(() => {
-    load();
-    loadJournal();
-  });
-  const info = await getJson("/api/info" + liveQuery());
-  $("about").textContent = info.error
-    ? info.error
-    : [info.identity, info.dialect, `smartclockd ${info.version ?? "?"}`, "read only"]
-        .filter(Boolean)
-        .join("  --  ");
+// History moves slowly next to the live tiles; redrawing it every
+// second would fight with the cursor for no gain.  The journal comes
+// along: the receiver writes to its log in events per day.
+const HISTORY_EVERY = 30000;
 
+(async function () {
   // One request before the first draw, to learn what may be plotted.
   // Asked of the server rather than listed here, so the menu cannot
   // drift from the columns the query will actually accept.
-  const first = await fetchSeries(columns, null, null);
+  const first = await getJson(seriesQuery(columns, null, null));
   pickers(first.plottable ?? columns);
   buttons();
-  await draw();
-  await tick();
-  await loadJournal();
-  // Slower than the chart: the receiver writes to its log in events per
-  // day, not per second, and this is a whole-table redraw.
-  setInterval(loadJournal, 60000);
-  setInterval(tick, 1000);
-  // History moves slowly next to the live tiles; redrawing it every
-  // second would fight with the cursor for no gain.
-  setInterval(() => { if (range.last !== null) load(); }, 30000);
   addEventListener("resize", load);
+  content({
+    daemon: false,
+    every: HISTORY_EVERY,
+    auto: () => range.last !== null,
+    clear(why) {
+      clearCharts(why);
+      $("journal").innerHTML = muted(why);
+      $("about").textContent = "";
+    },
+    load: (signal) =>
+      Promise.all([
+        part(draw, signal, clearCharts),
+        part(loadJournal, signal, (why) => ($("journal").innerHTML = muted(why))),
+        part(loadAbout, signal, (why) => ($("about").textContent = why)),
+      ]),
+  });
 })();
 </script>

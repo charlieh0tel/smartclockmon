@@ -1,0 +1,128 @@
+{
+    "screen": {
+        "acquisition": "GPS 1PPS Valid",
+        "antenna_delay_ns": 0,
+        "date": "04 Feb 2007",
+        "elevation_mask": 10,
+        "ffom": 1,
+        "health": "OK",
+        "health_items": [
+            [
+                "Self Test",
+                "OK"
+            ],
+            [
+                "Int Pwr",
+                "OK"
+            ],
+            [
+                "Oven Pwr",
+                "OK"
+            ],
+            [
+                "OCXO",
+                "OK"
+            ],
+            [
+                "EFC",
+                "OK"
+            ],
+            [
+                "GPS Rcv",
+                "OK"
+            ]
+        ],
+        "hold_threshold": "1.000 us",
+        "holdover_predict": "432.0 us/initial 24 hrs",
+        "mode": "Locked to GPS: stabilizing frequency",
+        "not_tracking": 3,
+        "position_label": "HOLD",
+        "position_mode": "Hold",
+        "satellites": [
+            {
+                "acquiring": false,
+                "azimuth": 281,
+                "elevation": 88,
+                "prn": 3,
+                "signal": 111,
+                "tracked": true
+            },
+            {
+                "acquiring": true,
+                "azimuth": 204,
+                "elevation": 24,
+                "prn": 1,
+                "signal": null,
+                "tracked": false
+            },
+            {
+                "acquiring": false,
+                "azimuth": 306,
+                "elevation": 51,
+                "prn": 4,
+                "signal": 86,
+                "tracked": true
+            },
+            {
+                "acquiring": false,
+                "azimuth": 319,
+                "elevation": 12,
+                "prn": 6,
+                "signal": null,
+                "tracked": false
+            },
+            {
+                "acquiring": false,
+                "azimuth": 133,
+                "elevation": 29,
+                "prn": 16,
+                "signal": 57,
+                "tracked": true
+            },
+            {
+                "acquiring": true,
+                "azimuth": null,
+                "elevation": null,
+                "prn": 9,
+                "signal": null,
+                "tracked": false
+            },
+            {
+                "acquiring": false,
+                "azimuth": 91,
+                "elevation": 40,
+                "prn": 26,
+                "signal": 70,
+                "tracked": true
+            },
+            {
+                "acquiring": false,
+                "azimuth": 46,
+                "elevation": 13,
+                "prn": 28,
+                "signal": 28,
+                "tracked": true
+            },
+            {
+                "acquiring": false,
+                "azimuth": 46,
+                "elevation": 41,
+                "prn": 31,
+                "signal": 114,
+                "tracked": true
+            }
+        ],
+        "satellites_suspect": false,
+        "survey_percent": null,
+        "survey_suspended": null,
+        "sync_status": "Synchronized to UTC",
+        "synchronization": "Outputs Valid/Reduced Accuracy",
+        "text": "------------------------------- Receiver Status -------------------------------\nSYNCHRONIZATION ............................ [ Outputs Valid/Reduced Accuracy ]\nSmartClock Mode ___________________________   Reference Outputs _______________\n>> Locked to GPS: stabilizing frequency       TFOM     3             FFOM     1\n   Recovery                                   1PPS TI -4.8 ns relative to GPS\n   Holdover                                   HOLD THR 1.000 us\n   Power-up                                   Holdover Uncertainty ____________\n                                              Predict  432.0 us/initial 24 hrs\nACQUISITION ................................................ [ GPS 1PPS Valid ]\nTracking: 6 ____   Not Tracking: 3 ________   Time ____________________________\nPRN  El  Az   SS   PRN  El  Az                UTC      20:04:20     04 Feb 2007\n  3  88 281  111   * 1  24 204                GPS 1PPS Synchronized to UTC\n  4  51 306   86     6  12 319                ANT DLY  0 ns\n 16  29 133   57   * 9  Acq ..                Position ________________________\n 26  40  91   70                              MODE     Hold\n 28  13  46   28\n 31  41  46  114                              LAT      N  00:00:00.000\n                                              LON      W 000:00:00.000\n                                              HGT               +0.00 m  (MSL)\nELEV MASK 10 deg   *attempting to track\nHEALTH MONITOR ......................................................... [ OK ]\nSelf Test: OK    Int Pwr: OK   Oven Pwr: OK   OCXO: OK   EFC: OK   GPS Rcv: OK",
+        "tfom": 3,
+        "time": "20:04:20",
+        "time_interval": "-4.8 ns",
+        "time_scale": "UTC",
+        "time_suspect": false,
+        "tracking": 6
+    }
+}
