@@ -168,18 +168,22 @@ at offset 26 of the decoded record.**
 `:DIAGnostic:IDENtification:GPSystem?` returns the engine's own
 identity, a list of quoted `LABEL value` strings.  Read on 2026-09-26:
 
-| | 58503A 3710A01056 | Z3801A 3542A01548 |
-| - | ----------------- | ----------------- |
-| Copyright | Motorola 1991-1996 | Motorola 1991-1995 |
-| Model | B4121P1115 | B1121P1114 |
-| Software P/N | 98-P36830P | 98-P39972M |
-| Version, revision | 8, 8 | 8, 4 |
-| Software date | 06 Aug 1996 | 13 Jul 1995 |
-| Serial | SSG0220999 | SSG0178541 |
-| Manufactured | 7D01 | 6J25 |
-| Options | IB | IB |
+| | 58503A 3710A01056 | Z3801A 3542A01548 | Z3805A 3625A01487 |
+| - | ----------------- | ----------------- | ----------------- |
+| Copyright | Motorola 1991-1996 | Motorola 1991-1995 | Motorola 1991-1995 |
+| Model | B4121P1115 | B1121P1114 | B1121P1114 |
+| Software P/N | 98-P36830P | 98-P39972M | 98-P39972M |
+| Version, revision | 8, 8 | 8, 4 | 8, 4 |
+| Software date | 06 Aug 1996 | 13 Jul 1995 | 13 Jul 1995 |
+| Serial | SSG0220999 | SSG0178541 | SSG0163878 |
+| Manufactured | 7D01 | 6J25 | 6G09 |
+| Options | IB | IB | IB |
 
-The Z3805A's was not read before it left the bench.  From schema 9
+The Z3805A's was recorded by the daemon on 2026-09-26 when it
+reattached (below).  The two Z380x engines are the same model with
+the same software, and on the bench both answer while tracking no
+satellites; the 58503A's, a different model with later software,
+tracked until its unit's supply failed.  From schema 9
 the daemon reads it once per connection and keeps it, as answered, in
 the receiver table of each unit's log, and says so in the journal when
 it is first seen or changes.
