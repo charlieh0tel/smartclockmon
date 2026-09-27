@@ -25,9 +25,8 @@
   </div>
   <div id="status-panes">
     <pre id="screen" class="muted">nothing read yet</pre>
-    <div>
+    <div id="sky-pane">
       <canvas id="sky" width="320" height="320"></canvas>
-      <table id="sats"><tbody class="muted"><tr><td>nothing read yet</td></tr></tbody></table>
     </div>
   </div>
 </div>
@@ -44,23 +43,36 @@
 // daemon does, and off unless someone turns it on.
 const LIVE_PERIOD = 15000;
 
+// Sizes below are for a plot this many pixels across, and scale with it.
+const DESIGN_SIZE = 320;
 const MARGIN = 20;      // room for the cardinal labels and a rim dot
+const LABEL_PX = 11;    // label text
 const SKY_GRID = "#39414f";
 const SKY_HORIZON = "#515b6b";
 const DOT_MIN = 4;      // a satellite with no signal reading
 const DOT_RANGE = 7;    // added at the strongest signal in the frame
 
+// The last screen drawn, so a resized window can redraw the plot at its
+// new size without costing the receiver another read.
+let shown = null;
+
 // ------------------------------------------------------------------ sky
 
 // A polar plot of what the receiver can see: north up, horizon at the
 // rim, zenith at the middle.  This is the view the status screen's
-// table implies and never shows.
+// table implies and never shows.  Drawn at the size the page gives it,
+// in device pixels, so it stays sharp when it grows to the screen's
+// height, with its labels and dots growing in proportion.
 function sky(screen) {
   const c = $("sky"), ctx = c.getContext("2d");
-  const w = c.width, h = c.height, cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - MARGIN;
+  const side = c.clientWidth, dpr = window.devicePixelRatio || 1;
+  const k = side / DESIGN_SIZE;
+  c.width = c.height = Math.round(side * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = side, h = side, cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - MARGIN * k;
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = "#c2c8d2";
-  ctx.font = "11px ui-monospace, monospace";
+  ctx.font = `${LABEL_PX * k}px ui-monospace, monospace`;
   ctx.textAlign = "center";
 
   // Elevation rings at 30 degree steps, the horizon last and brighter
@@ -78,7 +90,8 @@ function sky(screen) {
     ctx.moveTo(cx, cy);
     ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
     ctx.stroke();
-    ctx.fillText(name, cx + (r + 10) * Math.cos(a), cy + (r + 10) * Math.sin(a) + 4);
+    const out = r + (MARGIN / 2) * k;
+    ctx.fillText(name, cx + out * Math.cos(a), cy + out * Math.sin(a) + (LABEL_PX / 3) * k);
   }
 
   const signals = (screen?.satellites ?? [])
@@ -86,12 +99,7 @@ function sky(screen) {
     .filter((v) => v != null && v > 0);
   const strongest = signals.length ? Math.max(...signals) : 0;
 
-  const rows = [];
   for (const sat of screen?.satellites ?? []) {
-    const state = sat.tracked ? "tracked" : sat.acquiring ? "acquiring" : "seen";
-    rows.push(`<tr><td>${esc(sat.prn)}</td><td>${esc(sat.elevation ?? "--")}</td>` +
-              `<td>${esc(sat.azimuth ?? "--")}</td><td>${esc(sat.signal ?? "--")}</td>` +
-              `<td class="muted">${state}</td></tr>`);
     // Below the horizon, or a reading the scraper could not make sense
     // of: either would land outside the plot.
     if (
@@ -111,21 +119,18 @@ function sky(screen) {
     // before anyone measured it.
     const size =
       sat.signal == null || !strongest
-        ? DOT_MIN
-        : DOT_MIN + (sat.signal / strongest) * DOT_RANGE;
+        ? DOT_MIN * k
+        : (DOT_MIN + (sat.signal / strongest) * DOT_RANGE) * k;
     ctx.beginPath();
     ctx.arc(x, y, size, 0, 2 * Math.PI);
     ctx.fillStyle = sat.tracked ? "#4ade80" : sat.acquiring ? "#fbbf24" : "#6b7280";
     ctx.fill();
     ctx.fillStyle = "#e6e8eb";
     ctx.textAlign = x < cx ? "right" : "left";
-    ctx.fillText(sat.prn, x + (x < cx ? -size - 3 : size + 3), y + 4);
+    const gap = size + (LABEL_PX / 4) * k;
+    ctx.fillText(sat.prn, x + (x < cx ? -gap : gap), y + (LABEL_PX / 3) * k);
     ctx.textAlign = "center";
   }
-  $("sats").innerHTML =
-    "<thead><tr><th>PRN</th><th>el</th><th>az</th><th>SS</th><th>state</th></tr></thead><tbody>" +
-    (rows.join("") || `<tr><td class="muted">no satellite table yet</td></tr>`) +
-    "</tbody>";
 }
 
 // -------------------------------------------------------------- screen
@@ -136,6 +141,15 @@ function screen(s) {
   const pre = $("screen");
   pre.textContent = s?.text || "no status screen";
   pre.classList.toggle("muted", !s?.text);
+}
+
+// The plot grows to the screen's height and no further, so the two
+// columns end together at any font size.  Beside the screen it shrinks
+// to what is left of the row; stacked under it on a narrow window it
+// takes the width, up to the same size.
+function fit() {
+  $("sky-pane").style.maxWidth = `${$("screen").offsetHeight}px`;
+  sky(shown);
 }
 
 // ---------------------------------------------------------------- read
@@ -159,8 +173,9 @@ async function read() {
     // error in it, not as an HTTP status.
     if (s.error) throw new Error(s.error);
     if (!s.screen) throw new Error("the daemon answered with no status screen");
-    sky(s.screen);
+    shown = s.screen;
     screen(s.screen);
+    fit();
     $("state").innerHTML =
       `<span class="pill ok">read at ${esc(new Date().toLocaleTimeString())}</span>` +
       (s.screen?.satellites_suspect
@@ -171,8 +186,9 @@ async function read() {
     // tracked satellites beside the words "no daemon" asserts a sky the
     // receiver may not have, which is the one stale value a GPS tool
     // must not show.
-    sky(null);
+    shown = null;
     screen(null);
+    fit();
     $("state").innerHTML = `<span class="pill down">${esc(e.message)}</span>`;
   } finally {
     reading = false;
@@ -181,6 +197,7 @@ async function read() {
 }
 
 $("read").onclick = read;
+window.addEventListener("resize", fit);
 $("live").onchange = () => {
   clearInterval(timer);
   timer = $("live").checked ? setInterval(read, LIVE_PERIOD) : null;

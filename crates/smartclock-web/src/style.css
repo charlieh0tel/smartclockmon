@@ -48,12 +48,18 @@ button[aria-pressed="true"] { background: var(--accent); color: #07121a; border-
 label { color: var(--dim); display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
 
 /* Status page: the screen as received, and the sky plot beside it
-   where there is room.  The screen scrolls sideways within its own box
-   so an 80-column screen never widens a phone's page. */
-#status-panes { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
-#status-panes > * { flex: 1 1 320px; min-width: 0; }
-#screen { margin: 0; overflow-x: auto; font: 11px/1.35 ui-monospace, monospace;
-          white-space: pre; }
+   where there is room.  Both keep their own
+   width rather than sharing the window out, which on a wide screen
+   left each floating in half of it.  The screen scrolls sideways
+   within its own box so an 80-column screen never widens a phone's
+   page. */
+#status-panes { display: flex; flex-wrap: wrap; gap: 12px clamp(32px, 5vw, 96px);
+                align-items: flex-start; }
+#screen { flex: 0 1 auto; min-width: 0; margin: 0; overflow-x: auto;
+          font: 16px/1.4 var(--font); white-space: pre; }
+/* Grows from 300px to the screen's height, which fit() sets as its
+   max-width. */
+#sky-pane { flex: 1 1 300px; min-width: 0; }
 
 table { border-collapse: collapse; width: 100%; font-size: 12px; }
 th { text-align: left; color: var(--dim); font-weight: 500; padding: 3px 6px 6px 0; }
@@ -97,7 +103,7 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
    uPlot centres it over the plotting area by default, which leaves it
    floating above nothing in particular. */
 .u-title { text-align: left; padding-left: 2px; }
-#sky { width: 100%; height: auto; display: block; max-width: 420px; margin: 0 auto; }
+#sky { width: 100%; aspect-ratio: 1; display: block; }
 
 /* The stability page.  Chart and table side by side where there is
    room, because the curve is short and a column of numbers beside it
