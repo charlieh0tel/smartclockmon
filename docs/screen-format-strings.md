@@ -31,7 +31,7 @@ holds.
     Position ________________________
     PRNs Ignored ___________________
 
-The underscores are literal, not a rendering artefact of the manuals.
+The underscores are literal, not a rendering artifact of the manuals.
 The frame is 79 columns.
 
 ## Satellite table

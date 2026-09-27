@@ -9,7 +9,7 @@ sections on the Z3801A's and the 58503A's images, which say so.
 The processor is a CPU32 part: the reset code at `0x400` sets the
 vector base with `movec` and programs the System Integration Module's
 registers at `0xfffa00`, and the QSM at `0xfffc00` carries the SCI and
-QSPI.  It also initialises and uses a register block at `0xfff900`
+QSPI.  It also initializes and uses a register block at `0xfff900`
 (`0x22118` onwards; a port whose bit 5 the firmware switches, and a
 counter at `0xfff90c`/`0xfff90d` it reads to count 1 PPS edges).  That
 is the General-Purpose Timer module, which the 68331 has alongside its
@@ -621,7 +621,7 @@ code clears the RAM τ lives in, so its value in service comes from
 somewhere else: a 25-byte block of defaults in ROM.
 
 τ lives at offset 0x14 of a 25-byte block at `0x102534`.  The
-initialisation routine `FUN_00022c7c` fills that block one of two ways:
+initialization routine `FUN_00022c7c` fills that block one of two ways:
 
 - from ROM, `memcpy(0x102534, 0x40174, 0x19)` (`0x22dd8`, `0x22e06`),
   whose bytes at `0x40188` are `43 fa 00 00`, the float 500.0.  The same
@@ -849,7 +849,7 @@ reported, and it agrees with the code.
   Jarl Risum wrote that it holds 60 to 65 °C in normal operation
   (<https://www.mail-archive.com/time-nuts@lists.febo.com/msg06566.html>).
   The code settles only the processor's part: once the enable is set it
-  is never cleared, so what the heater does after that is the analogue
+  is never cleared, so what the heater does after that is the analog
   controller's doing.
 - An owner's "Z3801A Outer Oven Description", with a schematic drawn
   from their own unit, was on ko4bb.com and survives as a PDF attached
@@ -863,7 +863,7 @@ reported, and it agrees with the code.
   is in the outer oven; an LT1077 op-amp "used as a PI servo
   controller"; and an LT1270 boost regulator that drives the 18.9 Ω
   heater directly, from 0 to about 11 W.  The processor's part is a
-  DG211 analogue switch: "The main CPU controls the oven through P2/8.
+  DG211 analog switch: "The main CPU controls the oven through P2/8.
   If the voltage at U103/pin 1 is below ~2.4V the non-inverting input
   of U102 is pulled towards +15V, and the output pin 6 saturates
   instantly near 13.5V.  In turn, U104 shuts down and heater power is
@@ -876,7 +876,7 @@ reported, and it agrees with the code.
 
 That description and the code meet exactly.  PGP5 is bit 5 of the GPT's
 port GP, which is the `0xfff907` bit the firmware sets; the heater is
-off until the processor raises it, regulated by the analogue PI loop
+off until the processor raises it, regulated by the analog PI loop
 once it does, and never turned off again by the firmware.  P2/9, the
 servo output, is what the Z3801A's firmware watches as "Secondary oven
 voltage" once the oven is on; its limit of 6.8 is in the units the
@@ -989,7 +989,7 @@ cycle starts the SCPI task again.
 
 `0x2fe06` runs the function it is given at once when the byte at
 `0x10385e` is clear, and otherwise queues it to `0x10385a` for another
-task to run.  `0x230ba` is the console's start: it initialises the
+task to run.  `0x230ba` is the console's start: it initializes the
 interpreter (`0x2af04`), defines `ps`, `mem_rep` and `s_rep`
 (`0x232f6`), registers the diagnostic words (`0x2c22e`), evaluates the
 phrase `0 !iodev` (`0x28f98`) and prints `pForth $Revision: 1.2 $`
@@ -1004,7 +1004,7 @@ the pSOS configuration from `0x581bc` to `0x102cfc` and the I/O switch
 table from `0x58670` to `0x102c90` (the configuration's word at +0x22,
 the highest major, is 2, and its long at +0x24 is `0x102c90`); the
 table is eighteen `jmp` stubs, six per major, and major 0's are the
-SCI driver's -- `FUN_0002ed56`, the initialisation that creates
+SCI driver's -- `FUN_0002ed56`, the initialization that creates
 `sciR` and `sciW`, then `0x2ecae`, `0x2ebc0`, `0x2f15c`, `0x2f10e`
 and `0x2efb6` for open, close, read, write and control.  So the
 console reads and writes the same port SCPI does.  The same `de_open(0)` is made at
@@ -1179,7 +1179,7 @@ there.  The unpacker takes the same opcodes.
   descriptor: the other copy of those prompts, at `0x7ee6`, is
   referenced by nothing.
 - *The loop.*  The term the Z3816A takes from `FUN_000324b0(6)` comes
-  from `FUN_00022fd2(3)` (`0x4496e`).  A field the Z3816A initialises
+  from `FUN_00022fd2(3)` (`0x4496e`).  A field the Z3816A initializes
   to 10⁻⁷ is 10⁻⁸ here (`0x44a3a`).  With no valid reading in ten
   seconds, `pll_normal` sets the mean to 0 and still runs the update
   (`0x44bb4` falls through to `0x44bd2`), where the Z3816A skips it.
@@ -1359,7 +1359,7 @@ drains through `FUN_00046cc8`, and replies with the word at
 the argument at `0x102c64`; the loop task's pass sees the flag
 (`0x4b25c`) and moves the stage byte to 7, `diag`.  That stage,
 `FUN_0004ad3e`, is a sub-state machine at `0x102850`: it sends the
-GPS task a reset and waits up to thirty passes for its acknowledgement
+GPS task a reset and waits up to thirty passes for its acknowledgment
 (`Error in DIAG GPS RST ack`, `0x4b806`, otherwise), sends a test
 message and waits for that (`Error in DIAG GPS TST ack`, `0x4b822`),
 records the results at `0x100e88`, runs `FUN_00048b62`, and in its
@@ -1421,7 +1421,7 @@ following, and how.
   messages through `FUN_000504c2`; which messages was not transcribed.
 - The six-byte descriptor entries: `FUN_00046652` switches on the
   first byte of the word (0 to 3) and compares the second with the
-  byte at `0x1026e0` before the loop task honours the entry; what the
+  byte at `0x1026e0` before the loop task honors the entry; what the
   four kinds are was not traced.
 - What the Z3801A's `Oven` and `Secondary oven voltage` channels
   measure, beyond the ADC inputs and coefficients above.

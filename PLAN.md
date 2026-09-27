@@ -187,7 +187,7 @@ two ends we control.  Not worth it yet.
 Revisit if a client appears that is not written in Rust.
 
 There is a real problem underneath that protobuf would not have fixed
-and a wire type does: `Snapshot` was serialised straight from the
+and a wire type does: `Snapshot` was serialized straight from the
 internal struct, so renaming a field silently changed the wire format.
 The socket now carries its own type, converted from the internal one, so
 the two can move independently and a rename is a compile error rather
@@ -299,7 +299,7 @@ priority, so a tier as slow as its own period was always overdue and no
 client command was ever served; the fix drained the whole queue before
 each poll, which inverted it -- a handful of clients each keeping one
 request outstanding published no snapshots at all, logged nothing, and
-left the last one labelled `Live`.  At most `REQUESTS_PER_POLL` commands
+left the last one labeled `Live`.  At most `REQUESTS_PER_POLL` commands
 are now served before the schedule gets its turn.
 
 A command also carries the deadline of the caller that sent it.  A
@@ -329,10 +329,10 @@ daemon reconnects rather than exiting, and records the gap.  `Snapshot`
 carries freshness **per tier**, not per snapshot: when each group of
 fields was last read and what went wrong with it.  One flag for the
 whole reading was not enough, because a snapshot is built up a tier at
-a time and the fastest one kept relabelling the others as current.  For
+a time and the fastest one kept relabeling the others as current.  For
 a monitoring tool aimed at a suspect unit, silently displaying old
 numbers is the worst failure mode, and a single timestamp made that the
-default behaviour rather than an edge case.
+default behavior rather than an edge case.
 
 Use a `/dev/serial/by-id/...` path rather than `/dev/ttyUSB0`, which is
 not stable across re-enumeration.
@@ -391,7 +391,7 @@ holdover, which invalidates every interval measurement across the step
 -- is event-only and appears nowhere else.  097-59551-02 5-39.
 
 That was wrong, because reading an event register clears it, clearing
-the events clears the alarm condition register that summarises them,
+the events clears the alarm condition register that summarizes them,
 and that puts out the front-panel Alarm LED and sets the BITE output
 inactive.  At a ten second cadence the lamp would never be seen lit.
 The lamp belongs to whoever is at the instrument.
@@ -467,7 +467,7 @@ clear.
 ### Rows belong to a receiver, not to a file
 
 The log recorded no trace of its own subject: the identity was printed
-to the journal at startup and kept nowhere that travelled with the data,
+to the journal at startup and kept nowhere that traveled with the data,
 so a file handed to someone else did not say what it was a log of.  The
 first fix was a metadata key, which was not a fix.  It answered "which
 receiver wrote here most recently" when the question is "which receiver
@@ -536,7 +536,7 @@ would starve the slow one under a stream of refreshes, each of which
 makes the fast tier due again.
 
 Measured on a 58503A at 19200, as the marginal cost over a 0.67 s
-open-and-synchronise, the medium tier is four steps of which one is
+open-and-synchronize, the medium tier is four steps of which one is
 almost all of it:
 
 | step                                    | cost   |
@@ -563,12 +563,12 @@ equals its `Not Tracking`, verified against a screen showing 7 and 2.
 So the screen is on no tier.  Nothing else it carries is unique to it
 either: the health monitor line is the hardware condition register
 rendered coarsely, and that register is on the fast tier, while the
-bracketed synchronisation and acquisition text is
+bracketed synchronization and acquisition text is
 `:SYNChronization:STATe?` and the operation register.  The screen buys
 one thing, a sky plot, and it is read only while someone is looking at
 one -- `Op::Status` on the socket, a view of its own in the monitor,
 and `/status` in the browser.  The medium tier, now four short steps
-totalling 0.57 s, drops from thirty seconds to ten.
+totaling 0.57 s, drops from thirty seconds to ten.
 
 Since the read is paid for either way, the status view shows the whole
 screen as the receiver sent it beside the sky: `Screen` keeps the text
@@ -717,7 +717,7 @@ with only the count of overlapping estimates reduced.  TDEV follows as
 tau times MDEV over root three.  So MDEV and TDEV are the primary
 curves, computed beside ADEV from the same gridded segments -- a hole
 voids every window that spans it, `3m` triples rather than three --
-and ADEV is kept, labelled, for comparison with the oscillator and
+and ADEV is kept, labeled, for comparison with the oscillator and
 receiver data sheets, which quote it.  Both are checked against
 allantools' `mdev` and `tdev` and against Table 31's modified Allan
 and time deviation columns.
@@ -921,7 +921,7 @@ Library layers, bottom up:
 
 ### systemd unit
 
-- `Type=exec`.  `Type=notify` was planned, signalling ready once the
+- `Type=exec`.  `Type=notify` was planned, signaling ready once the
   port is open and `*IDN?` has answered, but the daemon is meant to
   come up and keep retrying with no receiver attached, so there is no
   moment that honestly counts as ready.
@@ -1025,7 +1025,7 @@ Two builds of different code then cannot carry the same version, which
 matters because dpkg treats reinstalling an identical version as a
 no-op: the binaries change or they do not, and nothing on the outside
 says which.  That happened -- a package was reinstalled, the new
-behaviour was absent, and the cause took a `--help` diff to find.
+behavior was absent, and the cause took a `--help` diff to find.
 
 The hand-written `packaging/debian/changelog` stays as the record of
 releases.  A derived version is a build, not a release.
@@ -1144,7 +1144,7 @@ out, shows nineteen holdover-and-relock cycles across two days in March
 2025 and nothing since -- a pattern that reads as GPS reception rather
 than a crystal, since an oscillator drifting out of range does not
 recover nineteen times.  And the EFC measurement below settles the
-mapping in favour of the specification, which leaves about a decade of
+mapping in favor of the specification, which leaves about a decade of
 tuning headroom rather than the year the pessimistic reading implied.
 On 2026-09-26 the crystal was retrimmed with the EFC input grounded;
 the receiver now locks with the pin near 0 V, and the retrim measured
@@ -1208,7 +1208,7 @@ saying the counts disagree.
 **Freshness was per snapshot, not per tier.**  The one-second tier
 succeeding re-stamped the whole snapshot `Live` and cleared the error,
 while the status screen underneath went minutes stale; after a link
-drop the first fast poll relabelled an hour-old sky as current.  That
+drop the first fast poll relabeled an hour-old sky as current.  That
 is this document's own principle broken by the scheduler.  Each tier
 now carries when it last succeeded and its own error, over the wire and
 into the log, and each pane shows the age of what it displays.
@@ -1277,7 +1277,7 @@ What each turned out to involve, which is the part worth keeping.
 | # | Deliverable | What it turned out to involve |
 | - | ----------- | ----------------------------- |
 | 0 | Workspace, TOML command table with `build.rs` codegen, fixtures, Makefile CI | evidence became three-valued rather than a boolean |
-| 1 | `transport`, `session`, `smartclock-cli` | the manuals had the prompt wrong, and an abandoned reply desynchronised everything after it |
+| 1 | `transport`, `session`, `smartclock-cli` | the manuals had the prompt wrong, and an abandoned reply desynchronized everything after it |
 | 2 | `types`, `parse`, screen scraper, `diagnose` | the scraper had to read by label, not column; the manuals' own ASCII does not line up |
 | 3 | `Device`, `Snapshot`, `DeviceTask`, `smartclockd`, systemd unit, deb | reconnection meant handing the request channel back out of the task |
 | 4 | `smartclock-sim`, in process and over TCP | TCP rather than a pseudo-terminal, which would have been Unix-only |
@@ -1315,7 +1315,7 @@ Things that are not decided, as distinct from the defects below.
 2. **Whether any other SmartClock variant is on hand.**  The Z3801A
    half of the command table has its spellings corroborated against the
    firmware's own keyword table, so they are right; no such receiver
-   has ever been on the line, so its behaviour is unobserved.  Until
+   has ever been on the line, so its behavior is unobserved.  Until
    one is, `evidence = "firmware"` is as far as those entries can go.
 
 3. **Asserting a known antenna position from the configuration.**  A
@@ -1358,7 +1358,7 @@ Things that are not decided, as distinct from the defects below.
 4. **Whether acknowledging from the monitor is wanted.**  Reading an
    event register would say which bit latched rather than which group,
    and clears the alarm as it does so.  That makes it exactly the right
-   implementation of a deliberate acknowledgement and exactly the wrong
+   implementation of a deliberate acknowledgment and exactly the wrong
    thing to do on a timer.  Nothing needs it yet.
 
 ## Known defects
@@ -1413,7 +1413,7 @@ boundaries.
 A clear is noticed by the count falling below the highest entry held.
 A log cleared and refilled to at least that count while the link was
 down numbers the same way, and with `--adopt-log` the old generation's
-completeness would then authorise erasing entries never copied.  So
+completeness would then authorize erasing entries never copied.  So
 once per connection, before copying or erasing anything, three held
 entries -- the newest, the oldest and one between -- are read again
 and compared with what is stored; if any differs, what follows is a

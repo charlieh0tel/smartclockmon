@@ -13,7 +13,7 @@ the defects that are known and unfixed.
 The receiver it was written to diagnose looks healthier than expected:
 locked rather than stuck in holdover, with its EFC mapping and pull
 measured and, since a retrim in September 2026, its crystal at the
-electrical centre of its tuning range.  Its own diagnostic log, once
+electrical center of its tuning range.  Its own diagnostic log, once
 recovered, points at GPS reception in March 2025 rather than at the
 oscillator.  See `docs/efc.md`.
 
@@ -128,7 +128,7 @@ so rather than showing an empty frame if it cannot be fetched.
 
 The exporter answers a scrape from whatever each daemon last polled,
 so scraping costs the receivers nothing and cannot compete with the
-poll schedule.  Every sample is labelled with the daemon instance and
+poll schedule.  Every sample is labeled with the daemon instance and
 the receiver's serial and model.  It exports `smartclock_up`, and the age of each tier as
 `smartclock_tier_age_seconds`, because a daemon that has stopped polling
 otherwise looks like a remarkably steady oscillator: every other value
@@ -155,7 +155,7 @@ with the satellites, which invalidates every interval measurement
 across the step and appears in no condition register.  But reading an
 event register clears it, and clearing the events extinguishes the
 front-panel Alarm LED and the BITE output, because the alarm
-summarises them.  **That lamp belongs to whoever is standing at the
+summarizes them.  **That lamp belongs to whoever is standing at the
 instrument**, so the daemon never reads an event register.
 
 It polls `*STB?` instead, the alarm condition register, which reports
@@ -274,7 +274,7 @@ as an interactive terminal:
 - Abandoning a reply part-read leaves the receiver still sending.  The
   next prompt seen then belongs to the abandoned reply, and every
   exchange after it reads one reply behind, so a session must drain
-  before resynchronising.
+  before resynchronizing.
 - `:SYSTem:STATus?` returns a multi-line formatted ASCII status screen
   rather than a SCPI response.  `:SYSTem:STATus:LENGth?` gives that
   screen's line count.
@@ -328,7 +328,7 @@ The rest of `docs/`:
 | `hardware-investigations.md` | what `firmware.md` leaves open that only a bench can settle: what to measure and what each answer changes |
 | `loop.html` | the disciplining loop as a block diagram, with its update law, constants and closed-loop poles; a standalone page, open it in a browser |
 
-## Licence
+## License
 
 GPL-3.0-or-later.  See `LICENSE`.
 

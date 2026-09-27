@@ -68,7 +68,7 @@ Walking `:SYSTem:` gives `COMMunicate` -- itself the parent of `SER`,
 
 Five of those were put to a Z3805A and all five exist:
 `:SYSTem:PRINt:LENGth?` answered `+23`, `:SYSTem:LANGuage?` answered
-`"PRIMARY"`, `:SYSTem:DATE?` and `:SYSTem:TIME?` were recognised and
+`"PRIMARY"`, `:SYSTem:DATE?` and `:SYSTem:TIME?` were recognized and
 declined with -230 for want of a fix, and
 `:SYSTem:COMMunicate:SERIAL2:BAUD?` answered **+9600** -- a second
 serial port, at a different rate to the first, which neither manual

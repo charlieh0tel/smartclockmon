@@ -65,7 +65,7 @@ optionally clears it; see `SMARTCLOCKD_ADOPT_LOG` below.
 It does **not** read the event registers, and so does not touch the
 front-panel Alarm LED or the BITE output; nor will it read one for a
 client unless started with `--allow-control`.  Reading an event register
-clears it, which clears the alarm that summarises it.  That lamp is
+clears it, which clears the alarm that summarizes it.  That lamp is
 yours: the daemon watches the same state through `*STB?`, which reports
 it in real time and changes nothing, and the alarm stays lit until you
 clear it at the instrument.  What the daemon saw is recorded and shown
@@ -197,13 +197,13 @@ receiver it finds in its selector, and shows the live strip from
 whichever daemon is attached to the one selected -- a receiver with
 history and no daemon shows the history and says so in the strip.
 `smartclock-exporter` scrapes every daemon into one `/metrics`, each
-sample labelled `daemon="<instance>"`, `serial` and `model`.
+sample labeled `daemon="<instance>"`, `serial` and `model`.
 
 ## Unplugging the adapter
 
 The daemon reconnects by itself, so the unit deliberately does not bind
 to a device unit -- binding stops it dead while an adapter is out, which
-is wrong for something meant to log continuously.  For that behaviour
+is wrong for something meant to log continuously.  For that behavior
 anyway, add a drop-in rather than editing the shipped unit:
 
     sudo systemctl edit smartclockd@ttyUSB0

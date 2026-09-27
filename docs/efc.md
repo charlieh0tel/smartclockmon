@@ -69,7 +69,7 @@ The temperature column exists to test the *measurement*, not the
 oscillator.  It is the receiver's internal sensor -- the air in the
 case, not the crystal, which is in an oven.  A tempco in the meter, the
 leads, or whatever divides the pin down would move the reading with
-ambient and fake a slope.  It does not.  (The reading is quantised to
+ambient and fake a slope.  It does not.  (The reading is quantized to
 0.273 C, so "the temperature held" only ever means "it did not cross a
 step".)
 
@@ -109,7 +109,7 @@ to leave the slope alone, which rules out a plain divider.
 Extrapolating the fit, the pin reaches 0 V at count 721,500 +/- 300,
 or **+37.6 +/- 0.1 percent** reported -- so the reported percentage is
 offset from the pin voltage, and this unit, at +36.0 percent, is
-sitting within a few millivolts of the oscillator's electrical centre.
+sitting within a few millivolts of the oscillator's electrical center.
 That is an extrapolation about 8,400 counts beyond a fit spanning 987,
 and the quoted error is the fit's alone; treat it as an indication of
 where zero lies, not a measurement of it.  (An earlier version gave
