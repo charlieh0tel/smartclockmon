@@ -191,6 +191,41 @@ The Z3801A's answered while it tracked no satellites on an antenna the
 58503A tracks on: its engine is powered and answering on the link
 while it hears nothing.
 
+### Six or eight channels
+
+Which engines each image can take, by the two pairs of messages the
+VP Oncore reference gives a six-channel and an eight-channel form:
+position/status `@@Ba` / `@@Ea` and Time RAIM `@@Bn` / `@@En`.  A
+message counts as handled when the image holds a pointer to its ID:
+
+| Image | `Ba` | `Ea` | `Bn` | `En` |
+| ----- | ---- | ---- | ---- | ---- |
+| Z3801A 3543 | yes | no | yes | no |
+| Z3805A 3543B | yes | no | yes | no |
+| 58503A 3633 | yes | yes | yes | yes |
+| 58503A 3704 | yes | yes | yes | yes |
+| Z3816A 4001 | yes | yes | yes | yes |
+
+The 58503A images decide at run time.  In 3704:
+
+- The message table (60-byte entries, `Bn` at `0x51b14`) has `Ea` at
+  entries 50 and 54, decoders `0x506e2` and `0x5098a`.  Both set bit 5
+  of the byte at `0x1013e2` and call `FUN_000509fe`, which stores 8 at
+  `0x1013e0` when that bit is set and 6 when it is clear.  No other
+  code in the image sets or clears the bit by address.
+- `FUN_00050ad8`, reached from the Time RAIM post-handler
+  (`0x50b48`, which returns at once unless bit 6 of `0x1013e2` is
+  set), accepts `Ba`, `Bk` and `Bn` (entries 30, 39, 41) when the count
+  is 6, and `Ea`, `Ek` and `En` (50 to 52) only when it is 8.  With
+  the count at 8 it also accepts the six-channel three when a flag its
+  callback returns is clear; what that flag is was not traced.
+
+So the count is 6 until an `@@Ea` arrives from the engine and 8 after.
+3633 has the same selector at `0x50802` and the same two `bset` sites
+at `0x5051c` and `0x5078e`.  Neither Z380x image has an `Ea` or `En`
+entry.  None of this has been run with an engine other than the one
+each unit came with.
+
 ### Where the sawtooth is read
 
 The one reader of offset 26 found is `FUN_0004c062`, at `0x4c2b4`,
