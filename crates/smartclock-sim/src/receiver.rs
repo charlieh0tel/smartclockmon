@@ -580,7 +580,7 @@ impl Receiver {
                 self.reject(-230, "Data corrupt or stale")
             }
             CommandId::PositionAvg | CommandId::PositionActual | CommandId::PositionHoldLast => {
-                Answer::line("N,+37,+22,+3.02770E+001,W,+122,+5,+3.48160E+001,+4.35100E+001")
+                Answer::line("N,+45,+0,+0.00000E+000,W,+100,+0,+0.00000E+000,+5.00000E+001")
             }
             CommandId::Date if self.no_fix => self.reject(-230, "Data corrupt or stale"),
             CommandId::Date => {

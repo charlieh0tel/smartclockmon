@@ -15,9 +15,9 @@ PRN  El  Az   SS   PRN  El  Az                UTC      20:04:20     04 Feb 2007
  16  29 133   57   * 9  Acq ..                Position ________________________
  26  40  91   70                              MODE     Hold
  28  13  46   28                              
- 31  41  46  114                              LAT      N  37:22:30.277
-                                              LON      W 122:05:34.816
-                                              HGT               +43.51 m  (MSL)
+ 31  41  46  114                              LAT      N  45:00:00.000
+                                              LON      W 100:00:00.000
+                                              HGT               +50.00 m  (MSL)
 ELEV MASK 10 deg   *attempting to track       
 HEALTH MONITOR ......................................................... [ OK ]
 Self Test: OK    Int Pwr: OK   Oven Pwr: OK   OCXO: OK   EFC: OK   GPS Rcv: OK

@@ -821,7 +821,7 @@ mod tests {
             ":GPS:REFerence:ADELay +1.20000E-007",
             ":PTIMe:TZONe -8,0",
             ":SYSTem:LANGuage \"PRIMARY\"",
-            ":GPS:POSition N,+37,+22,+30.2,W,+122,+5,+34.8,+43.5",
+            ":GPS:POSition N,+45,+0,+0.0,W,+100,+0,+0.0,+50.0",
             "*IDN?",
             ":SYSTem:STATus?",
         ] {

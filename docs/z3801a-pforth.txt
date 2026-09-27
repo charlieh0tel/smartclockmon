@@ -112,8 +112,8 @@ POS HOLD   Enabled                                           APPL   Static
 FIX ALG    N-in-view                                         OPER   Pos Fix
 
 Hold Position _____________________________   Initial Position _______________
-LAT        N  37:22:30.271  = +134550271 ms   N  37:22:30.271  = +134550271 ms
-LON        W 122:05:34.848  = -439534848 ms   W 122:05:34.848  = -439534848 ms
+LAT        N  45:00:00.000  = +162000000 ms   N  45:00:00.000  = +162000000 ms
+LON        W 100:00:00.000  = -360000000 ms   W 100:00:00.000  = -360000000 ms
 GPS HGT                                                 +2059 cm
 MSL HGT              +4900 cm                           +4900 cm
 
@@ -129,8 +129,8 @@ UTC CORR   Disabled (GPS time)                LEAP SEC  +1 pending
 CABLE DLY          0 ns   DIF OUT THR  32 s
 print_stat
 p4th D > TIME 21:29:48.000298884        DATE   2/10/2007
-LAT  N  37:22:30.271
-LON  W 122:05:34.848            VIS SATS   9
+LAT  N  45:00:00.000
+LON  W 100:00:00.000            VIS SATS   9
 HGT (msl)             49.00     TRACK SATS   0
 HGT (gps)             20.59     RX STATUS   08
 PDOP                    0.0
@@ -218,8 +218,8 @@ Oven: -3.89
 Double oven: 2.04
 Oven current: 30.40
 p4th D > p4th D > TIME 12:29:12.000847763	DATE   1/01/2007
-LAT  N  37:22:30.271
-LON  W 122:05:34.848		VIS SATS   0
+LAT  N  45:00:00.000
+LON  W 100:00:00.000		VIS SATS   0
 HGT (msl)             49.00	TRACK SATS   0
 HGT (gps)             20.59	RX STATUS   08
 PDOP                    0.0

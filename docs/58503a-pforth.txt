@@ -94,8 +94,8 @@ POS HOLD   Enabled                                           APPL   Static
 FIX ALG    N-in-view                                         OPER   Pos Fix
 
 Hold Position _____________________________   Initial Position _______________
-LAT        N  37:22:30.277  = +134550277 ms   N   0:00:00.000  =         +0 ms
-LON        W 122:05:34.816  = -439534816 ms   E   0:00:00.000  =         +0 ms
+LAT        N  45:00:00.000  = +162000000 ms   N   0:00:00.000  =         +0 ms
+LON        W 100:00:00.000  = -360000000 ms   E   0:00:00.000  =         +0 ms
 GPS HGT                                                    +0 cm
 MSL HGT              +4351 cm                              +0 cm
 

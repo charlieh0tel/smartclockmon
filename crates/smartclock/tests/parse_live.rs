@@ -147,21 +147,17 @@ fn a_leap_second_is_an_allowed_sixtieth_second() {
 
 #[test]
 fn the_position_reply_becomes_signed_degrees() {
-    let reply = "N,+37,+22,+3.02770E+001,W,+122,+5,+3.48160E+001,+4.35100E+001";
+    let reply = "N,+45,+0,+0.00000E+000,W,+100,+0,+0.00000E+000,+5.00000E+001";
     let p = parse::position(reply, Datum::MeanSeaLevel).expect("position");
-    // 37 deg 22 min 30.277 s north.
-    assert!(
-        (p.latitude - 37.3750769).abs() < 1e-6,
-        "lat was {}",
-        p.latitude
-    );
+    // 45 deg north.
+    assert!((p.latitude - 45.0).abs() < 1e-6, "lat was {}", p.latitude);
     // West is negative.
     assert!(
-        (p.longitude + 122.0930044).abs() < 1e-6,
+        (p.longitude + 100.0).abs() < 1e-6,
         "lon was {}",
         p.longitude
     );
-    assert!((p.height - 43.51).abs() < 1e-9);
+    assert!((p.height - 50.0).abs() < 1e-9);
     assert_eq!(p.datum, Datum::MeanSeaLevel);
 }
 
