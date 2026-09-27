@@ -13,6 +13,15 @@
   <a href="/adev">Stability</a>
 </nav>
 
+<div class="panel" id="unit-bar" hidden>
+  <div class="controls">
+    <label for="unit">Receiver</label>
+    <select id="unit"></select>
+    <span class="grow"></span>
+    <span id="unit-seen" class="muted"></span>
+  </div>
+</div>
+
 <div class="panel" id="state"><span class="muted">idle</span></div>
 
 <div class="panel">
@@ -154,15 +163,21 @@ function fit() {
 
 // ---------------------------------------------------------------- read
 
-// Serialised: a second read queued behind the first would sit in the
+// Serialized: a second read queued behind the first would sit in the
 // daemon's request queue holding the link, and the page would show a
-// sky older than the one it already had.
+// sky older than the one it already had.  A read asked for while one
+// is in flight -- a change of receiver -- runs when that one ends.
 let reading = false;
+let again = false;
 let timer = null;
 
 async function read() {
-  if (reading) return;
+  if (reading) {
+    again = true;
+    return;
+  }
   reading = true;
+  const asked = unit;
   $("read").disabled = true;
   $("state").innerHTML = `<span class="pill">reading the status screen...</span>`;
   try {
@@ -173,6 +188,9 @@ async function read() {
     // error in it, not as an HTTP status.
     if (s.error) throw new Error(s.error);
     if (!s.screen) throw new Error("the daemon answered with no status screen");
+    // Another receiver was chosen while this one was being read: its
+    // screen must not be drawn under the new one's name.
+    if (unit !== asked) return;
     shown = s.screen;
     screen(s.screen);
     fit();
@@ -186,14 +204,25 @@ async function read() {
     // tracked satellites beside the words "no daemon" asserts a sky the
     // receiver may not have, which is the one stale value a GPS tool
     // must not show.
-    shown = null;
-    screen(null);
-    fit();
+    if (unit !== asked) return;
+    clear("no status screen");
     $("state").innerHTML = `<span class="pill down">${esc(e.message)}</span>`;
   } finally {
     reading = false;
     $("read").disabled = false;
+    if (again) {
+      again = false;
+      read();
+    }
   }
+}
+
+// Blank the screen and the plot, saying why.
+function clear(why) {
+  shown = null;
+  $("screen").textContent = why;
+  $("screen").classList.add("muted");
+  fit();
 }
 
 $("read").onclick = read;
@@ -204,5 +233,10 @@ $("live").onchange = () => {
   if ($("live").checked) read();
 };
 
-read();
+// A change of receiver clears the last one's screen at once rather than
+// leaving it up, under the new name, for the 1.5 s the read takes.
+chooseReceiver(() => {
+  clear("reading the status screen...");
+  read();
+}).then(read);
 </script>

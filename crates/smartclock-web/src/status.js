@@ -356,8 +356,8 @@ async function chooseReceiver(changed) {
 
 // Every page carries the strip, so every page keeps it current.
 addEventListener("DOMContentLoaded", () => {
-  // A page with no selector of its own still passes the unit along, so
-  // a detour through the sky does not drop it.
+  // The unit the address names is passed along in the page links, so
+  // moving between pages keeps it.
   const asked = new URLSearchParams(location.search).get("receiver");
   if (asked !== null) {
     for (const a of document.querySelectorAll("nav a")) {
