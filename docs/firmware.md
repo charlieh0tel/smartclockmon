@@ -1186,6 +1186,49 @@ there.  The unpacker takes the same opcodes.
   Its G is the fixed +6.25 × 10⁻¹³ noted above, and `pll_debug`
   (`0x1b4d8`) stores to `0x102539`.
 
+### Resetting the GPS engine from the console
+
+The Oncore's `@@Cf` sets the engine to its defaults and clears its
+almanac, which is how a unit whose engine has held an almanac for years
+is made to search the sky afresh.  In 3543 the only thing that sends it
+is the console word `master_reset`; nothing reachable from SCPI does,
+and neither a power cycle nor `:SYSTem:PRESet`.
+
+- *The send path.*  The Oncore descriptor table is at `0x4fe8c`, 56
+  bytes an entry; `Cf` is entry 45 (`0x50864`), sent bare.  The one
+  builder, `0x4f8f0`, is called only by the GPS task `FUN_0004bf08`,
+  which takes request codes from the queue at `0x103678`: 0 to 0x30 one
+  command, 0x47 to 0x59 a script of commands (selector `0x4bdc2`).  The
+  one script holding `Cf` is `0x50c88`, run for code 0x47 only.
+- *`master_reset`* (code `0x1b26c`) stores 25 in the mailbox
+  `0x102562`; the loop task's dispatcher `FUN_00047074` turns that into
+  code 0x47.  The GPS task first clears its own state (`0x4beb4`,
+  `0x100c68` to `0x1011c1`, the same routine a cold start runs), then
+  sends `Ci`, `Cf`, `Cj`, and a fixed set of HP defaults: among them
+  `At` 0, position hold off, and `Ad`/`Ae`/`Af`/`As` with a position held
+  as constants in ROM.  It writes nothing to the EEPROM and does not
+  restart the processor, and it does not send the unit's stored mask
+  angle, cable delay or position.  Those go to the engine from the
+  start-up sequence (`0x46802`), which a cold start and `pll_restart`
+  run.
+- *The others.*  `init_gps` (`0x1b28a`, code 0x48, script `0x50cf0`)
+  re-sends the fixed option set, with no `Cf`.  `clear_nv` (`0x1bba6`)
+  writes 0xFF over the first byte of both settings records, as
+  `:SYSTem:PRESet` does.  `wr_eeprom` is a raw one-byte write;
+  `disable_gps_cmds` sets one flag.  `gps_change` posts whatever code it
+  is given, so could send `Cf` or run the whole `master_reset` script;
+  which of its arguments is the code was not traced.
+- *3543B* has the same logic at shifted addresses: table `0x4fece`,
+  `Cf` at `0x508a6`, mailbox `0x10256c`, `master_reset` at `0x1b564`,
+  and byte-identical scripts.
+
+On 2026-09-27 `master_reset` was run on the bench Z3801A and Z3805A:
+both engines then reported Bad Almanac, no satellite visible, and the
+ROM's position, and started a blind search.  The Z3801A's 2016 almanac
+was gone.  Not established: whether the engine accepts `Ci` 0, which
+the VP Oncore reference does not list, and whether anything re-sends
+the unit's settings before the next start-up sequence.
+
 ### `:DIAGnostic:TEMPerature?`
 
 Undocumented, and the same code in both images.  The query handler
