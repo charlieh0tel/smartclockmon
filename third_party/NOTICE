@@ -146,6 +146,26 @@ Z3801A owner's description
                              purposes only and may not be used for
                              businesses of any kind."
 
+  z3801a_oven_cont.pdf       "HP Z3801A Outer Oven Controller", issue
+                             1.3, signed JRM, 11 November 2002: a circuit
+                             description, test points and schematic of
+                             the outer-oven controller on the Z3801A's
+                             power supply board (AD586 reference,
+                             thermistor bridge, LT1077, LT1170 driving
+                             the 18-ohm heater).  From
+                             docs.ampnuts.ru/my_docs/Keysight/Z3805A/
+                             oven_cont.pdf.  Renders, but pdftotext
+                             cannot parse it.
+  z3801a-power-supply.jpg    "Z3801A - Power Supply 38-60V", a schematic
+                             titled "Homebrew Design", revision A: the
+                             54 V input, a CW025ACL triple-output DC-DC
+                             converter for +5, +15 and -15 V, and a
+                             UWR-5/4000-48 for the outer oven's 5 V.
+                             From groups.io/g/HP-Agilent-Keysight-
+                             equipment/attachment/110447/0.  The 58503A
+                             runs from 110/240 Vac, so its supply is a
+                             different design with the same rails.
+
 NIST
 ----
 
