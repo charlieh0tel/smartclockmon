@@ -242,12 +242,18 @@ impl Journal {
         }
         let deadline = Instant::now() + PASS_BUDGET;
         if !self.engine_read {
-            // One attempt per connection whatever it returns: a refusal
-            // is an answer, and a timeout is asked again on the next
-            // connection rather than every ten seconds.
-            self.engine_read = true;
-            if let Err(e) = read_engine(handle, dialect, log) {
-                eprintln!("smartclockd: could not read the GPS engine's identity: {e:#}");
+            // Asked again on the next pass only while the receiver says
+            // the answer does not exist yet: a Z3805A just after power-up
+            // answers -230 until its engine has reported.  Anything else
+            // ends the attempt for this connection, so a receiver that
+            // cannot answer is not asked every ten seconds.
+            match read_engine(handle, dialect, log) {
+                Ok(()) => self.engine_read = true,
+                Err(e) if not_yet(&e) => {}
+                Err(e) => {
+                    self.engine_read = true;
+                    eprintln!("smartclockd: could not read the GPS engine's identity: {e:#}");
+                }
             }
         }
         if !self.filters_read {
@@ -595,6 +601,14 @@ fn scpi(dialect: Dialect, id: CommandId, argument: Option<i64>) -> Result<String
     })
 }
 
+/// Whether an error is the receiver declining on state, which a later
+/// pass may not meet.
+fn not_yet(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<smartclock::error::Error>()
+        .is_some_and(smartclock::error::Error::is_state_refusal)
+}
+
 /// Read the GPS engine's identity and record it against the current
 /// receiver, saying so when it is new or has changed.
 ///
@@ -822,6 +836,23 @@ mod tests {
         let (stamp, message) = split_entry("Log 001:20050528.00:00:00: Log cleared");
         assert_eq!(stamp, Some("20050528.00:00:00"));
         assert_eq!(message, "Log cleared");
+    }
+
+    #[test]
+    fn a_refusal_on_state_is_retried_and_anything_else_is_not() {
+        let refused: anyhow::Error = smartclock::error::Error::Device {
+            code: -230,
+            message: "Data corrupt or stale".to_owned(),
+        }
+        .into();
+        assert!(super::not_yet(&refused));
+        let unknown: anyhow::Error = smartclock::error::Error::Device {
+            code: -113,
+            message: "Undefined header".to_owned(),
+        }
+        .into();
+        assert!(!super::not_yet(&unknown));
+        assert!(!super::not_yet(&anyhow::anyhow!("no reply")));
     }
 
     #[test]

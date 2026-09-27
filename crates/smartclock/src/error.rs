@@ -100,6 +100,12 @@ pub enum Error {
 }
 
 impl Error {
+    /// Whether the receiver declined on state: the value does not exist
+    /// yet, and asking again later may find it.
+    pub fn is_state_refusal(&self) -> bool {
+        matches!(self, Self::Device { code, .. } if is_state_refusal(*code))
+    }
+
     /// Whether reopening the port could plausibly fix this.
     ///
     /// The distinction decides when the daemon gives up on a link.  A
