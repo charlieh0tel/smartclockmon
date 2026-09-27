@@ -1,0 +1,50 @@
+name: web
+
+# The browser tests for smartclock-web's pages, `make test-web`: every
+# page against a faked API, for switching receivers, a daemon going and
+# coming back, and the other edges they must handle alike.
+#
+# Separate from ci.yml because that one is the shared definition every
+# repository in the fleet calls, and this needs Node and a browser the
+# others do not.  Narrowed to the files that can change what it tests.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/smartclock-web/**"
+      - "crates/smartclock/**"
+      - "Cargo.lock"
+      - "Makefile"
+      - ".github/workflows/web.yml"
+  pull_request:
+    paths:
+      - "crates/smartclock-web/**"
+      - "crates/smartclock/**"
+      - "Cargo.lock"
+      - "Makefile"
+      - ".github/workflows/web.yml"
+
+jobs:
+  pages:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      # The pin audit.yml carries; moved by hand to match it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: crates/smartclock-web/tests/browser/package-lock.json
+      # serialport, under the library the server links, needs libudev.
+      # The compiler is the one rust-toolchain.toml names, which rustup
+      # installs on the first cargo call.
+      - run: sudo apt-get update && sudo apt-get install -y libudev-dev
+      # Playwright's Chromium into the test directory, as `make web-deps`
+      # does, with the system libraries it needs on a bare runner.
+      - run: npm ci --no-fund --no-audit
+        working-directory: crates/smartclock-web/tests/browser
+      - run: PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install --with-deps chromium
+        working-directory: crates/smartclock-web/tests/browser
+      - run: make test-web

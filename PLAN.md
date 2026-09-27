@@ -1075,7 +1075,10 @@ cleared on a change of receiver while the others kept the last unit's
 charts up, one noticed its daemon going and the others did not, and the
 live page polled the strip twice a second.  What they share is now one
 lifecycle in `common.js`, which each page describes its content to
-once.  Not in `make ci` yet: it needs Node and a 110 MB browser.
+once.  CI runs them in a workflow of their own, `web.yml`, because
+the shared `ci.yml` is the fleet's and this needs Node and a browser
+the other repositories do not; `make ci` leaves them out for the same
+reason.
 
 The one wrinkle is that some tests need the receiver.  Those are
 `#[ignore]`d and reachable only through `make test-hw`, which CI never
