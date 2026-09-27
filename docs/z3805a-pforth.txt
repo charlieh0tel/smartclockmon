@@ -1,0 +1,130 @@
+HEWLETT-PACKARD Z3805A, serial 3625A01487, firmware 3543B-A
+GPS engine: Motorola B1121P1114, serial SSG0163878
+Captured 2026-09-27 at about 02:34 UTC, in the pForth
+console reached with :SYSTem:LANGuage "PFORTH", on a Taoglas antenna
+that the 58503A tracks on, while it tracked no satellites.  The rd
+entry at the top of the word list is the word smartclock-cli
+read-memory defined for the ROM and EEPROM reads.
+
+words
+rd                 rd                 fp_u               es_ascii
+sync_imm           efc_rep            pll_rep            loop_time
+pr_hold_cause      gps_query          gps_change         pstat
+disable_gps_cmds   pr_time_raim       pr_1pps            pr_gps_id
+pr_gps_istate      pr_avg             pr_gps_cmds        clr_gps_debug
+pr_gps_debug       master_reset       quiet_status       gps_query_all
+init_gps           clr_avg            avg                q_gps_cable_dly
+q_gps_php          q_eman             eman               leapsec
+crash              print_clk_list     log_send           pr_pll
+phase_off          lock               pll_debug          pll_restart
+pr_efc             efc_wr             force_1pps         gps_cable_dly
+gps_ph             gps_php            gps_date           gps_time
+print_bc           print_ext_msg      xdop_stat_rate     ext_msg_rate
+print_vis          vis_stat_rate      stat_rate          print_stat
+abr_stat           set_time           get_time           clk_synch
+debug_psos         clear_nv           wr_eeprom          dmes_all
+dmes_curv          dmes_spoo          dmes_scpi          dmes_root
+dmes_pllp          dmes_klok          dmes_hmon          dmes_gpsm
+dmessage           doven              hdac_all           hdac_write
+efc_write          pr_adc_avg         adc_ant_curr       adc_doven
+adc_oven           adc_m15v           adc_p15v           adc_5v
+adc_temp           adc_read           cal                s_rep
+mem_rep            ps                 user               !iodev
+dev_ctrl           dev_write          dev_read           dev_close
+dev_open           dev_init           ident              mode
+pause              get_v              wait_v             signal_v
+request_x          send_x             delete_x           create_x
+jam_x              priority           resume             suspend
+delete             ver                spawn              ?^C
+my_pid             root               watch              execute
+0x                 number             unfence            fence
+immediate          recurse            does>              pad
+tib                count              word               type
+expect             interpret          startup            words
+forget             ]                  [                  [']
+'                  state              base               hex
+decimal            .s                 u.x                u.
+.                  (.")               ."                 cr
+spaces             space              emit               cos
+sin                >>                 <<                 2*
+2/                 2-                 2+                 1-
+1+                 +!                 +                  -
+*                  /                  */                 */mod
+/mod               mod                ;                  :
+literal            constant           create             variable
+!                  @                  i                  j
+k                  leave              +loop              loop
+?do                do                 until              again
+repeat             while              begin              endif
+then               else               if                 depth
+dup                swap               drop               2drop
+cmove>             cmove              ?dup               0>
+0=                 0<                 <                  >
+=                  xor                not                and
+or                 true               false              halt
+abort              (                  2swap              2dup
+allot              -rot               rot                c,
+w,                 ,                  pick               fill
+r>                 >r                 here               negate
+c!                 c@                 w!                 w@
+min                max                abs                over
+
+p4th D > pr_gps_id
+p4th D >
+
+GPS Receiver Identification
+-----------------------------------------------------
+Model Number:       MODEL #    B1121P1114
+Serial Number:      SERIAL #   SSG0163878
+Manufacture Date:   MANUFACTUR DATE 6G09
+Installed Options:  OPTIONS LIST    IB
+
+Hardware P/N:       HDWR P/N # _
+Software P/N:       SFTW P/N # 98-P39972M
+Software Version:   SOFTWARE VER # 8
+Software Revision:  SOFTWARE REV # 4
+Software Date:      SOFTWARE DATE  13 JUL 1995
+
+Copyright Notice:   COPYRIGHT 1991-1995 MOTOROLA INC.
+pr_gps_istate
+p4th D >
+------------------------- Instrument State Settings --------------------------
+TIME   00:00:00    GMT CORR  +00h:00m                        DATE   00/00/0000
+
+POS HOLD   Enabled                                           APPL   Static
+FIX ALG    N-in-view                                         OPER   Pos Fix
+
+Hold Position _____________________________   Initial Position _______________
+LAT        N  37:22:30.267  = +134550267 ms   N   0:00:00.000  =         +0 ms
+LON        W 122:05:34.814  = -439534814 ms   E   0:00:00.000  =         +0 ms
+GPS HGT                                                    +0 cm
+MSL HGT              +4351 cm                              +0 cm
+
+Satellite Options _________________________   PRNs Ignored ___________________
+ELEV MASK  10                                 (none ignored)
+SELECTION  Highest-in-sky
+DOP TYPE   GDOP           DOP HYST      1.0
+ION CORR   Enabled        DOP 3D/2D     6.0
+
+Correction Factors and Thresholds _________   General Status _________________
+UTC CORR   Disabled (GPS time)                LEAP SEC  None pending
+1PPS OFFS          0 ns   POS FIX THR   0
+CABLE DLY          0 ns   DIF OUT THR  32 s
+print_stat
+p4th D > TIME  2:34:01.000699168	DATE   2/11/2007
+LAT  N  37:22:30.267
+LON  W 122:05:34.814		VIS SATS   10
+HGT (msl)             43.51	TRACK SATS   0
+HGT (gps)             15.10	RX STATUS   08
+PDOP                    0.0
+
+CHN      SVID      MODE       SS      STATUS
+ 1        17         0        44        00
+ 2        22         0        43        00
+ 3        30         0        46        20
+ 4        20         0        44        00
+ 5        14         0        47        00
+ 6        19         0        46        00
+get_time
+02/07/2007	00:27:54, 1, valid: 0
+p4th D >

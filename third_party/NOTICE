@@ -65,16 +65,25 @@ which claims about the command set are checked.  CPU32 code, big-endian, loaded 
                              "Reading memory through it").  512 KB from
                              address 0; SHA-256 d13b9ff1...9491ca3.
 
+  z3805a-3543b.bin           Z3805A firmware, revision 3543B.  Copyright
+                             Hewlett-Packard 1993.  Read on 2026-09-27
+                             through the pForth console of the bench
+                             Z3805A, serial 3625A01487, which answers
+                             *IDN? with 3543B-A.  512 KB from address 0;
+                             SHA-256 216daf92...f6998792.
+
 EEPROM contents, read the same way, 8 KB from `0x400000` (chip select
 9).  Each holds that unit's settings, calibration and diagnostic log:
 
   58503a-3710A01056-eeprom.bin  the bench 58503A, 3704-C.
   z3801a-3542A01548-eeprom.bin  the bench Z3801A, 3543-A.
+  z3805a-3625A01487-eeprom.bin  the bench Z3805A, 3543B-A.
 
 The revision is the string the firmware puts in the third field of its
 `*IDN?` answer, stored just before the image's second copyright notice
 (`0x12eee` in the Z3801A image, `0x22ff8` in the Z3816A's, `0x12feb` in
-the 58503A 3633's, `0x1309c` in the 3704's).  The letter
+the 58503A 3633's, `0x1309c` in the 3704's, `0x12eee` in the Z3805A
+3543B's).  The letter
 that follows it in a real answer, as in 3704-C, is read from RAM and is
 not in the image.
 

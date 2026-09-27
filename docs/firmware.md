@@ -1021,7 +1021,19 @@ While the console runs, only the SCPI task has ended: the loop, the
 GPS task and the health monitor carry on, and the front panel with
 them.
 
-The two units' firmware words differ.  The 58503A's has
+The bench Z3805A (3625A01487, 3543B-A) also works the same way, at
+19200 8N1.  On 2026-09-27 its ROM came back in 654 seconds and is
+`third_party/z3805a-3543b.bin`, SHA-256
+`216daf929b293be02bfd92ed61cca8c7e70d577696f2567a12f01905f6998792`:
+the same reset vector, its revision string `3543B` at `0x12eee`, where
+the Z3801A image has `3543`, and 281 of its 512 kilobytes different
+from `z3801a-3543.bin`.  Its console words are the Z3801A's, all 242.
+Its EEPROM, `third_party/z3805a-3625A01487-eeprom.bin`, opens with
+`Z3805A`, `3625A01487` and `AS` where the Z3801A's has `AQ`; and its
+diagnostic log is stamped with calendar dates where the Z3801A's
+uses hex.  The session is `docs/z3805a-pforth.txt`.
+
+The 58503A's and the Z3801A's firmware words differ.  The 58503A's has
 `force_ext_1pps` and `force_gps_1pps` where the Z3801A's has
 `force_1pps`, and lacks the Z3801A's `adc_5v`, `adc_p15v`, `adc_m15v`,
 `adc_oven`, `adc_doven`, `adc_ant_curr` and `adc_temp`; the rest are
