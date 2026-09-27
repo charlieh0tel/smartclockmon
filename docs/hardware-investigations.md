@@ -4,7 +4,8 @@ Things the firmware images cannot settle and a bench can.  Each item
 names the open question in `docs/firmware.md` it would close, what to
 measure, and what the answer changes.  None of them involves sending
 the receiver anything this project never sends (`:SYSTem:PRESet`,
-`:SYSTem:COMMunicate:*`, `:DIAGnostic:ERASe`, `:SYSTem:LANGuage`);
+`:SYSTem:COMMunicate:*`, `:DIAGnostic:ERASe`,
+`:SYSTem:LANGuage "INSTALL"`);
 the ones that need the console are marked as wanting a spare unit.
 
 Stop the daemon before any direct-mode work; it holds the port.
@@ -151,7 +152,8 @@ image and by 187 polls.
 
 *Open item:* what the pForth console does once started, and whether
 anything short of a power cycle returns the port to SCPI.  Entering
-it needs `:SYSTem:LANGuage "PFORTH"`, which this project never sends.
+it needs `:SYSTem:LANGuage "PFORTH"`, which only
+`smartclock-cli read-memory` sends.
 
 - On a unit that is not the bench reference: send the language
   command from a terminal, observe the banner (`pForth $Revision:
@@ -178,3 +180,43 @@ has the same term, on the same current renumbered as channel 6.
 
 *Still open:* why the bench receiver's record shows no response to the
 oven current when its firmware applies the term.
+
+## 11. The two Z380x units that track nothing
+
+*Open item:* why the Z3801A (3542A01548) has tracked no satellite
+since it came to the bench, and the Z3805A (3625A01487) none since
+2026-09-23, when it held six.  Both have the same engine, a Motorola
+B1121P1114 with software 8.4 (`firmware.md`, "The engines on the
+bench").
+
+Checked on 2026-09-27:
+
+- *The feed.*  Four receivers off the bench, on the same HP-designed
+  distribution amplifier, track.  Both units are on DC-block ports,
+  whose load resistor is what their antenna-current reading sees.
+- *The Z3805A's internal RF cable.*  Checked by the operator.
+- *The rails,* read in the pForth console with `adc_5v`, `adc_p15v`,
+  `adc_m15v` and `adc_ant_curr`, and `hardware_bits` 0 in every
+  snapshot of the six hours before:
+
+  | | +5 V | +15 V | −15 V | Antenna current |
+  | - | ---- | ----- | ----- | --------------- |
+  | Z3801A | 4.94 | 14.95 | −15.21 | 30.39 |
+  | Z3805A | 4.94 | 14.88 | −15.08 | 26.47 |
+
+- *The engines' state,* from `print_stat` in the same sessions: date
+  1/01/2007, no satellite visible or tracked, every assigned channel
+  in mode 0, Code Search.  RX STATUS was 08 on the Z3801A and 09 on
+  the Z3805A, whose bit 0 is Bad Almanac in the VP Oncore reference.
+  The day before, the Z3801A's engine had read 02/10/2007, 2026-09-26
+  less 1024 weeks.
+- *An initial date and time.*  `:GPS:INITial:DATE 2007,2,11` and
+  `:GPS:INITial:TIME` at the same offset, 1024 weeks behind UTC, were
+  accepted by both with no error (097-59551-02, 5-7 and 5-8; volatile,
+  and valid only before the first satellite is tracked).  Neither
+  tracked a satellite in the 30 minutes after.
+
+*Next:* one of these engines in the 58503A (3710A01056), whose
+firmware takes a six-channel engine (`firmware.md`, "Six or eight
+channels").  Tracking there puts the fault in the Z380x unit; not
+tracking, in the engine.  Waiting on a supply for the 58503A.
