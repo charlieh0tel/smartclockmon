@@ -1,3 +1,11 @@
+smartclockmon (0.6.32-1) unstable; urgency=low
+
+  * Ask again for the GPS engine's identity on the next pass while the
+    receiver answers -230 or -221, as a Z3805A does just after
+    power-up, instead of giving up for the connection.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sat, 26 Sep 2026 19:37:42 -0700
+
 smartclockmon (0.6.31-1) unstable; urgency=low
 
   * Record each unit's GPS engine identity: the daemon reads it once
