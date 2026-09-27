@@ -213,18 +213,38 @@ The 58503A images decide at run time.  In 3704:
   of the byte at `0x1013e2` and call `FUN_000509fe`, which stores 8 at
   `0x1013e0` when that bit is set and 6 when it is clear.  No other
   code in the image sets or clears the bit by address.
-- `FUN_00050ad8`, reached from the Time RAIM post-handler
-  (`0x50b48`, which returns at once unless bit 6 of `0x1013e2` is
-  set), accepts `Ba`, `Bk` and `Bn` (entries 30, 39, 41) when the count
-  is 6, and `Ea`, `Ek` and `En` (50 to 52) only when it is 8.  With
-  the count at 8 it also accepts the six-channel three when a flag its
-  callback returns is clear; what that flag is was not traced.
+- The descriptor's last long, at +0x38, is a filter on sending.  The
+  command builder `FUN_00050bc8` calls it with the entry number and
+  the command's first argument and, when it returns zero, sends
+  nothing.  `FUN_00050ad8`, the filter of `Ba`, `Ea` and `Ek` and,
+  through `0x50b48`, of `Bn` and `En`, passes `Ba`, `Bk` and `Bn`
+  (entries 30, 39, 41) when the count is 6 and `Ea`, `Ek` and `En`
+  (50 to 52) only when it is 8.  With the count at 8 it still passes
+  the six-channel three when their first argument, the output rate,
+  is 0: the reference's "output response message once".  So an
+  eight-channel engine is polled with the six-channel messages but
+  given continuous output only in the eight-channel ones.  Entry 54,
+  the second `Ea`, has no filter and no destination.
+- `Ca` and `Fa`, the six- and eight-channel self-tests, are filtered
+  on bit 5 alone (`0x50ab8`, `0x50ac8`).
+- Bits 6 and 7 of `0x1013e2` come from the engine's `@@Cj` identity,
+  in `FUN_00050a16`, which addresses the byte as `0x592` off
+  `0x100e50`.  Once a `Cj` has been received (`0x101258`, set by its
+  decoder), bit 6 is set when the `OPTIONS LIST` value contains an
+  `I`, and bit 7 when `SOFTWARE VER` × 10 + `SOFTWARE REV` is 84:
+  software 8.4.  Run before a `Cj` has arrived, it clears both.  `Bn` and `En` go out
+  only with bit 6 set (`0x50b48`); entry 55, a second `@@Ar`
+  (position fix algorithm), only with bit 7 (`0x50b6c`).  The field
+  labels are matched from the table at `0x5262c`.
 
 So the count is 6 until an `@@Ea` arrives from the engine and 8 after.
-3633 has the same selector at `0x50802` and the same two `bset` sites
-at `0x5051c` and `0x5078e`.  Neither Z380x image has an `Ea` or `En`
-entry.  None of this has been run with an engine other than the one
-each unit came with.
+The three engines on the bench all report options `IB`, so each
+would get Time RAIM commands; the two Z380x engines report software
+8.4 and the 58503A's 8.8.  3633 has the same selector at `0x50802`,
+the same two `bset` sites at `0x5051c` and `0x5078e`, and the same
+identity tests at `0x50834` and `0x5088e`.  Neither Z380x image has an
+`Ea` or `En` entry or these tests.  None of this has been run with an
+engine other than the one each unit came with.
 
 ### Where the sawtooth is read
 
