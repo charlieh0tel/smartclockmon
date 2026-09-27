@@ -1345,7 +1345,8 @@ a list and where it stops were not traced.  `PON` is a keyword only
 the Z3816A image has (`0x5a280`); the Z3801A's image has the same
 `:SYSTem:PRESet` action, `FUN_00045cca` (`0x2f66a` passes its list at
 `0x41392`), and no `PON`.  Owners report that `:SYSTem:PON` is accepted
-by newer firmware and refused by older, which matches.
+by newer firmware and refused by older, which matches: on 2026-09-27
+the bench Z3801A (3543) and Z3805A (3543B) both refused it.
 
 `*TST?` is reported by owners to restart the receiver as well, with a
 minute of GPS reacquisition after it.  It does not reset the
