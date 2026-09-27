@@ -5,6 +5,7 @@
 
 /// Allan deviation from the receiver's phase readings.
 pub mod adev;
+pub mod attach;
 pub mod client;
 pub mod control;
 pub mod device;

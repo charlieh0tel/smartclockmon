@@ -1131,9 +1131,18 @@ satellites is the manual's documented answer for an unavailable value
 
 The line framing differs too: the 58503A's is settable, the Z3801A's
 fixed at 7O1 (`097-z3801-01` 1-8, 2-10).  It is a setting, `--framing`,
-named per port rather than probed: a probe at the wrong framing sends
-the receiver garbage and reads garbage back, and the port is the thing
-that knows which receiver is on it.
+with `--baud`, and it was once named per port and never probed, on the
+grounds that the port knows which receiver is on it.  It does not: a
+power cut brought the bench's two USB adapters back in the other
+order, and each daemon then sat at the other unit's framing,
+unanswered, until the cables were swapped.  So the configured settings
+are tried first and, when they get no identity, 19200 and 9600 at 8N1
+and 7O1 are tried in turn (`smartclock::attach`).  A probe at the wrong
+framing reaches the receiver as garbage it queues as errors; those are
+read off the queue at the settings that work, before anything else is
+asked, and counted in the journal.  `*CLS` would clear them too, and the
+event registers with them, which are the front-panel alarm's.  A
+receiver on the network is not probed.
 
 ### The status screen scraper is mandatory
 

@@ -19,8 +19,10 @@
 #SMARTCLOCKD_BAUD=19200
 
 # Character framing, 8N1 or 7O1.  The Z3801A's port is fixed at 7O1
-# (097-z3801-01 1-8, 2-10).  This belongs to a port, so on a host with
-# receivers of both kinds set it in each instance's drop-in, not here.
+# (097-z3801-01 1-8, 2-10).  With the rate, the settings tried first: a
+# receiver that does not answer at them is looked for at 19200 and 9600,
+# 8N1 and 7O1.  On a host with receivers of both kinds set it in each
+# instance's drop-in, not here, to save the probe.
 #SMARTCLOCKD_FRAMING=8N1
 
 # One log per receiver, <model>-<serial>.sqlite in this directory,

@@ -37,10 +37,10 @@ use clap::Parser;
 use interprocess::local_socket::GenericFilePath;
 use interprocess::local_socket::ToFsName as _;
 use jiff::Timestamp;
+use smartclock::attach::attach;
 use smartclock::command::Dialect;
 use smartclock::device::Device;
 use smartclock::session::Config;
-use smartclock::session::Session;
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Snapshot;
 use smartclock::task;
@@ -50,7 +50,6 @@ use smartclock::task::Handle;
 use smartclock::task::Request;
 use smartclock::task::Shared;
 use smartclock::task::Stopped;
-use smartclock::transport;
 use smartclock::transport::Transport;
 use smartclock::transport::serial::Settings;
 use smartclock::types::BaudRate;
@@ -74,7 +73,9 @@ struct Cli {
     baud: u32,
 
     /// Character framing, `8N1` or `7O1`.  The 58503A's is settable
-    /// and 8N1 here; the Z3801A's is fixed at 7O1.
+    /// and 8N1 here; the Z3801A's is fixed at 7O1.  With --baud, the
+    /// settings tried first: a receiver that does not answer at them is
+    /// looked for at 19200 and 9600, 8N1 and 7O1.
     #[arg(long, env = "SMARTCLOCKD_FRAMING", default_value = "8N1")]
     framing: Framing,
 
@@ -811,16 +812,27 @@ fn seconds(value: f64, flag: &str) -> Result<Duration> {
     Ok(Duration::from_secs_f64(value))
 }
 
-/// Open the receiver and identify it.
+/// Open the receiver and identify it, at the configured line settings
+/// or, when it does not answer at those, at the ones it does.
 ///
 /// The path may name a serial port or a receiver on the network;
 /// `transport::open` decides which, so every tool accepts the same
 /// paths.
 fn open(settings: &Settings) -> Result<Device<Box<dyn Transport + Send>>> {
-    let port =
-        transport::open(settings).with_context(|| format!("cannot open {}", settings.path))?;
-    let session = Session::new(port, Config::default());
-    Device::open(session).context("identifying the receiver")
+    let attached = attach(settings, &Config::default()).context("identifying the receiver")?;
+    if attached.probed {
+        eprintln!(
+            "smartclockd: {} did not answer at {} {}; found it at {} {}, \
+             and read {} entries off its error queue left by the probe",
+            settings.path,
+            settings.baud,
+            settings.framing,
+            attached.baud,
+            attached.framing,
+            attached.discarded
+        );
+    }
+    Ok(attached.device)
 }
 
 /// What the socket server needs to start.

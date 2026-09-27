@@ -38,6 +38,12 @@ impl<T: Transport + ?Sized> Transport for Box<T> {
 /// serial port.
 const NETWORK_PREFIX: &str = "tcp://";
 
+/// Whether `path` names a receiver on the network rather than a local
+/// serial port.
+pub fn is_network(path: &str) -> bool {
+    path.starts_with(NETWORK_PREFIX)
+}
+
 /// Open whatever `settings.path` names.
 ///
 /// A `tcp://host:port` path reaches a receiver over the network, which

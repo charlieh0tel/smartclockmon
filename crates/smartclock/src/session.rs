@@ -225,20 +225,16 @@ impl<T: Transport> Session<T> {
 
         let mut own = None;
         for _ in 0..MAX_QUEUE_DRAIN {
-            let detail = self.send_raw(":SYSTem:ERRor?")?;
-            // Either the queue is empty or it did not parse.  Both end
-            // the drain; the second also means the receiver and its
-            // queue have drifted out of step, which the caller learns
-            // from the unexplained error below if nothing was read.
-            let Some(Some((code, message))) = detail.lines.first().map(|l| parse_error(l)) else {
+            // An answer that did not parse also ends the drain: the
+            // receiver and its queue have drifted out of step, which the
+            // caller learns from the unexplained error below if nothing
+            // was read.
+            let Some(entry) = self.next_error()? else {
                 break;
             };
-            if code == 0 {
-                break;
-            }
             // Whatever was held is older than what just arrived, so it
             // cannot be this command's.
-            if let Some(older) = own.replace(ErrorEntry { code, message }) {
+            if let Some(older) = own.replace(entry) {
                 self.remember_stray(older);
             }
         }
@@ -256,6 +252,34 @@ impl<T: Transport> Session<T> {
             }),
             None => Err(Error::UnexplainedError { prompt }),
         }
+    }
+
+    /// Read the error queue until it is empty, and say how many entries
+    /// it held.
+    ///
+    /// For after a probe at the wrong line settings: the receiver
+    /// records the garbled bytes as errors that explain nothing and
+    /// belong to nobody.  Only the queue is read.  `*CLS` would empty
+    /// it too, and also clear the event registers, which are the
+    /// front-panel alarm's and not this tool's to clear.
+    pub fn discard_errors(&mut self) -> Result<usize> {
+        let mut discarded = 0;
+        while discarded < MAX_QUEUE_DRAIN && self.next_error()?.is_some() {
+            discarded += 1;
+        }
+        Ok(discarded)
+    }
+
+    /// Read one entry off the error queue: `None` when it is empty, or
+    /// when the answer does not parse.
+    fn next_error(&mut self) -> Result<Option<ErrorEntry>> {
+        let detail = self.send_raw(":SYSTem:ERRor?")?;
+        Ok(detail
+            .lines
+            .first()
+            .and_then(|l| parse_error(l))
+            .filter(|(code, _)| *code != 0)
+            .map(|(code, message)| ErrorEntry { code, message }))
     }
 
     /// Take the errors drained while explaining other failures.

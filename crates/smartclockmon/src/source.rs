@@ -22,13 +22,11 @@ use interprocess::local_socket::GenericFilePath;
 use interprocess::local_socket::Stream;
 use interprocess::local_socket::ToFsName as _;
 use interprocess::local_socket::traits::Stream as _;
-use smartclock::device::Device;
+use smartclock::attach::attach;
 use smartclock::session::Config;
-use smartclock::session::Session;
 use smartclock::task;
 use smartclock::task::Cadence;
 use smartclock::task::Handle;
-use smartclock::transport;
 use smartclock::transport::serial::Settings;
 use smartclock::types::BaudRate;
 use smartclock::types::Framing;
@@ -436,12 +434,12 @@ pub(crate) fn from_device(
         framing,
         read_timeout: Duration::from_millis(250),
     };
-    // Through the same opener as the other tools, so `tcp://host:port`
-    // reaches a network bridge or the simulator here as it does there.
-    let port = transport::open(&settings)
-        .with_context(|| format!("opening {device}; is smartclockd holding it?"))?;
-    let receiver =
-        Device::open(Session::new(port, Config::default())).context("identifying the receiver")?;
+    // Through the same opener as the daemon, so `tcp://host:port`
+    // reaches a network bridge or the simulator here as it does there,
+    // and a unit at other line settings is found here as it is there.
+    let receiver = attach(&settings, &Config::default())
+        .with_context(|| format!("opening {device}; is smartclockd holding it?"))?
+        .device;
 
     let cadence = Cadence::default();
     let (handle, _joiner) = task::spawn(receiver, cadence.clone());

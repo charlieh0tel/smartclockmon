@@ -163,19 +163,21 @@ A second port is a second instance, exactly like the first:
 
     smartclockmon --socket /run/smartclockd/ttyUSB1/socket
 
-A Z3801A needs one setting the 58503A does not: its port is fixed at
-seven data bits and odd parity (`097-z3801-01` 1-8 and 2-10), where
-the daemon opens 8N1 unless told otherwise.  Opened at the wrong
-framing a port does not fail, it exchanges garbage, so name it in that
-instance's drop-in:
+A Z3801A's port is fixed at seven data bits and odd parity
+(`097-z3801-01` 1-8 and 2-10), where the daemon opens 8N1 unless told
+otherwise.  A receiver that does not answer at the configured settings
+is looked for at 19200 and 9600, 8N1 and 7O1, so the daemon finds it
+either way and says so in the journal; naming the framing in that
+instance's drop-in saves the probe, and the handful of errors it leaves
+in the receiver's queue, on every start:
 
     sudo systemctl edit smartclockd@ttyUSB1
 
     [Service]
     Environment=SMARTCLOCKD_FRAMING=7O1
 
-`smartclock-cli` and `smartclockmon` take `--framing 7O1` for direct
-mode the same way.
+`smartclockmon` takes `--framing 7O1` for direct mode the same way, and
+probes the same way; `smartclock-cli` takes it but does not probe.
 
 Anything that differs between the ports -- the framing, and whether
 to adopt that receiver's log -- goes in the drop-ins, not in
@@ -183,10 +185,13 @@ to adopt that receiver's log -- goes in the drop-ins, not in
 every instance and a drop-in cannot override it.
 
 With two adapters, `ttyUSB0` and `ttyUSB1` can swap when either is
-replugged or the host reboots, and each instance would then open the
-other receiver's port at the other's framing.  Give each adapter a
-stable name first (see "Installing" for the udev rule or the escaped
-by-id path) and name the instances after those.
+replugged or the host reboots, and each instance then opens the other
+receiver's port at the other's framing.  It finds the receiver by
+probing, and since logs are named for the receiver, not the port, no
+history goes astray; but it probes on every start until the ports are
+put back.  Giving each adapter a stable name (see "Installing" for the
+udev rule or the escaped by-id path) and naming the instances after
+those keeps each instance on its own receiver.
 
 The instances share `/var/lib/smartclockd`, and since each writes the
 file named for the receiver on its own port, and a receiver is on one
