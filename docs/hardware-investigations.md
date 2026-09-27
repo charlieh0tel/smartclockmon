@@ -230,6 +230,17 @@ Checked on 2026-09-27:
   surveying (`:GPS:POS:SURV:STAT?` `ONCE`) with a 10 degree mask and
   no PRNs ignored; the power-up survey setting read 1 on the Z3805A
   and 0 on the Z3801A.  `:SYSTem:PON` was refused by both.
+- *What each engine expects to see.*  With the bench position held
+  and the date and time given (1024 weeks behind UTC), on the same
+  four-way as a known-good receiver, 2026-09-27 at about 21:25 UTC:
+  the Z3805A predicted PRNs 3, 4, 6, 7, 9, 16, 26 and 27 within a degree
+  or two of where the known-good receiver was tracking them, 42 to
+  46 dB-Hz for the higher ones, and was attempting 3, 4, 7, 9, 16 and
+  26, tracking none.  The Z3801A predicted 1, 8, 10, 11, 14, 18, 22, 31
+  and 32, with the same elevations and azimuths its console's
+  `print_vis` gave on 2026-09-26: its 2016 almanac, not the sky.  So the
+  Z3805A searches the right satellites in the right places and does
+  not acquire them, and the Z3801A searches the wrong ones.
 
 *Next:* one of these engines in the 58503A (3710A01056), whose
 firmware takes a six-channel engine (`firmware.md`, "Six or eight
