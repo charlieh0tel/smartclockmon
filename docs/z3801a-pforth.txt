@@ -192,3 +192,45 @@ No holdover cause
 p4th D > get_time
 09/24/2016      00:47:35, 1, valid: 0
 p4th D > 
+
+
+Second session, 2026-09-27 at about 05:52 UTC, after a power cycle,
+entered the same way from a script, while it tracked no satellites.
+The Z3801A does not echo, so the lines sent are not shown; they were,
+in order: an empty line, adc_5v, adc_p15v, adc_m15v, adc_ant_curr,
+adc_oven, adc_doven, pr_adc_avg, print_stat and print_vis.
+
+
+pForth $Revision: 1.2 $
+
+
+p4th D > p4th D > 5V reading: 4.936800
+p4th D > +15V reading: 14.954801
+p4th D > -15V reading: -15.208799
+p4th D > Antenna current: 30.392157
+p4th D > Oven: -3.907701
+p4th D > Double oven: 2.036300
+p4th D > Temperature: 0.11
+5V: 4.94
++15V: 14.99
+-15V: -15.22
+Oven: -3.89
+Double oven: 2.04
+Oven current: 30.40
+p4th D > p4th D > TIME 12:29:12.000847763	DATE   1/01/2007
+LAT  N  37:22:30.271
+LON  W 122:05:34.848		VIS SATS   0
+HGT (msl)             49.00	TRACK SATS   0
+HGT (gps)             20.59	RX STATUS   08
+PDOP                    0.0
+
+CHN      SVID      MODE       SS      STATUS
+ 1         0         0         0        00
+ 2        32         0        64        00
+ 3         0         0         0        00
+ 4         0         0         0        00
+ 5         0         0         0        00
+ 6         0         0         0        00
+p4th D > Visible Sats:  0
+
+PN Code ID    Doppler    Elevation     Azimuth    Health

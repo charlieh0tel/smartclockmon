@@ -128,3 +128,53 @@ CHN      SVID      MODE       SS      STATUS
 get_time
 02/07/2007	00:27:54, 1, valid: 0
 p4th D >
+
+
+Second session, 2026-09-27 at about 05:49 UTC, after a power cycle,
+entered the same way from a script, while it tracked no satellites.
+
+:SYSTem:LANGuage "PFORTH"
+
+pForth $Revision: 1.2 $
+
+
+p4th D > 
+p4th D > adc_5v
+5V reading: 4.936800
+p4th D > adc_p15v
++15V reading: 14.878501
+p4th D > adc_m15v
+-15V reading: -15.077400
+p4th D > adc_ant_curr
+Antenna current: 26.470589
+p4th D > adc_oven
+Oven: -3.982000
+p4th D > adc_doven
+Double oven: 1.961999
+p4th D > pr_adc_avg
+Temperature: 0.11
+5V: 4.94
++15V: 14.86
+-15V: -15.08
+Oven: -3.98
+Double oven: 1.93
+Oven current: 27.13
+p4th D > print_stat
+p4th D > TIME 12:26:27.000854173	DATE   1/01/2007
+LAT  N  37:22:30.267
+LON  W 122:05:34.814		VIS SATS   0
+HGT (msl)             43.51	TRACK SATS   0
+HGT (gps)             15.10	RX STATUS   09
+PDOP                    0.0
+
+CHN      SVID      MODE       SS      STATUS
+ 1         0         0         0        00
+ 2         0         0         0        00
+ 3         0         0         0        00
+ 4         0         0         0        00
+ 5        32         0        43        00
+ 6        30         0        43        00
+print_vis
+p4th D > Visible Sats:  0
+
+PN Code ID    Doppler    Elevation     Azimuth    Health
