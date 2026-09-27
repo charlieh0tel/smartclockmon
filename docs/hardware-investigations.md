@@ -189,6 +189,11 @@ since it came to the bench, and the Z3805A (3625A01487) none since
 B1121P1114 with software 8.4 (`firmware.md`, "The engines on the
 bench").
 
+The Z3801A's own log dates it: it cycled between GPS lock and holdover
+from 2016-08-05 to its last lock on 2016-09-20, and every power-on
+since is stamped 2016-09-24, the date its engine still holds.  So it
+has tracked nothing since 2016, before the 2019 week rollover.
+
 Checked on 2026-09-27:
 
 - *The feed.*  Four receivers off the bench, on the same HP-designed
