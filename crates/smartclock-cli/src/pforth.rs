@@ -11,9 +11,10 @@
 //! : rd ( addr n -- ) over + swap do i @ u. 4 +loop ;
 //! ```
 //!
-//! Entering the console is left to the operator, from a terminal: it is
-//! the same command whose `"INSTALL"` value this project never sends,
-//! and a power cycle is the only way back to SCPI.
+//! When the port is not already at the console prompt, the console is
+//! entered with `:SYSTem:LANGuage "PFORTH"`.  That command's `"INSTALL"`
+//! value is one this project never sends, and only this value is.  A
+//! power cycle is the only way back to SCPI.
 
 use std::io::Read;
 use std::io::Write;
@@ -32,6 +33,13 @@ const CHUNK: u32 = 0x400;
 
 /// How long one request may take before it is abandoned and retried.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How long an empty line waits for a console prompt before the port
+/// is taken to be at SCPI.
+const PROBE_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// The command that turns the SCPI port into the console.
+const ENTER: &str = ":SYSTem:LANGuage \"PFORTH\"";
 
 /// How many times a request is tried before the read gives up.
 const ATTEMPTS: usize = 4;
@@ -56,10 +64,15 @@ struct Console<T> {
 impl<T: Read + Write> Console<T> {
     /// Send one line and return everything up to the prompt after it.
     fn send(&mut self, line: &str) -> Result<String> {
+        self.send_within(line, REQUEST_TIMEOUT)
+    }
+
+    /// `send`, giving up after `timeout`.
+    fn send_within(&mut self, line: &str, timeout: Duration) -> Result<String> {
         self.port.write_all(line.as_bytes())?;
         self.port.write_all(b"\r")?;
         self.port.flush()?;
-        let deadline = Instant::now() + REQUEST_TIMEOUT;
+        let deadline = Instant::now() + timeout;
         let mut reply = Vec::new();
         let mut chunk = [0u8; 1024];
         while Instant::now() < deadline {
@@ -71,7 +84,7 @@ impl<T: Read + Write> Console<T> {
             }
         }
         anyhow::bail!(
-            "no pForth prompt within {REQUEST_TIMEOUT:?} after {line:?}; received {:?}",
+            "no pForth prompt within {timeout:?} after {line:?}; received {:?}",
             String::from_utf8_lossy(&reply[reply.len().saturating_sub(80)..])
         )
     }
@@ -112,9 +125,12 @@ pub(crate) fn read_memory<T: Read + Write>(
         "the address and length must be multiples of four, since memory is read a long word at a time"
     );
     let mut console = Console { port };
-    console.send("").context(
-        "the port is not at the pForth prompt; enter the console first (docs/firmware.md)",
-    )?;
+    if console.send_within("", PROBE_TIMEOUT).is_err() {
+        eprintln!("not at the pForth prompt; sending {ENTER}");
+        console
+            .send(ENTER)
+            .context("the receiver did not enter the pForth console")?;
+    }
     console.send(READ_WORD)?;
     console.send("hex")?;
     let started = Instant::now();

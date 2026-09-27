@@ -1031,17 +1031,16 @@ nothing but the dictionary in RAM:
     : rd ( addr n -- ) over + swap do i @ u. 4 +loop ;
 
 In `hex`, `<addr> <n> rd` prints the 32-bit words from `addr` for `n`
-bytes.  `smartclock-cli read-memory` does the rest: it checks the
-port is at the console prompt, defines `rd`, reads 1 KB per request
-with retries, writes the bytes to a file and, given `--compare`,
-checks each kilobyte against an image.  The procedure:
+bytes.  `smartclock-cli read-memory` does the rest: it sends an empty
+line and, when no console prompt comes back within three seconds,
+sends `:SYSTem:LANGuage "PFORTH"` and waits for one; then it defines
+`rd`, reads 1 KB per request with retries, writes the bytes to a file
+and, given `--compare`, checks each kilobyte against an image.  The
+procedure:
 
 1. Stop the unit's daemon, which holds the port:
    `sudo systemctl stop smartclockd@<port>`.
-2. From a terminal at the unit's framing (19200 7O1 for a Z3801A),
-   send `:SYSTem:LANGuage "PFORTH"`.  The prompt becomes
-   `p4th D > `.  Leave the terminal so the port is free.
-3. Read the ROM, 512 KB at address 0, and the EEPROM, 8 KB at
+2. Read the ROM, 512 KB at address 0, and the EEPROM, 8 KB at
    `0x400000` (chip select 9, as the reset code programs it):
 
        smartclock-cli --device /dev/<port> --framing 7O1 read-memory \
@@ -1050,7 +1049,7 @@ checks each kilobyte against an image.  The procedure:
        smartclock-cli --device /dev/<port> --framing 7O1 read-memory \
            --from 0x400000 --length 0x2000 --out eeprom.bin
 
-4. Power cycle the unit, which returns the port to SCPI, and start
+3. Power cycle the unit, which returns the port to SCPI, and start
    the daemon again.
 
 On the bench Z3801A (3542A01548, 3543-A), on 2026-09-26, the ROM came

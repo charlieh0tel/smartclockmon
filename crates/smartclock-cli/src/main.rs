@@ -106,10 +106,11 @@ enum Command {
         #[arg(long)]
         from: PathBuf,
     },
-    /// Read memory through the pForth debug console, which must already
-    /// be running on the port (docs/firmware.md, "Reading memory through
-    /// it").  Defines one word in the console's RAM and writes nothing
-    /// else.
+    /// Read memory through the pForth debug console, entering it with
+    /// `:SYSTem:LANGuage "PFORTH"` if the port is not already there
+    /// (docs/firmware.md, "Reading memory through it").  Defines one word
+    /// in the console's RAM and writes nothing else.  Only a power cycle
+    /// returns the port to SCPI.
     ReadMemory {
         /// First address, as 0x-prefixed hex or decimal.
         #[arg(long, value_parser = address)]
