@@ -58,12 +58,12 @@ const TICK: Duration = Duration::from_millis(500);
 /// would be wasteful, and the graphs do not move that fast.
 const HISTORY_REFRESH: Duration = Duration::from_secs(5);
 
-/// How often the sky view re-reads the status screen.
+/// How often the status view re-reads the status screen.
 ///
 /// Deliberately slower than everything else: one read costs the
 /// receiver about 1.5 s of a 19200 link, four fast polls, and the sky
 /// does not move appreciably in fifteen seconds.
-const SKY_REFRESH: Duration = Duration::from_secs(15);
+const STATUS_REFRESH: Duration = Duration::from_secs(15);
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -101,17 +101,17 @@ fn run(
             app.refresh_history(columns);
             due = Instant::now() + HISTORY_REFRESH;
         }
-        // Nothing polls the status screen, so the sky is only as fresh
-        // as this view asks for it -- and it asks only while it is the
+        // Nothing polls the status screen, so it is only as fresh as
+        // the status view asks for it -- and it asks only while it is the
         // view being shown, because each read costs the receiver about
         // 1.5 s of its serial link.
         if app.view == View::Stability && Instant::now() >= due {
             app.refresh_deviation();
             due = Instant::now() + HISTORY_REFRESH;
         }
-        if app.view == View::Sky && Instant::now() >= due {
-            let _ = app.console.sky();
-            due = Instant::now() + SKY_REFRESH;
+        if app.view == View::Status && Instant::now() >= due {
+            let _ = app.console.status();
+            due = Instant::now() + STATUS_REFRESH;
         }
         terminal.draw(|frame| ui::draw(frame, &app))?;
 
@@ -164,8 +164,8 @@ fn run(
                         app.view = match app.view {
                             View::Dashboard => View::History,
                             View::History => View::Journal,
-                            View::Journal => View::Sky,
-                            View::Sky => View::Stability,
+                            View::Journal => View::Status,
+                            View::Status => View::Stability,
                             View::Stability => View::Dashboard,
                         };
                         due = Instant::now();

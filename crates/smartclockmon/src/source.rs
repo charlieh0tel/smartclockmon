@@ -155,18 +155,18 @@ impl Console {
     /// reader forwards only what the console asked for.
     ///
     /// No tier polls the screen -- it costs the receiver about 1.5 s of
-    /// its link -- so this is what a sky plot is made of, and it is
-    /// sent only while someone is looking at one.
-    pub(crate) fn sky(&self) -> Result<()> {
+    /// its link -- so this is what the status view is made of, and it
+    /// is sent only while someone is looking at it.
+    pub(crate) fn status(&self) -> Result<()> {
         // Direct mode asks the task, which delivers the screen to
         // subscribers the same way.  On a thread of its own because the
         // read takes about 1.5 s and the caller is drawing the screen.
         if let Some(device) = &self.device {
             let device = device.clone();
             thread::Builder::new()
-                .name("smartclockmon-sky".to_owned())
+                .name("smartclockmon-status".to_owned())
                 .spawn(move || {
-                    let _ = device.sky();
+                    let _ = device.status();
                 })?;
             return Ok(());
         }
@@ -177,7 +177,10 @@ impl Console {
         let Some(writer) = writer.as_mut() else {
             return Err(anyhow::anyhow!("not connected to a daemon"));
         };
-        writeln!(writer, r#"{{"v":1,"id":"sky","op":{{"kind":"sky"}}}}"#)?;
+        writeln!(
+            writer,
+            r#"{{"v":1,"id":"status","op":{{"kind":"status"}}}}"#
+        )?;
         writer.flush()?;
         Ok(())
     }
@@ -504,17 +507,17 @@ mod tests {
     }
 
     #[test]
-    fn direct_mode_reads_the_sky_when_asked() {
+    fn direct_mode_reads_the_status_screen_when_asked() {
         let (updates, _, console, ..) =
             from_device(&simulator(), 9600, Framing::default()).expect("open");
-        console.sky().expect("ask for the sky");
+        console.status().expect("ask for the status screen");
         let deadline = std::time::Instant::now() + Duration::from_secs(10);
         loop {
             let left = deadline.saturating_duration_since(std::time::Instant::now());
             match updates.recv_timeout(left) {
                 Ok(Update::Reading(reading)) if reading.screen.is_some() => return,
                 Ok(_) => {}
-                Err(e) => panic!("no sky arrived: {e}"),
+                Err(e) => panic!("no status screen arrived: {e}"),
             }
         }
     }

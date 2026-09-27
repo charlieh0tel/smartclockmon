@@ -50,9 +50,9 @@ pub enum Op {
     ///
     /// No tier polls the screen: it costs 1.5 s, four fast passes, and
     /// per-satellite elevation, azimuth and signal strength are all it
-    /// still answers alone.  A client showing a sky plot asks for one
-    /// while it is being looked at, and so pays for what it shows.
-    Sky,
+    /// still answers alone.  A client showing the status view asks for
+    /// one while it is being looked at, and so pays for what it shows.
+    Status,
     /// Report what the daemon is attached to.
     Info,
 }

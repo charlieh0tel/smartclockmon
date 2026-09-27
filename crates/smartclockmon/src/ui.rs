@@ -47,6 +47,14 @@ const LABEL_WIDTH: usize = 12;
 /// Rows the console takes while it is open.
 const CONSOLE_ROWS: u16 = 4;
 
+/// Width assumed for the status screen before one has been read: the
+/// receivers' screens are 80 columns.
+const SCREEN_COLUMNS: u16 = 80;
+
+/// Width the satellite table needs beside the screen: its five columns,
+/// their gaps and the border.
+const SATELLITE_COLUMNS: u16 = 4 + 4 + 5 + 5 + 9 + 4 + 2;
+
 /// Draw the whole monitor.
 ///
 /// The console and the key line are drawn here rather than by each
@@ -66,7 +74,7 @@ pub(crate) fn draw(frame: &mut Frame, app: &App) {
         View::Dashboard => dashboard(frame, rows[0], app),
         View::History => history(frame, rows[0], app),
         View::Journal => journal(frame, rows[0], app),
-        View::Sky => sky(frame, rows[0], app),
+        View::Status => status(frame, rows[0], app),
         View::Stability => stability(frame, rows[0], app),
     }
     if app.console_open {
@@ -838,23 +846,56 @@ fn stability(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
-/// The satellites overhead, on a view of its own.
+/// The receiver's status screen as it sent it, beside the satellites
+/// scraped from it.
 ///
-/// The status screen this is scraped from costs the receiver about
-/// 1.5 s of its link, so it is read while this view is open and at no
-/// other time.  Everything else the screen carries is available from
-/// short queries and is shown on the dashboard instead.
-fn sky(frame: &mut Frame, area: Rect, app: &App) {
+/// The screen costs the receiver about 1.5 s of its link, so it is read
+/// while this view is open and at no other time.  The screen is shown
+/// whole because the read has been paid for either way, and the
+/// receiver's own layout says things no parsed field does.
+fn status(frame: &mut Frame, area: Rect, app: &App) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(0)])
         .split(area);
     header(frame, rows[0], app);
-    satellites(frame, rows[1], app);
+    // Side by side when the screen fits whole beside the table, stacked
+    // otherwise, so that neither is clipped on a narrow terminal.
+    let text = app.screen.as_ref().map(|s| s.text.as_str());
+    let border = 2;
+    let screen_width = text
+        .and_then(|t| t.lines().map(|l| l.chars().count()).max())
+        .map_or(SCREEN_COLUMNS, |w| u16::try_from(w).unwrap_or(u16::MAX))
+        .saturating_add(border);
+    let screen_height = text
+        .map_or(1, |t| u16::try_from(t.lines().count()).unwrap_or(u16::MAX))
+        .saturating_add(border);
+    let panes = if rows[1].width >= screen_width.saturating_add(SATELLITE_COLUMNS) {
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(0), Constraint::Length(screen_width)])
+            .split(rows[1])
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(0), Constraint::Length(screen_height)])
+            .split(rows[1])
+    };
+    satellites(frame, panes[0], app);
+    screen_text(frame, panes[1], app);
+}
+
+/// The screen as received, one line per line.
+fn screen_text(frame: &mut Frame, area: Rect, app: &App) {
+    let text = app
+        .screen
+        .as_ref()
+        .map_or("reading the status screen...", |s| s.text.as_str());
+    frame.render_widget(Paragraph::new(text).block(block("Status screen")), area);
 }
 
 fn satellites(frame: &mut Frame, area: Rect, app: &App) {
-    let Some(screen) = app.sky.as_ref() else {
+    let Some(screen) = app.screen.as_ref() else {
         frame.render_widget(
             Paragraph::new("reading the status screen...").block(block("Satellites")),
             area,
@@ -1231,7 +1272,7 @@ mod tests {
             View::Dashboard,
             View::History,
             View::Journal,
-            View::Sky,
+            View::Status,
             View::Stability,
         ] {
             app.view = view;

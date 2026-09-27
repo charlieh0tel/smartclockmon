@@ -210,7 +210,9 @@ fn every_fixture_yields_the_core_fields() {
 
 #[test]
 fn the_panel_fields_read_from_the_live_screen() {
-    let s = screen::parse(&fixture("58503a-live-01.txt"));
+    let text = fixture("58503a-live-01.txt");
+    let s = screen::parse(&text);
+    assert_eq!(s.text, text);
     assert_eq!(s.time_interval.as_deref(), Some("-4.8 ns"));
     assert_eq!(s.hold_threshold.as_deref(), Some("1.000 us"));
     assert_eq!(

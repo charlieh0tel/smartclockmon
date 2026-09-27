@@ -23,10 +23,10 @@ oscillator.  See `docs/efc.md`.
 | - | - |
 | `smartclock` | the library: transports, SCPI framing, the command table, parsers, the status screen scraper, the polling task, and the Allan deviation |
 | `smartclockd` | holds the serial port, logs to SQLite, serves clients over a local socket |
-| `smartclockmon` | terminal monitor: a dashboard, history graphs, the journal, the sky and stability |
+| `smartclockmon` | terminal monitor: a dashboard, history graphs, the journal, the status screen and stability |
 | `smartclock-cli` | one-shot queries, `diagnose`, transcript capture, sweeping for undocumented commands, and reading a unit's ROM and EEPROM through its debug console |
 | `smartclock-exporter` | Prometheus metrics for every receiver on the host, from the daemons' own readings |
-| `smartclock-web` | a browser view: live state, history you can zoom, and pages for the sky and for stability |
+| `smartclock-web` | a browser view: live state, history you can zoom, and pages for the status screen and for stability |
 | `smartclock-sim` | a simulated receiver, in process for tests and over TCP for driving the real daemon |
 
 ## Running it
@@ -67,11 +67,12 @@ the receiver actually said stays visible beside it, because the
 correction is arithmetic done here against the host clock, not
 something the receiver reported.
 
-The sky is a view of its own in both the monitor and the browser, and
-is read only while it is open: it is scraped from the status screen,
-which costs the receiver about 1.5 s of a 19200 link, four times what
-a whole one-second poll costs.  Nothing else needs it, so nothing else
-pays for it.  The satellite counts are queried directly and are on the
+The status screen is a view of its own in both the monitor and the
+browser, shown as the receiver sent it beside the satellites scraped
+from it, and is read only while the view is open: it costs the
+receiver about 1.5 s of a 19200 link, four times what a whole
+one-second poll costs.  Nothing else needs it, so nothing else pays
+for it.  The satellite counts are queried directly and are on the
 one-second tier with everything else.
 
 Stability is its own view in both, `/adev` in the browser: the
@@ -99,7 +100,7 @@ judged.  `PLAN.md` has what that took.
 
 The browser view is read-only and is not the monitor in a window: it
 draws what a terminal cannot, which is mainly history you can drag to
-zoom, and the polar sky plot at `/sky`.
+zoom, and the polar sky plot, beside the status screen, at `/status`.
 
 Any number of series can be stacked, and they share a time axis by
 construction rather than by appearance: one request buckets them all in

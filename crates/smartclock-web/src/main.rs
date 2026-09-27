@@ -35,12 +35,13 @@ use crate::history::Receiver;
 /// writing to a directory it happens to have.
 const PAGE: &str = include_str!("index.html");
 
-/// The sky plot, on a page of its own.
+/// The receiver's status screen and the sky plot drawn from it, on a
+/// page of their own.
 ///
 /// Separate because it is the one view that costs the receiver a status
 /// screen -- 1.5 s of a 19200 link, four fast polls -- so it is read
 /// while someone is looking at it rather than on the daemon's schedule.
-const SKY: &str = include_str!("sky.html");
+const STATUS_PAGE: &str = include_str!("status.html");
 
 /// The Allan deviation, on a page of its own.
 ///
@@ -116,7 +117,7 @@ fn main() -> Result<()> {
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
         match path {
             "/" => Response::ok("text/html; charset=utf-8", PAGE.to_owned()),
-            "/sky" => Response::ok("text/html; charset=utf-8", SKY.to_owned()),
+            "/status" => Response::ok("text/html; charset=utf-8", STATUS_PAGE.to_owned()),
             "/adev" => Response::ok("text/html; charset=utf-8", DEVIATION.to_owned()),
             "/style.css" => Response::ok("text/css; charset=utf-8", STYLE.to_owned()),
             "/status.js" => Response::ok("text/javascript; charset=utf-8", STATUS.to_owned()),
@@ -127,8 +128,8 @@ fn main() -> Result<()> {
             ),
             "/api/info" => json(daemons.choose(&cache, query).and_then(|s| cache.info(&s))),
             // Uncached, and the only endpoint that goes to the wire on
-            // request: it is what the sky page is paying for.
-            "/api/sky" => json(daemons.choose(&cache, query).and_then(|s| sky(&s))),
+            // request: it is what the status page is paying for.
+            "/api/status" => json(daemons.choose(&cache, query).and_then(|s| status(&s))),
             "/api/history" => json(series(&logs, query)),
             "/api/journal" => json(journal(&logs, query)),
             "/api/receivers" => json(receivers(&logs, &daemons, &cache)),
@@ -186,17 +187,17 @@ fn decode(value: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// Wrap a result as JSON, reporting a failure as data rather than as an
-/// HTTP error: the page can then say what went wrong in the place the
-/// value would have been, instead of silently showing nothing.
 /// Read one status screen through the daemon.
 ///
 /// Never cached: the point of the call is that it is fresh, and the
 /// cost of it is why nothing else asks for one.
-fn sky(socket: &Path) -> Result<serde_json::Value> {
-    Ok(Daemon::connect(socket)?.ask(Op::Sky)?)
+fn status(socket: &Path) -> Result<serde_json::Value> {
+    Ok(Daemon::connect(socket)?.ask(Op::Status)?)
 }
 
+/// Wrap a result as JSON, reporting a failure as data rather than as an
+/// HTTP error: the page can then say what went wrong in the place the
+/// value would have been, instead of silently showing nothing.
 fn json(result: Result<serde_json::Value>) -> Response {
     let value = match result {
         Ok(value) => value,

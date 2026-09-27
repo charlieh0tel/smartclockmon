@@ -11,7 +11,10 @@
    the charts spanning the window for no reason a reader could see. */
 body {
   margin: 0; padding: 12px; gap: 12px;
-  display: grid; grid-template-columns: 1fr;
+  /* minmax(0, ...), not 1fr, whose minimum is its content: a wide
+     line inside a panel, like the 80-column status screen, would
+     otherwise widen the page instead of scrolling in its own box. */
+  display: grid; grid-template-columns: minmax(0, 1fr);
   background: var(--bg); color: var(--text);
   font: 13px/1.5 var(--font);
 }
@@ -44,7 +47,13 @@ button[aria-pressed="true"] { background: var(--accent); color: #07121a; border-
 .grow { flex: 1; }
 label { color: var(--dim); display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
 
-/* Sky plot */
+/* Status page: the screen as received, and the sky plot beside it
+   where there is room.  The screen scrolls sideways within its own box
+   so an 80-column screen never widens a phone's page. */
+#status-panes { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+#status-panes > * { flex: 1 1 320px; min-width: 0; }
+#screen { margin: 0; overflow-x: auto; font: 11px/1.35 ui-monospace, monospace;
+          white-space: pre; }
 
 table { border-collapse: collapse; width: 100%; font-size: 12px; }
 th { text-align: left; color: var(--dim); font-weight: 500; padding: 3px 6px 6px 0; }
@@ -76,7 +85,7 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
 
 /* One row of pages, the same on every page, with the current one
    marked.  Arrows were worse than nothing: two links each ending in one
-   read as a breadcrumb, as though Stability were somewhere inside Sky. */
+   read as a breadcrumb, as though Stability were somewhere inside Status. */
 .nav { display: flex; gap: 4px; padding: 4px 6px; }
 .nav a { color: var(--dim); text-decoration: none; padding: 4px 10px;
          border-radius: 4px; border: 1px solid transparent; }

@@ -336,9 +336,9 @@ fn a_step_that_fails_partway_publishes_none_of_what_it_read() {
 }
 
 #[test]
-fn a_sky_read_is_returned_and_not_carried_forward() {
-    // One sky read must reach the caller, reach the subscribers once so
-    // the log records that sky, and then be gone.  Stored as the
+fn a_status_read_is_returned_and_not_carried_forward() {
+    // One screen read must reach the caller, reach the subscribers once
+    // so the log records that sky, and then be gone.  Stored as the
     // latest, it was copied into every later snapshot -- and every one
     // of them logged the same satellites again as if newly observed.
     let (handle, joiner) = task::spawn(
@@ -350,8 +350,12 @@ fn a_sky_read_is_returned_and_not_carried_forward() {
         },
     );
     let updates = handle.subscribe();
-    let screen = handle.sky().expect("a screen on request");
+    let screen = handle.status().expect("a screen on request");
     assert_eq!(screen.satellites.len(), 9);
+    assert!(
+        screen.text.contains("SYNCHRONIZATION"),
+        "the screen's own text was not kept"
+    );
 
     // Delivered once, then never again.
     let mut carrying = 0;
@@ -369,7 +373,7 @@ fn a_sky_read_is_returned_and_not_carried_forward() {
         }
     }
     assert_eq!(carrying, 1, "the screen was delivered {carrying} times");
-    assert!(after > 0, "no snapshots followed the sky read");
+    assert!(after > 0, "no snapshots followed the screen read");
     assert!(
         handle.latest().expect("a snapshot").screen.is_none(),
         "the screen was kept as the latest"

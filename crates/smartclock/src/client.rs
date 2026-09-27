@@ -179,10 +179,10 @@ impl Daemon {
     /// Unlike `latest` this does go to the wire, and costs about 1.5 s
     /// of it: no tier polls the screen, because per-satellite
     /// elevation, azimuth and signal strength are all it still answers
-    /// that nothing else does.  Ask while someone is looking at a sky
-    /// plot, not on a timer.
-    pub fn sky(&mut self) -> Result<Screen> {
-        let value = self.ask(Op::Sky)?;
+    /// that nothing else does.  Ask while someone is looking at the
+    /// status view, not on a timer.
+    pub fn status(&mut self) -> Result<Screen> {
+        let value = self.ask(Op::Status)?;
         let screen = value
             .get("screen")
             .cloned()

@@ -566,9 +566,15 @@ rendered coarsely, and that register is on the fast tier, while the
 bracketed synchronisation and acquisition text is
 `:SYNChronization:STATe?` and the operation register.  The screen buys
 one thing, a sky plot, and it is read only while someone is looking at
-one -- `Op::Sky` on the socket, a view of its own in the monitor, and
-`/sky` in the browser.  The medium tier, now four short steps
+one -- `Op::Status` on the socket, a view of its own in the monitor,
+and `/status` in the browser.  The medium tier, now four short steps
 totalling 0.57 s, drops from thirty seconds to ten.
+
+Since the read is paid for either way, the status view shows the whole
+screen as the receiver sent it beside the sky: `Screen` keeps the text
+as well as what was parsed from it.  It travels only on the one
+snapshot that carries the read, so it costs the subscribers about
+1.8 KB per read and nothing between reads.
 
 A screen read is returned to whoever asked for it, and is delivered to
 the subscribers on one snapshot, so the log records that sky once.  It
@@ -595,7 +601,7 @@ Tiers, to be measured against hardware before being fixed:
 | ~1 s  | `:SYNC:TINT?`, `:SYNC:TFOM?`, `:SYNC:FFOM?`, `:DIAG:ROSC:EFC:REL?`, `:STAT:OPER:HARD:COND?`, `:SYNC:STATE?`, `:PTIM:TIME?` |
 | ~10 s | satellite counts, oven temperature and current, the EFC DAC, `*STB?` and the operation and holdover condition registers, holdover duration and uncertainty |
 | ~60 s | position, date, diagnostic log count, learned oscillator tempco, the powerup condition register |
-|       | `:SYST:STAT?` (satellite table, health line) is on no tier: it costs 1.5 s and is read on request, by whoever is looking at a sky plot. |
+|       | `:SYST:STAT?` (satellite table, health line) is on no tier: it costs 1.5 s and is read on request, by whoever is looking at the status view. |
 |       | The receiver's UTC is on the fast tier, not with the date: a clock read once a minute and shown as a clock is wrong for the other fifty-nine seconds. |
 | ~10 s | the error queue and any new diagnostic log entries, off the schedule; see below |
 

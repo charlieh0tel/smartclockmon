@@ -73,6 +73,11 @@ pub struct Screen {
     pub hold_threshold: Option<String>,
     /// The predicted 24 hour holdover uncertainty as printed.
     pub holdover_predict: Option<String>,
+    /// The screen as the receiver sent it, for showing verbatim.
+    ///
+    /// Absent from snapshots written before it was kept.
+    #[serde(default)]
+    pub text: String,
     /// Time of day as printed.
     pub time: Option<String>,
     /// Date as printed.
@@ -101,6 +106,7 @@ pub fn parse(screen: &str) -> Screen {
 
     let boundary = panel_column(&lines);
     let mut out = Screen {
+        text: screen.to_owned(),
         synchronization: bracketed(&lines, "SYNCHRONIZATION"),
         acquisition: bracketed(&lines, "ACQUISITION"),
         health: bracketed(&lines, "HEALTH MONITOR"),

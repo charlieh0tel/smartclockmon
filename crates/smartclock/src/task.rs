@@ -101,8 +101,8 @@ pub enum Request {
     ///
     /// No tier polls the screen: it costs 1.5 s, four fast passes, and
     /// per-satellite elevation, azimuth and signal strength are all it
-    /// still answers alone.  A client showing a sky plot asks for one
-    /// while it is being looked at, and pays for it itself.
+    /// still answers alone.  A client showing the status view asks for
+    /// one while it is being looked at, and pays for it itself.
     Screen {
         /// Where to send the screen, or why there is none.
         answer: SyncSender<Result<Screen>>,
@@ -287,7 +287,8 @@ impl Handle {
 
     /// Read one status screen and wait for it.
     ///
-    /// Nothing polls the screen, so this is the only way to a sky plot.
+    /// Nothing polls the screen, so this is the only way to the status
+    /// view.
     /// It costs about 1.5 s of link, four fast passes, which is why a
     /// client asks for one while someone is looking at it rather than
     /// having the daemon pay for it around the clock.
@@ -297,7 +298,7 @@ impl Handle {
     /// records that sky once, but it is never kept as the latest: a
     /// screen stored there was copied into every later snapshot, and
     /// logged with each of them, for as long as the daemon ran.
-    pub fn sky(&self) -> Result<Screen> {
+    pub fn status(&self) -> Result<Screen> {
         let (tx, rx) = sync_channel(1);
         self.requests
             .send(Request::Screen { answer: tx })

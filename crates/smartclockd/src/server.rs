@@ -380,7 +380,7 @@ fn handle_request(request: Request, handle: &Handle, info: &Info) -> Message {
         // The screen itself, not the latest snapshot: the screen is
         // not kept there, and a snapshot read back afterwards could be
         // a later poll's with no screen in it.
-        Op::Sky => match handle.sky() {
+        Op::Status => match handle.status() {
             Ok(screen) => Message::ok(id, serde_json::json!({ "screen": screen })),
             Err(e) => Message::err(id, e),
         },
