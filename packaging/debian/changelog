@@ -1,3 +1,13 @@
+smartclockmon (0.6.34-1) unstable; urgency=low
+
+  * The status page has the receiver picker the other pages have.  A
+    change of receiver clears the last one's screen at once, and a
+    read still in flight for it is dropped rather than shown under the
+    new name.
+  * The docs are in US English, and CLAUDE.md says so.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sun, 27 Sep 2026 14:10:20 -0700
+
 smartclockmon (0.6.33-1) unstable; urgency=low
 
   * The sky view is now the status view, in both the monitor and the
