@@ -1,3 +1,21 @@
+smartclockmon (0.6.33-1) unstable; urgency=low
+
+  * The sky view is now the status view, in both the monitor and the
+    browser (/status): the receiver's status screen as it sent it,
+    beside the sky plot in the browser and the satellite table in the
+    monitor.  The screen's text is kept with what is parsed from it,
+    and the socket request that reads it is renamed from sky to
+    status, so clients and daemon must be the same release.
+  * smartclock-cli read-memory enters the pForth console itself, with
+    :SYSTem:LANGuage "PFORTH", when the port is not already there.
+  * Record from the 58503A firmware how it tells a six- from an
+    eight-channel GPS engine, and which engine options and software
+    decide the Time RAIM and position-fix commands it sends.
+  * Record what has been ruled out on the bench Z3801A and Z3805A that
+    track nothing, and that both refuse :SYSTem:PON.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sun, 27 Sep 2026 13:50:06 -0700
+
 smartclockmon (0.6.32-1) unstable; urgency=low
 
   * Ask again for the GPS engine's identity on the next pass while the
