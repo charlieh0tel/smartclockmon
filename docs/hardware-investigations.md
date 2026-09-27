@@ -220,6 +220,16 @@ Checked on 2026-09-27:
   accepted by both with no error (097-59551-02, 5-7 and 5-8; volatile,
   and valid only before the first satellite is tracked).  Neither
   tracked a satellite in the 30 minutes after.
+- *The feed, again.*  The HP 58517A eight-way amplifier then failed
+  on and off for every receiver on it, whichever one powered it.  On
+  an HP 58516A four-way with the Taoglas, a known-good receiver held
+  a surveyed fix throughout while neither unit tracked a satellite in
+  the 29 minutes after a power cycle.
+- *`:SYSTem:PRESet`* on both, then an hour on the same four-way beside
+  the same locked receiver: neither tracked a satellite.  Both came up
+  surveying (`:GPS:POS:SURV:STAT?` `ONCE`) with a 10 degree mask and
+  no PRNs ignored; the power-up survey setting read 1 on the Z3805A
+  and 0 on the Z3801A.  `:SYSTem:PON` was refused by both.
 
 *Next:* one of these engines in the 58503A (3710A01056), whose
 firmware takes a six-channel engine (`firmware.md`, "Six or eight
