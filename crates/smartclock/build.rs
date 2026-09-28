@@ -182,8 +182,8 @@ fn main() {
     out.push_str("    /// Transcribed from the manual, nothing more.\n    Manual,\n");
     out.push_str(
         "    /// Every keyword found in the firmware's own keyword table,\n\
-         \x20   /// so the spelling is right even though no such receiver has\n\
-         \x20   /// been on the line.\n    Firmware,\n",
+         \x20   /// so the spelling is right, though no receiver has answered\n\
+         \x20   /// it yet.\n    Firmware,\n",
     );
     out.push_str("    /// The receiver answered it.\n    Hardware,\n");
     out.push_str("}\n\n");

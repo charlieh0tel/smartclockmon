@@ -1,27 +1,34 @@
 # Status screen format strings
 
-The Z3801A and the 58503A do not share a firmware build, but the
-layout, the field widths and the set of variant strings are the same,
-and this enumerates them exactly rather than leaving them to be guessed
-from the handful of screens in the manuals.
+The templates of the screen `:SYSTem:STATus?` returns, as the
+Z3801A image (`third_party/z3801a-3543.bin`) holds them.  The 58503A
+images (`58503a-3633.bin`, `58503a-3704.bin`) have the same layout and
+field widths; where their strings differ is noted below.
 
-This is the screen `:SYSTem:STATus?` returns over serial, and nothing
-else.  The 58503A could be ordered with a front panel display, which
-the Z3801A and Z3805A never had; it is separate hardware driven by its
-own strings, much shorter and in capitals, and none of them are below.
-A 58503A reading `10MHZ STABLE` on its panel says nothing about this
-screen -- captured from the same unit at the same moment, the mode line
-read `>> Locked to GPS` with no suffix at all.  The panel's strings
-would come from a 58503A firmware image, which is not in
-`third_party/`.
+The 58503A could be ordered with a front panel display, which the
+Z3801A and Z3805A never had.  Its strings are shorter, in capitals, and
+not part of this screen; in 3704 they sit at `0x53b82` on: `HLD USR`,
+`HLD LIM`, `HLD GPS`, `HOLDOVR`, `FINE F ADJ`, `PHASE ALIGN`,
+`HLD RECVR`, `STABILIZING`, `10MHZ STABLE`, `NAV MODE`, `SURVEY HALT`.
+A 58503A showing `10MHZ STABLE` on its panel had, at the same moment,
+`>> Locked to GPS` on this screen with no suffix.
 
-Where the two do differ is narrower than a different string set.  The
-1 PPS markers are composed, `%s %s` over a label: the firmware holds
-`GPS 1PPS` and `1PPS CLK` separately, so a Z3801A reads
-`[ GPS 1PPS CLK Valid ]` where a 58503A, which has no external 1 PPS
-input to disambiguate from, reads `[ GPS 1PPS Valid ]`.  The captured
-58503A screen is otherwise string for string what the Z3801A firmware
-holds.
+The 1 PPS strings differ between the families.  The Z3801A image
+holds `GPS 1PPS CLK` and `EXT 1PPS CLK` forms; the 58503A images hold
+`GPS 1PPS` and `Ext 1PPS`:
+
+| Z3801A 3543 | 58503A 3633, 3704 |
+| ----------- | ----------------- |
+| `[ GPS 1PPS CLK Valid ]` | `[ GPS 1PPS Valid ]` |
+| `[ EXT 1PPS CLK Valid ]` | `[ Ext 1PPS Valid ]` |
+| `: GPS 1PPS CLK invalid` | `: GPS 1PPS invalid` |
+| `: EXT 1PPS CLK invalid` | `: Ext 1PPS invalid` |
+| -- | `: switched to GPS 1PPS reference` |
+| -- | `: switched to Ext 1PPS reference` |
+
+and likewise for `Invalid`.  The captured 58503A screen
+(`crates/smartclock/tests/fixtures/status_screen/58503a-live-01.txt`)
+otherwise matches the Z3801A's strings.
 
 ## Frame
 
@@ -76,8 +83,8 @@ Why it is in holdover.  These are the same distinctions
 make: a manual holdover is what sets Holding, bit 0:
 
     : manually initiated
-    : GPS 1PPS CLK invalid
-    : EXT 1PPS CLK invalid
+    : GPS 1PPS CLK invalid       58503A: : GPS 1PPS invalid
+    : EXT 1PPS CLK invalid       58503A: : Ext 1PPS invalid
     : 1PPS TI exceeds hold threshold
     : internal hardware problem
 
@@ -90,10 +97,9 @@ The ladder up to lock, in the order a receiver climbs it:
     : phase alignment
     : leap second determination
 
-A 58503A recovering from a ninety-second antenna outage was watched
-through `fine freq adj` and into `stabilizing frequency` -- on its
-front panel, not on this screen, so it corroborates the ladder and its
-order but not the exact spellings.
+A 58503A recovering from a ninety-second antenna outage showed fine
+frequency adjustment and then stabilizing on its front panel, in that
+order; the panel does not use these spellings.
 
 ## Synchronization status
 
@@ -138,7 +144,7 @@ bracket:
     SYNCHRONIZATION .....  [ Outputs Valid ]
                            [ Outputs Invalid ]
                            [ Outputs Valid/Reduced Accuracy ]
-    ACQUISITION .........  [ GPS 1PPS CLK Valid ]     'CLK' per the note above
+    ACQUISITION .........  [ GPS 1PPS CLK Valid ]     58503A forms above
                            [ GPS 1PPS CLK Invalid ]
                            [ EXT 1PPS CLK Valid ]
                            [ EXT 1PPS CLK Invalid ]

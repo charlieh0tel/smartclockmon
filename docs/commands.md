@@ -12,7 +12,7 @@ to regenerate; a test fails if this file and the table disagree.
 
 **H** means the receiver answered it.  **F** means every keyword
 appears in the firmware's own keyword table, so the spelling is
-right though no such receiver has been on the line.  **M** means
+right, though no receiver has answered it yet.  **M** means
 it was transcribed from a manual and nothing more.
 
 | Class | Commands | Gate |

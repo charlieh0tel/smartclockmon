@@ -4,9 +4,8 @@
 
 The daemon is a template unit, `smartclockd@.service`, one instance
 per serial port and named by the port, the way `serial-getty@` is:
-`smartclockd@ttyUSB0` opens `/dev/ttyUSB0`.  The name is the port's,
-not the receiver's, since receivers move between ports and the log
-follows the receiver.
+`smartclockd@ttyUSB0` opens `/dev/ttyUSB0`.  Instances are named for
+ports and logs for receivers, since receivers move between ports.
 
     sudo dpkg -i smartclockmon_0.1.0-1_amd64.deb
     sudo systemctl enable --now smartclockd@ttyUSB0
@@ -31,11 +30,11 @@ or give the adapter a short name with a udev rule and use that:
 The instance name is a path under `/dev` with `/` written as `-`;
 `systemd-escape` does the rest.
 
-The last step is not optional: the socket is mode 0660 owned by
-`smartclockd`, so `smartclockmon` and `smartclock-cli` cannot reach the
-daemon until you are in that group.  Group membership is the whole of
-the authorization model -- anyone who can open the socket may issue
-whatever the daemon has been configured to allow.
+The socket is mode 0660 owned by `smartclockd`, so `smartclockmon`
+and `smartclock-cli` reach the daemon only for members of that group.
+Group membership is the whole of the authorization model: anyone who
+can open the socket may issue whatever the daemon is configured to
+allow.
 
 Check it took:
 
@@ -50,33 +49,30 @@ is named after the receiver.
 
 ## What the daemon does to the receiver
 
-Reads, and with one opt-in exception nothing else, apart from the
-garbled bytes a probe at the wrong line settings sends.  Worth knowing
-because two of the reads would otherwise be surprising, and one thing
-it deliberately does *not* read.
+It reads, and with one opt-in exception changes nothing, apart from
+the garbled bytes a probe at the wrong line settings sends.  Three
+things it does or does not read are worth knowing.
 
-It drains the receiver's error queue.  Reading an entry is what removes
-it, so this is destructive by nature -- but the queue holds thirty and
-discards the newest when it overflows, so an unread queue loses errors
-anyway, and nothing else was ever going to read them.
+It drains the receiver's error queue.  Reading an entry removes it,
+but the queue holds thirty and discards the newest when it overflows,
+so an unread queue loses errors anyway.  The entries go to the journal.
 
-When it had to look for the receiver at other line settings than the
-configured ones, it reads the receiver's error queue empty before
-asking it anything, since the probe's garbled bytes are queued there as
-errors, and says in the journal how many it read.
+When it found the receiver only by probing other line settings, it
+reads the error queue empty before asking anything else, since the
+probe's garbled bytes are queued there as errors, and says in the
+journal how many it read.
 
 It copies the receiver's diagnostic log out, entry by entry, and
 optionally clears it; see `SMARTCLOCKD_ADOPT_LOG` below.
 
-It does **not** read the event registers, and so does not touch the
-front-panel Alarm LED or the BITE output; nor will it read one for a
-client unless started with `--allow-control`.  Reading an event register
-clears it, which clears the alarm that summarizes it.  That lamp is
-yours: the daemon watches the same state through `*STB?`, which reports
-it in real time and changes nothing, and the alarm stays lit until you
-clear it at the instrument.  What the daemon saw is recorded and shown
-in the monitor's header and the browser's status strip, so clearing the
-lamp does not lose the history.
+It does not read the event registers, and so does not touch the
+front-panel Alarm LED or the BITE output, nor will it read one for a
+client unless started with `--allow-control`.  Reading an event
+register clears it, which clears the alarm that summarizes it.  The
+daemon watches the same state through `*STB?`, which changes nothing,
+so the alarm stays lit until it is cleared at the instrument.  What the
+daemon saw is recorded and shown in the monitor's header and the
+browser's status strip, so clearing the lamp loses no history.
 
 ## Configuring
 
@@ -102,11 +98,11 @@ the simulator -- but it cannot beat the file: systemd applies
 So make a setting in one place or the other, never both.  Restart
 after a change; both are read only at startup.
 
-`SMARTCLOCKD_DEVICE` is required and has no default, so the service will
-not start until you set it.  A default path does not fail when it is
-wrong: it opens whatever else is on that path and starts sending SCPI at
-it.  Use a by-id path from `ls -l /dev/serial/by-id/` rather than
-`/dev/ttyUSB0`, which moves when another adapter is plugged in.  The
+`smartclockd` itself has no default device: run by hand, it needs
+`--device`, since a wrong default would open whatever else is on that
+path and send SCPI at it.  The unit supplies `/dev/<port>` from the
+instance name.  A by-id path from `ls -l /dev/serial/by-id/` does not
+move when another adapter is plugged in, as `/dev/ttyUSB0` does.  The
 form `tcp://host:port` also works, for a serial-to-network adapter or
 the simulator.
 
@@ -124,15 +120,14 @@ evidence.  Nothing is erased unless the copy is complete and gap-free,
 and the entry count is sent with the command so the receiver refuses if
 an entry arrived in between.
 
-Nothing on the receiver will tell you the log has filled.  "Log Almost
-Full" is bit 6 of the operation group, and the factory default for
+The receiver does not signal a full log.  "Log Almost Full" is bit 6
+of the operation group, and the factory default for
 `:STATus:OPERation:ENABle` is 36 -- bits 2 and 5, Holdover Summary and
 Hardware Summary (`097-59551-02` 5-88).  Bit 6 is not among them, so
-the condition never reaches the alarm and the front panel stays dark
-while the log quietly stops recording.  The development unit filled in
-March 2025 and lost eighteen months that way.  `smartclockd` reads the
-condition register directly, where the enable mask does not apply, and
-surfaces it.
+the condition never reaches the alarm.  The bench 58503A's log filled
+in March 2025 and recorded nothing for the next eighteen months.
+`smartclockd` reads the condition register directly, where the enable
+mask does not apply, and reports it.
 
 A configuration mistake fails the unit instead of looping.  systemd
 cannot check the file itself, since `Condition=` and `Assert=` do not
@@ -148,17 +143,16 @@ since that clears it, and reading the error queue, since that takes
 the entry the daemon's journal would have kept -- refuses what can
 strand the link without `--allow-dangerous`, and refuses commands the
 table does not know without `--allow-raw`.  All three are off by
-default and every command that is not a scheduled poll is recorded in
-the log.  Every option also reads from a `SMARTCLOCKD_`-prefixed
-environment variable, which is how the service is configured without
-touching its unit.
+default, and every command that is not a scheduled poll is recorded in
+the log.
 
 `smartclock-cli` talking to the receiver directly has no such flags,
-and refuses outright to send `:SYSTem:PRESet`, the undocumented
-`:SYSTem:PON`, anything under `:SYSTem:COMMunicate`,
-`:DIAGnostic:ERASe`, or a `:SYSTem:LANGuage` setting, before it opens
-the port.  The one exception is `read-memory`, which enters the debug
-console with `:SYSTem:LANGuage "PFORTH"` and nothing else.
+and refuses, before it opens the port, to send `:SYSTem:PRESet`, the
+undocumented `:SYSTem:PON`, anything under `:SYSTem:COMMunicate`,
+`:DIAGnostic:ERASe`, or a `:SYSTem:LANGuage` setting.  The one
+exception is `read-memory`, which enters the debug console with
+`:SYSTem:LANGuage "PFORTH"` and nothing else (`firmware.md`, "Reading
+memory through it").
 
 ## Where things live
 
@@ -180,17 +174,15 @@ Every row says which receiver it came from.  A `receiver` table holds
 one row per unit that has written to the file, keyed on the serial from
 `*IDN?` -- the serial alone, because firmware changes under it and an
 upgrade is not a different instrument -- and the snapshots, satellites,
-errors, diagnostic log entries and audit trail all carry its id.  A
-bench where units are swapped otherwise accumulates two oscillators'
-history in one file with no way to tell the rows apart, which makes
-every long-run comparison in it a comparison between two crystals.
+errors, diagnostic log entries and audit trail all carry its id, so
+a file that has logged two units keeps their rows apart.
 
-A log grows without bound, a few MB a day.  Nothing rotates it: the
-point of the record is to still have last year's holdover events.
+A log grows without bound, a few MB a day.  Nothing rotates it, so
+last year's holdover events stay in the record.
 
 ## More than one receiver
 
-A second port is a second instance, exactly like the first:
+A second port is a second instance:
 
     sudo systemctl enable --now smartclockd@ttyUSB1
 
@@ -199,10 +191,10 @@ A second port is a second instance, exactly like the first:
 A Z3801A's port is fixed at seven data bits and odd parity
 (`097-z3801-01` 1-8 and 2-10), where the daemon opens 8N1 unless told
 otherwise.  A receiver that does not answer at the configured settings
-is looked for at 19200 and 9600, 8N1 and 7O1, so the daemon finds it
-either way and says so in the journal; naming the framing in that
-instance's drop-in saves the probe, and the handful of errors it leaves
-in the receiver's queue, on every start:
+is looked for at 19200 and 9600, 8N1 and 7O1, and the journal says
+where it was found, so no drop-in is needed.  Naming the framing in
+the instance's drop-in skips the probe, and the errors it leaves in
+the receiver's queue, on every start:
 
     sudo systemctl edit smartclockd@ttyUSB1
 
@@ -240,9 +232,8 @@ sample labeled `daemon="<instance>"`, `serial` and `model`.
 
 ## Unplugging the adapter
 
-The daemon reconnects by itself, so the unit deliberately does not bind
-to a device unit -- binding stops it dead while an adapter is out, which
-is wrong for something meant to log continuously.  For that behavior
+The daemon reconnects by itself, so the unit does not bind to a
+device unit, which would stop it while an adapter is out.  To bind it
 anyway, add a drop-in rather than editing the shipped unit:
 
     sudo systemctl edit smartclockd@ttyUSB0

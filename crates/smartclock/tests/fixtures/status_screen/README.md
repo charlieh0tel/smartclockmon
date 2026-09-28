@@ -1,13 +1,13 @@
 # Status screen fixtures
 
-Sample `:SYSTem:STATus?` screens transcribed from the vendor manuals, used
-as goldens for the scraper.  None came from hardware; captures from the
-attached 58503A land here too once phase 1 records them.
+Sample `:SYSTem:STATus?` screens, used as goldens for the scraper:
+transcriptions from the vendor manuals, and one capture from hardware
+(below).
 
 - `58503a-*` from `097-59551-02` chapter 3.
 - `58503b-*` from `097-58503-13` and `097-58503-12`.
 
-Between them they cover the cases a naive scraper gets wrong:
+Between them the manual samples cover:
 
 - `1PPS TI --` and `Predict --`, where a value is unavailable.
 - `UTC 12:00:00[?] 01 Jan 1996`, where the time is suspect.
@@ -22,9 +22,8 @@ Between them they cover the cases a naive scraper gets wrong:
 
 ## From hardware
 
-`58503a-live-01.txt` was captured from the development unit, a 58503A
-running firmware 3704-C, during phase 1.  It differs from every manual sample in
-ways that would have broken a scraper written only against them:
+`58503a-live-01.txt` was captured from the development 58503A, firmware
+3704-C.  It differs from every manual sample:
 
 - The satellite table's fourth column is headed `SS`, not `C/N`, and
   carries a different range: 28 to 114 here against 36 to 49 in the
@@ -38,6 +37,6 @@ ways that would have broken a scraper written only against them:
   `(GPS)`, when the receiver is in position hold rather than surveying.
 - Several lines carry trailing whitespace.
 
-Keep both sets.  The manual samples cover states the unit is not
-currently in, such as survey and power-up; this one is ground truth for
-the firmware actually in front of us.
+Both sets are kept: the manual samples cover states the unit was not
+in, such as survey and power-up, and the capture is what firmware
+3704-C sends.

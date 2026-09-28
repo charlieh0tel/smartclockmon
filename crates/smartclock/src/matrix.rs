@@ -60,7 +60,7 @@ fn summary(out: &mut String) {
     out.push_str(
         "\n**H** means the receiver answered it.  **F** means every keyword\n\
          appears in the firmware's own keyword table, so the spelling is\n\
-         right though no such receiver has been on the line.  **M** means\n\
+         right, though no receiver has answered it yet.  **M** means\n\
          it was transcribed from a manual and nothing more.\n\n",
     );
 

@@ -1,7 +1,7 @@
 # Z3801A SCPI keyword table
 
-The receiver's own vocabulary, which settles spelling questions the
-manual leaves open.
+The receiver's own vocabulary, read from `third_party/z3801a-3543.bin`;
+it settles spelling questions the manual leaves open.
 
 ## Encoding
 
@@ -12,29 +12,23 @@ string, so `SERIAL2\0\0` is just `SERIAL2`.  That is exactly the SCPI
 convention of uppercase-required and lowercase-optional, stored as a
 split rather than as case.
 
-This is why plain `strings` only ever shows fragments -- `ROSC`, `TINT`,
-`PTIM`, `ESHOLD` -- and why the long forms appear to be missing.  They
-are not: they are the second half of each pair.
+So plain `strings` shows fragments -- `ROSC`, `TINT`, `PTIM`, `ESHOLD`
+-- and the long forms as separate second halves.
 
 Regenerate by locating `ROSC\0ILLATOR\0`, walking back over
 NUL-terminated uppercase words to the start of the run, then reading
-pairs forward.  The parity matters: pairing from the wrong offset yields
-plausible nonsense like `ESHOLDstat`.
+pairs forward.  Pairing from the wrong offset yields plausible
+nonsense like `ESHOLDstat`.
 
-## What it settled
+## Against the command table
 
-All but one of the original 56 Z3801A entries in `commands.toml` have
-every keyword present here, so their spelling was confirmed before any
-such receiver had been on the line.  Those are marked
-`evidence = "firmware"`.
-
-A Z3805A has since answered on the bench -- 3625A01487, firmware
-3543B-A -- and sixteen more entries were added from it, each one also
-spelled out of this table.  `TFOMerit`, `TEMPerature`, `TCOefficient`,
-`CURRent`, `ABSolute`, `SLOG`, `LEAPsecond`, `TZONe`, `STRing`,
-`LENGth` and `GPSystem` are all here, so those sixteen have the
-firmware's vocabulary and a live reply agreeing with each other.  They
-are marked `evidence = "hardware"` and cite the unit.
+All but one of the 82 Z3801 entries in `commands.toml` have every
+keyword present here.  The 63 marked `evidence = "firmware"` rest
+on this table alone.  The 18 marked `evidence = "hardware"` were found on a Z3805A
+(3625A01487, firmware 3543B-A) and cite it; their keywords --
+`TFOMerit`, `TEMPerature`, `TCOefficient`, `CURRent`, `ABSolute`,
+`SLOG`, `LEAPsecond`, `TZONe`, `STRing`, `LENGth`, `GPSystem` -- are
+all here too.
 
 The exception is `:DIAGnostic:ERASe`, which belongs to the INSTALL
 language used for firmware download, not the PRIMARY language this
@@ -42,10 +36,8 @@ table serves.  It stays `evidence = "manual"`.
 
 ## The tree
 
-The vocabulary is not the tree, but the tree is in the image too, and
-it does not need the parser code to read.
-
-Two structures, both at file offsets -- pointers are absolute and the
+The tree is in the image too, readable without the parser code.  Two
+structures, both at file offsets -- pointers are absolute and the
 image is not relocated, so a stored pointer is a file offset as it
 stands.
 
@@ -66,36 +58,31 @@ Walking `:SYSTem:` gives `COMMunicate` -- itself the parent of `SER`,
 `ERRor`, `LANGuage`, `PRESet`, `PRINt:LENGth`, `STATus:LENGth` and
 `TIME`.
 
-Five of those were put to a Z3805A and all five exist:
-`:SYSTem:PRINt:LENGth?` answered `+23`, `:SYSTem:LANGuage?` answered
-`"PRIMARY"`, `:SYSTem:DATE?` and `:SYSTem:TIME?` were recognized and
-declined with -230 for want of a fix, and
-`:SYSTem:COMMunicate:SERIAL2:BAUD?` answered **+9600** -- a second
-serial port, at a different rate to the first, which neither manual
-mentions.
+Five of those, put to a Z3805A, exist: `:SYSTem:PRINt:LENGth?`
+answered `+23`, `:SYSTem:LANGuage?` answered `"PRIMARY"`,
+`:SYSTem:DATE?` and `:SYSTem:TIME?` were recognized and declined with
+-230 for want of a fix, and `:SYSTem:COMMunicate:SERIAL2:BAUD?`
+answered `+9600` -- a second serial port, at a different rate to the
+first, which neither manual mentions.
 
-The whole tree comes out this way; `z3801-tree.md` is it, 513 paths.
+The whole tree, 513 paths, is `z3801-tree.md`.  Two points of method:
+only a child list that some node's `+4` points at is real, since
+searching the region for any window containing a target finds
+overlapping sub-arrays; and a walk must keep nodes that are both a
+command and a parent, such as `:PTIMe:GPSystem:POSition`, not only
+leaves.
 
-Two things had to be got right first, and both were mistakes of method
-rather than anything hidden in the image.  Searching the child-list
-region for any window containing a target finds overlapping windows,
-because a pointer array contains its own sub-arrays -- only a list
-some node's `+4` actually points at is a real one.  And walking to
-leaves alone loses every node that is both a command and a parent, so
-`:PTIMe:GPSystem:POSition` vanishes behind its own children.
-
-`:SOURce` is an optional header, which is why the roots looked wrong:
-`PTIMe`, `PULSe`, `ROSCillator` and `SYNChronization` all hang beneath
-it.  Both forms answer -- `:PTIMe:FFOMerit?` and
-`:SOURce:PTIMe:FFOMerit?` each returned `+3` from a Z3805A.
+`:SOURce` is an optional header: `PTIMe`, `PULSe`, `ROSCillator` and
+`SYNChronization` all hang beneath it.  Both forms answer --
+`:PTIMe:FFOMerit?` and `:SOURce:PTIMe:FFOMerit?` each returned `+3`
+from a Z3805A.
 
 ## Of note
 
 `RAIM`, `TCOefficient`, `HYSTeresis`, `GCORrection`, `TMHValid` and
-`TOFFset` appear in neither manual.  `GARY`, `DOUGlas`, `KENneth` and
-`ROBin` are presumably developer commands.  The four-letter entries
-(`R1PO`, `RACD`, `RAST`, `WTZO` and friends) look like an internal or
-factory command set.
+`TOFFset` appear in neither manual, nor do `GARY`, `DOUGlas`,
+`KENneth`, `ROBin` or the four-letter entries (`R1PO`, `RACD`, `RAST`,
+`WTZO` and the rest).
 
 ## Keywords
 
@@ -181,10 +168,10 @@ factory command set.
 
 ## Commands found by sweeping a 58503A
 
-The keyword table gives the vocabulary but not the tree.  Building
-candidate paths from it and sending them to the receiver settles the
-rest: an unknown header returns -113 and changes nothing, so a sweep is
-safe and definitive.  1,530 candidates over the `:DIAGnostic` subtree
+Candidate paths built from the keyword table and sent to a receiver
+show which it implements: an unknown header returns -113 and changes
+nothing.  A read is not always harmless, though; see `z3801-tree.md`
+on event registers.  1,530 candidates over the `:DIAGnostic` subtree
 found fifteen commands, none of which appear in any manual here.
 
 | Command | Reading on the 58503A |
@@ -204,15 +191,15 @@ found fifteen commands, none of which appear in any manual here.
 
 See `efc.md` for what the EFC commands mean in volts and in frequency.
 
-### Why the date is wrong
+### The date
 
 `:DIAGnostic:IDENtification:GPSystem?` names the GPS engine: a Motorola
-with `SOFTWARE DATE 06 Aug 1996`.  That firmware predates the 1024-week
-rollovers of 1999 and 2019, which is the source of the receiver's
-1024-week date error rather than anything in the 58503A itself.
+with `SOFTWARE DATE 06 Aug 1996`, before the 1024-week rollovers of
+1999 and 2019, which is the source of the receiver's 1024-week date
+error (`firmware.md`, "The engines on the bench").
 
-### Not on the 58503A
+### Ovens
 
-The firmware strings include `Double oven`, but that is a Z3801A
-feature.  The 58503A has a single-oven OCXO, so any double-oven field
-belongs to the other model.
+The firmware strings include `Double oven`.  The 58503A images carry it
+too (`firmware.md`, "The 58503A image"); the bench 58503A's oscillator
+is a 10811-60159 (`OCXO.md`).

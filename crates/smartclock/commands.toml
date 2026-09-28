@@ -23,8 +23,8 @@
 # evidence:  how far the entry has been confirmed --
 #            "manual"   transcribed from the document only
 #            "firmware" every keyword found in the firmware's own
-#                       keyword table, so the spelling is right even
-#                       though no such receiver has been on the line
+#                       keyword table, so the spelling is right,
+#                       though no receiver has answered it yet
 #            "hardware" the receiver answered it
 # argument:  what the command's argument may be, when it takes one.
 #            Absent means a query takes none and a setter takes anything

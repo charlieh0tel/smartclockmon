@@ -1,47 +1,44 @@
 # Z3801A command tree
 
-Every command path in the firmware image, read out of the parser's own
-tables.  `z3801-keywords.md` has the vocabulary and the structures this
-was extracted from; this is the tree they describe.
+Every command path in `third_party/z3801a-3543.bin`, read out of the
+parser's own tables.  `z3801-keywords.md` has the vocabulary and the
+structures this was extracted from.  `z3816a-4001.bin` holds tables of
+the same layout at other addresses (`firmware.md`, "Note on the
+disassembly"), with a `PON` keyword this image lacks.
 
-Extracted from `third_party/z3801a-3543.bin`.  `z3816a-4001.bin` holds the same
-tables at the same offsets.
+## Against the command table
 
-## What it is worth
-
-62 of the 65 non-common Z3801 commands in `commands.toml` appear here,
-which is the check that the extraction is right.  The three that do not:
+71 of the 75 non-common Z3801 commands in `commands.toml` appear here.
+The four that do not:
 
   - `:DIAGnostic:ERASe` belongs to the INSTALL language, not PRIMARY.
   - `:ROSCillator:HOLDover:DURation:THReshold` and its `:EXCeeded`
     appear as `:DURation:MEASurement:THReshold`.  The short form answers
     on hardware, so `MEASurement` is optional here.
+  - `:SYSTem:PON`, which is in the table to be refused; this image has
+    no `PON` (`firmware.md`, "Restarting").
 
 `:SOURce` is an optional header, as SCPI allows.  Everything under it
 answers with or without it: `:PTIMe:FFOMerit?` and
 `:SOURce:PTIMe:FFOMerit?` both returned `+3` from a Z3805A.
 
-A path being here means the parser knows it.  It does not mean the
-receiver implements it, and the difference is large: 282 of these were
-put to a Z3805A as queries and **124 answered or declined, 158 came
-back undefined**.  The tree is the vocabulary of the parser table, not
-the command set of any one model, so treat a path as a candidate until
-a receiver has answered it.
+A path being here means the parser knows it, not that the receiver
+implements it: of 282 put to a Z3805A as queries, 124 answered or
+declined and 158 came back undefined.  A path is a candidate until a
+receiver has answered it.
 
-Some of these are writes.  The four-letter `R...`/`W...` pairs are a
-factory interface of unknown effect and half of them write; `GARY`,
-`DOUGlas`, `KENneth` and `ROBin` are developer commands.  None of those
-has been sent.
+`GARY`, `DOUGlas`, `KENneth`, `ROBin` and the four-letter
+`R...`/`W...` tokens are in the keyword table but have no path here;
+they are paths in the 58503A's tree (`58503a-tree.md`).  Their effect
+is undocumented, and none has been sent.
 
-**A question mark does not make a command safe.**  A status group read
-with no leaf -- `:STATus:OPERation?`, `:STATus:QUEStionable?`,
-`:STATus:OPERation:POWerup?` and the rest -- returns the *event*
-register, and an event register clears when it is read.  Those five
-were swept before this was understood, and they cleared the Z3805A's
-latched events.  On a monitored receiver that would have thrown away
-exactly the history the daemon exists to keep, and taken the operator's
-front-panel alarm with it.  Any sweep list must exclude the bare group
-forms and anything ending `:EVENt?`.
+A query can change the receiver.  A status group read with no leaf --
+`:STATus:OPERation?`, `:STATus:QUEStionable?`,
+`:STATus:OPERation:POWerup?` and the rest -- returns the event
+register, which clears when it is read, and with it the front-panel
+alarm.  Five such reads in the Z3805A sweep cleared its latched events.
+A sweep list must exclude the bare group forms and anything ending
+`:EVENt?`.
 
 ## Which commands are writable
 
@@ -56,23 +53,19 @@ query and its setter separate ids where the firmware has one node with
 both slots.
 
 The one real gap is `:DIAGnostic:ROSCillator:TCOefficient`.  Its setter
-slot holds `FUN_0002a93c`, so **the oscillator temperature coefficient
-can be overwritten** -- and the command appears in no manual in either
+slot holds `FUN_0002a93c`, so the oscillator temperature coefficient
+can be written, and the command appears in no manual in either
 direction.  Kusters describes the coefficient as measured against GPS
-while locked and kept in EPROM, which reads as something the receiver
-owns; the interface says otherwise, and the Z3816A image settles it:
-the setter is the only writer, the loop never adjusts the value, and a
-console word `xcal` measures it for an operator to enter
-(`firmware.md`, "s, the oscillator current").
+while locked and kept in EPROM; in the Z3816A image the setter is the
+only writer, the loop never adjusts the value, and a console word
+`xcal` measures it for an operator to enter (`firmware.md`, "s, the
+oscillator current").  The 58503A image 3633 has the same setter
+(`58503a-tree.md`; `firmware.md`, "The 58503A image").
 
-It is not in the command table.  The table requires every Z3801 entry
-to exist on the 58503 tree too, and the evidence here is a Z3801A
-image; there is no 58503A firmware to say the same of that model.
-Recording it here, where the provenance is the image, is honest.  It
-has not been sent, and writing a learned calibration constant into a
-working reference's EPROM is not something to try casually: the
-argument's range and units are undocumented beyond the parts in 10^12
-per degree C derived in `efc.md`.
+The setter is not in the command table, which carries only the query.
+It has not been sent: it writes a calibration constant to the EEPROM,
+with limits of -200 and 200 and units of EFC counts per unit of the
+oscillator-current channel (`firmware.md`).
 
 ## What answered on a Z3805A
 
@@ -86,10 +79,10 @@ state of the real-time system, which is pSOS, and name its tasks:
 
 with message exchanges `1pps`, `pllc`, `plla`, `gpsx`, `logr`, `eepx`,
 `sciR`/`sciW` and `drtR`/`drtW`, and about 13 percent of the CPU idle.
-`curv` and `pllp` are the learning and the loop that Kusters' design
-paper describes from the outside.
+`pllp` runs the disciplining loop and `curv` the aging fit
+(`firmware.md`, "The disciplining loop").
 
-Others worth knowing:
+Other answers:
 
     :DIAGnostic:PTIMe:TINTerval?        time interval, unlocked reading
     :DIAGnostic:ROSCillator:EFControl?  the bare node answers as RELative

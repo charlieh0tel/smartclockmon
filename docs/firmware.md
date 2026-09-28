@@ -3,8 +3,10 @@
 What `third_party/z3816a-4001.bin` shows about how the receiver measures the
 1 PPS time interval, how it disciplines the oscillator from it, and
 whether the Oncore's sawtooth correction enters either.  Every address
-below is in that image, which is loaded at address zero, except in the
-sections on the Z3801A's and the 58503A's images, which say so.
+below is in that image, which is loaded at address zero, except where
+a section names another: the Z3801A's (`z3801a-3543.bin`), the
+Z3805A's (`z3805a-3543b.bin`) and the 58503A's (`58503a-3633.bin`,
+`58503a-3704.bin`).
 
 The processor is a CPU32 part: the reset code at `0x400` sets the
 vector base with `movec` and programs the System Integration Module's
@@ -50,37 +52,36 @@ The SCI's baud rate is SCBR in SCCR0 at `0xfffc08`, f / (32 · SCBR)
 0.7 %.  `FUN_0002ed56` sets PE and PT in SCCR1 (`0xfffc0a`) from the
 byte at `0x10261d`: no parity for 0, even for 1, odd for 2.
 
-This is the Z3816A's firmware.  No 58503A image is available, so what
-follows describes the design family and is not a statement about the
-58503A's own code.
+The Z3816A image describes the design family; what holds for the
+58503A's own code is in "The 58503A image".
 
 ## Summary
 
-- The reported interval is **the mean of ten one-second readings**,
+- The reported interval is the mean of ten one-second readings,
   stored as a single-precision float in seconds.  It changes once every
   ten seconds.
 - Each reading comes from a counter in the FPGA: a coarse count of
   100 ns ticks plus an interpolator, with calibration terms applied.
-- The firmware **decodes** the Oncore's negative sawtooth from the
-  Time RAIM message, and prints it on a status page.  **No path was
-  found from it into the interval measurement.**
-- The oscillator is steered by a **proportional-integral loop on that
-  same ten-second mean**, run every ten seconds.  Both gains follow
+- The firmware decodes the Oncore's negative sawtooth from the
+  Time RAIM message, and prints it on a status page.  No path was
+  found from it into the interval measurement.
+- The oscillator is steered by a proportional-integral loop on that
+  same ten-second mean, run every ten seconds.  Both gains follow
   from one time constant τ and one gain G: the proportional gain goes
-  as 1/(Gτ) and the integral as 1/(4Gτ²).  **τ is 500 s** by default in
+  as 1/(Gτ) and the integral as 1/(4Gτ²).  τ is 500 s by default in
   the Z3816A and 1000 s in the Z3801A, from a block of defaults in ROM;
   after power-up the loop starts at 150 s and lengthens by 5 s every
   update until it reaches τ.  Its phase input is the
   interval mean; no read of the sawtooth was found in it.
-- A separate task fits **a + b·t + c·ln t to 45-minute means of the
-  EFC**, up to 64 of them (48 hours), and the loop adds the fitted
+- A separate task fits a + b·t + c·ln t to 45-minute means of the
+  EFC, up to 64 of them (48 hours), and the loop adds the fitted
   slope to its integrator each update as predicted drift.
   `startup_pll` sets its first EFC from the same curve.
-- The **outer oven** of a double-oven oscillator is switched, not
+- The outer oven of a double-oven oscillator is switched, not
   regulated, by the firmware: one port bit, turned on when the
   oscillator current has stopped falling, and never turned off except
   from the console.  No loop in either image drives a heater.
-- The firmware carries a **Forth interpreter** that calls itself
+- The firmware carries a Forth interpreter that calls itself
   pForth, whose words include the loop's own diagnostics.  It is a
   shell over compiled code: no word in the image is written in Forth.
 
@@ -160,8 +161,8 @@ being the first `@`), its fifth copy moves message bytes 16 to 25 --
 hours, minutes, seconds, pulse status, 1 PPS sync, Time RAIM solution
 status, Time RAIM status, the two-byte one-sigma estimate, and the
 negative sawtooth -- to record offsets 17 to 26.  The `Bn` program at
-`0x57e25` is the same apart from its channel count.  **The sawtooth is
-at offset 26 of the decoded record.**
+`0x57e25` is the same apart from its channel count.  The sawtooth is
+at offset 26 of the decoded record.
 
 ### The engines on the bench
 
@@ -602,14 +603,12 @@ data...` and `tempco = %f` (`0x2c803`, `0x2c82f`), the slope of EFC
 on current.  It stores nothing; the value is entered afterwards with
 the SCPI command.
 
-Whether the 58503A does the same is not settled: on the bench its
-reported DAC word does not jump at a step of its reported oven
-current, where this image's loop would move it by c times the step
-(`efc.md`, "The regression").  There is no 58503A image to read.  The
-Z3801A's image reads
-channel 3 of its own function, `FUN_00022fd2`; its report strings list
-Temperature, 5V, +15V, −15V, Oven, Double oven and Antenna current, but
-which of those is its channel 3 was not traced.
+The 58503A images 3633 and 3704 apply the same term ("The 58503A
+image"), though the bench 58503A's DAC word does not jump at a step of
+its reported oven current (`efc.md`, "The regression").  The Z3801A's
+image reads channel 3 of its own function, `FUN_00022fd2`; its report
+strings list Temperature, 5V, +15V, −15V, Oven, Double oven and Antenna
+current, but which of those is its channel 3 was not traced.
 
 ### τ and G
 
@@ -751,9 +750,8 @@ integers `0xa8c` 2700, `0x2a3` 675, `0x2a30` 10800.
 ## The ovens
 
 Both images name a `doven` console word, and the Z3801A's health
-monitor names a "Secondary oven voltage", so the question was whether
-the processor regulates the outer oven of a double-oven oscillator.  It
-does not; it switches it.
+monitor names a "Secondary oven voltage".  The processor does not
+regulate the outer oven of a double-oven oscillator; it switches it.
 
 ### The switch
 
@@ -874,7 +872,7 @@ reported, and it agrees with the code.
   ADC0838", which "allows the main CPU to measure the percentage of
   heating power in the ON state".
 
-That description and the code meet exactly.  PGP5 is bit 5 of the GPT's
+The description agrees with the code.  PGP5 is bit 5 of the GPT's
 port GP, which is the `0xfff907` bit the firmware sets; the heater is
 off until the processor raises it, regulated by the analog PI loop
 once it does, and never turned off again by the firmware.  P2/9, the
@@ -1065,7 +1063,7 @@ with `Log cleared`.  The rest of its layout is not worked out here.
 The first session is `docs/z3801a-pforth.txt`.
 
 The bench 58503A (3710A01056, 3704-C) works the same way at 19200 8N1.
-On the same day its ROM came back in 647 seconds and is now
+On the same day its ROM came back in 647 seconds and is
 `third_party/58503a-3704.bin`, SHA-256
 `d13b9ff1e4a0a59517aac4d066c60e22b290cf4ff6810c5c2bf01f1bc9491ca3`:
 the same reset vector as 3633, its revision string `3704` at
@@ -1106,11 +1104,11 @@ firmware drives two serial devices:
   `drta_get_byte` (`0x2df43`), which is the GPS receiver link described
   above.
 
-Channel B of the DUART buffers no data: its receive routine records
-error bits only, its transmit register (`0x200017`) is written by
-nothing but a loopback self-test that sends the string `DUART` and
-checks the echo, and the remaining references reset it.  So the console, like SCPI, is on
-the SCI, and nothing in the firmware runs a console on another port.
+Channel B of the DUART buffers no data ("The GPS receiver link"), its
+transmit register (`0x200017`) is written only by the loopback
+self-test, and the remaining references reset it.  So the console,
+like SCPI, is on the SCI, and nothing in the firmware runs a console
+on another port.
 Whether channel B is wired to a header on the board is not something
 the image can show.
 
@@ -1122,7 +1120,7 @@ GPS link on channel A.  The Z3805A's own `:DIAGnostic:OS` listing names
 both `sciR`/`sciW` and `drtR`/`drtW` (`z3801-tree.md`), so its firmware,
 3543B, is neither image exactly.
 
-### The other image
+### The Z3801A image
 
 Everything above was read from the Z3816A's image, revision 4001.  The
 Z3801A's, revision 3543, was checked against it; what follows was
@@ -1229,6 +1227,27 @@ was gone.  Not established: whether the engine accepts `Ci` 0, which
 the VP Oncore reference does not list, and whether anything re-sends
 the unit's settings before the next start-up sequence.
 
+### Reading the GPS engine from the console
+
+Read from 3543, and from 3543B at shifted addresses; none of it has
+been run on a unit.  A word's arguments go to C in the order typed.
+
+- `1 abr_stat` prints a `gs:` line on every `@@Ba`, once a second,
+  with each channel's PRN, mode, signal strength and status
+  (`FUN_000491ce`); `0 abr_stat` stops it.
+- `print_bc` prints the `@@Bk` record, including `RECEIVER OSC
+  OFFSET`, raw, in the VP reference's 0.1 m/s (`0x48480`).  The
+  start-up scripts ask for `Bk` once; `0 ext_msg_rate` asks again.
+- The engine's `@@Ca` self-test result is kept at `0x100c36` (3543B:
+  `0x100c38`), with the bits the VP reference gives: channels 1 to 6
+  correlation, 1 kHz presence, ROM, RAM, EEPROM, DCXO SPI, RTC.  It is
+  run at power-up and by `*TST?` and `:DIAGnostic:TEST?`, both of which
+  return the loop to power-up; `hex 100c36 w@ u.` reads the last result
+  without running it.
+- `code p1 p2 p3 p4 gps_change` sends entry `code` of the Oncore table
+  (`0x4fe8c`): `41 0 0 0 0 gps_change` sends `@@Ca`, which leaves the
+  engine idle until `46 1 0 0 0 gps_change` (`@@Cg 1`).
+
 ### `:DIAGnostic:TEMPerature?`
 
 Undocumented, and the same code in both images.  The query handler
@@ -1247,7 +1266,7 @@ The bench 58503A reads 34 to 38 °C, about 130 counts.  The bench
 Z3801A (3543-A) and the Z3805A read 0 or 1 count on every poll logged
 -- 1,422 and 36,867 of them -- so on those boards channel 0 is at or
 near 0 V.  Whether a sensor is absent there or wired elsewhere is on
-the board, not in the image.  The Z3801 dialect no longer asks.
+the board, not in the image.  The Z3801 dialect does not poll it.
 
 ### The 58503A image
 
@@ -1299,8 +1318,8 @@ table.
   reading and `:SYNChronization:TINTerval?` and `:PTIMe:TINTerval?`
   (both `0x2fbf6`) the mean, which is what the bench 58503A did.
 - *The EFC scale.*  `:EFControl:RELative?` (`FUN_0002b48e`) returns
-  (ABS − 2¹⁹) / 2¹⁹ × 100: the "value / 2²⁰ × 200 − 100" the command
-  table had inferred from readings, now read from code.  The EFC
+  (ABS − 2¹⁹) / 2¹⁹ × 100, which is the command table's
+  "value / 2²⁰ × 200 − 100".  The EFC
   writer `FUN_0002334e` clamps u to 0 and 1 048 560 (2²⁰ − 16) and
   posts events 0x48 and 0x49 at the rails, and `FUN_0001b7b0` records
   16 × the word it sends, so the DAC is written as a 16-bit word and
@@ -1353,13 +1372,12 @@ the loop uses the averaged measurement, not the default.
 conversion of that same channel 6 (`FUN_00021ca2(6)`).
 
 So the bench receiver's lack of a response to the oven current in its
-record (`efc.md`, "The regression") is not the term missing from its
-firmware, not the loop reading a default, and not the regression
-having used a different current; what does account for it is not
-worked out.  The values the running unit holds would narrow it: the
+record (`efc.md`, "The regression") is not explained by the term being
+absent, by the loop reading a default, or by the regression using a
+different current; its cause is not worked out.  The running unit's
 average at `0x101fc0`, its live flag at `0x101fc4` and the coefficient
-at `0x102014`, readable in the console with `hex 101FC0 @ .` and the
-like.
+at `0x102014` are readable in the console with `hex 101FC0 @ .` and
+the like.
 
 ## Restarting
 
@@ -1493,8 +1511,7 @@ following, and how.
 - Only byte loads of offset 26 of the form `move.b (0x1a,An),Dn` were
   searched for.  A reader using another addressing form would have
   been missed.
-- The 58503A tree and the loop were read from revision 3633 first;
-  3704, the bench receiver's own, is now on hand and has been compared
+- 3704, the bench 58503A's own revision, has been compared with 3633
   only where this document says so.
 
 ## Note on the disassembly
