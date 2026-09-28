@@ -41,8 +41,9 @@ const TREND_BLOCKS: [char; 8] = [
     '\u{2581}', '\u{2582}', '\u{2583}', '\u{2584}', '\u{2585}', '\u{2586}', '\u{2587}', '\u{2588}',
 ];
 
-/// Width of the label column, so values line up across panes.
-const LABEL_WIDTH: usize = 12;
+/// Width of the label column, so values line up across panes: the
+/// longest label, `internal temp`, and a space.
+const LABEL_WIDTH: usize = 14;
 
 /// Rows the console takes while it is open.
 const CONSOLE_ROWS: u16 = 4;
