@@ -209,8 +209,9 @@ in the receiver's queue, on every start:
     [Service]
     Environment=SMARTCLOCKD_FRAMING=7O1
 
-`smartclockmon` takes `--framing 7O1` for direct mode the same way, and
-probes the same way; `smartclock-cli` takes it but does not probe.
+`smartclockmon` and `smartclock-cli` take `--framing 7O1` for direct
+mode the same way, and probe the same way; `smartclock-cli read-memory`
+does not, since its port is at the debug console, not at SCPI.
 
 Anything that differs between the ports -- the framing, and whether
 to adopt that receiver's log -- goes in the drop-ins, not in

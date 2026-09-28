@@ -14,6 +14,7 @@ use anyhow::Result;
 use clap::Parser;
 use clap::Subcommand;
 use jiff::Zoned;
+use smartclock::attach::attach;
 use smartclock::client::Daemon;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
@@ -179,8 +180,15 @@ fn main() -> Result<()> {
         timeout: Duration::from_secs_f64(cli.timeout),
         ..Config::default()
     };
+    // The console has its own prompt, where `*IDN?` means nothing, so
+    // only SCPI is looked for at other line settings.
+    let settings = if matches!(cli.command, Command::ReadMemory { .. }) {
+        settings
+    } else {
+        answering(settings, &config)?
+    };
     let port = transport::open(&settings)
-        .with_context(|| format!("opening {device} at {} baud", cli.baud))?;
+        .with_context(|| format!("opening {device} at {} baud", settings.baud))?;
 
     // The console has its own prompt, so this skips the SCPI session.
     if let Command::ReadMemory {
@@ -226,6 +234,22 @@ fn main() -> Result<()> {
         }
         None => run(Session::new(port, config), &cli.command),
     }
+}
+
+/// The line settings the receiver answers at: `settings`, or the first
+/// the probe finds.  Found and let go, so the port is opened again at
+/// them and a transcript begins with the session's own sync.
+fn answering(settings: Settings, config: &Config) -> Result<Settings> {
+    let attached = attach(&settings, config)
+        .with_context(|| format!("no receiver answered on {}", settings.path))?;
+    if let Some(report) = attached.probe_report(&settings) {
+        eprintln!("{report}");
+    }
+    Ok(Settings {
+        baud: attached.baud,
+        framing: attached.framing,
+        ..settings
+    })
 }
 
 fn run<T: Transport>(mut session: Session<T>, command: &Command) -> Result<()> {

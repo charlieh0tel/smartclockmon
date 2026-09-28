@@ -97,6 +97,9 @@ fn a_unit_at_other_settings_is_found_and_its_probe_errors_drained() {
     assert_eq!((attached.baud, attached.framing), at);
     assert!(attached.probed);
     assert_eq!(attached.discarded, 2);
+    let settings = configured(BaudRate::B19200, Framing::EightNone);
+    let report = attached.probe_report(&settings).expect("a probe to report");
+    assert!(report.contains("found it at 19200 7O1"), "{report}");
     assert_eq!(attached.device.identity().model, "58503A");
 }
 
@@ -110,6 +113,7 @@ fn a_unit_at_its_configured_settings_is_opened_as_before() {
         .expect("opened at the configured settings");
     assert!(!attached.probed);
     assert_eq!(attached.discarded, 0);
+    assert!(attached.probe_report(&configured(at.0, at.1)).is_none());
 }
 
 #[test]

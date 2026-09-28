@@ -820,17 +820,8 @@ fn seconds(value: f64, flag: &str) -> Result<Duration> {
 /// paths.
 fn open(settings: &Settings) -> Result<Device<Box<dyn Transport + Send>>> {
     let attached = attach(settings, &Config::default()).context("identifying the receiver")?;
-    if attached.probed {
-        eprintln!(
-            "smartclockd: {} did not answer at {} {}; found it at {} {}, \
-             and read {} entries off its error queue left by the probe",
-            settings.path,
-            settings.baud,
-            settings.framing,
-            attached.baud,
-            attached.framing,
-            attached.discarded
-        );
+    if let Some(report) = attached.probe_report(settings) {
+        eprintln!("smartclockd: {report}");
     }
     Ok(attached.device)
 }

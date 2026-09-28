@@ -49,6 +49,25 @@ pub struct Attached<T: Transport> {
     pub discarded: usize,
 }
 
+impl<T: Transport> Attached<T> {
+    /// What the probe did, for a log, when it was needed: `None` when
+    /// the configured settings answered.
+    pub fn probe_report(&self, configured: &Settings) -> Option<String> {
+        self.probed.then(|| {
+            format!(
+                "{} did not answer at {} {}; found it at {} {}, \
+                 and read {} entries off its error queue left by the probe",
+                configured.path,
+                configured.baud,
+                configured.framing,
+                self.baud,
+                self.framing,
+                self.discarded
+            )
+        })
+    }
+}
+
 /// Open and identify the receiver at `settings`, or at the first of
 /// [`FALLBACKS`] it answers at.
 pub fn attach(settings: &Settings, config: &Config) -> Result<Attached<Box<dyn Transport + Send>>> {
