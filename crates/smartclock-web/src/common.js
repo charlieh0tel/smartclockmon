@@ -125,6 +125,14 @@ function carryUnit() {
   remember({ receiver: unit });
 }
 
+// Whether the chosen receiver measures `column`, by the server's word.
+// Taken to until the list has been read, so nothing is hidden early on
+// a guess.
+function measures(column) {
+  const r = receivers.find((x) => x.serial === unit);
+  return !r?.columns || r.columns.includes(column);
+}
+
 const unitName = (serial) => {
   const r = receivers.find((x) => x.serial === serial);
   return r ? [r.model, r.serial].filter(Boolean).join(" ") : serial ?? "the receiver";
@@ -269,12 +277,19 @@ function render(s, cached) {
         ? `${s.tracking} tracked`
         : `${s.tracking} tracked / ${s.visible} visible`],
   ];
+  // Each reading with the column it is, so what the unit does not
+  // measure is left out rather than shown as a permanent "--".
+  const column = {
+    "TFOM / FFOM": "tfom", EFC: "efc_percent", "EFC raw": "efc_dac",
+    "internal temp": "temperature_c", "1 PPS TI": "time_interval_s", satellites: "tracking",
+  };
+  const shown = stats.filter(([k]) => !column[k] || measures(column[k]));
   $("status").innerHTML =
     `<span class="pill ${state[0]}">${state[1]}</span>` +
     (oldest === null
       ? ""
       : `<span class="muted" id="age">oldest field ${Math.max(0, oldest).toFixed(0)}s</span>`) +
-    stats
+    shown
       .map(
         ([k, v, hint]) =>
           `<span class="stat"${hint ? ` title="the receiver reports ${esc(hint)}"` : ""}>` +
@@ -342,6 +357,9 @@ function paintCached() {
 //                    draw it; throws on failure
 //   daemon           the content comes from the daemon, not the logs
 //   every, auto()    the refresh period, and whether it applies now
+//   chosen()         optional: set up anything that depends on which
+//                    receiver it is, such as what it measures; called
+//                    once the receiver is known and on every change
 let page = null;
 let running = null;
 let again = false;
@@ -418,6 +436,7 @@ function switchTo(serial) {
   paintCached();
   listReceivers();
   tick();
+  page.chosen?.();
   restart(`reading ${unitName(unit)}...`);
 }
 
@@ -429,6 +448,7 @@ async function content(spec) {
   await listReceivers();
   carryUnit();
   $("unit").onchange = () => switchTo($("unit").value);
+  page.chosen?.();
   tick();
   setInterval(tick, STRIP_EVERY);
   setInterval(listReceivers, RECEIVERS_EVERY);

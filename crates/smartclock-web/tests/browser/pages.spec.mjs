@@ -76,6 +76,24 @@ async function watch(page, probe, until) {
   return seen;
 }
 
+test("a unit is shown only what it measures, and follows a switch", async ({ page }) => {
+  const measured = (without) =>
+    ["time_interval_s", "efc_percent", "tracking", "temperature_c", "tfom", "ffom", "not_tracking"]
+      .filter((c) => c !== without);
+  const fake = new Fake([
+    receiver(A, MODE[A], 111, measured("temperature_c")),
+    receiver(B, MODE[B], 222, measured(null)),
+  ]);
+  await open(page, fake, "/");
+  await expect.poll(() => stripWhose(page)).toBe(A);
+  await expect(page.locator("#status")).not.toContainText("internal temp");
+  await expect(page.locator('#columns input[data-col="temperature_c"]')).toHaveCount(0);
+  await page.locator("#unit").selectOption(B);
+  await expect.poll(() => stripWhose(page)).toBe(B);
+  await expect(page.locator("#status")).toContainText("internal temp");
+  await expect(page.locator('#columns input[data-col="temperature_c"]')).toHaveCount(1);
+});
+
 for (const p of PAGES) {
   test.describe(p.name, () => {
     test("shows the chosen receiver, in the page and the strip", async ({ page }) => {

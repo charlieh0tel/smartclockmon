@@ -29,6 +29,7 @@ use smartclock_http::Response;
 use crate::history::Log;
 use crate::history::PLOTTABLE;
 use crate::history::Receiver;
+use crate::history::measured;
 
 /// The page, built in rather than read from disk: one file to install,
 /// and a running server cannot be made to serve something else by
@@ -543,6 +544,7 @@ fn receivers(logs: &Logs, daemons: &Daemons, cache: &Cache) -> Result<serde_json
                 found.push(Receiver {
                     id: 0,
                     serial: id.serial,
+                    columns: measured(&id.model),
                     model: id.model,
                     firmware: id.firmware,
                     first_seen: String::new(),
@@ -622,7 +624,7 @@ fn series(logs: &Logs, query: &str) -> Result<serde_json::Value> {
         "last": last,
         // What may be asked for, so the page builds its menu from the
         // server rather than from a copy that can drift.
-        "plottable": PLOTTABLE.map(|(column, _)| column),
+        "plottable": PLOTTABLE.map(|(column, _, _)| column),
         "receiver": log.receivers()?.iter().find(|r| r.id == receiver).map(|r| r.serial.clone()),
         // uPlot wants parallel arrays, not an array of points.  One
         // `at` for all of them: that is the alignment, stated once.

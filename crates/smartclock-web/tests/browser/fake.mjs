@@ -30,8 +30,10 @@ const FROM_DAEMON = new Set(["snapshot", "info", "status"]);
 //   mode     the strip's mode, so the strip says whose snapshot it is
 //   present  the stability page's reading count, for the same reason
 //   delay    milliseconds to hold each endpoint's answer, by name
-export function receiver(serial, mode, present) {
-  return { serial, up: true, mode, present, delay: {} };
+//   columns  what it measures, as the server lists it: every column
+//            the history serves, unless a test says otherwise
+export function receiver(serial, mode, present, columns = RECORDED.history.plottable) {
+  return { serial, up: true, mode, present, delay: {}, columns };
 }
 
 // The state a test drives.  `units` is the list the server reports.
@@ -57,6 +59,7 @@ export class Fake {
           ...RECORDED.receivers[0],
           serial: x.serial,
           instance: x.up ? `sim-${x.serial}` : null,
+          columns: x.columns,
         }));
       case "snapshot":
         return { ...body, mode: u.mode, at: new Date().toISOString(),

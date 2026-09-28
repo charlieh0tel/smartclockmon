@@ -13,6 +13,8 @@ use anyhow::Result;
 use rusqlite::Connection;
 use rusqlite::OpenFlags;
 use smartclock::adev::Curve;
+use smartclock::command::CommandId;
+use smartclock::device::dialect_for;
 use smartclock::history::current;
 use smartclock::history::recorded_cadence;
 use smartclock::snapshot::Tier;
@@ -35,19 +37,32 @@ use smartclock::task::Cadence;
 /// blaming the oscillator for the sky.
 ///
 /// Each with the tier that reads it, which decides how long a value
-/// stays current: see `smartclock::history::current`.
-pub(crate) const PLOTTABLE: [(&str, Tier); 10] = [
-    ("time_interval_s", Tier::Fast),
-    ("efc_percent", Tier::Fast),
-    ("tracking", Tier::Medium),
-    ("temperature_c", Tier::Medium),
-    ("oven_current", Tier::Medium),
-    ("efc_dac", Tier::Medium),
-    ("oven_tempco", Tier::Slow),
-    ("tfom", Tier::Fast),
-    ("ffom", Tier::Fast),
-    ("not_tracking", Tier::Medium),
+/// stays current (see `smartclock::history::current`), and the command
+/// it is read with, which decides whether a unit measures it at all.
+pub(crate) const PLOTTABLE: [(&str, Tier, CommandId); 10] = [
+    ("time_interval_s", Tier::Fast, CommandId::Tinterval),
+    ("efc_percent", Tier::Fast, CommandId::Efc),
+    ("tracking", Tier::Medium, CommandId::SatTrackingCount),
+    ("temperature_c", Tier::Medium, CommandId::Temperature),
+    ("oven_current", Tier::Medium, CommandId::OvenCurrent),
+    ("efc_dac", Tier::Medium, CommandId::EfcAbsolute),
+    ("oven_tempco", Tier::Slow, CommandId::OvenTempco),
+    ("tfom", Tier::Fast, CommandId::Tfom),
+    ("ffom", Tier::Fast, CommandId::Ffom),
+    ("not_tracking", Tier::Medium, CommandId::SatVisibleCount),
 ];
+
+/// The columns a unit of `model` measures: those its command tree has
+/// a command for.  A column it cannot read is only ever empty, so the
+/// pages leave it out rather than draw a chart of nothing.
+pub(crate) fn measured(model: &str) -> Vec<&'static str> {
+    let dialect = dialect_for(model);
+    PLOTTABLE
+        .iter()
+        .filter(|(_, _, command)| dialect.spec(*command).is_some())
+        .map(|(column, _, _)| *column)
+        .collect()
+}
 
 /// The most rows one Allan deviation reads, after held readings are
 /// thinned out.
@@ -148,10 +163,12 @@ impl Log {
         };
         Ok(statement
             .query_map([], |row| {
+                let model: String = row.get(2)?;
                 Ok(Receiver {
                     id: row.get(0)?,
                     serial: row.get(1)?,
-                    model: row.get(2)?,
+                    columns: measured(&model),
+                    model,
                     firmware: row.get(3)?,
                     first_seen: row.get(4)?,
                     last_seen: row.get(5)?,
@@ -223,8 +240,8 @@ impl Log {
         for column in columns {
             let tier = PLOTTABLE
                 .iter()
-                .find(|(name, _)| name == column)
-                .map(|&(_, tier)| tier);
+                .find(|(name, _, _)| name == column)
+                .map(|&(_, tier, _)| tier);
             let Some(tier) = tier else {
                 anyhow::bail!("{column} is not a column this serves");
             };
@@ -544,6 +561,8 @@ pub(crate) struct Receiver {
     /// The daemon instance attached to it now, if one is.  Not the
     /// log's to know; filled in from the daemons that answer.
     pub(crate) instance: Option<String>,
+    /// The plottable columns this unit measures, from its model.
+    pub(crate) columns: Vec<&'static str>,
 }
 
 /// The most of each stream one request will return.
@@ -601,7 +620,17 @@ pub(crate) struct ReceiverError {
 
 #[cfg(test)]
 mod tests {
+    use super::measured;
+
     const PREFIX: &str = "smartclock-web";
+
+    #[test]
+    fn a_unit_is_offered_only_the_columns_it_measures() {
+        let z3805 = measured("Z3805A");
+        assert!(!z3805.contains(&"temperature_c"), "{z3805:?}");
+        assert!(z3805.contains(&"time_interval_s"), "{z3805:?}");
+        assert!(measured("58503A").contains(&"temperature_c"));
+    }
 
     /// A database path that deletes itself, and the `-wal` and `-shm`
     /// SQLite writes beside it, on drop.  Drop also runs on a panicking

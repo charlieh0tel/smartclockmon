@@ -102,6 +102,12 @@ an answer that arrives for the last receiver is dropped, and when a
 daemon goes, what was read from it is cleared and read again once it
 is back.  `make test-web` checks all of that in a browser.
 
+A reading the chosen unit cannot take -- a Z3801A or Z3805A has no
+internal temperature -- is left out of the strip and the chart menu
+rather than shown as a permanent `--` or an empty chart.  What a unit
+measures comes from its model's command table, in `/api/receivers`,
+so it holds for units only in the logs too.
+
 ## The exporter
 
 The exporter answers a scrape from whatever each daemon last polled,

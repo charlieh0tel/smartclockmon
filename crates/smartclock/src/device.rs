@@ -362,7 +362,7 @@ fn to_u8(line: &str) -> Option<u8> {
 }
 
 /// Pick a command tree from the model in `*IDN?`.
-fn dialect_for(model: &str) -> Dialect {
+pub fn dialect_for(model: &str) -> Dialect {
     let model = model.to_ascii_uppercase();
     if model.starts_with("Z38") {
         Dialect::Z3801

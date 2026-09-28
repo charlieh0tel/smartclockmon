@@ -295,7 +295,10 @@ async function draw(signal) {
       "The chart library did not load. It comes from a CDN, so this page needs internet access; the readings above do not.";
     return;
   }
-  if (!columns.length) {
+  // What was asked for, less what this unit does not measure: the
+  // choice is kept in the address, and comes back for a unit that does.
+  const wanted = columns.filter(measures);
+  if (!wanted.length) {
     clearCharts("nothing selected");
     return;
   }
@@ -303,7 +306,7 @@ async function draw(signal) {
   let { from, to } = bounds;
   if (from === 0) from = null;
 
-  let got = await fetchSeries(signal, columns, from, to, bounds.seconds);
+  let got = await fetchSeries(signal, wanted, from, to, bounds.seconds);
 
   // How far back the log goes is only knowable once it has been asked,
   // so "all" costs a second request: the first answers with the
@@ -311,7 +314,7 @@ async function draw(signal) {
   // extent.  Without this the button quietly showed the last hour --
   // the range it names is the one range it did not fetch.
   if (range.last === "all" && got.first && got.last > got.first) {
-    got = await fetchSeries(signal, columns, got.first, got.last, got.last - got.first);
+    got = await fetchSeries(signal, wanted, got.first, got.last, got.last - got.first);
   }
   clearCharts(got.at.length ? "" : "no readings in this range");
 
@@ -544,7 +547,9 @@ function pickers(plottable) {
     ...DEFAULT_COLUMNS.filter((c) => plottable.includes(c)),
     ...plottable.filter((c) => !DEFAULT_COLUMNS.includes(c)),
   ];
-  const menu = order.filter((c) => c !== PAIRED[1]);
+  // Only what this unit measures is offered.  `order` keeps the rest, so
+  // a column ticked for another unit stays chosen for when it is back.
+  const menu = order.filter((c) => c !== PAIRED[1] && measures(c));
   const shown = (c) => (c === PAIRED[0] ? "# sats" : label(c));
   $("columns").innerHTML = menu
     .map(
@@ -707,12 +712,13 @@ const HISTORY_EVERY = 30000;
   // Asked of the server rather than listed here, so the menu cannot
   // drift from the columns the query will actually accept.
   const first = await getJson(seriesQuery(columns, null, null));
-  pickers(first.plottable ?? columns);
+  const plottable = first.plottable ?? columns;
   buttons();
   addEventListener("resize", load);
   content({
     daemon: false,
     every: HISTORY_EVERY,
+    chosen: () => pickers(plottable),
     auto: () => range.last !== null,
     clear(why) {
       clearCharts(why);
