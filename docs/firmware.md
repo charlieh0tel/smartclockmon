@@ -396,7 +396,7 @@ frequency offset.  Its messages say so:
 ### The loop
 
 [`loop.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/loop.html) beside this file draws what follows as a block diagram,
-with the constants and the closed-loop poles; open it in a browser.
+with the constants and the closed-loop poles.
 
 `FUN_0004824a` is `pll_normal`: its failure
 message is `pll_normal - Error with measurement` (`0x487f8`) and its
