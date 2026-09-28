@@ -1,3 +1,27 @@
+smartclockmon (0.6.35-1) unstable; urgency=low
+
+  * The daemon and the monitor find a receiver at other line settings
+    when it does not answer at the configured ones: 19200 and 9600,
+    8N1 and 7O1, after the configured settings.  The probe's garbled
+    bytes are read off the receiver's error queue before anything else
+    is asked, and counted in the journal; the event registers, and so
+    the front-panel alarm, are not touched.  A Z3801A no longer needs
+    its 7O1 drop-in, which only saves the probe.
+  * Every web page shares one lifecycle: a change of receiver clears
+    the page and the strip at once, an answer arriving for the last
+    receiver is dropped, content read from the daemon is cleared while
+    it is gone and read again when it is back, and the receiver list
+    follows receivers and daemons as they come and go.  The live page
+    polled the strip twice a second; every page now polls once.
+  * Browser tests for all of that, make test-web, with Playwright kept
+    in the repository's test directory, and a CI workflow to run them.
+  * Record which console word sends the GPS engine's @@Cf and what each
+    of the reset words does.
+  * The bench position in fixtures, captures and console sessions is a
+    placeholder.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sun, 27 Sep 2026 17:09:14 -0700
+
 smartclockmon (0.6.34-1) unstable; urgency=low
 
   * The status page has the receiver picker the other pages have.  A
