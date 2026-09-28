@@ -245,6 +245,10 @@ Checked on 2026-09-27:
   under 3 dB noise figure) on the Z3805A: its engine held PRNs 9, 14
   and 22, which the known-good receiver had at 39 to 44 dB-Hz, for
   nearly five minutes without acquiring any.
+- *Overnight, 2026-09-28, both after `master_reset`, a power cycle and
+  the same 20 dB ahead of the four-way:* the Z3805A held lock about 98%
+  of nine hours on 2 to 4 satellites; the Z3801A locked for part of an
+  hour, then tracked nothing from 10:00 UTC on.
 
 *Next:* one of these engines in the 58503A (3710A01056), whose
 firmware takes a six-channel engine (`firmware.md`, "Six or eight
