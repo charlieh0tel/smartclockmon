@@ -1,3 +1,10 @@
+smartclockmon (0.6.37-1) unstable; urgency=low
+
+  * The links between the web pages carry the range as well as the
+    receiver.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Mon, 28 Sep 2026 08:56:30 -0700
+
 smartclockmon (0.6.36-1) unstable; urgency=low
 
   * The web pages show only what the chosen unit measures: a Z3801A's
