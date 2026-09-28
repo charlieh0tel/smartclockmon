@@ -1475,6 +1475,11 @@ Read from all five images; nothing has been sent to a unit.
   the reset code, so a unit with a bad image comes back to the
   installer.  All five images pass their own sums.
 
+On 2026-09-28 the bench Z3801A was taken into the installer and back,
+with queries only: `*IDN?` answered `Peru-A`, `:DIAGnostic:TEST? 1`
+`+0,+0,+0`, `:DIAGnostic:ERASe?` `+0`, and after `"PRIMARY"` it came
+back on 3543-A with its settings unchanged.
+
 So a load interrupted part way is retried over the serial port, from
 the installer that the next power-up lands in.  A programmer is needed
 only if the boot sectors themselves are damaged; a dump written back a
