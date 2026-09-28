@@ -94,6 +94,18 @@ test("a unit is shown only what it measures, and follows a switch", async ({ pag
   await expect(page.locator('#columns input[data-col="temperature_c"]')).toHaveCount(1);
 });
 
+test("the range and the receiver go along to the next page", async ({ page }) => {
+  const fake = twoUnits();
+  await open(page, fake, "/", B);
+  await page.locator('#ranges button[data-last="21600"]').click();
+  await page.locator("nav a", { hasText: "Stability" }).click();
+  await expect(page).toHaveURL(/\/adev\?/);
+  const q = new URL(page.url()).searchParams;
+  expect(q.get("receiver")).toBe(B);
+  expect(q.get("last")).toBe("21600");
+  await expect(page.locator('#ranges button[data-last="21600"]')).toHaveAttribute("aria-pressed", "true");
+});
+
 for (const p of PAGES) {
   test.describe(p.name, () => {
     test("shows the chosen receiver, in the page and the strip", async ({ page }) => {

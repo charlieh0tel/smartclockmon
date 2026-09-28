@@ -114,15 +114,30 @@ function remember(params) {
   history.replaceState(null, "", location.pathname + (s ? `?${s}` : ""));
 }
 
-// Carry the chosen receiver on the links between pages, so moving from
-// history to stability keeps the unit rather than falling back to the
-// newest.  In the address too, so a reload or a shared link does.
-function carryUnit() {
-  const q = unit === null ? "" : `?receiver=${encodeURIComponent(unit)}`;
-  for (const a of document.querySelectorAll("nav a")) {
-    a.search = q;
+// What the links between pages carry from this one's address: the
+// receiver and the range, which mean the same on every page.  The
+// columns and the series are one page's own.
+const CARRIED = ["receiver", "last", "from", "to"];
+
+// Point the links between pages at the same receiver and range, so
+// moving from history to stability keeps both rather than falling back
+// to the newest unit and the default hour.
+function carry() {
+  const here = new URLSearchParams(location.search);
+  const q = new URLSearchParams();
+  for (const k of CARRIED) {
+    if (here.has(k)) q.set(k, here.get(k));
   }
+  for (const a of document.querySelectorAll("nav a")) {
+    a.search = q.toString();
+  }
+}
+
+// Keep the chosen receiver in the address, so a reload or a shared
+// link does, and on the links between pages.
+function carryUnit() {
   remember({ receiver: unit });
+  carry();
 }
 
 // Whether the chosen receiver measures `column`, by the server's word.
@@ -508,6 +523,7 @@ function rangeBounds() {
 function rememberRange() {
   if (range.last !== null) remember({ last: range.last, from: null, to: null });
   else remember({ last: null, from: Math.round(range.from), to: Math.round(range.to) });
+  carry();
 }
 
 // A length in seconds as the biggest whole unit that divides it.

@@ -84,7 +84,8 @@ or a fixed pair once a drag has zoomed, which then steps earlier and
 later by its own length and returns to a moving window with `now`.
 The choice rides in the address (`?last=172800`, `?last=all`, or
 `?from=…&to=…`) beside the receiver and the columns, so a reload or a
-shared link shows the same window.  The stability page uses the same
+shared link shows the same window, and the receiver and the range go
+along to the other pages.  The stability page uses the same
 control; there a range is the record the estimator runs on, so
 changing it recomputes.
 
