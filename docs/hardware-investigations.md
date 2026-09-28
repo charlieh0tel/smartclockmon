@@ -255,7 +255,7 @@ firmware takes a six-channel engine (`firmware.md`, "Six or eight
 channels").  Tracking there puts the fault in the Z380x unit; not
 tracking, in the engine.  Waiting on a supply for the 58503A.
 
-## 12. How a field upgrade flashes the unit
+## 12. How a field upgrade flashes the unit -- the images read
 
 *Open item:* the units can be upgraded in the field, and how is not
 worked out.  `:SYSTem:LANGuage "INSTALL"` leaves the primary firmware
@@ -271,3 +271,8 @@ language (`z3801-tree.md`).  Neither is ever sent by this project.
 
 *Changes:* whether a unit can be reflashed from here, and how to
 recover one whose load was interrupted.
+
+The images are read (`firmware.md`, "The installer"): the installer is
+in flash it never writes, so an interrupted load is retried over
+serial.  Left for a bench: a load on a spare unit, and which part holds
+which byte lane.

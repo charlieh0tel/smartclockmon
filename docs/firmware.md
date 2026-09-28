@@ -1437,11 +1437,51 @@ executes `trap #11`, whose handler at `0x24b18` masks interrupts, runs
 the same `FUN_00022172`, and jumps through vector 43 of the table at
 address 0 -- the boot ROM's own table, not the one at `0x20000` --
 which is how the installer in the low half of the image is entered.
+Those addresses are the Z3816A's; the Z3801A, Z3805A and 58503A images
+put the primary's table at `0x10000` (Z3801A trap #11 handler
+`0x1467c`).  "The installer" below has the rest.
 
 None of these is a command this project sends: `:SYSTem:PRESet`,
 `:SYSTem:PON` and `:SYSTem:LANGuage` are all on its never-send list,
 `:SYSTem:PON` in the command table as `system_pon` so that
 `docs/commands.md` shows it.
+
+### The installer
+
+Read from all five images; nothing has been sent to a unit.
+
+- *Where it lives.*  Below `0x10000` (Z3816A: `0x20000`), in flash the
+  installer never erases or writes: its erase and program addresses
+  are all `0x10000`--`0x7ffff`.  Vector 43 (Z3801A `0xa58`) unpacks it
+  into RAM and runs it there, a pSOS system of its own with its own
+  SCPI parser, on the host port at the EEPROM's line settings
+  (`0x400000`, checksum at +0), or 9600 8N1 if that record is bad.
+- *Telling it apart.*  `*IDN?` names a place, not a revision: `Peru`
+  on the Z3801A, `Oman` on 58503A 3633, `USA` on 3704 and the Z3816A;
+  `:SYSTem:LANGuage?` always answers `INSTALL`.
+- *Commands.*  `*IDN?`, `*CLS`, `:SYSTem:LANGuage`, `:SYSTem:ERRor?`,
+  `:DIAGnostic:TEST? n` (0 summary, 1 checksum flags, 2 CPU, 3 RAM,
+  4 DUART), `:DIAGnostic:ERASe`, `:DIAGnostic:ERASe?` (1 when
+  `0x10000`--`0x7ffff` is blank) and `:DIAGnostic:DOWNload <S-record>`,
+  one Motorola S-record per command, checked record by record and
+  refused outside `0x10000`--`0x7ffff`.  As 097-58503-13, 4-15 and 5-115.
+- *Flash.*  Z3801A, Z3805A and 58503A: AM29F010s in word-interleaved
+  pairs, even bytes on one part and odd on the other; `0x0`--`0x3ffff`
+  the low pair, `0x40000`--`0x7ffff` the high.  Z3816A: an
+  Intel-style part, one 16-bit wide.
+- *Boot check.*  The reset code (`0x550`) sums each byte lane of each
+  pair against the bytes at `0x3fffc` and `0x7fffc`.  A pass boots the
+  primary; a failure stays in the installer.  `LANG "PRIMARY"` re-runs
+  the reset code, so a unit with a bad image comes back to the
+  installer.  All five images pass their own sums.
+
+So a load interrupted part way is retried over the serial port, from
+the installer that the next power-up lands in.  A programmer is needed
+only if the boot sectors themselves are damaged; a dump written back a
+lane per part carries its own valid sums.  `:DIAGnostic:TEST? 1` names
+the failing lane.  Not established: which part is which lane on the
+board, and how the new primary resets the settings after an upgrade,
+which 097-58503-13 appendix C says it does.
 
 ### `:DIAGnostic:GPSystem:UTC`
 
