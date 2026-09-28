@@ -241,6 +241,10 @@ Checked on 2026-09-27:
   `print_vis` gave on 2026-09-26: its 2016 almanac, not the sky.  So the
   Z3805A searches the right satellites in the right places and does
   not acquire them, and the Z3801A searches the wrong ones.
+- *`master_reset`, then 20 dB more gain* (a Raven LA-21-1575-100-T,
+  under 3 dB noise figure) on the Z3805A: its engine held PRNs 9, 14
+  and 22, which the known-good receiver had at 39 to 44 dB-Hz, for
+  nearly five minutes without acquiring any.
 
 *Next:* one of these engines in the 58503A (3710A01056), whose
 firmware takes a six-channel engine (`firmware.md`, "Six or eight
