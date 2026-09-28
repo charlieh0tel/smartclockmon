@@ -22,6 +22,8 @@
   </div>
 </div>
 
+<div class="panel banner" id="cost"></div>
+
 <div class="panel" id="state"><span class="muted">idle</span></div>
 
 <div class="panel">
@@ -201,6 +203,13 @@ content({
     }
   },
 });
+
+// Said on the page because nothing else shows it: the log looks
+// complete, with a hole wherever this page read.
+$("cost").textContent =
+  `Each read holds the receiver's link for about 1.5 s, leaving a gap in its ` +
+  `once-a-second log; "live" reads every ${LIVE_PERIOD / 1000} s. ` +
+  `Leave this page for unbroken 1 Hz data.`;
 
 $("read").onclick = () => renew(true);
 window.addEventListener("resize", fit);

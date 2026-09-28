@@ -66,6 +66,8 @@ th { text-align: left; color: var(--dim); font-weight: 500; padding: 3px 6px 6px
 td { padding: 2px 6px 2px 0; font-variant-numeric: tabular-nums; }
 .muted { color: var(--dim); }
 #note { color: var(--warn); }
+/* A standing caution, as distinct from a state that has gone wrong. */
+.banner { color: var(--warn); font-size: 12px; }
 footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
 .uplot { width: 100% !important; }
 /* The journal is three tables of mostly text in one panel, so it
