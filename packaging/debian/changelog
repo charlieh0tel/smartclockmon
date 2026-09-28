@@ -1,3 +1,16 @@
+smartclockmon (0.6.36-1) unstable; urgency=low
+
+  * The web pages show only what the chosen unit measures: a Z3801A's
+    or Z3805A's strip and chart menu no longer offer internal
+    temperature.  /api/receivers lists each unit's columns.
+  * The status page says that each read leaves a gap in the 1 Hz log.
+  * The figure-of-merit charts say lower is better.
+  * The monitor's label column fits its longest label.
+  * The README is an overview with screenshots; the detail moved to
+    docs/views.md and docs/protocol.md.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Sun, 27 Sep 2026 22:26:00 -0700
+
 smartclockmon (0.6.35-1) unstable; urgency=low
 
   * The daemon and the monitor find a receiver at other line settings
