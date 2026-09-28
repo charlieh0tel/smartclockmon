@@ -50,7 +50,8 @@ is named after the receiver.
 
 ## What the daemon does to the receiver
 
-Reads, and with one opt-in exception nothing else.  Worth knowing
+Reads, and with one opt-in exception nothing else, apart from the
+garbled bytes a probe at the wrong line settings sends.  Worth knowing
 because two of the reads would otherwise be surprising, and one thing
 it deliberately does *not* read.
 
@@ -58,6 +59,11 @@ It drains the receiver's error queue.  Reading an entry is what removes
 it, so this is destructive by nature -- but the queue holds thirty and
 discards the newest when it overflows, so an unread queue loses errors
 anyway, and nothing else was ever going to read them.
+
+When it had to look for the receiver at other line settings than the
+configured ones, it reads the receiver's error queue empty before
+asking it anything, since the probe's garbled bytes are queued there as
+errors, and says in the journal how many it read.
 
 It copies the receiver's diagnostic log out, entry by entry, and
 optionally clears it; see `SMARTCLOCKD_ADOPT_LOG` below.
@@ -136,6 +142,24 @@ impossible baud, a malformed `ALLOW_` value, a database written by a
 newer version -- and `RestartPreventExitStatus=2` makes that final.
 `systemctl status` then names what is wrong.
 
+The daemon refuses anything that changes the receiver unless started
+with `--allow-control` -- which includes reading an event register,
+since that clears it, and reading the error queue, since that takes
+the entry the daemon's journal would have kept -- refuses what can
+strand the link without `--allow-dangerous`, and refuses commands the
+table does not know without `--allow-raw`.  All three are off by
+default and every command that is not a scheduled poll is recorded in
+the log.  Every option also reads from a `SMARTCLOCKD_`-prefixed
+environment variable, which is how the service is configured without
+touching its unit.
+
+`smartclock-cli` talking to the receiver directly has no such flags,
+and refuses outright to send `:SYSTem:PRESet`, the undocumented
+`:SYSTem:PON`, anything under `:SYSTem:COMMunicate`,
+`:DIAGnostic:ERASe`, or a `:SYSTem:LANGuage` setting, before it opens
+the port.  The one exception is `read-memory`, which enters the debug
+console with `:SYSTem:LANGuage "PFORTH"` and nothing else.
+
 ## Where things live
 
 | Path                                             | What                       |
@@ -151,6 +175,15 @@ host's adapter keeps one continuous history, and a different unit
 plugged into the same port gets a file of its own.  Set
 `SMARTCLOCKD_DATABASE` to a file to log every receiver seen on the
 port into that one file instead.
+
+Every row says which receiver it came from.  A `receiver` table holds
+one row per unit that has written to the file, keyed on the serial from
+`*IDN?` -- the serial alone, because firmware changes under it and an
+upgrade is not a different instrument -- and the snapshots, satellites,
+errors, diagnostic log entries and audit trail all carry its id.  A
+bench where units are swapped otherwise accumulates two oscillators'
+history in one file with no way to tell the rows apart, which makes
+every long-run comparison in it a comparison between two crystals.
 
 A log grows without bound, a few MB a day.  Nothing rotates it: the
 point of the record is to still have last year's holdover events.
