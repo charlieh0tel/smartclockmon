@@ -331,7 +331,7 @@ The rest of `docs/`:
 | `58503a-tree.md` | the same for the 58503A firmware, revision 3633, checked against the command table and the Z3801A tree |
 | `firmware.md` | what the Z3816A firmware shows: how it measures the 1 PPS time interval, the loop that disciplines the oscillator from it, where the Oncore's sawtooth goes, and its pForth console |
 | `hardware-investigations.md` | what `firmware.md` leaves open that only a bench can settle: what to measure and what each answer changes |
-| `loop.html` | the disciplining loop as a block diagram, with its update law, constants and closed-loop poles; a standalone page, open it in a browser |
+| [`loop.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/loop.html) | the disciplining loop as a block diagram, with its update law, constants and closed-loop poles; a standalone page, rendered at the link |
 
 ## License
 
