@@ -176,8 +176,10 @@ async function listReceivers() {
   // and says so, rather than being swapped for another under the
   // reader's feet.
   const options = list.some((r) => r.serial === unit) ? list : [...list, { serial: unit }];
+  // The port too, for a live unit: it is how the bench names them.
+  const label = (r) => unitName(r.serial) + (r.instance ? ` on ${r.instance}` : "");
   $("unit").innerHTML = options
-    .map((r) => `<option value="${esc(r.serial)}">${esc(unitName(r.serial))}</option>`)
+    .map((r) => `<option value="${esc(r.serial)}">${esc(label(r))}</option>`)
     .join("");
   $("unit").value = unit;
   const r = list.find((x) => x.serial === unit);
