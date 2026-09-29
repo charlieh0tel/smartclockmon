@@ -1,3 +1,15 @@
+smartclockmon (1.0.0-1) unstable; urgency=low
+
+  * Firmware loading moves into the CLI as smartclock-cli flash; the
+    separate smartclock-flash program is removed.  It takes the CLI's
+    --device, --baud, --framing and --capture.
+  * flash finds the receiver's line settings as the other commands do,
+    and accepts tcp://host:port.
+  * flash --write no longer requires --capture; a transcript is written
+    only when --capture names a new file.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Mon, 28 Sep 2026 23:49:08 -0700
+
 smartclockmon (0.6.39-1) unstable; urgency=low
 
   * smartclock-cli read-memory returns the port to SCPI after reading,
