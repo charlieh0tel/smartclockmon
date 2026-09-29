@@ -122,17 +122,56 @@ enum Command {
         /// How many bytes.
         #[arg(long, value_parser = address)]
         length: u32,
-        /// Where to write what was read.
-        #[arg(long)]
-        out: PathBuf,
-        /// An image to check each chunk against, from its first byte.
-        #[arg(long)]
-        compare: Option<PathBuf>,
-        /// Leave the port at the console instead of returning it to
-        /// SCPI.  Only a power cycle leaves it then.
-        #[arg(long)]
-        stay_in_console: bool,
+        #[command(flatten)]
+        to: ReadTo,
     },
+    /// Read the whole flash, 512 KiB from address 0, as `read-memory`
+    /// does.
+    ReadFlash {
+        #[command(flatten)]
+        to: ReadTo,
+    },
+    /// Read the whole EEPROM, 8 KiB from `0x400000`, as `read-memory`
+    /// does.
+    ReadEeprom {
+        #[command(flatten)]
+        to: ReadTo,
+    },
+}
+
+/// Where a console read goes and what happens after it, shared by the
+/// memory-reading commands.
+#[derive(Debug, clap::Args)]
+struct ReadTo {
+    /// Where to write what was read.
+    #[arg(long)]
+    out: PathBuf,
+    /// An image to check each chunk against, from its first byte.
+    #[arg(long)]
+    compare: Option<PathBuf>,
+    /// Leave the port at the console instead of returning it to
+    /// SCPI.  Only a power cycle leaves it then.
+    #[arg(long)]
+    stay_in_console: bool,
+}
+
+/// The flash, as every model maps it: the boot and primary images
+/// together (docs/firmware.md, "The installer").
+const FLASH: (u32, u32) = (0, 0x80000);
+
+/// The EEPROM behind chip select 9 (docs/firmware.md, "Reading memory
+/// through it").
+const EEPROM: (u32, u32) = (0x40_0000, 0x2000);
+
+/// The range and destination of a command that reads memory through
+/// the console, or `None` for any other command.
+fn console_read(command: &Command) -> Option<(u32, u32, &ReadTo)> {
+    match command {
+        Command::ReadMemory { from, length, to } => Some((*from, *length, to)),
+        Command::ReadFlash { to } => Some((FLASH.0, FLASH.1, to)),
+        Command::ReadEeprom { to } => Some((EEPROM.0, EEPROM.1, to)),
+        _ => None,
+    }
 }
 
 /// A `--from` or `--length`: 0x-prefixed hex, or decimal.
@@ -189,7 +228,7 @@ fn main() -> Result<()> {
     };
     // The console has its own prompt, where `*IDN?` means nothing, so
     // only SCPI is looked for at other line settings.
-    let settings = if matches!(cli.command, Command::ReadMemory { .. }) {
+    let settings = if console_read(&cli.command).is_some() {
         settings
     } else {
         answering(settings, &config)?
@@ -198,20 +237,18 @@ fn main() -> Result<()> {
         .with_context(|| format!("opening {device} at {} baud", settings.baud))?;
 
     // The console has its own prompt, so this skips the SCPI session.
-    if let Command::ReadMemory {
-        from,
-        length,
-        out,
-        compare,
-        stay_in_console,
-    } = &cli.command
-    {
+    if let Some((from, length, to)) = console_read(&cli.command) {
+        let ReadTo {
+            out,
+            compare,
+            stay_in_console,
+        } = to;
         let expected = compare
             .as_ref()
             .map(|path| std::fs::read(path).with_context(|| format!("reading {}", path.display())))
             .transpose()?;
         let mut file = File::create(out).with_context(|| format!("creating {}", out.display()))?;
-        let read = pforth::read_memory(&mut port, *from, *length, &mut file, expected.as_deref());
+        let read = pforth::read_memory(&mut port, from, length, &mut file, expected.as_deref());
         if let Ok(summary) = &read {
             eprintln!(
                 "read {length:#x} bytes from {from:#x} into {} in {} s",
@@ -300,7 +337,9 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command) -> Result<()> {
         Command::Probe { dialect } => probe(session, dialect),
         Command::Sweep { from } => sweep(session, from),
         Command::Diagnose => unreachable!("handled above, since it takes the session"),
-        Command::ReadMemory { .. } => unreachable!("handled before the session is opened"),
+        Command::ReadMemory { .. } | Command::ReadFlash { .. } | Command::ReadEeprom { .. } => {
+            unreachable!("handled before the session is opened")
+        }
         // Handled before the port is opened.
         Command::Commands => Ok(()),
     }
@@ -315,7 +354,9 @@ fn typed(command: &Command) -> Result<Vec<String>> {
         Command::Probe { .. }
         | Command::Diagnose
         | Command::Commands
-        | Command::ReadMemory { .. } => Vec::new(),
+        | Command::ReadMemory { .. }
+        | Command::ReadFlash { .. }
+        | Command::ReadEeprom { .. } => Vec::new(),
     })
 }
 
@@ -750,10 +791,12 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
             "probe and sweep send hundreds of commands and need the port to themselves; \
              stop smartclockd and use --device"
         ),
-        Command::ReadMemory { .. } => anyhow::bail!(
-            "read-memory talks to the pForth console, not to the daemon; \
-             stop smartclockd, enter the console, and use --device"
-        ),
+        Command::ReadMemory { .. } | Command::ReadFlash { .. } | Command::ReadEeprom { .. } => {
+            anyhow::bail!(
+                "reading memory talks to the pForth console, not to the daemon; \
+                 stop smartclockd for that port and use --device"
+            )
+        }
     }
 }
 

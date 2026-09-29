@@ -150,9 +150,10 @@ the log.
 and refuses, before it opens the port, to send `:SYSTem:PRESet`, the
 undocumented `:SYSTem:PON`, anything under `:SYSTem:COMMunicate`,
 `:DIAGnostic:ERASe`, or a `:SYSTem:LANGuage` setting.  The one
-exception is `read-memory`, which enters the debug console with
-`:SYSTem:LANGuage "PFORTH"` and nothing else (`firmware.md`, "Reading
-memory through it").
+exception is `read-memory`, with `read-flash` and `read-eeprom`, which
+enters the debug console with `:SYSTem:LANGuage "PFORTH"` and returns
+through the installer with `:SYSTem:LANGuage "PRIMARY"` (`firmware.md`,
+"Reading memory through it").
 
 ## Where things live
 
@@ -203,7 +204,7 @@ the receiver's queue, on every start:
 
 `smartclockmon` and `smartclock-cli` take `--framing 7O1` for direct
 mode the same way, and probe the same way; `smartclock-cli read-memory`
-does not, since its port is at the debug console, not at SCPI.
+(and `read-flash`, `read-eeprom`) does not, since its port is at the debug console, not at SCPI.
 
 Anything that differs between the ports -- the framing, and whether
 to adopt that receiver's log -- goes in the drop-ins, not in
