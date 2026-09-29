@@ -17,7 +17,6 @@ use smartclock_sim::transport::SimTransport;
 
 use super::Link;
 use super::Mode;
-use super::default_transcript;
 use super::firmware::Firmware;
 use super::firmware::ImageError;
 use super::firmware::Layout;
@@ -544,13 +543,4 @@ fn a_receiver_on_the_network_is_opened_checked_and_recorded() {
     let installer = receiver.installer.as_ref().unwrap();
     assert!(!installer.active);
     assert_eq!(installer.flash, DUMP);
-}
-
-#[test]
-fn a_write_without_capture_names_its_own_transcript() {
-    let path = default_transcript("3542A01548");
-    let name = path.to_str().unwrap();
-    assert!(name.starts_with("flash-3542A01548-"), "{name}");
-    assert!(name.ends_with(".jsonl"), "{name}");
-    assert_eq!(path.parent(), Some(std::path::Path::new("")));
 }

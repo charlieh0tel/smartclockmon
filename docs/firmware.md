@@ -1650,10 +1650,8 @@ or probe other ports.  It finds the port's line settings as the other
 commands do (`smartclock::attach`): the given `--baud` and `--framing`
 first, then the others these receivers use, reading the probe's errors
 off the queue before its checks.  `--device` also takes
-`tcp://host:port`.  A write always records the exchange: to
-`--capture`, which must name a new file, or else to
-`flash-<serial>-<time>.jsonl` in the current directory.  An existing
-transcript is never overwritten.  Replace the placeholders
+`tcp://host:port`.  `--capture` records the exchange to a new file;
+an existing transcript is never overwritten.  Replace the placeholders
 below with the image path, device, receiver serial and a new capture
 path.
 
@@ -1670,7 +1668,7 @@ smartclock-cli --device <device> flash <firmware.bin> \
   --serial <serial>
 ```
 
-Reinstall that dump, recording the exchange in a new file:
+Reinstall that dump:
 
 ```
 smartclock-cli --device <device> \

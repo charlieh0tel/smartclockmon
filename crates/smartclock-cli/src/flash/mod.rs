@@ -46,9 +46,8 @@ pub(crate) struct FlashArgs {
     /// Full 512 KiB, address-zero binary dump (not an individual chip or S-record file).
     image: PathBuf,
     /// Erase and program after all compatibility checks pass.  Needs
-    /// `--device` and `--serial`.  The exchange is recorded to
-    /// `--capture`, which must be a new file, or else to
-    /// `flash-<serial>-<time>.jsonl` in the current directory.
+    /// `--device` and `--serial`.  Given `--capture`, which must be a new
+    /// file, the exchange is recorded there.
     #[arg(long, requires = "serial")]
     write: bool,
     /// Expected receiver serial number; required for writing.
@@ -258,8 +257,8 @@ fn program(link: &mut impl Link, firmware: &Firmware) -> Result<()> {
 }
 
 /// Check the image, and with a device the receiver; with `--write`,
-/// flash it.  The transcript, required for writing, is a new file:
-/// an existing one is never overwritten.
+/// flash it.  A transcript, when asked for, is a new file: an existing
+/// one is never overwritten.
 pub(crate) fn run(
     args: &FlashArgs,
     device: Option<&str>,
@@ -277,16 +276,6 @@ pub(crate) fn run(
     let Some(path) = device else {
         ensure!(!args.write, "--write needs --device");
         return Ok(());
-    };
-    // A write always leaves a transcript: the one operation that
-    // erases gets a record of every byte exchanged.
-    let default_capture;
-    let capture = match (capture, &args.serial) {
-        (None, Some(serial)) if args.write => {
-            default_capture = default_transcript(serial);
-            Some(default_capture.as_path())
-        }
-        (capture, _) => capture,
     };
     // Create the transcript before opening the hardware; an existing file
     // or unwritable destination must never fail after erase.
@@ -328,13 +317,6 @@ pub(crate) fn run(
         return Ok(());
     }
     readback(session.into_transport(), &firmware, config)
-}
-
-/// The transcript a write records when `--capture` names none:
-/// `flash-<serial>-<local time>.jsonl` in the current directory.
-fn default_transcript(serial: &str) -> PathBuf {
-    let now = jiff::Zoned::now().strftime("%Y%m%dT%H%M%S");
-    PathBuf::from(format!("flash-{serial}-{now}.jsonl"))
 }
 
 /// Open the receiver at the line settings it answers at -- `settings`,
