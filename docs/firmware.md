@@ -1756,7 +1756,12 @@ records (448 KiB) were accepted.  The transfer finished in 891 seconds
 with `3543-A` and `PRIMARY` verified.  Position, survey state,
 survey-at-power-up setting, elevation mask, antenna delay, ignored
 satellites and timezone all matched their pre-flash queries.  That run
-predates the readback.  Other models have simulator
+predates the readback.  The same unit was reflashed the same way again
+that day with the readback: the primary booted on `3543-A`, all
+`0x80000` bytes read back in 646 seconds identical to the image, and
+the port came back to SCPI in PRIMARY.  Position, elevation mask,
+antenna delay, ignored satellites and timezone again matched their
+pre-flash queries.  Other models have simulator
 coverage and firmware analysis, not a hardware flashing test.
 
 ### `:DIAGnostic:GPSystem:UTC`
