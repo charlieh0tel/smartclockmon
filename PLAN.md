@@ -51,12 +51,15 @@ The fixes are recorded with the decisions they belong to.
 
 ## Decisions
 
-### Flashing is a separate direct-port tool
+### Flashing is a direct-port command of the CLI
 
-`smartclock-flash` has its own crate and ships in the Debian package.
-It requires the port's daemon to be stopped and never connects to its
-socket.  Ordinary query/control paths keep their forbidden-command
-checks.  A shared installer procedure uses audited image profiles for
+`smartclock-cli flash` loads firmware.  It was a separate
+`smartclock-flash` binary; it moved into the CLI once its session,
+console and line-settings code were the library's, leaving one tool to
+learn.  The CLI's forbidden-command check still applies to commands a
+user types to `query` and `sweep`; `flash`, like `read-memory`, is a
+fixed procedure of its own.  It requires the port's daemon to be
+stopped and never connects to its socket.  A shared installer procedure uses audited image profiles for
 Z3801A, Z3805A, 58503A and Z3816A, including their different protected
 flash regions and checksum algorithms.  Exact image SHA-256, boot
 checksums, model, running revision and expected serial are checked
@@ -88,8 +91,8 @@ before and after the first upgrade.
 After writing, the flasher reads the whole flash back through the
 debug console and compares it with the image, then returns the port to
 SCPI through the installer.  The console code lives in the library
-(`smartclock::console`) so `smartclock-cli`'s memory reads and the
-flasher share one reader and one way back.
+(`smartclock::console`) so the CLI's memory reads and `flash` share
+one reader and one way back.
 
 ### No client-side SCPI crate
 

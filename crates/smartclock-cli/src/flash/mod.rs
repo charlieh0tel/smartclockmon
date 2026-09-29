@@ -1,13 +1,14 @@
-//! Direct-port SmartClock installer. Protocol: 097-58503-13, 5-115 and
-//! appendix C; Model-specific bounds and checks: docs/firmware.md.
+//! `flash`: loading firmware through the installer over the direct
+//! port.  Protocol: 097-58503-13, 5-115 and appendix C; model-specific
+//! bounds and checks: docs/firmware.md, "The flasher".
 
+use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
-use clap::Parser;
 use smartclock::attach::answering;
 use smartclock::console;
 use smartclock::console::LANGUAGE_SETTLE;
@@ -37,32 +38,20 @@ const PROGRESS_INTERVAL_BYTES: usize = 0x2000;
 const COMPATIBILITY_NOTICE: &str =
     "Compatibility uses a model/layout allowlist; installer/primary pairing is not verified.";
 
-/// Flashing is opt-in; without a device only the file is inspected.
-#[derive(Debug, Parser)]
-#[command(about = "Check or flash SmartClock firmware. Stop the port's daemon first.", version = smartclock::VERSION)]
-struct Cli {
+/// `flash`'s own arguments.  The port, its line settings and the
+/// transcript are the CLI's global `--device`, `--baud`, `--framing`
+/// and `--capture`.  Without a device only the image is inspected.
+#[derive(Debug, clap::Args)]
+pub(crate) struct FlashArgs {
     /// Full 512 KiB, address-zero binary dump (not an individual chip or S-record file).
     image: PathBuf,
-    /// Serial port to open directly, or `tcp://host:port`. No daemon or
-    /// automatic port discovery.
-    #[arg(long)]
-    device: Option<String>,
-    /// Rate tried first; the others the receivers use are tried when it
-    /// gets no answer.
-    #[arg(long, default_value_t = 19200)]
-    baud: u32,
-    /// Framing tried first, `7O1` or `8N1`; as `--baud`.
-    #[arg(long, default_value = "7O1")]
-    framing: Framing,
-    /// Erase and program after all compatibility checks pass.
-    #[arg(long, requires_all = ["device", "serial", "capture"])]
+    /// Erase and program after all compatibility checks pass.  Needs
+    /// `--device`, `--serial` and `--capture`.
+    #[arg(long, requires = "serial")]
     write: bool,
     /// Expected receiver serial number; required for writing.
     #[arg(long)]
     serial: Option<String>,
-    /// New JSONL transcript file; required for writing, never overwritten.
-    #[arg(long)]
-    capture: Option<PathBuf>,
     /// Skip reading the whole flash back through the debug console
     /// after writing.
     #[arg(long)]
@@ -266,28 +255,39 @@ fn program(link: &mut impl Link, firmware: &Firmware) -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
-    let cli = Cli::parse();
+/// Check the image, and with a device the receiver; with `--write`,
+/// flash it.  The transcript, required for writing, is a new file:
+/// an existing one is never overwritten.
+pub(crate) fn run(
+    args: &FlashArgs,
+    device: Option<&str>,
+    baud: BaudRate,
+    framing: Framing,
+    capture: Option<&Path>,
+) -> Result<()> {
     let firmware = Firmware::validate(
-        std::fs::read(&cli.image).with_context(|| format!("reading {}", cli.image.display()))?,
+        std::fs::read(&args.image).with_context(|| format!("reading {}", args.image.display()))?,
     )?;
     println!(
         "Image: {} {}; SHA-256 {}; boot checksums valid",
         firmware.profile.model, firmware.profile.revision, firmware.profile.sha256
     );
-    let Some(path) = cli.device else {
+    let Some(path) = device else {
+        ensure!(!args.write, "--write needs --device");
         return Ok(());
     };
-    let baud = BaudRate::new(cli.baud).context("unsupported baud rate")?;
+    ensure!(
+        !args.write || capture.is_some(),
+        "--write needs --capture, a new transcript file"
+    );
     // Create the transcript before opening the hardware; an existing file
     // or unwritable destination must never fail after erase.
-    let capture = cli
-        .capture
+    let capture = capture
         .map(|path| {
             std::fs::OpenOptions::new()
                 .write(true)
                 .create_new(true)
-                .open(&path)
+                .open(path)
                 .with_context(|| format!("creating {}", path.display()))
         })
         .transpose()?;
@@ -297,16 +297,16 @@ fn main() -> Result<()> {
         ..Config::default()
     };
     let settings = Settings {
-        path,
+        path: path.to_owned(),
         baud,
-        framing: cli.framing,
+        framing,
         read_timeout: SERIAL_READ_TIMEOUT,
     };
     let port = open(&settings, &config, capture)?;
     let mut session = Session::new(port, config.clone());
     session.sync()?;
-    flash(&mut session, &firmware, cli.write, cli.serial.as_deref())?;
-    if !cli.write || cli.no_readback {
+    flash(&mut session, &firmware, args.write, args.serial.as_deref())?;
+    if !args.write || args.no_readback {
         return Ok(());
     }
     let profile = firmware.profile;

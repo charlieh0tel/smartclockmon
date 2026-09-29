@@ -6,7 +6,6 @@ members = [
     "crates/smartclock",
     "crates/smartclock-cli",
     "crates/smartclock-exporter",
-    "crates/smartclock-flash",
     "crates/smartclock-http",
     "crates/smartclock-sim",
     "crates/smartclock-web",

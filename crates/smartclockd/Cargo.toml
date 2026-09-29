@@ -44,7 +44,6 @@ depends = "$auto, adduser"
 assets = [
     ["target/release/smartclockd", "usr/bin/", "755"],
     ["target/release/smartclock-cli", "usr/bin/", "755"],
-    ["target/release/smartclock-flash", "usr/bin/", "755"],
     ["target/release/smartclockmon", "usr/bin/", "755"],
     ["target/release/smartclock-exporter", "usr/bin/", "755"],
     ["target/release/smartclock-web", "usr/bin/", "755"],

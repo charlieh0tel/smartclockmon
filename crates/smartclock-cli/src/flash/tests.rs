@@ -15,15 +15,15 @@ use smartclock_sim::net::serve;
 use smartclock_sim::receiver::Receiver;
 use smartclock_sim::transport::SimTransport;
 
-use crate::Link;
-use crate::Mode;
-use crate::firmware::Firmware;
-use crate::firmware::ImageError;
-use crate::firmware::Layout;
-use crate::firmware::RECORD_SIZE;
-use crate::firmware::srecord;
-use crate::flash;
-use crate::open;
+use super::Link;
+use super::Mode;
+use super::firmware::Firmware;
+use super::firmware::ImageError;
+use super::firmware::Layout;
+use super::firmware::RECORD_SIZE;
+use super::firmware::srecord;
+use super::flash;
+use super::open;
 
 const PRIMARY_START: usize = Layout::AmdLanes.primary_start();
 
@@ -149,7 +149,7 @@ fn simulator_rejects_bad_records_and_protected_addresses() {
     );
 }
 
-const DUMP: &[u8] = include_bytes!("../../../third_party/z3801a-3543.bin");
+const DUMP: &[u8] = include_bytes!("../../../../third_party/z3801a-3543.bin");
 
 /// Strict exchange script for early-exit and identity-change tests.
 #[derive(Debug, Default)]
@@ -355,8 +355,8 @@ fn failed_boot_is_not_reported_as_success() {
 
 #[test]
 fn simulator_upgrades_and_downgrades_preserving_the_original_installer() {
-    let older = include_bytes!("../../../third_party/58503a-3633.bin");
-    let newer = include_bytes!("../../../third_party/58503a-3704.bin");
+    let older = include_bytes!("../../../../third_party/58503a-3633.bin");
+    let newer = include_bytes!("../../../../third_party/58503a-3704.bin");
     for (original, candidate) in [(older, newer), (newer, older)] {
         let original_firmware = Firmware::validate(original.to_vec()).unwrap();
         let firmware = Firmware::validate(candidate.to_vec()).unwrap();
@@ -387,7 +387,7 @@ fn simulator_upgrades_and_downgrades_preserving_the_original_installer() {
 #[test]
 fn a_changed_suffix_does_not_hide_a_successful_upgrade_or_wrong_revision() {
     let firmware =
-        Firmware::validate(include_bytes!("../../../third_party/58503a-3704.bin").to_vec())
+        Firmware::validate(include_bytes!("../../../../third_party/58503a-3704.bin").to_vec())
             .unwrap();
     for final_revision in ["3704-D", "3633-D"] {
         let mut script = full_transfer(&firmware, Mode::Primary, Mode::Primary);

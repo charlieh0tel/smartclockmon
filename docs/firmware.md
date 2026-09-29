@@ -1462,8 +1462,8 @@ The monitoring and generic query paths never send `:SYSTem:PRESet`,
 `:SYSTem:PON` or `:SYSTem:LANGuage`.  The command table includes
 `:SYSTem:PON` as `system_pon` so that `docs/commands.md` shows it.
 
-The dedicated `smartclock-flash` tool is the exception for entering the
-installer and programming flash; it is never called through the daemon.
+`smartclock-cli flash` is the exception for entering the installer and
+programming flash; it is never called through the daemon.
 
 ### The installer
 
@@ -1644,34 +1644,35 @@ function.
 
 ### The flasher
 
-`smartclock-flash` ships in the Debian package and uses the serial port
-directly.  Stop the daemon for that port first; it has no daemon socket
-mode and does not discover or probe other ports.  It finds the port's
-line settings as the other tools do (`smartclock::attach`): the given
-`--baud` and `--framing` first (defaults: 19200, 7O1), then the others
-these receivers use, reading the probe's errors off the queue before
-its checks.  `--device` also takes `tcp://host:port`.  Replace the placeholders below
-with the image path, device, receiver serial and a new capture path.
+`smartclock-cli flash` uses the serial port directly.  Stop the daemon
+for that port first; it has no daemon socket mode and does not discover
+or probe other ports.  It finds the port's line settings as the other
+commands do (`smartclock::attach`): the given `--baud` and `--framing`
+first, then the others these receivers use, reading the probe's errors
+off the queue before its checks.  `--device` also takes
+`tcp://host:port`.  With `--write`, `--capture` must name a new file;
+an existing transcript is never overwritten.  Replace the placeholders
+below with the image path, device, receiver serial and a new capture
+path.
 
 Inspect the file without opening hardware:
 
 ```
-smartclock-flash <firmware.bin>
+smartclock-cli flash <firmware.bin>
 ```
 
 Check the connected receiver without changing language or flash:
 
 ```
-smartclock-flash <firmware.bin> \
-  --device <device> --serial <serial>
+smartclock-cli --device <device> flash <firmware.bin> \
+  --serial <serial>
 ```
 
 Reinstall that dump, recording the exchange in a new file:
 
 ```
-smartclock-flash <firmware.bin> \
-  --device <device> --serial <serial> \
-  --capture <capture.jsonl> --write
+smartclock-cli --device <device> --capture <capture.jsonl> \
+  flash <firmware.bin> --serial <serial> --write
 ```
 
 The image catalog accepts these full 512 KiB dumps by exact SHA-256:

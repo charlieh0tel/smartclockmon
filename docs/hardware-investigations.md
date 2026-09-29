@@ -4,7 +4,7 @@ Things the firmware images cannot settle and a bench can.  Each item
 names the open question in `docs/firmware.md` it would close, what to
 measure, and what the answer changes.  Receiver access requires
 authorization under `AGENTS.md`; firmware installation has a specific
-exception for `smartclock-flash`.  Investigations that need the console
+exception for `smartclock-cli flash`.  Investigations that need the console
 are marked as wanting a spare unit.
 
 Stop the daemon before any direct-mode work; it holds the port.
@@ -256,7 +256,7 @@ tracking, in the engine.  Waiting on a supply for the 58503A.
 
 ## 12. Field upgrades -- Z3801A reinstall verified
 
-`smartclock-flash` reinstalled the Z3801A's own dump on 2026-09-28;
+The flasher (now `smartclock-cli flash`) reinstalled the Z3801A's own dump on 2026-09-28;
 PRIMARY boot and the recorded settings were verified.  See
 [the flasher](firmware.md#the-flasher) for the procedure, checks and
 limits.  Other models and revision changes have simulator coverage,

@@ -34,6 +34,8 @@ use smartclock::types::Framing;
 use smartclock::types::Seconds;
 use smartclock::wire::Reading;
 
+use crate::flash::FlashArgs;
+
 #[derive(Parser)]
 #[command(about, version = smartclock::VERSION)]
 struct Cli {
@@ -127,6 +129,12 @@ enum Command {
         #[command(flatten)]
         to: ReadTo,
     },
+    /// Check a firmware image and the receiver it is for; with
+    /// `--write`, erase and program the receiver's flash through its
+    /// installer, check that the new primary boots, and read the whole
+    /// flash back (docs/firmware.md, "The flasher").  Stop the port's
+    /// daemon first.  The only command that erases or programs.
+    Flash(FlashArgs),
     /// Read the whole flash, 512 KiB from address 0, as `read-memory`
     /// does.
     ReadFlash {
@@ -202,6 +210,8 @@ fn address(text: &str) -> std::result::Result<u32, String> {
     parsed.map_err(|e| format!("{text} is not an address: {e}"))
 }
 
+mod flash;
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -229,6 +239,17 @@ fn main() -> Result<()> {
     // clap will not let a global argument be required, so the check is
     // here.  It is still not optional: guessing at a path means talking
     // to whatever is on it.
+    // It opens and probes the port itself, at its own timeout, and
+    // needs no device to inspect an image.
+    if let Command::Flash(args) = &cli.command {
+        return flash::run(
+            args,
+            cli.device.as_deref(),
+            baud,
+            cli.framing,
+            cli.capture.as_deref(),
+        );
+    }
     let device = cli.device.clone().context(
         "--device is required and has no default; SMARTCLOCK_DEVICE works too. \
          Try: ls -l /dev/serial/by-id/",
@@ -351,9 +372,10 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command) -> Result<()> {
         Command::Probe { dialect } => probe(session, dialect),
         Command::Sweep { from } => sweep(session, from),
         Command::Diagnose => unreachable!("handled above, since it takes the session"),
-        Command::ReadMemory { .. } | Command::ReadFlash { .. } | Command::ReadEeprom { .. } => {
-            unreachable!("handled before the session is opened")
-        }
+        Command::ReadMemory { .. }
+        | Command::ReadFlash { .. }
+        | Command::ReadEeprom { .. }
+        | Command::Flash(_) => unreachable!("handled before the session is opened"),
         // Handled before the port is opened.
         Command::Commands => Ok(()),
     }
@@ -370,7 +392,8 @@ fn typed(command: &Command) -> Result<Vec<String>> {
         | Command::Commands
         | Command::ReadMemory { .. }
         | Command::ReadFlash { .. }
-        | Command::ReadEeprom { .. } => Vec::new(),
+        | Command::ReadEeprom { .. }
+        | Command::Flash(_) => Vec::new(),
     })
 }
 
@@ -759,6 +782,10 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
         Command::Probe { .. } | Command::Sweep { .. } => anyhow::bail!(
             "probe and sweep send hundreds of commands and need the port to themselves; \
              stop smartclockd and use --device"
+        ),
+        Command::Flash(_) => anyhow::bail!(
+            "flash talks to the installer on the port, not to the daemon; \
+             stop smartclockd for that port and use --device"
         ),
         Command::ReadMemory { .. } | Command::ReadFlash { .. } | Command::ReadEeprom { .. } => {
             anyhow::bail!(

@@ -1727,7 +1727,10 @@ dependencies = [
  "interprocess",
  "jiff",
  "serde_json",
+ "sha2 0.11.0",
  "smartclock",
+ "smartclock-sim",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1740,18 +1743,6 @@ dependencies = [
  "serde_json",
  "smartclock",
  "smartclock-http",
-]
-
-[[package]]
-name = "smartclock-flash"
-version = "0.6.40"
-dependencies = [
- "anyhow",
- "clap",
- "sha2 0.11.0",
- "smartclock",
- "smartclock-sim",
- "thiserror 2.0.21",
 ]
 
 [[package]]
