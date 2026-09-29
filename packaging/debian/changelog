@@ -1,3 +1,15 @@
+smartclockmon (0.6.38-1) unstable; urgency=low
+
+  * New smartclock-flash: direct-serial firmware installer for the
+    Z3801A, Z3805A, 58503A and Z3816A.  Accepts only full images whose
+    SHA-256 is in its audited catalog, checks model, revision and
+    serial before erasing, and verifies the primary boots afterward.
+  * The simulator models the installer, flash contents and boot
+    checksums.
+  * Correct the 58503A 3633 revision string address.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Mon, 28 Sep 2026 20:27:39 -0700
+
 smartclockmon (0.6.37-1) unstable; urgency=low
 
   * The links between the web pages carry the range as well as the
