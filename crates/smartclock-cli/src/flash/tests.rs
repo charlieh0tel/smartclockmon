@@ -17,6 +17,7 @@ use smartclock_sim::transport::SimTransport;
 
 use super::Link;
 use super::Mode;
+use super::default_transcript;
 use super::firmware::Firmware;
 use super::firmware::ImageError;
 use super::firmware::Layout;
@@ -507,7 +508,7 @@ fn stale_errors_explain_recovery_without_clearing_the_remaining_queue() {
 }
 
 #[test]
-fn a_receiver_on_the_network_is_opened_and_checked() {
+fn a_receiver_on_the_network_is_opened_checked_and_recorded() {
     let firmware = Firmware::validate(DUMP.to_vec()).unwrap();
     let transport = simulated(&firmware, DUMP.to_vec(), FlashLayout::AmdLanes);
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -527,11 +528,29 @@ fn a_receiver_on_the_network_is_opened_and_checked() {
         idle: Duration::from_millis(1),
         ..Config::default()
     };
-    let mut session = Session::new(open(&settings, &config, None).unwrap(), config);
+    let transcript = std::env::temp_dir().join(format!(
+        "smartclock-flash-test-{}.jsonl",
+        std::process::id()
+    ));
+    let file = std::fs::File::create(&transcript).unwrap();
+    let mut session = Session::new(open(&settings, &config, Some(file)).unwrap(), config);
     session.sync().unwrap();
     flash(&mut session, &firmware, false, Some("3542A01548")).unwrap();
+    drop(session);
+    let recorded = std::fs::read_to_string(&transcript).unwrap();
+    std::fs::remove_file(&transcript).unwrap();
+    assert!(recorded.contains("IDN"), "{recorded}");
     let receiver = transport.receiver().lock().unwrap();
     let installer = receiver.installer.as_ref().unwrap();
     assert!(!installer.active);
     assert_eq!(installer.flash, DUMP);
+}
+
+#[test]
+fn a_write_without_capture_names_its_own_transcript() {
+    let path = default_transcript("3542A01548");
+    let name = path.to_str().unwrap();
+    assert!(name.starts_with("flash-3542A01548-"), "{name}");
+    assert!(name.ends_with(".jsonl"), "{name}");
+    assert_eq!(path.parent(), Some(std::path::Path::new("")));
 }

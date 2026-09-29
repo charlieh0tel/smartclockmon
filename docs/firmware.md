@@ -1650,8 +1650,10 @@ or probe other ports.  It finds the port's line settings as the other
 commands do (`smartclock::attach`): the given `--baud` and `--framing`
 first, then the others these receivers use, reading the probe's errors
 off the queue before its checks.  `--device` also takes
-`tcp://host:port`.  With `--write`, `--capture` must name a new file;
-an existing transcript is never overwritten.  Replace the placeholders
+`tcp://host:port`.  A write always records the exchange: to
+`--capture`, which must name a new file, or else to
+`flash-<serial>-<time>.jsonl` in the current directory.  An existing
+transcript is never overwritten.  Replace the placeholders
 below with the image path, device, receiver serial and a new capture
 path.
 
@@ -1671,7 +1673,7 @@ smartclock-cli --device <device> flash <firmware.bin> \
 Reinstall that dump, recording the exchange in a new file:
 
 ```
-smartclock-cli --device <device> --capture <capture.jsonl> \
+smartclock-cli --device <device> \
   flash <firmware.bin> --serial <serial> --write
 ```
 
@@ -1765,7 +1767,10 @@ that day with the readback: the primary booted on `3543-A`, all
 `0x80000` bytes read back in 646 seconds identical to the image, and
 the port came back to SCPI in PRIMARY.  Position, elevation mask,
 antenna delay, ignored satellites and timezone again matched their
-pre-flash queries.  Other models have simulator
+pre-flash queries.  A third reflash that day, through `smartclock-cli
+flash` after the flasher moved into the CLI, gave the same results,
+with a readback of 645 seconds and a 3.9 MB transcript holding all
+7,168 records.  Other models have simulator
 coverage and firmware analysis, not a hardware flashing test.
 
 ### `:DIAGnostic:GPSystem:UTC`

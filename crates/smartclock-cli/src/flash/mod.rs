@@ -46,7 +46,9 @@ pub(crate) struct FlashArgs {
     /// Full 512 KiB, address-zero binary dump (not an individual chip or S-record file).
     image: PathBuf,
     /// Erase and program after all compatibility checks pass.  Needs
-    /// `--device`, `--serial` and `--capture`.
+    /// `--device` and `--serial`.  The exchange is recorded to
+    /// `--capture`, which must be a new file, or else to
+    /// `flash-<serial>-<time>.jsonl` in the current directory.
     #[arg(long, requires = "serial")]
     write: bool,
     /// Expected receiver serial number; required for writing.
@@ -276,19 +278,27 @@ pub(crate) fn run(
         ensure!(!args.write, "--write needs --device");
         return Ok(());
     };
-    ensure!(
-        !args.write || capture.is_some(),
-        "--write needs --capture, a new transcript file"
-    );
+    // A write always leaves a transcript: the one operation that
+    // erases gets a record of every byte exchanged.
+    let default_capture;
+    let capture = match (capture, &args.serial) {
+        (None, Some(serial)) if args.write => {
+            default_capture = default_transcript(serial);
+            Some(default_capture.as_path())
+        }
+        (capture, _) => capture,
+    };
     // Create the transcript before opening the hardware; an existing file
     // or unwritable destination must never fail after erase.
     let capture = capture
         .map(|path| {
-            std::fs::OpenOptions::new()
+            let file = std::fs::OpenOptions::new()
                 .write(true)
                 .create_new(true)
                 .open(path)
-                .with_context(|| format!("creating {}", path.display()))
+                .with_context(|| format!("creating {}", path.display()))?;
+            eprintln!("Recording the exchange to {}.", path.display());
+            Ok::<_, anyhow::Error>(file)
         })
         .transpose()?;
     eprintln!("Opening only {path}; its daemon must be stopped.");
@@ -318,6 +328,13 @@ pub(crate) fn run(
         return Ok(());
     }
     readback(session.into_transport(), &firmware, config)
+}
+
+/// The transcript a write records when `--capture` names none:
+/// `flash-<serial>-<local time>.jsonl` in the current directory.
+fn default_transcript(serial: &str) -> PathBuf {
+    let now = jiff::Zoned::now().strftime("%Y%m%dT%H%M%S");
+    PathBuf::from(format!("flash-{serial}-{now}.jsonl"))
 }
 
 /// Open the receiver at the line settings it answers at -- `settings`,
