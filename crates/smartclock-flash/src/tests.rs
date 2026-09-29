@@ -25,19 +25,14 @@ const PRIMARY_START: usize = Layout::AmdLanes.primary_start();
 
 /// The receiver parses records independently of the flasher and exposes
 /// its flash so the final comparison includes the protected boot bytes.
-fn simulated(
-    firmware: &Firmware,
-    bytes: Vec<u8>,
-    offset: usize,
-    layout: FlashLayout,
-) -> SimTransport {
+fn simulated(firmware: &Firmware, bytes: Vec<u8>, layout: FlashLayout) -> SimTransport {
     let mut receiver = Receiver::default();
     receiver.identity = format!(
         "HEWLETT-PACKARD,{},3542A01548,{}-A",
         firmware.profile.model, firmware.profile.revision
     );
     receiver.installer =
-        Some(Installer::new(bytes, layout, firmware.profile.installer.into(), offset).unwrap());
+        Some(Installer::new(bytes, layout, firmware.profile.installer.into()).unwrap());
     SimTransport::new(receiver)
 }
 
@@ -55,12 +50,12 @@ fn session(transport: SimTransport) -> Session<SimTransport> {
 
 #[test]
 fn simulator_reflashes_each_model_through_real_echoes_and_prompts() {
-    for (name, offset, layout) in [
-        ("z3801a-3543.bin", 0x12eee, FlashLayout::AmdLanes),
-        ("z3805a-3543b.bin", 0x12eee, FlashLayout::AmdLanes),
-        ("58503a-3633.bin", 0x12fea, FlashLayout::AmdLanes),
-        ("58503a-3704.bin", 0x1309c, FlashLayout::AmdLanes),
-        ("z3816a-4001.bin", 0x22ff8, FlashLayout::IntelWords),
+    for (name, layout) in [
+        ("z3801a-3543.bin", FlashLayout::AmdLanes),
+        ("z3805a-3543b.bin", FlashLayout::AmdLanes),
+        ("58503a-3633.bin", FlashLayout::AmdLanes),
+        ("58503a-3704.bin", FlashLayout::AmdLanes),
+        ("z3816a-4001.bin", FlashLayout::IntelWords),
     ] {
         let bytes = std::fs::read(format!(
             "{}/../../third_party/{name}",
@@ -68,7 +63,7 @@ fn simulator_reflashes_each_model_through_real_echoes_and_prompts() {
         ))
         .unwrap();
         let firmware = Firmware::validate(bytes.clone()).unwrap();
-        let transport = simulated(&firmware, bytes.clone(), offset, layout);
+        let transport = simulated(&firmware, bytes.clone(), layout);
         flash(
             &mut session(transport.clone()),
             &firmware,
@@ -86,7 +81,7 @@ fn simulator_reflashes_each_model_through_real_echoes_and_prompts() {
 #[test]
 fn simulator_recovery_after_partial_programming_preserves_boot_flash() {
     let firmware = Firmware::validate(DUMP.to_vec()).unwrap();
-    let transport = simulated(&firmware, DUMP.to_vec(), 0x12eee, FlashLayout::AmdLanes);
+    let transport = simulated(&firmware, DUMP.to_vec(), FlashLayout::AmdLanes);
     transport
         .receiver()
         .lock()
@@ -122,7 +117,7 @@ fn simulator_recovery_after_partial_programming_preserves_boot_flash() {
 #[test]
 fn simulator_rejects_bad_records_and_protected_addresses() {
     let firmware = Firmware::validate(DUMP.to_vec()).unwrap();
-    let transport = simulated(&firmware, DUMP.to_vec(), 0x12eee, FlashLayout::AmdLanes);
+    let transport = simulated(&firmware, DUMP.to_vec(), FlashLayout::AmdLanes);
     let mut session = session(transport.clone());
     session.query(":SYSTem:LANGuage \"INSTALL\"").unwrap();
     assert!(
@@ -355,32 +350,55 @@ fn failed_boot_is_not_reported_as_success() {
 }
 
 #[test]
-fn an_allowlisted_installer_may_differ_from_the_primary_dump() {
-    let bytes = include_bytes!("../../../third_party/58503a-3704.bin").to_vec();
-    let firmware = Firmware::validate(bytes.clone()).unwrap();
-    let transport = simulated(&firmware, bytes.clone(), 0x1309c, FlashLayout::AmdLanes);
-    // Model a retained Oman bootloader with a 3704 primary. The flasher
-    // checks allowlist membership, not the original bundled pairing.
-    transport
-        .receiver()
-        .lock()
-        .unwrap()
-        .installer
-        .as_mut()
-        .unwrap()
-        .revision = "Oman".into();
-    flash(
-        &mut session(transport.clone()),
-        &firmware,
-        true,
-        Some("3542A01548"),
-    )
-    .unwrap();
-    let receiver = transport.receiver().lock().unwrap();
-    let installer = receiver.installer.as_ref().unwrap();
-    assert!(!installer.active);
-    assert_eq!(installer.revision, "Oman");
-    assert_eq!(installer.flash, bytes);
+fn simulator_upgrades_and_downgrades_preserving_the_original_installer() {
+    let older = include_bytes!("../../../third_party/58503a-3633.bin");
+    let newer = include_bytes!("../../../third_party/58503a-3704.bin");
+    for (original, candidate) in [(older, newer), (newer, older)] {
+        let original_firmware = Firmware::validate(original.to_vec()).unwrap();
+        let firmware = Firmware::validate(candidate.to_vec()).unwrap();
+        let transport = simulated(&original_firmware, original.to_vec(), FlashLayout::AmdLanes);
+        let mut session = session(transport.clone());
+        flash(&mut session, &firmware, true, Some("3542A01548")).unwrap();
+        assert_eq!(
+            session
+                .query("*IDN?")
+                .unwrap()
+                .one_line("identity")
+                .unwrap(),
+            format!(
+                "HEWLETT-PACKARD,58503A,3542A01548,{}-A",
+                firmware.profile.revision
+            )
+        );
+        let receiver = transport.receiver().lock().unwrap();
+        let installer = receiver.installer.as_ref().unwrap();
+        assert!(!installer.active);
+        assert_eq!(installer.revision, original_firmware.profile.installer);
+        let mut expected = original.to_vec();
+        expected[PRIMARY_START..].copy_from_slice(&candidate[PRIMARY_START..]);
+        assert_eq!(installer.flash, expected);
+    }
+}
+
+#[test]
+fn a_changed_suffix_does_not_hide_a_successful_upgrade_or_wrong_revision() {
+    let firmware =
+        Firmware::validate(include_bytes!("../../../third_party/58503a-3704.bin").to_vec())
+            .unwrap();
+    for final_revision in ["3704-D", "3633-D"] {
+        let mut script = full_transfer(&firmware, Mode::Primary, Mode::Primary);
+        for ((_, reply), revision) in script
+            .replies
+            .iter_mut()
+            .filter(|(command, _)| command == "*IDN?")
+            .zip(["3633-C", "Oman-C", final_revision])
+        {
+            *reply = format!("HEWLETT-PACKARD,58503A,3542A01548,{revision}");
+        }
+        let result = flash(&mut script, &firmware, true, Some("3542A01548"));
+        assert_eq!(result.is_ok(), final_revision == "3704-D", "{result:?}");
+        assert!(script.replies.is_empty());
+    }
 }
 
 #[test]
@@ -410,15 +428,13 @@ fn installer_transition_rejects_unknown_revisions_and_changed_suffixes() {
 #[test]
 fn simulator_distinguishes_installer_headers_from_bad_data() {
     let firmware = Firmware::validate(DUMP.to_vec()).unwrap();
-    let mut session = session(simulated(
-        &firmware,
-        DUMP.to_vec(),
-        0x12eee,
-        FlashLayout::AmdLanes,
-    ));
+    let mut session = session(simulated(&firmware, DUMP.to_vec(), FlashLayout::AmdLanes));
     session.query(":SYSTem:LANGuage \"INSTALL\"").unwrap();
     for (command, expected_code) in [
         (":SYNChronization:TINTerval?", -113),
+        (":DIAGnostic:DOWNload S2060100001234B2", -112),
+        (":DIAGnostic:DOWNload invalid", -222),
+        (":DIAGnostic:DOWNload \"S2060100001234B2", -222),
         (":DIAGnostic:DOWNload \"S206010000123400\"", -222),
     ] {
         let error = session.query(command).unwrap_err();
@@ -441,7 +457,7 @@ fn simulator_distinguishes_installer_headers_from_bad_data() {
 fn stale_errors_explain_recovery_without_clearing_the_remaining_queue() {
     let firmware = Firmware::validate(DUMP.to_vec()).unwrap();
     for write in [false, true] {
-        let transport = simulated(&firmware, DUMP.to_vec(), 0x12eee, FlashLayout::AmdLanes);
+        let transport = simulated(&firmware, DUMP.to_vec(), FlashLayout::AmdLanes);
         {
             let mut receiver = transport.receiver().lock().unwrap();
             receiver.queue_error(-113, "Undefined header");

@@ -1,11 +1,13 @@
 //! SmartClock installer model; see docs/firmware.md for the protocol.
 
+use thiserror::Error;
+
 use crate::receiver::Answer;
 use crate::receiver::eq;
 use crate::receiver::split;
-use thiserror::Error;
 
 const FLASH_SIZE: usize = 0x80000;
+const AMD_BANK_SIZE: usize = FLASH_SIZE / 2;
 
 /// Flash wiring and boot checksum format, independently modeled here.
 #[derive(Debug, Clone, Copy)]
@@ -26,12 +28,14 @@ impl FlashLayout {
 /// Invalid input or injected failure in the simulated installer.
 #[derive(Debug, Error)]
 pub enum InstallerError {
-    #[error("invalid flash image or revision offset")]
+    #[error("invalid flash image size")]
     Image,
     #[error("invalid language")]
     Language,
     #[error("undefined installer header")]
     Header,
+    #[error("Program mnemonic too long")]
+    MnemonicTooLong,
     #[error("invalid S2 record encoding, count or checksum")]
     Record,
     #[error("invalid programming range or alignment")]
@@ -45,7 +49,8 @@ pub enum InstallerError {
 impl InstallerError {
     pub(crate) fn scpi_code(&self) -> i32 {
         match self {
-            Self::Header => -113, // Undefined header, 097-59551-02 appendix A.
+            Self::Header => -113,          // Undefined header, 097-59551-02 appendix A.
+            Self::MnemonicTooLong => -112, // Bare S-record, measured on Z3801A.
             _ => -222,
         }
     }
@@ -57,7 +62,6 @@ impl InstallerError {
 #[derive(Debug)]
 pub struct Installer {
     layout: FlashLayout,
-    revision_offset: usize,
     /// Bootloader revision, such as Peru, Oman or USA; remains after upgrades.
     pub revision: String,
     /// Full address-zero image, including protected boot flash.
@@ -76,16 +80,14 @@ impl Installer {
         flash: Vec<u8>,
         layout: FlashLayout,
         revision: String,
-        revision_offset: usize,
     ) -> Result<Self, InstallerError> {
-        if flash.len() != FLASH_SIZE || revision_offset >= FLASH_SIZE {
+        if flash.len() != FLASH_SIZE {
             return Err(InstallerError::Image);
         }
         let mut installer = Self {
             flash,
             layout,
             revision,
-            revision_offset,
             active: false,
             fail_at: None,
             erase_fails: false,
@@ -95,12 +97,25 @@ impl Installer {
     }
 
     pub(crate) fn primary_revision(&self) -> String {
-        self.flash[self.revision_offset..]
-            .iter()
-            .copied()
-            .take_while(|byte| byte.is_ascii_alphanumeric())
-            .map(char::from)
-            .collect()
+        // All five dumps place the revision between UNLK A6; RTS and
+        // the primary copyright string. Inspect current writable flash:
+        // upgrades move this string and leave the boot region untouched.
+        const EPILOGUE: &[u8] = b"\x4e\x5e\x4e\x75";
+        const COPYRIGHT: &[u8] = b"\0Copyright Hewlett-Packard Co.";
+        let primary = &self.flash[self.layout.primary_start()..];
+        primary
+            .windows(EPILOGUE.len())
+            .enumerate()
+            .filter(|(_, bytes)| *bytes == EPILOGUE)
+            .find_map(|(offset, _)| {
+                let tail = &primary[offset + EPILOGUE.len()..];
+                let length = tail.iter().position(|byte| !byte.is_ascii_alphanumeric())?;
+                if length == 0 || !tail[length..].starts_with(COPYRIGHT) {
+                    return None;
+                }
+                Some(tail[..length].iter().copied().map(char::from).collect())
+            })
+            .unwrap_or_default()
     }
 
     pub(crate) fn respond(&mut self, command: &str) -> Result<Option<Answer>, InstallerError> {
@@ -143,8 +158,11 @@ impl Installer {
     }
 
     fn download(&mut self, record: &str) -> Result<(), InstallerError> {
-        // SCPI string data must be quoted. An unquoted S-record is
-        // parsed as a mnemonic and the real installer rejects its length.
+        // Only bare S-record rejection was measured on hardware. Other
+        // malformed arguments use the model's generic data error.
+        if record.starts_with("S2") {
+            return Err(InstallerError::MnemonicTooLong);
+        }
         let record = record
             .strip_prefix('"')
             .and_then(|record| record.strip_suffix('"'))
@@ -192,7 +210,7 @@ impl Installer {
 
     fn bootable(&self) -> bool {
         if matches!(self.layout, FlashLayout::IntelWords) {
-            let sum: u64 = self.flash[0x20000..FLASH_SIZE - 2]
+            let sum: u64 = self.flash[self.layout.primary_start()..FLASH_SIZE - 2]
                 .as_chunks::<2>()
                 .0
                 .iter()
@@ -202,7 +220,10 @@ impl Installer {
                 u64::from(self.flash[FLASH_SIZE - 2]) * 256 + u64::from(self.flash[FLASH_SIZE - 1]);
             return sum % 65536 == expected;
         }
-        for (start, end) in [(0x10000, 0x40000), (0x40000, FLASH_SIZE)] {
+        for (start, end) in [
+            (self.layout.primary_start(), AMD_BANK_SIZE),
+            (AMD_BANK_SIZE, FLASH_SIZE),
+        ] {
             let mut sums = [0u32; 2];
             for address in start..end - 4 {
                 sums[address % 2] += u32::from(self.flash[address]);

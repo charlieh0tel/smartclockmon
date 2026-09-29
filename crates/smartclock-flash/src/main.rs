@@ -31,6 +31,8 @@ const LANGUAGE_SETTLE: Duration = Duration::from_secs(2);
 const SERIAL_READ_TIMEOUT: Duration = Duration::from_millis(250);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(60);
 const PROGRESS_INTERVAL_BYTES: usize = 0x2000;
+const COMPATIBILITY_NOTICE: &str =
+    "Compatibility uses a model/layout allowlist; installer/primary pairing is not verified.";
 
 /// Flashing is opt-in; without a device only the file is inspected.
 #[derive(Debug, Parser)]
@@ -174,10 +176,8 @@ fn flash(
         "preflight error check failed; review queued errors with :SYSTem:ERRor? and \
          clear remaining errors with *CLS before retrying; the flasher does not send *CLS",
     )?;
-    println!(
-        "Compatibility uses a model/layout allowlist; installer/primary pairing is not verified."
-    );
     if !write {
+        println!("{COMPATIBILITY_NOTICE}");
         println!("Compatible. Check only: no language change, erase or programming.");
         return Ok(());
     }
@@ -204,6 +204,7 @@ fn flash(
         "unexpected installer: {installer}"
     );
     no_error(link)?;
+    println!("{COMPATIBILITY_NOTICE}");
     program(link, firmware).context(
         "flash did not complete; keep the daemon stopped. No automatic retry or reboot was attempted. \
          Rerun with the same image and serial from the installer to erase and start again")?;
@@ -212,11 +213,17 @@ fn flash(
     link.command(":SYSTem:LANGuage \"PRIMARY\"")?;
     link.settle()?;
     let (after, mode) = receiver(link, firmware, Some(&before.serial))?;
+    let (revision, after_suffix) = after.firmware.rsplit_once('-').expect("validated revision");
     ensure!(
-        mode == Mode::Primary
-            && after.firmware == format!("{}-{suffix}", firmware.profile.revision),
+        mode == Mode::Primary && revision == firmware.profile.revision,
         "primary did not boot after flashing: {after}; leave daemon stopped"
     );
+    if after_suffix != suffix {
+        println!(
+            "Booted {}; suffix changed from {suffix} to {after_suffix}.",
+            after.firmware
+        );
+    }
     println!("Verified primary boot: {after}");
     Ok(())
 }

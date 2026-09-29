@@ -1441,10 +1441,9 @@ Those addresses are the Z3816A's; the Z3801A, Z3805A and 58503A images
 put the primary's table at `0x10000` (Z3801A trap #11 handler
 `0x1467c`).  "The installer" below has the rest.
 
-None of these is a command the monitoring or generic query paths send:
-`:SYSTem:PRESet`, `:SYSTem:PON` and `:SYSTem:LANGuage` are all on its never-send list,
-`:SYSTem:PON` in the command table as `system_pon` so that
-`docs/commands.md` shows it.
+The monitoring and generic query paths never send `:SYSTem:PRESet`,
+`:SYSTem:PON` or `:SYSTem:LANGuage`.  The command table includes
+`:SYSTem:PON` as `system_pon` so that `docs/commands.md` shows it.
 
 The dedicated `smartclock-flash` tool is the exception for entering the
 installer and programming flash; it is never called through the daemon.
@@ -1456,10 +1455,10 @@ Read from all five images; the installer entry/exit bench check is below.
 - *Where it lives.*  Below `0x10000` (Z3816A: `0x20000`), in flash the
   installer never erases or writes: the writable range starts at
   `0x10000` (Z3816A: `0x20000`) and ends at `0x7ffff`.
-  Vector 43 (Z3801A `0xa58`) unpacks it
-  into RAM and runs it there, a pSOS system of its own with its own
-  SCPI parser, on the host port at the EEPROM's line settings
-  (`0x400000`, checksum at +0), or 9600 8N1 if that record is bad.
+  Vector 43 (Z3801A `0xa58`) unpacks it into RAM and runs it there, a
+  pSOS system of its own with its own SCPI parser, on the host port
+  at the EEPROM's line settings (`0x400000`, checksum at +0), or
+  9600 8N1 if that record is bad.
 - *Telling it apart.*  `*IDN?` names a place, not a revision: `Peru`
   on the Z3801A, `Oman` on 58503A 3633, `USA` on 3704 and the Z3816A;
   `:SYSTem:LANGuage?` always answers `INSTALL`.
@@ -1535,19 +1534,23 @@ The image catalog accepts these full 512 KiB dumps by exact SHA-256:
 | Z3816A | 4001 | USA | `0x20000` |
 
 It rejects modified files, chip dumps and S-record input.  Model and
-running primary/installer revision must match an audited profile;
-the candidate's model must match the receiver.  The expected serial is
+running primary/installer revision must match an audited profile; the
+candidate's model must match the receiver.  The expected serial is
 required for writing and the identity's revision suffix must remain
-unchanged.  This relies on the receiver's EEPROM identity; it is not
-independent board identification.  A model without a dump (such as
-59551A) is refused until its image and layout can be audited.
+unchanged when entering the installer.  After programming, a changed
+suffix is reported separately from successful primary boot; its behavior
+across upgrades is not established.  This relies on the receiver's
+EEPROM identity; it is not independent board identification.  A model
+without a dump (such as 59551A) is refused until its image and layout
+can be audited.
 
 The installer is checked only against the model/layout allowlist, not
 against the primary revision it was entered from.  For example, a 58503A
 running 3704 can retain the Oman installer from 3633 after an upgrade.
 The table describes the installer bundled in each dump; it does not
 prove that every allowlisted installer/primary pairing has been tested.
-The CLI reports this policy explicitly.
+The CLI reports this policy in check-only mode and immediately before
+erase.
 
 A queued error stops even check-only mode.  The preflight query reads
 and reports the oldest error; the tool does not send `*CLS`.  Review
@@ -1556,38 +1559,50 @@ with `*CLS` before retrying, as the failure message instructs.
 
 Only the model's writable range is downloaded, as word-aligned 64-byte
 S2 records, each passed as a quoted SCPI string.  A bare S-record is
-parsed as a mnemonic and the bench Z3801A rejects it with -112,
-"Program mnemonic too long".  The boot area and EEPROM are not written
-by the tool.  It checks blank flash after erasing, waits for each record's
+parsed as a mnemonic and the bench Z3801A rejects it with -112, "Program
+mnemonic too long".  The boot area and EEPROM are not written by the
+tool.  It checks blank flash after erasing, waits for each record's
 prompt and checks the error queue before continuing.  The installer's
-word programmer
-(`0x107c18` in the unpacked Z3801A installer) compares the flash word to
-the requested word and reports failure if programming fails.
+word programmer (`0x107c18` in the unpacked Z3801A installer) compares
+the flash word to the requested word and reports failure if programming
+fails.
 
-For the AMD-flash models, four lane sums cover `0x10000`--`0x3fffb`
-and `0x40000`--`0x7fffb`, even and odd bytes separately, modulo 65536.
-Each pair's sums are stored interleaved in its last four bytes.
-`:DIAGnostic:TEST? 1` reads
-the flags saved at boot (`0x1080ec`); it does **not** recompute them after
-download.  Final verification therefore switches to PRIMARY, which runs
-the model's boot checksum checks, then requires the same serial and the
-candidate revision in PRIMARY.  This is not a separate full-image host
-readback.  Simulator tests do compare all bytes after programming for
-each catalog image, including the protected boot region.
+For the AMD-flash models, four lane sums cover `0x10000`--`0x3fffb` and
+`0x40000`--`0x7fffb`, even and odd bytes separately, modulo 65536.  Each
+pair's sums are stored interleaved in its last four bytes.
+`:DIAGnostic:TEST? 1` reads the flags saved at boot (`0x1080ec`); it
+does **not** recompute them after download.  Final verification
+therefore switches to PRIMARY, which runs the model's boot checksum
+checks, then requires the same serial and the candidate revision in
+PRIMARY.  This is not a separate full-image host readback.  Simulator
+tests do compare all bytes after programming for each catalog image,
+including the protected boot region.
 
 An error stops the transfer without automatic write retries or reboot.
 Keep the daemon stopped and rerun the same command with a new transcript
-path to restart from erase in the surviving installer.  The service
-manual warns that firmware installation can reset settings; save needed
-configuration beforehand.  There is no settings restoration in the tool.
+path to restart from erase in the surviving installer.  Recovery after
+Ctrl-C mid-record has not been tested: it may leave a partial command
+in the installer's input, and whether `sync()` clears it is unverified.
+There is no settings restoration in the tool.
+
+Cross-revision flashing is allowed between catalog images of the same
+model and layout, but has not been tried on hardware.  Simulator tests
+cover both 58503A 3633 to 3704 and 3704 to 3633, comparing the
+downloaded primary bytes and the original protected boot bytes.
+097-58503-13 appendix C, page C-3, says new firmware resets settings to
+system-preset defaults.  The same-revision Z3801A reinstall below kept
+every setting checked, despite that warning.  Whether a revision change
+resets settings remains unverified on hardware.  Record settings before
+and after the first real upgrade; the reinstall below lists the settings
+checked on that unit.
 
 Bench validation on 2026-09-28: the Z3801A `3542A01548` was reflashed
 with its own `z3801a-3543.bin` dump at 19200 7O1.  All 7,168 quoted
 records (448 KiB) were accepted.  The transfer finished in 891 seconds
 with `3543-A` and `PRIMARY` verified.  Position, survey state,
-survey-at-power-up setting, elevation mask, antenna delay,
-ignored satellites and timezone all matched their pre-flash queries.
-No full-image host readback was performed.  Other models have simulator
+survey-at-power-up setting, elevation mask, antenna delay, ignored
+satellites and timezone all matched their pre-flash queries.  No
+full-image host readback was performed.  Other models have simulator
 coverage and firmware analysis, not a hardware flashing test.
 
 ### `:DIAGnostic:GPSystem:UTC`
