@@ -2,11 +2,10 @@
 
 Things the firmware images cannot settle and a bench can.  Each item
 names the open question in `docs/firmware.md` it would close, what to
-measure, and what the answer changes.  None of them involves sending
-the receiver anything this project never sends (`:SYSTem:PRESet`,
-`:SYSTem:COMMunicate:*`, `:DIAGnostic:ERASe`,
-`:SYSTem:LANGuage "INSTALL"`);
-the ones that need the console are marked as wanting a spare unit.
+measure, and what the answer changes.  Receiver access requires
+authorization under `AGENTS.md`; firmware installation has a specific
+exception for `smartclock-flash`.  Investigations that need the console
+are marked as wanting a spare unit.
 
 Stop the daemon before any direct-mode work; it holds the port.
 
@@ -255,24 +254,42 @@ firmware takes a six-channel engine (`firmware.md`, "Six or eight
 channels").  Tracking there puts the fault in the Z380x unit; not
 tracking, in the engine.  Waiting on a supply for the 58503A.
 
-## 12. How a field upgrade flashes the unit -- the images read
+## 12. Field upgrades -- Z3801A reinstall verified
 
-*Open item:* the units can be upgraded in the field, and how is not
-worked out.  `:SYSTem:LANGuage "INSTALL"` leaves the primary firmware
-by `trap #11` into the installer in the low half of the image
-(`firmware.md`, "Restarting"), and `:DIAGnostic:ERASe` belongs to that
-language (`z3801-tree.md`).  Neither is ever sent by this project.
+`smartclock-flash` reinstalled the Z3801A's own dump on 2026-09-28;
+PRIMARY boot and the recorded settings were verified.  See
+[the flasher](firmware.md#the-flasher) for the procedure, checks and
+limits.  Other models and revision changes have simulator coverage,
+not hardware validation.  Which flash part holds which byte lane is
+still unknown.
 
-- From the images, first: the installer's command set, the transfer
-  format, which flash sectors it erases and writes, what it checks
-  before running new code, and how it returns to the primary firmware.
-- On a spare unit only, and only once the above says an interrupted
-  load can be recovered: what the port does in `INSTALL`.
+An interrupted load that leaves invalid primary checksums enters the
+protected installer at power-up.  Recovery after Ctrl-C mid-record
+remains untested; no test is planned.  Recovery with valid checksums
+but an unusable primary is the separate open item below.
 
-*Changes:* whether a unit can be reflashed from here, and how to
-recover one whose load was interrupted.
+## 13. S1 and recovery from a checksum-valid unusable primary
 
-The images are read (`firmware.md`, "The installer"): the installer is
-in flash it never writes, so an interrupted load is retried over
-serial.  Left for a bench: a load on a spare unit, and which part holds
-which byte lane.
+*Open item:* what each of the eight positions on S1 controls, and
+whether any forces INSTALL without a working primary interpreter.
+The Z3801A 3543 and Z3805A 3543B reset-to-primary paths contain no
+switch test.  This does not exclude a hardware effect on booting.
+See [recovery-hypothesis.md](recovery-hypothesis.md) for modeled flash
+read faults that preserve the installer while failing primary checks.
+
+- [ ] TODO: on an unpowered board, map S1's connections to buffers, CPU pins,
+  flash or programmable logic.  Record the assembly revision, physical
+  switch numbering and which contacts close in the marked ON position.
+- Check whether any contact reaches the CPU's reset/debug signals or
+  the flash's address/control signals.  Keep those possibilities
+  separate from an ordinary input byte read by software.
+- Locate BKPT/DSCLK, IFETCH/DSI and IPIPE/DSO.  MC68331UM section
+  5.10.2 documents debug access independent of a running primary.
+  Protected installer entry `0xa58` is a candidate destination after
+  reset has initialized the memory interfaces; see `firmware.md`,
+  "Forced installer entry with an unusable primary".  Neither the
+  board connection nor that recovery method has been tested.
+
+*Changes:* a verified switch map and, if supported by the board, a
+recovery procedure for a primary whose checksums pass but which cannot
+accept `:SYSTem:LANGuage "INSTALL"`.

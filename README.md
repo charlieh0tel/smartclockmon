@@ -100,6 +100,7 @@ no answer.  The bench itself is described in `BENCHNOTES.md`.
 | `docs/firmware.md` | what the firmware shows: the 1 PPS measurement, the disciplining loop, the GPS engine interface and the pForth console |
 | [`docs/loop.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/loop.html) | the disciplining loop as a block diagram, with its update law, constants and closed-loop poles |
 | `docs/hardware-investigations.md` | what the firmware leaves open that only a bench can settle |
+| `docs/recovery-hypothesis.md` | S1 and forced-recovery hypotheses, including modeled flash-read faults |
 | `docs/z3801-keywords.md`, `docs/z3801-tree.md`, `docs/58503a-tree.md` | the SCPI keywords and command paths read from the firmware |
 | `docs/screen-format-strings.md` | the status screen's printf templates |
 
