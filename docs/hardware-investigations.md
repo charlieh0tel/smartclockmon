@@ -275,7 +275,9 @@ whether any forces INSTALL without a working primary interpreter.
 The Z3801A 3543 and Z3805A 3543B reset-to-primary paths contain no
 switch test, and a running primary enters the installer only through
 the SCPI task (`firmware.md`, "Forced installer entry with an unusable
-primary").  This does not exclude a hardware effect on booting.
+primary").  The pForth console's `execute` reaches that same exit and
+was verified on the Z3801A on 2026-09-28.  This does not exclude a
+hardware effect on booting.
 See [recovery-hypothesis.md](recovery-hypothesis.md) for modeled flash
 read faults that preserve the installer while failing primary checks.
 

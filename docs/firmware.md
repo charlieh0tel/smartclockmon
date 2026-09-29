@@ -1553,9 +1553,19 @@ is given.  The operand of each call in the table above is such a cell:
 | 58503A 3633 | `0x2940e` | `0x13028` | `168974 execute` |
 | 58503A 3704 | `0x294b6` | `0x130da` | `169142 execute` |
 
-This has not been tried on a unit.  The console is itself reached only
-through `LANG "PFORTH"` from the SCPI parser (see "Getting to it"), so
-it helps only a primary whose parser still runs.
+On 2026-09-28 the bench Z3801A (3542A01548, 3543-A) was taken this
+way, at 19200 7O1: `:SYSTem:LANGuage "PFORTH"` gave the `p4th D > `
+prompt, `167932 @ u.` printed `77612`, and `167932 execute` answered
+`scpi > `, with `*IDN?` then `Peru-A` and `:SYSTem:LANGuage?`
+`"INSTALL"`.  `:SYSTem:LANGuage "PRIMARY"` from there brought it back
+on 3543-A in PRIMARY with an empty error queue, and its position,
+elevation mask and antenna delay read back as before.  So this also
+returns the port from the console to SCPI without a power cycle.  The
+Z3805A and 58503A phrases have not been tried.
+
+The console is itself reached only through `LANG "PFORTH"` from the
+SCPI parser (see "Getting to it"), so it helps only a primary whose
+parser still runs.
 
 How S1, a flash-read fault or the CPU's background debug mode might
 reach the installer without a working primary is speculative; see
