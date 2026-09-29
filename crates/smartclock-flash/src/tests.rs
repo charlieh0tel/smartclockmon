@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::net::TcpListener;
 use std::time::Duration;
 
 use anyhow::Context as _;
@@ -7,8 +8,10 @@ use anyhow::ensure;
 use smartclock::error::Error as SessionError;
 use smartclock::session::Config;
 use smartclock::session::Session;
+use smartclock::transport::serial::Settings;
 use smartclock_sim::installer::FlashLayout;
 use smartclock_sim::installer::Installer;
+use smartclock_sim::net::serve;
 use smartclock_sim::receiver::Receiver;
 use smartclock_sim::transport::SimTransport;
 
@@ -20,6 +23,7 @@ use crate::firmware::Layout;
 use crate::firmware::RECORD_SIZE;
 use crate::firmware::srecord;
 use crate::flash;
+use crate::open;
 
 const PRIMARY_START: usize = Layout::AmdLanes.primary_start();
 
@@ -500,4 +504,34 @@ fn stale_errors_explain_recovery_without_clearing_the_remaining_queue() {
         assert!(!installer.active);
         assert_eq!(installer.flash, DUMP);
     }
+}
+
+#[test]
+fn a_receiver_on_the_network_is_opened_and_checked() {
+    let firmware = Firmware::validate(DUMP.to_vec()).unwrap();
+    let transport = simulated(&firmware, DUMP.to_vec(), FlashLayout::AmdLanes);
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let served = transport.clone();
+    // One connection to find the settings, one for the session.
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            serve(stream.unwrap(), served.clone()).unwrap();
+        }
+    });
+    let settings = Settings {
+        path: format!("tcp://{address}"),
+        ..Settings::default()
+    };
+    let config = Config {
+        idle: Duration::from_millis(1),
+        ..Config::default()
+    };
+    let mut session = Session::new(open(&settings, &config, None).unwrap(), config);
+    session.sync().unwrap();
+    flash(&mut session, &firmware, false, Some("3542A01548")).unwrap();
+    let receiver = transport.receiver().lock().unwrap();
+    let installer = receiver.installer.as_ref().unwrap();
+    assert!(!installer.active);
+    assert_eq!(installer.flash, DUMP);
 }

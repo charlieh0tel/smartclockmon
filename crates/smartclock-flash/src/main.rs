@@ -8,6 +8,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 use clap::Parser;
+use smartclock::attach::answering;
 use smartclock::console;
 use smartclock::console::LANGUAGE_SETTLE;
 use smartclock::console::Progress;
@@ -15,8 +16,8 @@ use smartclock::parse;
 use smartclock::parse::Identity;
 use smartclock::session::Config;
 use smartclock::session::Session;
+use smartclock::transport;
 use smartclock::transport::Transport;
-use smartclock::transport::serial::SerialTransport;
 use smartclock::transport::serial::Settings;
 use smartclock::transport::tee::TeeTransport;
 use smartclock::types::BaudRate;
@@ -42,11 +43,15 @@ const COMPATIBILITY_NOTICE: &str =
 struct Cli {
     /// Full 512 KiB, address-zero binary dump (not an individual chip or S-record file).
     image: PathBuf,
-    /// Serial port to open directly. No daemon or automatic port discovery.
+    /// Serial port to open directly, or `tcp://host:port`. No daemon or
+    /// automatic port discovery.
     #[arg(long)]
     device: Option<String>,
+    /// Rate tried first; the others the receivers use are tried when it
+    /// gets no answer.
     #[arg(long, default_value_t = 19200)]
     baud: u32,
+    /// Framing tried first, `7O1` or `8N1`; as `--baud`.
     #[arg(long, default_value = "7O1")]
     framing: Framing,
     /// Erase and program after all compatibility checks pass.
@@ -287,20 +292,17 @@ fn main() -> Result<()> {
         })
         .transpose()?;
     eprintln!("Opening only {path}; its daemon must be stopped.");
-    let port = SerialTransport::open(&Settings {
-        path,
-        baud,
-        framing: cli.framing,
-        read_timeout: SERIAL_READ_TIMEOUT,
-    })?;
-    let port: Box<dyn Transport> = match capture {
-        Some(file) => Box::new(TeeTransport::new(port, file)),
-        None => Box::new(port),
-    };
     let config = Config {
         timeout: COMMAND_TIMEOUT,
         ..Config::default()
     };
+    let settings = Settings {
+        path,
+        baud,
+        framing: cli.framing,
+        read_timeout: SERIAL_READ_TIMEOUT,
+    };
+    let port = open(&settings, &config, capture)?;
     let mut session = Session::new(port, config.clone());
     session.sync()?;
     flash(&mut session, &firmware, cli.write, cli.serial.as_deref())?;
@@ -316,6 +318,27 @@ fn main() -> Result<()> {
         return Ok(());
     }
     readback(session.into_transport(), &firmware, config)
+}
+
+/// Open the receiver at the line settings it answers at -- `settings`,
+/// or the ones the probe finds -- recording the exchange to `capture`
+/// when given.  The probe runs before anything that could change the
+/// unit, and reads the errors its garbled bytes leave off the queue.
+fn open(
+    settings: &Settings,
+    config: &Config,
+    capture: Option<std::fs::File>,
+) -> Result<Box<dyn Transport>> {
+    let (settings, report) = answering(settings, config)
+        .with_context(|| format!("no receiver answered on {}", settings.path))?;
+    if let Some(report) = report {
+        eprintln!("{report}");
+    }
+    let port = transport::open(&settings)?;
+    Ok(match capture {
+        Some(file) => Box::new(TeeTransport::new(port, file)),
+        None => port,
+    })
 }
 
 /// Read the whole flash back through the debug console and compare it

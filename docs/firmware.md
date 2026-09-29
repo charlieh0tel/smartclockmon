@@ -1646,8 +1646,11 @@ function.
 
 `smartclock-flash` ships in the Debian package and uses the serial port
 directly.  Stop the daemon for that port first; it has no daemon socket
-mode and does not discover or probe other ports.  Specify the existing
-baud and framing (defaults: 19200, 7O1).  Replace the placeholders below
+mode and does not discover or probe other ports.  It finds the port's
+line settings as the other tools do (`smartclock::attach`): the given
+`--baud` and `--framing` first (defaults: 19200, 7O1), then the others
+these receivers use, reading the probe's errors off the queue before
+its checks.  `--device` also takes `tcp://host:port`.  Replace the placeholders below
 with the image path, device, receiver serial and a new capture path.
 
 Inspect the file without opening hardware:

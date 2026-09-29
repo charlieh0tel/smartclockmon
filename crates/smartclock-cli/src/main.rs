@@ -14,7 +14,7 @@ use anyhow::Result;
 use clap::Parser;
 use clap::Subcommand;
 use jiff::Zoned;
-use smartclock::attach::attach;
+use smartclock::attach::answering;
 use smartclock::client::Daemon;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
@@ -248,7 +248,12 @@ fn main() -> Result<()> {
     let settings = if console_read(&cli.command).is_some() {
         settings
     } else {
-        answering(settings, &config)?
+        let (found, report) = answering(&settings, &config)
+            .with_context(|| format!("no receiver answered on {}", settings.path))?;
+        if let Some(report) = report {
+            eprintln!("{report}");
+        }
+        found
     };
     let mut port = transport::open(&settings)
         .with_context(|| format!("opening {device} at {} baud", settings.baud))?;
@@ -317,22 +322,6 @@ fn main() -> Result<()> {
         }
         None => run(Session::new(port, config), &cli.command),
     }
-}
-
-/// The line settings the receiver answers at: `settings`, or the first
-/// the probe finds.  Found and let go, so the port is opened again at
-/// them and a transcript begins with the session's own sync.
-fn answering(settings: Settings, config: &Config) -> Result<Settings> {
-    let attached = attach(&settings, config)
-        .with_context(|| format!("no receiver answered on {}", settings.path))?;
-    if let Some(report) = attached.probe_report(&settings) {
-        eprintln!("{report}");
-    }
-    Ok(Settings {
-        baud: attached.baud,
-        framing: attached.framing,
-        ..settings
-    })
 }
 
 fn run<T: Transport>(mut session: Session<T>, command: &Command) -> Result<()> {

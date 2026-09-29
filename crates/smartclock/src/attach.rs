@@ -74,6 +74,24 @@ pub fn attach(settings: &Settings, config: &Config) -> Result<Attached<Box<dyn T
     attach_with(settings, config, transport::open)
 }
 
+/// The line settings the receiver answers at: `settings`, or the first
+/// of [`FALLBACKS`] it answers at, with [`Attached::probe_report`] when
+/// probing was needed.  The port is let go, so a caller that records
+/// its exchanges opens it again at these and the recording begins with
+/// its own sync.
+pub fn answering(settings: &Settings, config: &Config) -> Result<(Settings, Option<String>)> {
+    let attached = attach(settings, config)?;
+    let report = attached.probe_report(settings);
+    Ok((
+        Settings {
+            baud: attached.baud,
+            framing: attached.framing,
+            ..settings.clone()
+        },
+        report,
+    ))
+}
+
 /// [`attach`], opening each port with `open`.
 ///
 /// A port that will not open fails at once rather than being tried at
