@@ -26,6 +26,7 @@ to settle.
 | `smartclockd` | holds the serial port, logs to SQLite, serves clients over a local socket |
 | `smartclockmon` | terminal monitor: a dashboard, history graphs, the journal, the status screen and stability |
 | `smartclock-cli` | one-shot queries, `diagnose`, transcript capture, sweeping for undocumented commands, and reading a unit's ROM and EEPROM through its debug console |
+| `smartclock-flash` | direct-serial firmware loading with model and image compatibility checks; see [firmware notes](docs/firmware.md#the-flasher) |
 | `smartclock-exporter` | Prometheus metrics for every receiver on the host, from the daemons' own readings |
 | `smartclock-web` | a browser view: live state, history you can zoom, and pages for the status screen and for stability |
 | `smartclock-sim` | a simulated receiver, in process for tests and over TCP for driving the real daemon |

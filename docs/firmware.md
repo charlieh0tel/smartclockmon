@@ -1441,18 +1441,22 @@ Those addresses are the Z3816A's; the Z3801A, Z3805A and 58503A images
 put the primary's table at `0x10000` (Z3801A trap #11 handler
 `0x1467c`).  "The installer" below has the rest.
 
-None of these is a command this project sends: `:SYSTem:PRESet`,
-`:SYSTem:PON` and `:SYSTem:LANGuage` are all on its never-send list,
+None of these is a command the monitoring or generic query paths send:
+`:SYSTem:PRESet`, `:SYSTem:PON` and `:SYSTem:LANGuage` are all on its never-send list,
 `:SYSTem:PON` in the command table as `system_pon` so that
 `docs/commands.md` shows it.
 
+The dedicated `smartclock-flash` tool is the exception for entering the
+installer and programming flash; it is never called through the daemon.
+
 ### The installer
 
-Read from all five images; nothing has been sent to a unit.
+Read from all five images; the installer entry/exit bench check is below.
 
 - *Where it lives.*  Below `0x10000` (Z3816A: `0x20000`), in flash the
-  installer never erases or writes: its erase and program addresses
-  are all `0x10000`--`0x7ffff`.  Vector 43 (Z3801A `0xa58`) unpacks it
+  installer never erases or writes: the writable range starts at
+  `0x10000` (Z3816A: `0x20000`) and ends at `0x7ffff`.
+  Vector 43 (Z3801A `0xa58`) unpacks it
   into RAM and runs it there, a pSOS system of its own with its own
   SCPI parser, on the host port at the EEPROM's line settings
   (`0x400000`, checksum at +0), or 9600 8N1 if that record is bad.
@@ -1462,18 +1466,21 @@ Read from all five images; nothing has been sent to a unit.
 - *Commands.*  `*IDN?`, `*CLS`, `:SYSTem:LANGuage`, `:SYSTem:ERRor?`,
   `:DIAGnostic:TEST? n` (0 summary, 1 checksum flags, 2 CPU, 3 RAM,
   4 DUART), `:DIAGnostic:ERASe`, `:DIAGnostic:ERASe?` (1 when
-  `0x10000`--`0x7ffff` is blank) and `:DIAGnostic:DOWNload <S-record>`,
+  the writable range is blank) and `:DIAGnostic:DOWNload "<S-record>"`,
   one Motorola S-record per command, checked record by record and
-  refused outside `0x10000`--`0x7ffff`.  As 097-58503-13, 4-15 and 5-115.
+  refused outside its writable range.  As 097-58503-13, 4-15 and 5-115.
 - *Flash.*  Z3801A, Z3805A and 58503A: AM29F010s in word-interleaved
   pairs, even bytes on one part and odd on the other; `0x0`--`0x3ffff`
   the low pair, `0x40000`--`0x7ffff` the high.  Z3816A: an
   Intel-style part, one 16-bit wide.
-- *Boot check.*  The reset code (`0x550`) sums each byte lane of each
-  pair against the bytes at `0x3fffc` and `0x7fffc`.  A pass boots the
+- *Boot check.*  The AMD-flash reset code (`0x550`) sums each byte lane of
+  each pair against the bytes at `0x3fffc` and `0x7fffc`.  A pass boots the
   primary; a failure stays in the installer.  `LANG "PRIMARY"` re-runs
   the reset code, so a unit with a bad image comes back to the
-  installer.  All five images pass their own sums.
+  installer.  The Z3816A instead sums big-endian words from `0x20000`
+  through `0x7fffc`, modulo 65536, against the word at `0x7fffe`
+  (reset code `0x526`--`0x53a`).  Its erase handler starts at `0x20000`
+  and erases three 128 KiB blocks.  All five images pass their own sums.
 
 On 2026-09-28 the bench Z3801A was taken into the installer and back,
 with queries only: `*IDN?` answered `Peru-A`, `:DIAGnostic:TEST? 1`
@@ -1487,6 +1494,101 @@ lane per part carries its own valid sums.  `:DIAGnostic:TEST? 1` names
 the failing lane.  Not established: which part is which lane on the
 board, and how the new primary resets the settings after an upgrade,
 which 097-58503-13 appendix C says it does.
+
+### The flasher
+
+`smartclock-flash` ships in the Debian package and uses the serial port
+directly.  Stop the daemon for that port first; it has no daemon socket
+mode and does not discover or probe other ports.  Specify the existing
+baud and framing (defaults: 19200, 7O1).  Replace the placeholders below
+with the image path, device, receiver serial and a new capture path.
+
+Inspect the file without opening hardware:
+
+```
+smartclock-flash <firmware.bin>
+```
+
+Check the connected receiver without changing language or flash:
+
+```
+smartclock-flash <firmware.bin> \
+  --device <device> --serial <serial>
+```
+
+Reinstall that dump, recording the exchange in a new file:
+
+```
+smartclock-flash <firmware.bin> \
+  --device <device> --serial <serial> \
+  --capture <capture.jsonl> --write
+```
+
+The image catalog accepts these full 512 KiB dumps by exact SHA-256:
+
+| Model | Primary revision | Installer in the dump | Writable start |
+| --- | --- | --- | --- |
+| Z3801A | 3543 | Peru | `0x10000` |
+| Z3805A | 3543B | Peru | `0x10000` |
+| 58503A | 3633 | Oman | `0x10000` |
+| 58503A | 3704 | USA | `0x10000` |
+| Z3816A | 4001 | USA | `0x20000` |
+
+It rejects modified files, chip dumps and S-record input.  Model and
+running primary/installer revision must match an audited profile;
+the candidate's model must match the receiver.  The expected serial is
+required for writing and the identity's revision suffix must remain
+unchanged.  This relies on the receiver's EEPROM identity; it is not
+independent board identification.  A model without a dump (such as
+59551A) is refused until its image and layout can be audited.
+
+The installer is checked only against the model/layout allowlist, not
+against the primary revision it was entered from.  For example, a 58503A
+running 3704 can retain the Oman installer from 3633 after an upgrade.
+The table describes the installer bundled in each dump; it does not
+prove that every allowlisted installer/primary pairing has been tested.
+The CLI reports this policy explicitly.
+
+A queued error stops even check-only mode.  The preflight query reads
+and reports the oldest error; the tool does not send `*CLS`.  Review
+remaining entries with `:SYSTem:ERRor?` and clear the remaining queue
+with `*CLS` before retrying, as the failure message instructs.
+
+Only the model's writable range is downloaded, as word-aligned 64-byte
+S2 records, each passed as a quoted SCPI string.  A bare S-record is
+parsed as a mnemonic and the bench Z3801A rejects it with -112,
+"Program mnemonic too long".  The boot area and EEPROM are not written
+by the tool.  It checks blank flash after erasing, waits for each record's
+prompt and checks the error queue before continuing.  The installer's
+word programmer
+(`0x107c18` in the unpacked Z3801A installer) compares the flash word to
+the requested word and reports failure if programming fails.
+
+For the AMD-flash models, four lane sums cover `0x10000`--`0x3fffb`
+and `0x40000`--`0x7fffb`, even and odd bytes separately, modulo 65536.
+Each pair's sums are stored interleaved in its last four bytes.
+`:DIAGnostic:TEST? 1` reads
+the flags saved at boot (`0x1080ec`); it does **not** recompute them after
+download.  Final verification therefore switches to PRIMARY, which runs
+the model's boot checksum checks, then requires the same serial and the
+candidate revision in PRIMARY.  This is not a separate full-image host
+readback.  Simulator tests do compare all bytes after programming for
+each catalog image, including the protected boot region.
+
+An error stops the transfer without automatic write retries or reboot.
+Keep the daemon stopped and rerun the same command with a new transcript
+path to restart from erase in the surviving installer.  The service
+manual warns that firmware installation can reset settings; save needed
+configuration beforehand.  There is no settings restoration in the tool.
+
+Bench validation on 2026-09-28: the Z3801A `3542A01548` was reflashed
+with its own `z3801a-3543.bin` dump at 19200 7O1.  All 7,168 quoted
+records (448 KiB) were accepted.  The transfer finished in 891 seconds
+with `3543-A` and `PRIMARY` verified.  Position, survey state,
+survey-at-power-up setting, elevation mask, antenna delay,
+ignored satellites and timezone all matched their pre-flash queries.
+No full-image host readback was performed.  Other models have simulator
+coverage and firmware analysis, not a hardware flashing test.
 
 ### `:DIAGnostic:GPSystem:UTC`
 
@@ -1546,8 +1648,9 @@ following, and how.
   once and looks at nothing else in that block.
 - Whether any sequence of the console's pSOS words gets SCPI back
   short of a power cycle was not tried.  Nothing was sent to a
-  receiver to find out; setting the language is one of the commands
-  this project never sends.
+  receiver to find out; the monitoring paths never set the language.
+  The standalone memory reader and flasher enter their respective
+  interpreters explicitly.
 - That the SCI is the port wired to J3: the firmware's SCPI port is the
   one it creates `sciR` and `sciW` for, but the board was not traced.
 - What drives the 59551A's PORT 2.  DUART channel B, idle here, is the

@@ -12,6 +12,7 @@
 //! their own order, so a transcript never matches.  This answers
 //! whatever it is asked.
 
+pub mod installer;
 pub mod net;
 pub mod receiver;
 pub mod transport;

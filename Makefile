@@ -70,7 +70,7 @@ clean:
 	$(CARGO) clean
 
 # Requires cargo-deb: cargo install cargo-deb
-# The deb carries all three binaries, so build the whole workspace first
+# The deb carries the tools, so build the whole workspace first
 # and package without rebuilding.  cargo-deb warns that the asset paths
 # are not under target/release/ and so will not be built; that is the
 # point, --no-build means they are already there.

@@ -30,6 +30,11 @@ here, where they go stale unnoticed.
   `:DIAGnostic:ERASe`, or `:SYSTem:LANGuage "INSTALL"`.  Serial settings
   persist across power cycles; changing them strands the link; the
   first two discard the receiver's learned state.
+- Exception: `smartclock-flash` may send `:DIAGnostic:ERASe` and
+  `:SYSTem:LANGuage "INSTALL"` for an explicitly authorized firmware
+  installation, after its image and receiver compatibility checks.
+  Stop the target port's daemon first.  This exception does not apply
+  to monitoring or generic query tools.
 - The daemon holds the port open.  Stop it before using a direct-mode
   tool, and say so.
 

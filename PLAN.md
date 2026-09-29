@@ -51,6 +51,32 @@ The fixes are recorded with the decisions they belong to.
 
 ## Decisions
 
+### Flashing is a separate direct-port tool
+
+`smartclock-flash` has its own crate and ships in the Debian package.
+It requires the port's daemon to be stopped and never connects to its
+socket. Ordinary query/control paths keep their forbidden-command
+checks. A shared installer procedure uses audited image profiles for
+Z3801A, Z3805A, 58503A and Z3816A, including their different protected
+flash regions and checksum algorithms. Exact image SHA-256, boot
+checksums, model, running revision and expected serial are checked
+before erase. Unknown images and receiver revisions are refused; no
+force override is provided. Models without dumps, including 59551A,
+need an audited profile before they can be flashed. Filename and
+embedded model-string guesses cannot establish compatibility.
+
+Installer revisions are checked against the model/layout allowlist,
+not paired with a particular primary revision: boot flash survives
+upgrades. The CLI states this limitation. A nonempty error queue stops
+preflight and asks the operator to review and clear it; the flasher
+does not issue `*CLS` or silently discard the remaining errors.
+
+The existing simulator optionally models the installer, flash contents,
+record validation and boot checksums. Tests compare the entire resulting
+image, including protected boot flash, and exercise interrupted-download
+recovery through the real session framing. Hardware timing, wear and
+upgrade-induced settings changes remain outside the simulation.
+
 ### No client-side SCPI crate
 
 Surveyed: `scpi` + `scpi-contrib` (server side, for implementing an

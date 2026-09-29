@@ -2,6 +2,7 @@
 
 use std::collections::VecDeque;
 
+use crate::installer::Installer;
 use smartclock::command::CommandId;
 use smartclock::command::Dialect;
 use smartclock::types::EfcPercent;
@@ -17,7 +18,7 @@ pub struct Answer {
 
 impl Answer {
     /// A command that produced no output.
-    fn silent() -> Self {
+    pub(crate) fn silent() -> Self {
         Self {
             lines: Vec::new(),
             accepted: true,
@@ -25,7 +26,7 @@ impl Answer {
     }
 
     /// A single line of output.
-    fn line(text: impl Into<String>) -> Self {
+    pub(crate) fn line(text: impl Into<String>) -> Self {
         Self {
             lines: vec![text.into()],
             accepted: true,
@@ -115,6 +116,8 @@ const SCREEN: &str = include_str!("screen.txt");
 /// is indistinguishable from a single sample.
 #[derive(Debug)]
 pub struct Receiver {
+    /// Optional flash/installer model, absent in ordinary monitoring tests.
+    pub installer: Option<Installer>,
     /// What `*IDN?` returns.
     pub identity: String,
     /// Raw EFC, the 20-bit value.
@@ -220,6 +223,7 @@ impl Default for Receiver {
     fn default() -> Self {
         Self {
             identity: "HEWLETT-PACKARD,58503A,0000A00000,3704-C".to_owned(),
+            installer: None,
             efc_raw: 713_587,
             temperature: 37.40,
             time_interval: -4.8e-9,
@@ -321,6 +325,13 @@ impl Receiver {
             return Answer::line(format!("{code:+},\"{message}\""));
         }
 
+        if let Some(installer) = &mut self.installer {
+            match installer.respond(command) {
+                Ok(Some(answer)) => return answer,
+                Err(error) => return self.reject(error.scpi_code(), &error.to_string()),
+                Ok(None) => {}
+            }
+        }
         let (header, argument) = split(command);
         let found = self
             .dialect
@@ -463,7 +474,20 @@ impl Receiver {
     /// under the names a caller sends.
     fn common(&mut self, command: &str) -> Option<Answer> {
         Some(match command.to_ascii_uppercase().as_str() {
-            "*IDN?" => Answer::line(self.identity.clone()),
+            "*IDN?" => {
+                if let Some(installer) = &self.installer {
+                    let (prefix, firmware) = self.identity.rsplit_once(',')?;
+                    let (_, suffix) = firmware.rsplit_once('-')?;
+                    let revision = if installer.active {
+                        installer.revision.clone()
+                    } else {
+                        installer.primary_revision()
+                    };
+                    Answer::line(format!("{prefix},{revision}-{suffix}"))
+                } else {
+                    Answer::line(self.identity.clone())
+                }
+            }
             "*CLS" => {
                 self.errors.clear();
                 Answer::silent()
@@ -683,13 +707,13 @@ fn real(value: f64) -> String {
     }
 }
 
-fn split(command: &str) -> (&str, &str) {
+pub(crate) fn split(command: &str) -> (&str, &str) {
     command
         .split_once(char::is_whitespace)
         .map_or((command, ""), |(h, a)| (h, a.trim()))
 }
 
-fn eq(a: &str, b: &str) -> bool {
+pub(crate) fn eq(a: &str, b: &str) -> bool {
     a.eq_ignore_ascii_case(b)
 }
 
