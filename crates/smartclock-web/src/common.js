@@ -461,6 +461,7 @@ function switchTo(serial) {
 // once, last.
 async function content(spec) {
   page = spec;
+  colophon();
   paintCached();
   await listReceivers();
   carryUnit();
@@ -475,6 +476,24 @@ async function content(spec) {
     }, page.every);
   }
   refresh();
+}
+
+// ------------------------------------------------------------ colophon
+
+// Whose this is, under what license, and where its source and issue
+// tracker are, from the server's own package metadata.  Left empty if
+// the server cannot say.
+async function colophon() {
+  const about = await getJson("/api/about");
+  if (about.error) return;
+  const link = (href, text) => `<a href="${esc(href)}">${esc(text)}</a>`;
+  $("colophon").innerHTML = [
+    `© ${esc(about.copyright)}`,
+    esc(about.license),
+    `smartclock-web ${esc(about.version)}`,
+    link(about.repository, "source"),
+    link(`${about.repository}/issues`, "issues"),
+  ].join(" · ");
 }
 
 // ---------------------------------------------------------- time range

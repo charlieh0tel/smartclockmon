@@ -116,6 +116,17 @@ for (const p of PAGES) {
       await expect(page.locator("#unit")).toHaveValue(B);
     });
 
+    test("links to the source and the issues, under the copyright", async ({ page }) => {
+      await open(page, twoUnits(), p.path);
+      const colophon = page.locator("#colophon");
+      await expect(colophon).toContainText("© 2026 Christopher Hoover");
+      await expect(colophon).toContainText("GPL-3.0-or-later");
+      await expect(colophon.locator("a", { hasText: "source" }))
+        .toHaveAttribute("href", "https://github.com/charlieh0tel/smartclockmon");
+      await expect(colophon.locator("a", { hasText: "issues" }))
+        .toHaveAttribute("href", "https://github.com/charlieh0tel/smartclockmon/issues");
+    });
+
     test("a change of receiver clears at once, then shows the new one", async ({ page }) => {
       const fake = twoUnits();
       await open(page, fake, p.path);

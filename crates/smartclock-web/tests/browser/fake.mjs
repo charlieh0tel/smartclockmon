@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => JSON.parse(readFileSync(join(here, "fixtures", `${name}.json`), "utf8"));
 const RECORDED = Object.fromEntries(
-  ["receivers", "snapshot", "info", "journal", "history", "adev", "status"].map((n) => [n, fixture(n)]),
+  ["receivers", "snapshot", "info", "journal", "history", "adev", "status", "about"].map((n) => [n, fixture(n)]),
 );
 const UPLOT = join(here, "node_modules", "uplot", "dist");
 

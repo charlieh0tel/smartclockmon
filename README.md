@@ -109,7 +109,8 @@ and `097-z3801-01` (Z3801A) are the primary references, and
 
 ## License
 
-GPL-3.0-or-later.  See `LICENSE`.
+Copyright © 2026 Christopher Hoover.  GPL-3.0-or-later.  See
+`LICENSE`.
 
 The vendor manuals in `third_party/` are not covered by it; they remain
 the copyright of Symmetricom and its successors and are kept here as

@@ -120,6 +120,7 @@ fn main() -> Result<()> {
             "/adev" => Response::ok("text/html; charset=utf-8", DEVIATION.to_owned()),
             "/style.css" => Response::ok("text/css; charset=utf-8", STYLE.to_owned()),
             "/common.js" => Response::ok("text/javascript; charset=utf-8", COMMON.to_owned()),
+            "/api/about" => json(Ok(about())),
             "/api/snapshot" => json(
                 daemons
                     .choose(&cache, query)
@@ -197,6 +198,24 @@ fn status(socket: &Path) -> Result<serde_json::Value> {
 /// Wrap a result as JSON, reporting a failure as data rather than as an
 /// HTTP error: the page can then say what went wrong in the place the
 /// value would have been, instead of silently showing nothing.
+/// The first year of the project's copyright.
+const COPYRIGHT_FROM: u16 = 2026;
+
+/// What every page's colophon shows, from the package metadata: the
+/// copyright, the license, this build, and the repository.
+fn about() -> serde_json::Value {
+    let holders: Vec<&str> = env!("CARGO_PKG_AUTHORS")
+        .split(':')
+        .map(|author| author.split(" <").next().unwrap_or(author).trim())
+        .collect();
+    serde_json::json!({
+        "copyright": format!("{COPYRIGHT_FROM} {}", holders.join(", ")),
+        "license": env!("CARGO_PKG_LICENSE"),
+        "version": smartclock::VERSION,
+        "repository": env!("CARGO_PKG_REPOSITORY"),
+    })
+}
+
 fn json(result: Result<serde_json::Value>) -> Response {
     let value = match result {
         Ok(value) => value,
