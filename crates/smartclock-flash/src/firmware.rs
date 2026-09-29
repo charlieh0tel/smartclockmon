@@ -156,6 +156,11 @@ impl Firmware {
         Ok(Self { bytes, profile })
     }
 
+    /// The whole image, protected boot region included.
+    pub(super) fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
     pub(super) fn records(&self) -> impl Iterator<Item = (usize, String)> + '_ {
         let start = self.profile.layout.primary_start();
         self.bytes[start..]

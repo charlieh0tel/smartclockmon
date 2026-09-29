@@ -8,6 +8,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 use clap::Parser;
+use smartclock::console;
+use smartclock::console::LANGUAGE_SETTLE;
+use smartclock::console::Progress;
 use smartclock::parse;
 use smartclock::parse::Identity;
 use smartclock::session::Config;
@@ -27,7 +30,6 @@ use firmware::IMAGE_SIZE;
 use firmware::PROFILES;
 use firmware::RECORD_SIZE;
 
-const LANGUAGE_SETTLE: Duration = Duration::from_secs(2);
 const SERIAL_READ_TIMEOUT: Duration = Duration::from_millis(250);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(60);
 const PROGRESS_INTERVAL_BYTES: usize = 0x2000;
@@ -56,6 +58,10 @@ struct Cli {
     /// New JSONL transcript file; required for writing, never overwritten.
     #[arg(long)]
     capture: Option<PathBuf>,
+    /// Skip reading the whole flash back through the debug console
+    /// after writing.
+    #[arg(long)]
+    no_readback: bool,
 }
 
 /// The state machine uses the same exchanges in tests and on the wire.
@@ -291,15 +297,56 @@ fn main() -> Result<()> {
         Some(file) => Box::new(TeeTransport::new(port, file)),
         None => Box::new(port),
     };
-    let mut session = Session::new(
-        port,
-        Config {
-            timeout: COMMAND_TIMEOUT,
-            ..Config::default()
-        },
-    );
+    let config = Config {
+        timeout: COMMAND_TIMEOUT,
+        ..Config::default()
+    };
+    let mut session = Session::new(port, config.clone());
     session.sync()?;
-    flash(&mut session, &firmware, cli.write, cli.serial.as_deref())
+    flash(&mut session, &firmware, cli.write, cli.serial.as_deref())?;
+    if !cli.write || cli.no_readback {
+        return Ok(());
+    }
+    let profile = firmware.profile;
+    if console::exit_for(profile.model, profile.revision).is_none() {
+        println!(
+            "No debug-console exit is known for {} {}; not reading the flash back.",
+            profile.model, profile.revision
+        );
+        return Ok(());
+    }
+    readback(session.into_transport(), &firmware, config)
+}
+
+/// Read the whole flash back through the debug console and compare it
+/// with the image, protected boot region included, then return the port
+/// to SCPI through the installer.
+fn readback(port: Box<dyn Transport>, firmware: &Firmware, config: Config) -> Result<()> {
+    eprintln!("Reading the flash back through the debug console.");
+    let (summary, identity) = console::read_and_return(
+        port,
+        0,
+        u32::try_from(IMAGE_SIZE).expect("the image fits the address space"),
+        &mut std::io::sink(),
+        Some(firmware.bytes()),
+        |progress| {
+            if let Progress::Read { done, elapsed, .. } = progress {
+                eprintln!("Read back {done:#07x} in {} s", elapsed.as_secs());
+            }
+        },
+        config,
+    )
+    .context("readback did not complete; the flash was already verified to boot")?;
+    ensure!(
+        summary.differing.is_empty(),
+        "flash differs from the image in the 1 KiB blocks at {:#x?}; {identity}",
+        summary.differing
+    );
+    println!(
+        "Read back all {IMAGE_SIZE:#x} bytes in {} s: identical to the image. {identity}",
+        summary.took.as_secs()
+    );
+    Ok(())
 }
 
 #[cfg(test)]

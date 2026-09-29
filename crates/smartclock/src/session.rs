@@ -120,6 +120,13 @@ impl<T: Transport> Session<T> {
         }
     }
 
+    /// Give the transport back, for a caller that talks to something
+    /// other than SCPI on the same port next, such as the debug
+    /// console.  Anything still buffered is dropped with the session.
+    pub fn into_transport(self) -> T {
+        self.transport
+    }
+
     /// What the transport is connected to.
     pub fn describe(&self) -> String {
         self.transport.describe()

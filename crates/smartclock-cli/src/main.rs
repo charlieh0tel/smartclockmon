@@ -18,6 +18,8 @@ use smartclock::attach::attach;
 use smartclock::client::Daemon;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
+use smartclock::console;
+use smartclock::console::Progress;
 use smartclock::control::forbidden;
 use smartclock::device::Device;
 use smartclock::error::Error;
@@ -174,6 +176,23 @@ fn console_read(command: &Command) -> Option<(u32, u32, &ReadTo)> {
     }
 }
 
+/// Print a console read's progress.
+fn report(progress: Progress) {
+    match progress {
+        Progress::Entering => {
+            eprintln!("not at the pForth prompt; sending :SYSTem:LANGuage \"PFORTH\"");
+        }
+        Progress::Read {
+            done,
+            elapsed,
+            differing,
+        } => eprintln!(
+            "{done:#x} read, {} s, {differing} differing chunks",
+            elapsed.as_secs()
+        ),
+    }
+}
+
 /// A `--from` or `--length`: 0x-prefixed hex, or decimal.
 fn address(text: &str) -> std::result::Result<u32, String> {
     let parsed = match text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
@@ -182,8 +201,6 @@ fn address(text: &str) -> std::result::Result<u32, String> {
     };
     parsed.map_err(|e| format!("{text} is not an address: {e}"))
 }
-
-mod pforth;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -248,35 +265,43 @@ fn main() -> Result<()> {
             .map(|path| std::fs::read(path).with_context(|| format!("reading {}", path.display())))
             .transpose()?;
         let mut file = File::create(out).with_context(|| format!("creating {}", out.display()))?;
-        let read = pforth::read_memory(&mut port, from, length, &mut file, expected.as_deref());
-        if let Ok(summary) = &read {
-            eprintln!(
-                "read {length:#x} bytes from {from:#x} into {} in {} s",
-                out.display(),
-                summary.took.as_secs()
-            );
-            if let Some(path) = compare {
-                if summary.differing.is_empty() {
-                    eprintln!("identical to {}", path.display());
-                } else {
-                    for chunk in &summary.differing {
-                        eprintln!("differs from {} in the 1 KB at {chunk:#x}", path.display());
-                    }
+        let summary = if *stay_in_console {
+            console::read_memory(
+                &mut port,
+                from,
+                length,
+                &mut file,
+                expected.as_deref(),
+                report,
+            )?
+        } else {
+            let (summary, identity) = console::read_and_return(
+                port,
+                from,
+                length,
+                &mut file,
+                expected.as_deref(),
+                report,
+                config,
+            )?;
+            eprintln!("back at SCPI through the installer: {identity}");
+            summary
+        };
+        eprintln!(
+            "read {length:#x} bytes from {from:#x} into {} in {} s",
+            out.display(),
+            summary.took.as_secs()
+        );
+        if let Some(path) = compare {
+            if summary.differing.is_empty() {
+                eprintln!("identical to {}", path.display());
+            } else {
+                for chunk in &summary.differing {
+                    eprintln!("differs from {} in the 1 KB at {chunk:#x}", path.display());
                 }
             }
         }
-        // A read that fails part way leaves the port at the console
-        // too, so the way back is tried either way.
-        if *stay_in_console {
-            return read.map(|_| ());
-        }
-        return match (read, back_to_scpi(port, config)) {
-            (Ok(_), back) => back,
-            (Err(read), Ok(())) => Err(read),
-            (Err(read), Err(back)) => {
-                Err(read.context(format!("and returning to SCPI failed: {back:#}")))
-            }
-        };
+        return Ok(());
     }
 
     // Capture wraps the port, so a recording covers the sync exchange
@@ -358,51 +383,6 @@ fn typed(command: &Command) -> Result<Vec<String>> {
         | Command::ReadFlash { .. }
         | Command::ReadEeprom { .. } => Vec::new(),
     })
-}
-
-/// How long a language change is given before the port is synced:
-/// the old interpreter can acknowledge before it exits.
-const LANGUAGE_SETTLE: Duration = Duration::from_secs(2);
-
-/// Return a port at the pForth console to the primary's SCPI parser:
-/// through the image's exit into the installer, then
-/// `:SYSTem:LANGuage "PRIMARY"`, which reruns the reset code's
-/// checksums and starts the primary.  Each step is checked, and a
-/// failure says where the port was left.
-fn back_to_scpi(mut port: Box<dyn Transport + Send>, config: Config) -> Result<()> {
-    let image = pforth::enter_installer(&mut port)?;
-    std::thread::sleep(LANGUAGE_SETTLE);
-    let mut session = Session::new(port, config);
-    session
-        .sync()
-        .context("no SCPI prompt after the installer exit")?;
-    let language = session.query(":SYSTem:LANGuage?")?;
-    anyhow::ensure!(
-        language.one_line("language")? == "\"INSTALL\"",
-        "expected the installer after the {image} exit, found {language:?}; \
-         the port is not at the console"
-    );
-    // The installer restarts the primary without a prompt of its own,
-    // so waiting for one times out; the checks after the sync are what
-    // decide whether the primary came back.
-    match session.send_raw(":SYSTem:LANGuage \"PRIMARY\"") {
-        Ok(_) | Err(Error::Timeout { .. }) => {}
-        Err(e) => return Err(e.into()),
-    }
-    std::thread::sleep(LANGUAGE_SETTLE);
-    session.sync().context("no SCPI prompt after PRIMARY")?;
-    let language = session.query(":SYSTem:LANGuage?")?;
-    anyhow::ensure!(
-        language.one_line("language")? == "\"PRIMARY\"",
-        "the unit stayed in the installer ({language:?}): its primary's \
-         checksums fail; leave the daemon stopped"
-    );
-    let identity = session.query("*IDN?")?;
-    eprintln!(
-        "back at SCPI through the {image} installer exit: {}",
-        identity.one_line("identity")?
-    );
-    Ok(())
 }
 
 /// Refuse the whole list if any command in it is one no direct-mode

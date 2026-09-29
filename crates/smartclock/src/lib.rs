@@ -7,6 +7,8 @@
 pub mod adev;
 pub mod attach;
 pub mod client;
+/// The pForth debug console: reading memory, and the way back to SCPI.
+pub mod console;
 pub mod control;
 pub mod device;
 pub mod error;

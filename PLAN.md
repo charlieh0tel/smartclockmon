@@ -85,6 +85,12 @@ upgrade-induced settings changes remain outside the simulation.
 Cross-revision flashing has not been tested on hardware; record settings
 before and after the first upgrade.
 
+After writing, the flasher reads the whole flash back through the
+debug console and compares it with the image, then returns the port to
+SCPI through the installer.  The console code lives in the library
+(`smartclock::console`) so `smartclock-cli`'s memory reads and the
+flasher share one reader and one way back.
+
 ### No client-side SCPI crate
 
 Surveyed: `scpi` + `scpi-contrib` (server side, for implementing an

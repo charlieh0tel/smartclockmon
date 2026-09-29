@@ -1062,7 +1062,10 @@ or programmed.  The procedure:
 
 On 2026-09-28 the bench Z3801A (3542A01548, 3543-A) read 4 bytes this
 way and came back to SCPI on 3543-A, in PRIMARY, with an empty error
-queue, without a power cycle.
+queue, without a power cycle.  Each return restarts the primary, and
+the restart writes the EEPROM: between two `read-eeprom` runs that
+day, each returning this way, one 44-byte record was added at
+`0x1140`, after the last one there.
 
 On the bench Z3801A (3542A01548, 3543-A), on 2026-09-26, the ROM came
 back in 689 seconds and is byte-identical to `z3801a-3543.bin`:
@@ -1716,9 +1719,15 @@ pair's sums are stored interleaved in its last four bytes.
 does **not** recompute them after download.  Final verification
 therefore switches to PRIMARY, which runs the model's boot checksum
 checks, then requires the same serial and the candidate revision in
-PRIMARY.  This is not a separate full-image host readback.  Simulator
-tests do compare all bytes after programming for each catalog image,
-including the protected boot region.
+PRIMARY.  After that, unless given `--no-readback`, it reads the whole
+512 KiB back through the debug console, as `smartclock-cli read-flash`
+does, requires it to equal the image, protected boot region included,
+and returns the port to SCPI through the installer (see "Reading memory
+through it").  That adds about eleven minutes.  It is skipped, with a
+message, for an image the console's exit table does not know, such as
+the Z3816A's.  Simulator tests compare all bytes after programming for
+each catalog image, including the protected boot region; the simulator
+has no console, so the readback is not among them.
 
 An error stops the transfer without automatic write retries or reboot.
 Keep the daemon stopped and rerun the same command with a new transcript
@@ -1743,8 +1752,8 @@ with its own `z3801a-3543.bin` dump at 19200 7O1.  All 7,168 quoted
 records (448 KiB) were accepted.  The transfer finished in 891 seconds
 with `3543-A` and `PRIMARY` verified.  Position, survey state,
 survey-at-power-up setting, elevation mask, antenna delay, ignored
-satellites and timezone all matched their pre-flash queries.  No
-full-image host readback was performed.  Other models have simulator
+satellites and timezone all matched their pre-flash queries.  That run
+predates the readback.  Other models have simulator
 coverage and firmware analysis, not a hardware flashing test.
 
 ### `:DIAGnostic:GPSystem:UTC`
