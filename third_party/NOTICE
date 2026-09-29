@@ -81,7 +81,7 @@ EEPROM contents, read the same way, 8 KB from `0x400000` (chip select
 
 The revision is the string the firmware puts in the third field of its
 `*IDN?` answer, stored just before the image's second copyright notice
-(`0x12eee` in the Z3801A image, `0x22ff8` in the Z3816A's, `0x12feb` in
+(`0x12eee` in the Z3801A image, `0x22ff8` in the Z3816A's, `0x12fea` in
 the 58503A 3633's, `0x1309c` in the 3704's, `0x12eee` in the Z3805A
 3543B's).  The letter
 that follows it in a real answer, as in 3704-C, is read from RAM and is

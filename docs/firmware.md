@@ -1271,7 +1271,7 @@ the board, not in the image.  The Z3801 dialect does not poll it.
 ### The 58503A image
 
 `third_party/58503a-3633.bin` is a 58503A's program flash, revision
-3633 (the string before the second copyright notice, at `0x12feb`),
+3633 (the string before the second copyright notice, at `0x12fea`),
 Hewlett-Packard 1993, assembled from four AM29F010 dumps as
 `third_party/NOTICE` describes.  It enters at `0x550` like the Z3801A's
 image and is 42 % byte-identical to it, the block `0x70000` to
