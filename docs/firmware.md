@@ -1033,8 +1033,14 @@ bytes.  `smartclock-cli read-memory` does the rest: it sends an empty
 line and, when no console prompt comes back within three seconds,
 sends `:SYSTem:LANGuage "PFORTH"` and waits for one; then it defines
 `rd`, reads 1 KB per request with retries, writes the bytes to a file
-and, given `--compare`, checks each kilobyte against an image.  The
-procedure:
+and, given `--compare`, checks each kilobyte against an image.  Then,
+unless given `--stay-in-console`, it returns the port to SCPI: it
+checks that the cell and `trap #11` of exactly one known image are
+where that image has them, sends `<cell> execute`, checks that the
+installer answers `:SYSTem:LANGuage?` with `"INSTALL"`, sends
+`:SYSTem:LANGuage "PRIMARY"`, and checks for `"PRIMARY"` again (see
+"Forced installer entry with an unusable primary").  Nothing is erased
+or programmed.  The procedure:
 
 1. Stop the unit's daemon, which holds the port:
    `sudo systemctl stop smartclockd@<port>`.
@@ -1047,8 +1053,13 @@ procedure:
        smartclock-cli --device /dev/<port> --framing 7O1 read-memory \
            --from 0x400000 --length 0x2000 --out eeprom.bin
 
-3. Power cycle the unit, which returns the port to SCPI, and start
-   the daemon again.
+3. Start the daemon again.  With `--stay-in-console`, or for an image
+   the exit table does not know, power cycle the unit first, which
+   returns the port to SCPI.
+
+On 2026-09-28 the bench Z3801A (3542A01548, 3543-A) read 4 bytes this
+way and came back to SCPI on 3543-A, in PRIMARY, with an empty error
+queue, without a power cycle.
 
 On the bench Z3801A (3542A01548, 3543-A), on 2026-09-26, the ROM came
 back in 689 seconds and is byte-identical to `z3801a-3543.bin`:

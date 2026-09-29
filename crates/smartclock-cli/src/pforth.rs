@@ -13,8 +13,13 @@
 //!
 //! When the port is not already at the console prompt, the console is
 //! entered with `:SYSTem:LANGuage "PFORTH"`.  That command's `"INSTALL"`
-//! value is one this project never sends, and only this value is.  A
-//! power cycle is the only way back to SCPI.
+//! value is one this project never sends, and only this value is.
+//!
+//! The console has no word that returns to SCPI.  [`enter_installer`]
+//! leaves it through the primary's own exit into the installer, from
+//! which `:SYSTem:LANGuage "PRIMARY"` restarts the primary
+//! (docs/firmware.md, "Forced installer entry with an unusable
+//! primary").  Nothing is erased or programmed on the way.
 
 use std::io::Read;
 use std::io::Write;
@@ -43,6 +48,54 @@ const ENTER: &str = ":SYSTem:LANGuage \"PFORTH\"";
 
 /// How many times a request is tried before the read gives up.
 const ATTEMPTS: usize = 4;
+
+/// The `trap #11` instruction, the primary's only way into the installer.
+const TRAP_11: u32 = 0x4e4b;
+
+/// One image's exit into the installer, as the console can reach it.
+/// `execute` calls the address held in the cell it is given; `cell` is
+/// the operand of the SCPI task's call to the routine that ends in
+/// `trap #11` (docs/firmware.md, "Forced installer entry with an
+/// unusable primary").
+struct Exit {
+    /// The image, for messages.
+    image: &'static str,
+    /// The long word `execute` is given.
+    cell: u32,
+    /// What `cell` holds in this image.
+    routine: u32,
+    /// Where this image's `trap #11` is.
+    trap: u32,
+}
+
+/// Each is checked against the running unit's memory before use, so an
+/// image not listed here is refused rather than guessed at.
+const EXITS: &[Exit] = &[
+    Exit {
+        image: "Z3801A 3543",
+        cell: 0x28ffc,
+        routine: 0x12f2c,
+        trap: 0x12f2c,
+    },
+    Exit {
+        image: "Z3805A 3543B",
+        cell: 0x2a138,
+        routine: 0x12f2c,
+        trap: 0x12f2c,
+    },
+    Exit {
+        image: "58503A 3633",
+        cell: 0x2940e,
+        routine: 0x13028,
+        trap: 0x1304e,
+    },
+    Exit {
+        image: "58503A 3704",
+        cell: 0x294b6,
+        routine: 0x130da,
+        trap: 0x13100,
+    },
+];
 
 /// The prompt, `p4th D > ` in decimal and `p4th X > ` in hex: nine
 /// bytes, the base letter in the middle.
@@ -108,6 +161,53 @@ pub(crate) struct Summary {
     pub(crate) differing: Vec<u32>,
     /// How long the read took.
     pub(crate) took: Duration,
+}
+
+/// The long word at `address`, read through the console in `hex`.
+fn long<T: Read + Write>(console: &mut Console<T>, address: u32) -> Result<u32> {
+    let request = format!("{address:X} @ u.");
+    match words(&console.send(&request)?, &request)?.as_slice() {
+        [word] => Ok(*word),
+        other => anyhow::bail!("{request:?} answered {other:X?}"),
+    }
+}
+
+/// Leave the console through the running image's exit into the
+/// installer, and return which image that was.  The exit is used only
+/// when exactly one known image's cell and `trap #11` are where that
+/// image has them.  No prompt follows: the installer's SCPI parser has
+/// the port afterwards.
+pub(crate) fn enter_installer<T: Read + Write>(port: T) -> Result<&'static str> {
+    let mut console = Console { port };
+    console
+        .send_within("", PROBE_TIMEOUT)
+        .context("not at the pForth prompt")?;
+    console.send("hex")?;
+    let mut found = Vec::new();
+    for exit in EXITS {
+        let aligned = exit.trap & !3;
+        let long_at_trap = long(&mut console, aligned)?;
+        let half = if exit.trap == aligned {
+            long_at_trap >> 16
+        } else {
+            long_at_trap & 0xffff
+        };
+        if long(&mut console, exit.cell)? == exit.routine && half == TRAP_11 {
+            found.push(exit);
+        }
+    }
+    let [exit] = found.as_slice() else {
+        anyhow::bail!(
+            "{} known installer exits match this unit's memory, not one; \
+             staying in the console, which a power cycle leaves",
+            found.len()
+        );
+    };
+    console
+        .port
+        .write_all(format!("{:X} execute\r", exit.cell).as_bytes())?;
+    console.port.flush()?;
+    Ok(exit.image)
 }
 
 /// Read `length` bytes from `from` into `out`, checking each chunk
@@ -191,8 +291,108 @@ pub(crate) fn read_memory<T: Read + Write>(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::io::Read;
+    use std::io::Write;
+
+    use super::EXITS;
     use super::at_prompt;
+    use super::enter_installer;
     use super::words;
+
+    /// A console that answers `<hex> @ u.` from `memory`, and anything
+    /// else with a bare prompt, recording every line it was sent.
+    struct Fake {
+        memory: HashMap<u32, u32>,
+        pending: Vec<u8>,
+        reply: Vec<u8>,
+        sent: Vec<String>,
+    }
+
+    impl Fake {
+        fn new(memory: &[(u32, u32)]) -> Self {
+            Self {
+                memory: memory.iter().copied().collect(),
+                pending: Vec::new(),
+                reply: Vec::new(),
+                sent: Vec::new(),
+            }
+        }
+    }
+
+    impl Write for Fake {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.pending.extend_from_slice(bytes);
+            while let Some(end) = self.pending.iter().position(|&b| b == b'\r') {
+                let line = String::from_utf8_lossy(&self.pending[..end]).into_owned();
+                self.pending.drain(..=end);
+                let word = line
+                    .strip_suffix(" @ u.")
+                    .and_then(|address| u32::from_str_radix(address, 16).ok())
+                    .map(|address| self.memory.get(&address).copied().unwrap_or(0));
+                if let Some(word) = word {
+                    self.reply
+                        .extend_from_slice(format!(" {word:X}").as_bytes());
+                }
+                self.reply.extend_from_slice(b"p4th X > ");
+                self.sent.push(line);
+            }
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Read for Fake {
+        fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+            let n = out.len().min(self.reply.len());
+            out[..n].copy_from_slice(&self.reply[..n]);
+            self.reply.drain(..n);
+            Ok(n)
+        }
+    }
+
+    #[test]
+    fn each_exit_matches_its_image() {
+        for (exit, name) in EXITS.iter().zip([
+            "z3801a-3543.bin",
+            "z3805a-3543b.bin",
+            "58503a-3633.bin",
+            "58503a-3704.bin",
+        ]) {
+            let path = format!("{}/../../third_party/{name}", env!("CARGO_MANIFEST_DIR"));
+            let image = std::fs::read(&path).expect(&path);
+            let at = |address: u32, n: usize| &image[address as usize..address as usize + n];
+            assert_eq!(
+                at(exit.cell, 4),
+                exit.routine.to_be_bytes(),
+                "{}",
+                exit.image
+            );
+            assert_eq!(at(exit.trap, 2), [0x4e, 0x4b], "{}", exit.image);
+        }
+    }
+
+    #[test]
+    fn the_installer_exit_is_taken_only_where_memory_matches_one_image() {
+        let mut z3801a = Fake::new(&[(0x28ffc, 0x12f2c), (0x12f2c, 0x4e4b_4e75)]);
+        assert_eq!(enter_installer(&mut z3801a).expect("exit"), "Z3801A 3543");
+        assert_eq!(
+            z3801a.sent.last().map(String::as_str),
+            Some("28FFC execute")
+        );
+
+        let mut a58503 = Fake::new(&[(0x294b6, 0x130da), (0x13100, 0x4e4b_4e75)]);
+        assert_eq!(enter_installer(&mut a58503).expect("exit"), "58503A 3704");
+
+        // The cell alone is not enough: without the trap there, nothing
+        // is executed.
+        let mut unknown = Fake::new(&[(0x28ffc, 0x12f2c)]);
+        assert!(enter_installer(&mut unknown).is_err());
+        assert!(!unknown.sent.iter().any(|line| line.ends_with("execute")));
+    }
 
     #[test]
     fn the_prompt_is_recognised_in_either_base() {

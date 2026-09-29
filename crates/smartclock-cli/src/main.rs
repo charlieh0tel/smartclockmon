@@ -110,8 +110,11 @@ enum Command {
     /// Read memory through the pForth debug console, entering it with
     /// `:SYSTem:LANGuage "PFORTH"` if the port is not already there
     /// (docs/firmware.md, "Reading memory through it").  Defines one word
-    /// in the console's RAM and writes nothing else.  Only a power cycle
-    /// returns the port to SCPI.
+    /// in the console's RAM and writes nothing else.  Afterwards the
+    /// port is returned to SCPI through the primary's exit into the
+    /// installer and `:SYSTem:LANGuage "PRIMARY"` (docs/firmware.md,
+    /// "Forced installer entry with an unusable primary"); nothing is
+    /// erased or programmed.
     ReadMemory {
         /// First address, as 0x-prefixed hex or decimal.
         #[arg(long, value_parser = address)]
@@ -125,6 +128,10 @@ enum Command {
         /// An image to check each chunk against, from its first byte.
         #[arg(long)]
         compare: Option<PathBuf>,
+        /// Leave the port at the console instead of returning it to
+        /// SCPI.  Only a power cycle leaves it then.
+        #[arg(long)]
+        stay_in_console: bool,
     },
 }
 
@@ -187,7 +194,7 @@ fn main() -> Result<()> {
     } else {
         answering(settings, &config)?
     };
-    let port = transport::open(&settings)
+    let mut port = transport::open(&settings)
         .with_context(|| format!("opening {device} at {} baud", settings.baud))?;
 
     // The console has its own prompt, so this skips the SCPI session.
@@ -196,6 +203,7 @@ fn main() -> Result<()> {
         length,
         out,
         compare,
+        stay_in_console,
     } = &cli.command
     {
         let expected = compare
@@ -203,7 +211,8 @@ fn main() -> Result<()> {
             .map(|path| std::fs::read(path).with_context(|| format!("reading {}", path.display())))
             .transpose()?;
         let mut file = File::create(out).with_context(|| format!("creating {}", out.display()))?;
-        let summary = pforth::read_memory(port, *from, *length, &mut file, expected.as_deref())?;
+        let summary =
+            pforth::read_memory(&mut port, *from, *length, &mut file, expected.as_deref())?;
         eprintln!(
             "read {length:#x} bytes from {from:#x} into {} in {} s",
             out.display(),
@@ -217,6 +226,9 @@ fn main() -> Result<()> {
                     eprintln!("differs from {} in the 1 KB at {chunk:#x}", path.display());
                 }
             }
+        }
+        if !stay_in_console {
+            back_to_scpi(port, config)?;
         }
         return Ok(());
     }
@@ -296,6 +308,51 @@ fn typed(command: &Command) -> Result<Vec<String>> {
         | Command::Commands
         | Command::ReadMemory { .. } => Vec::new(),
     })
+}
+
+/// How long a language change is given before the port is synced:
+/// the old interpreter can acknowledge before it exits.
+const LANGUAGE_SETTLE: Duration = Duration::from_secs(2);
+
+/// Return a port at the pForth console to the primary's SCPI parser:
+/// through the image's exit into the installer, then
+/// `:SYSTem:LANGuage "PRIMARY"`, which reruns the reset code's
+/// checksums and starts the primary.  Each step is checked, and a
+/// failure says where the port was left.
+fn back_to_scpi(mut port: Box<dyn Transport + Send>, config: Config) -> Result<()> {
+    let image = pforth::enter_installer(&mut port)?;
+    std::thread::sleep(LANGUAGE_SETTLE);
+    let mut session = Session::new(port, config);
+    session
+        .sync()
+        .context("no SCPI prompt after the installer exit")?;
+    let language = session.query(":SYSTem:LANGuage?")?;
+    anyhow::ensure!(
+        language.one_line("language")? == "\"INSTALL\"",
+        "expected the installer after the {image} exit, found {language:?}; \
+         the port is not at the console"
+    );
+    // The installer restarts the primary without a prompt of its own,
+    // so waiting for one times out; the checks after the sync are what
+    // decide whether the primary came back.
+    match session.send_raw(":SYSTem:LANGuage \"PRIMARY\"") {
+        Ok(_) | Err(Error::Timeout { .. }) => {}
+        Err(e) => return Err(e.into()),
+    }
+    std::thread::sleep(LANGUAGE_SETTLE);
+    session.sync().context("no SCPI prompt after PRIMARY")?;
+    let language = session.query(":SYSTem:LANGuage?")?;
+    anyhow::ensure!(
+        language.one_line("language")? == "\"PRIMARY\"",
+        "the unit stayed in the installer ({language:?}): its primary's \
+         checksums fail; leave the daemon stopped"
+    );
+    let identity = session.query("*IDN?")?;
+    eprintln!(
+        "back at SCPI through the {image} installer exit: {}",
+        identity.one_line("identity")?
+    );
+    Ok(())
 }
 
 /// Refuse the whole list if any command in it is one no direct-mode
