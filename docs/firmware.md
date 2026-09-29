@@ -1578,7 +1578,10 @@ prompt, `167932 @ u.` printed `77612`, and `167932 execute` answered
 on 3543-A in PRIMARY with an empty error queue, and its position,
 elevation mask and antenna delay read back as before.  So this also
 returns the port from the console to SCPI without a power cycle.  The
-Z3805A and 58503A phrases have not been tried.
+same day `smartclock-cli read-memory` took the bench Z3805A
+(3625A01487, 3543B-A, 19200 8N1) out through its exit and back to
+3543B-A in PRIMARY with an empty error queue.  The 58503A phrases have
+not been tried.
 
 The console is itself reached only through `LANG "PFORTH"` from the
 SCPI parser (see "Getting to it"), so it helps only a primary whose
