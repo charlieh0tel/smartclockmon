@@ -1652,8 +1652,7 @@ first, then the others these receivers use, reading the probe's errors
 off the queue before its checks.  `--device` also takes
 `tcp://host:port`.  `--capture` records the exchange to a new file;
 an existing transcript is never overwritten.  Replace the placeholders
-below with the image path, device, receiver serial and a new capture
-path.
+below with the image path, device and receiver serial.
 
 Inspect the file without opening hardware:
 
