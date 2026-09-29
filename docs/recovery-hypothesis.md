@@ -6,7 +6,8 @@ not findings.  Facts they rest on are in `firmware.md`.*
 Research question: can a jumper or the eight-position S1 force recovery
 when PRIMARY has valid checksums but cannot accept the command to enter
 INSTALL?  The boards of interest are the Z3801A and Z3805A, with a
-58503A available for comparison.  No S1 position has been identified.
+58503A available for comparison.  No S1 position has been identified;
+the one candidate input is the byte at `0x302000` (hypothesis 4).
 
 These are hypotheses, not instructions for changing switches or wiring.
 The investigation below used the firmware dumps and the MCU manual;
@@ -19,6 +20,7 @@ no receiver was accessed.  Results recorded on 2026-09-28.
 | 1. Alter primary flash reads | Address aliasing or select gating makes primary checksums fail while protected boot code remains readable. | Fits the reset code; modeled against both dumps below.  S1 wiring is unknown. |
 | 2. Enable background debugging | A contact enables BDM through BKPT at reset; a debugger redirects execution to the protected installer. | MCU support and installer entry are established; board access and recovery are untested.  A switch alone does not select INSTALL. |
 | 3. Select alternate boot storage | Bank selection changes the reset vectors or startup code presented to the CPU. | No alternate recovery image or selection circuit identified. |
+| 4. S1 is the byte at `0x302000` | An 8-bit input in CS5's window that software reads. | Only the Oman installer reads it, to override host-port settings; no firmware on the bench units reads it.  Nothing ties it to S1. |
 
 The related 55300A manual assigns S1 B1 to "Preset All Serial Ports at
 Powerup" and B2 to "Password Required" (097-55300-01, figures 3-14 and
@@ -154,3 +156,22 @@ for a checksum-valid primary that cannot accept commands.  This is an
 inference from the CPU manual and firmware, not a tested procedure.
 Access to BKPT/DSCLK, IFETCH/DSI and IPIPE/DSO on these boards has not
 been mapped.
+
+## 4. S1 is the byte at `0x302000`
+
+The facts are in `firmware.md`, "The switch byte at `0x302000`": the
+Oman installer (58503A 3633) reads that byte at every start and, when
+bit 0 is clear, takes the host port's baud, framing and pacing from
+bits 1 to 4.  That matches the 55300A's S1 B1, "Preset All Serial
+Ports at Powerup", in kind.  If S1 drives this byte, it sets the
+installer's line settings; it does not force INSTALL, and on the
+bench units' Peru and USA installers it does nothing at all.
+
+It can be tested without any firmware that uses it.  From the pForth
+console, `3153920 c@ .` reads the byte (`0x302000` is 3153920).  Read
+it, change one S1 position with the unit powered down, and read it
+again; a bit that follows the switch maps that position.  No bit
+changing, for every position, rejects the hypothesis for that board.
+This needs `:SYSTem:LANGuage "PFORTH"` and a power cycle to return to
+SCPI, and has not been done.  What else a read of `0x302000` does on
+the Z3801A and Z3805A boards is unknown.

@@ -1458,7 +1458,9 @@ Read from all five images; the installer entry/exit bench check is below.
   Vector 43 (Z3801A `0xa58`) unpacks it into RAM and runs it there, a
   pSOS system of its own with its own SCPI parser, on the host port
   at the EEPROM's line settings (`0x400000`, checksum at +0), or
-  9600 8N1 if that record is bad.
+  9600 8N1 if that record is bad.  The Oman installer can then
+  override either with the byte at `0x302000`; see "The switch byte at
+  `0x302000`".
 - *Telling it apart.*  `*IDN?` names a place, not a revision: `Peru`
   on the Z3801A, `Oman` on 58503A 3633, `USA` on 3704 and the Z3816A;
   `:SYSTem:LANGuage?` always answers `INSTALL`.
@@ -1513,9 +1515,95 @@ sets VBR there and jumps to `0x10135c`.  This entry and unpacker are
 identical in the two dumps.  The normal PRIMARY trap handler reaches
 this entry, but the entry itself does not call PRIMARY code.
 
+A running primary has one way there.  Each Z3801A, Z3805A and 58503A
+primary contains a single `trap #11` instruction, and no primary
+contains the word `0x0a58`:
+
+| Image | SCPI task | Language byte | Call | `trap #11` |
+| ----- | --------- | ------------- | ---- | ---------- |
+| Z3801A 3543 | `0x28f0e` | `0x102c34` | `0x28ffa` | `0x12f2c` |
+| Z3805A 3543B | `0x2a04a` | `0x102c62` | `0x2a136` | `0x12f2c` |
+| 58503A 3633 | `0x2931a` | `0x102f66` | `0x2940c` to `0x13028` | `0x1304e` |
+| 58503A 3704 | `0x293c2` | `0x102f76` | `0x294b4` to `0x130da` | `0x13100` |
+
+The 58503A images have a second `0x4e4b` word (`0x29854`, `0x298fc`),
+but it is inside the string `UNKNOWN`, not code.  In the Z3801A, the
+SCPI task runs the parser and, when the parser returns, tests the
+language byte: 0 starts the pForth console (`0x12faa`), and 1 calls
+`0x12f2c`, which executes `trap #11`.  The `:SYSTem:LANGuage` handler
+`0x2f57a` sets the byte to 0 for `PFORTH` and 1 for `INSTALL`.  So
+nothing in the primary diverts to the installer at startup, from an
+EEPROM flag or anything else.  The installer is entered only when the
+SCPI parser exits after `LANG "INSTALL"`, or when the reset code's
+checksums fail.
+
+The pForth console reaches the same `trap #11` without that command.
+Its `execute` (Z3801A `0x19b90`: `movea.l (A6)+,A0`,
+`movea.l (A0),A0`, `jsr (A0)`) calls the address held in the cell it
+is given.  The operand of each call in the table above is such a cell:
+
+| Image | Cell | Holds | Console phrase |
+| ----- | ---- | ----- | -------------- |
+| Z3801A 3543 | `0x28ffc` | `0x12f2c` | `167932 execute` |
+| Z3805A 3543B | `0x2a138` | `0x12f2c` | `172344 execute` |
+| 58503A 3633 | `0x2940e` | `0x13028` | `168974 execute` |
+| 58503A 3704 | `0x294b6` | `0x130da` | `169142 execute` |
+
+This has not been tried on a unit.  The console is itself reached only
+through `LANG "PFORTH"` from the SCPI parser (see "Getting to it"), so
+it helps only a primary whose parser still runs.
+
 How S1, a flash-read fault or the CPU's background debug mode might
-reach either path is speculative; see
+reach the installer without a working primary is speculative; see
 [the recovery hypotheses](recovery-hypothesis.md).
+
+### The switch byte at `0x302000`
+
+The Z3801A and Z3805A reset code sets up these chip selects (CSPAR0
+`0x2bff`, CSPAR1 `0x03af`; MC68331UM 4.8).  The 58503A's are the same
+except that it has no CS4.
+
+| Select | Base, size | Port | Access | Use in the firmware |
+| ------ | ---------- | ---- | ------ | ------------------- |
+| BOOT, CS1 | `0x0`, `0x40000`; 256 KiB each | 16-bit | read | flash |
+| CS6, CS7 | the same | 16-bit | write | flash |
+| CS0, CS2, CS3 | `0x100000`, 64 KiB | 16-bit | | RAM |
+| CS4 | `0x500000`, 2 KiB, 0 wait | 8-bit | R/W | none |
+| CS5 | `0x300000`, 64 KiB, 12 wait | 8-bit | R/W | latch at `0x300000`, registers at `0x304000` and `0x306000`, byte at `0x302000` |
+| CS8 | `0x200000`, 2 KiB, external DSACK | 8-bit | | 68681 DUART |
+| CS9 | `0x400000`, 8 KiB | 8-bit | | EEPROM |
+
+The only read of `0x302000` in any installer is in the Oman installer
+that 58503A 3633 carries (unpacked address `0x108290`).  The installer
+first loads its host-port settings from the EEPROM record or from its
+defaults, then reads the byte and overrides them:
+
+```
+108290  move.b  $302000,d1
+        andi.b  #1,d0 / bne -> rts        bit 0 set: keep the settings
+        (d1 & 6) >> 1   -> 0x10ac7e       bits 2:1: baud index
+        bit 3 set       -> 0x10ac7f = 2, 0x10ac82 = 0
+        bit 3 clear     -> 0x10ac7f = 0, 0x10ac82 = 1
+        bit 4           -> 0x10ac80
+        clr.b 0x10ac83
+```
+
+Bit 0 clear enables the override.  Bits 2:1 index the DUART channel B
+clock select values `0x66`, `0x88`, `0xbb`, `0xcc`.  Bit 3 set selects
+7 data bits, odd parity; clear, 8 bits, no parity.  Bit 4 turns on
+XON/XOFF pacing.  One stop bit is forced, and bits 5 to 7 are not
+tested.  The baud each clock select value gives depends on the ACR's
+rate set, which was not traced.  The byte is read each time the
+installer starts and is not stored.
+
+The Peru installer (Z3801A 3543, Z3805A 3543B) and the USA installer
+(58503A 3704, Z3816A 4001) do not read `0x302000`.  Nor does any
+primary except the Z3816A's, which reads bit 8 of the word at
+`0x302000` to pick G (see "τ and G").  So no firmware on the bench
+units reads this byte.  Whether it is S1 has not been established.
+097-55300-01 figures 3-14 and 3-15A give the related 55300A's S1 B1 as
+"Preset All Serial Ports at Powerup", which is the same kind of
+function.
 
 ### The flasher
 

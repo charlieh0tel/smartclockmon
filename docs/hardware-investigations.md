@@ -273,10 +273,18 @@ but an unusable primary is the separate open item below.
 *Open item:* what each of the eight positions on S1 controls, and
 whether any forces INSTALL without a working primary interpreter.
 The Z3801A 3543 and Z3805A 3543B reset-to-primary paths contain no
-switch test.  This does not exclude a hardware effect on booting.
+switch test, and a running primary enters the installer only through
+the SCPI task (`firmware.md`, "Forced installer entry with an unusable
+primary").  This does not exclude a hardware effect on booting.
 See [recovery-hypothesis.md](recovery-hypothesis.md) for modeled flash
 read faults that preserve the installer while failing primary checks.
 
+- [ ] TODO: with the unit open, read the byte at `0x302000` from the
+  pForth console (`3153920 c@ .`) before and after changing each S1
+  position, one at a time, powered down.  The Oman installer reads that
+  byte for its host-port settings (`firmware.md`, "The switch byte at
+  `0x302000`"); whether S1 drives it is unknown.  See
+  [recovery-hypothesis.md](recovery-hypothesis.md), hypothesis 4.
 - [ ] TODO: on an unpowered board, map S1's connections to buffers, CPU pins,
   flash or programmable logic.  Record the assembly revision, physical
   switch numbering and which contacts close in the marked ON position.
