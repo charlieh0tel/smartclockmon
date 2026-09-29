@@ -61,7 +61,9 @@
 // than leaving an empty rectangle if it did not arrive.
 const haveUplot = typeof uPlot !== "undefined";
 
-// Label, and the factor that puts the column in units worth reading.
+// Name, the factor that puts the column in units worth reading, and
+// an optional qualifier said beside the name on the chart and in the
+// menu but not in the cursor readout, where it would crowd the numbers.
 // The interval is stored in seconds and is a few nanoseconds: plotted
 // as seconds, every axis tick rounds to 0.
 // Hover text for the values whose numbers mean nothing on their own.
@@ -86,8 +88,8 @@ const LABELS = {
   oven_current: ["Oven current", 1],
   oven_tempco: ["Oscillator tempco, learned", 1],
   time_interval_s: ["1 PPS TI, ns", 1e9],
-  tfom: ["Time figure of merit (lower is better)", 1],
-  ffom: ["Frequency figure of merit (lower is better)", 1],
+  tfom: ["Time figure of merit", 1, "lower is better"],
+  ffom: ["Frequency figure of merit", 1, "lower is better"],
   // The receiver's own words, said as counts because that is what is
   // plotted.  Nothing is added to them: "not tracked" is the count
   // `:GPS:SATellite:VISible:PREDicted?` gives -- "the list of
@@ -98,7 +100,11 @@ const LABELS = {
   tracking: ["# sats tracked", 1],
   not_tracking: ["# sats not tracked", 1],
 };
-const label = (c) => (LABELS[c] ?? [c, 1])[0];
+const columnName = (c) => (LABELS[c] ?? [c, 1])[0];
+const label = (c) => {
+  const qualifier = LABELS[c]?.[2];
+  return qualifier ? `${columnName(c)} (${qualifier})` : columnName(c);
+};
 const factor = (c) => (LABELS[c] ?? [c, 1])[1];
 const scaled = (values, c) =>
   factor(c) === 1 ? values : values.map((v) => (v === null ? null : v * factor(c)));
@@ -520,7 +526,7 @@ function readout() {
   const cells = charts.flatMap((c) => {
     const one = (col, v, colour) =>
       `<span><span class="k"${colour ? ` style="color:${colour}"` : ""}>` +
-      `${esc(label(col))}</span> ` +
+      `${esc(columnName(col))}</span> ` +
       `<span class="v">${esc(show(v))}</span></span>`;
     const value = (series) => (idx == null ? null : c.data[series][idx]);
     // A paired chart carries its partner in the fifth series, and it
