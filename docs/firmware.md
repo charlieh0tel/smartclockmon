@@ -1505,8 +1505,6 @@ loads at `0x738` and `0x73e` and jump at `0x744`.  The failure branches
 enter the installer startup at `0x746`.  There is no switch input read,
 serial-break poll or separate force-INSTALL test along this path.
 This does not establish what the board's eight-position S1 does.
-The [recovery hypotheses](recovery-hypothesis.md) examine flash-read
-overrides that could trigger this path without a software switch test.
 
 There is a separate entry in protected flash at `0xa58`, addressed by
 vector 43 at `0xac`.  It masks interrupts, resets VBR and SP, unpacks
@@ -1515,22 +1513,9 @@ sets VBR there and jumps to `0x10135c`.  This entry and unpacker are
 identical in the two dumps.  The normal PRIMARY trap handler reaches
 this entry, but the entry itself does not call PRIMARY code.
 
-The MC68331 has an independent way to redirect execution: background
-debug mode (BDM).  MC68331UM sections 5.10.2.1 and 5.10.2.2 describe
-enabling it through BKPT at reset and entering it through a hardware
-breakpoint.  Sections 5.10.2.5.2 and 5.10.2.6 describe changing the
-return program counter (RPC) and resuming with GO.  Thus, after the
-reset code has configured the memory interfaces, redirecting execution
-to `0xa58` is a candidate recovery method for a checksum-valid primary
-that cannot accept commands.  This is an inference from the CPU manual
-and firmware, not a tested recovery procedure.  Access to BKPT/DSCLK,
-IFETCH/DSI and IPIPE/DSO on these boards has not been mapped.
-
-S1's functions and any switch-only recovery procedure remain unknown.
-The related 55300A manual, 097-55300-01, figures 3-14 and 3-15A,
-documents S1 B1 as serial-port defaults at power-up and B2 as password
-enable.  That is a lead for comparison, not a mapping for the Z3801A
-or Z3805A.  See [the manufacturer's manual](https://electronicsandbooks.com/edt/manual/Hardware/S/Symmetricom%20www.symmetricon.com%20www.symmttm.com/55300/097-55300-01%20%5B204%5D.pdf).
+How S1, a flash-read fault or the CPU's background debug mode might
+reach either path is speculative; see
+[the recovery hypotheses](recovery-hypothesis.md).
 
 ### The flasher
 

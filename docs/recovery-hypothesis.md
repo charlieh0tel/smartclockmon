@@ -1,5 +1,8 @@
 # Recovery hypotheses
 
+*Speculative, by request: hypotheses to guide a bench investigation,
+not findings.  Facts they rest on are in `firmware.md`.*
+
 Research question: can a jumper or the eight-position S1 force recovery
 when PRIMARY has valid checksums but cannot accept the command to enter
 INSTALL?  The boards of interest are the Z3801A and Z3805A, with a
@@ -17,11 +20,12 @@ no receiver was accessed.  Results recorded on 2026-09-28.
 | 2. Enable background debugging | A contact enables BDM through BKPT at reset; a debugger redirects execution to the protected installer. | MCU support and installer entry are established; board access and recovery are untested.  A switch alone does not select INSTALL. |
 | 3. Select alternate boot storage | Bank selection changes the reset vectors or startup code presented to the CPU. | No alternate recovery image or selection circuit identified. |
 
-The related 55300A manual assigns S1 B1 to serial-port defaults at
-power-up and B2 to password enable (097-55300-01, figures 3-14 and
-3-15A).  Those assignments are not established for these boards.  See
-[firmware.md](firmware.md#forced-installer-entry-with-an-unusable-primary)
-for that reference and the independent BDM candidate.
+The related 55300A manual assigns S1 B1 to "Preset All Serial Ports at
+Powerup" and B2 to "Password Required" (097-55300-01, figures 3-14 and
+3-15A; `third_party/097-55300-01-iss-1.pdf`).  Those assignments are
+not established for these boards.  The reset path and installer entry
+the hypotheses rely on are in
+[firmware.md](firmware.md#forced-installer-entry-with-an-unusable-primary).
 
 ## 1. Alter primary flash reads
 
@@ -136,3 +140,17 @@ would redirect the investigation.
 The model verifies checksum consequences for known images, not the
 electrical circuit, an S1 assignment, an installer session, or recovery
 of a real unit.  Those remain open.
+
+## 2. Enable background debugging
+
+The MC68331 has an independent way to redirect execution: background
+debug mode (BDM).  MC68331UM sections 5.10.2.1 and 5.10.2.2 describe
+enabling it through BKPT at reset and entering it through a hardware
+breakpoint.  Sections 5.10.2.5.2 and 5.10.2.6 describe changing the
+return program counter (RPC) and resuming with GO.  After the reset
+code has configured the memory interfaces, redirecting execution to the
+protected installer entry at `0xa58` is therefore a candidate recovery
+for a checksum-valid primary that cannot accept commands.  This is an
+inference from the CPU manual and firmware, not a tested procedure.
+Access to BKPT/DSCLK, IFETCH/DSI and IPIPE/DSO on these boards has not
+been mapped.
