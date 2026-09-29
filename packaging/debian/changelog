@@ -1,3 +1,16 @@
+smartclockmon (0.6.39-1) unstable; urgency=low
+
+  * smartclock-cli read-memory returns the port to SCPI after reading,
+    through the primary's own exit into the installer, instead of
+    needing a power cycle; --stay-in-console keeps the old behavior.
+  * New smartclock-cli read-flash and read-eeprom: read-memory with
+    the flash and EEPROM ranges fixed.
+  * smartclock-flash reads the whole flash back through the debug
+    console after writing and requires it to match the image;
+    --no-readback skips it.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Mon, 28 Sep 2026 22:49:22 -0700
+
 smartclockmon (0.6.38-1) unstable; urgency=low
 
   * New smartclock-flash: direct-serial firmware installer for the
