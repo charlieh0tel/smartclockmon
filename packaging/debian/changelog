@@ -1,3 +1,13 @@
+smartclockmon (1.0.1-1) unstable; urgency=low
+
+  * Every web page ends with the copyright, the license, the build, and
+    links to the source and the issue tracker, served from the package
+    metadata at /api/about.
+  * The live page's cursor readout names the figures of merit without
+    "lower is better", which the chart titles and the menu still say.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Tue, 29 Sep 2026 00:03:51 -0700
+
 smartclockmon (1.0.0-1) unstable; urgency=low
 
   * Firmware loading moves into the CLI as smartclock-cli flash; the
