@@ -1511,8 +1511,12 @@ This does not establish what the board's eight-position S1 does.
 There is a separate entry in protected flash at `0xa58`, addressed by
 vector 43 at `0xac`.  It masks interrupts, resets VBR and SP, unpacks
 the installer through `0xaa0`, copies its vectors to RAM at `0x100000`,
-sets VBR there and jumps to `0x10135c`.  This entry and unpacker are
-identical in the two dumps.  The normal PRIMARY trap handler reaches
+sets VBR there and jumps to `0x10135c`.  The unpacker at `0xaa0` reads
+records from `0xbbc`: an `S`, then records of a `C`, a 32-bit count, a
+32-bit RAM destination and that many bytes inline, up to an `E` at
+`0xb328`.  So everything it copies comes from below `0x10000`, into
+`0x100400`--`0x10aad2`.  This entry and unpacker are identical in the
+two dumps.  The normal PRIMARY trap handler reaches
 this entry, but the entry itself does not call PRIMARY code.
 
 A running primary has one way there.  Each Z3801A, Z3805A and 58503A
@@ -1592,8 +1596,11 @@ Bit 0 clear enables the override.  Bits 2:1 index the DUART channel B
 clock select values `0x66`, `0x88`, `0xbb`, `0xcc`.  Bit 3 set selects
 7 data bits, odd parity; clear, 8 bits, no parity.  Bit 4 turns on
 XON/XOFF pacing.  One stop bit is forced, and bits 5 to 7 are not
-tested.  The baud each clock select value gives depends on the ACR's
-rate set, which was not traced.  The byte is read each time the
+tested.  The installer writes the ACR once, `0xb0` (`0x346e`,
+`0x3476` in the unpacked image), selecting the 68681's baud-rate set 2,
+in which those codes are 1200, 2400, 9600 and 19200 baud at the
+part's standard 3.6864 MHz clock; the board's crystal was not checked.
+The byte is read each time the
 installer starts and is not stored.
 
 The Peru installer (Z3801A 3543, Z3805A 3543B) and the USA installer
