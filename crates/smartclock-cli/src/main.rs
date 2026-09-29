@@ -211,26 +211,35 @@ fn main() -> Result<()> {
             .map(|path| std::fs::read(path).with_context(|| format!("reading {}", path.display())))
             .transpose()?;
         let mut file = File::create(out).with_context(|| format!("creating {}", out.display()))?;
-        let summary =
-            pforth::read_memory(&mut port, *from, *length, &mut file, expected.as_deref())?;
-        eprintln!(
-            "read {length:#x} bytes from {from:#x} into {} in {} s",
-            out.display(),
-            summary.took.as_secs()
-        );
-        if let Some(path) = compare {
-            if summary.differing.is_empty() {
-                eprintln!("identical to {}", path.display());
-            } else {
-                for chunk in &summary.differing {
-                    eprintln!("differs from {} in the 1 KB at {chunk:#x}", path.display());
+        let read = pforth::read_memory(&mut port, *from, *length, &mut file, expected.as_deref());
+        if let Ok(summary) = &read {
+            eprintln!(
+                "read {length:#x} bytes from {from:#x} into {} in {} s",
+                out.display(),
+                summary.took.as_secs()
+            );
+            if let Some(path) = compare {
+                if summary.differing.is_empty() {
+                    eprintln!("identical to {}", path.display());
+                } else {
+                    for chunk in &summary.differing {
+                        eprintln!("differs from {} in the 1 KB at {chunk:#x}", path.display());
+                    }
                 }
             }
         }
-        if !stay_in_console {
-            back_to_scpi(port, config)?;
+        // A read that fails part way leaves the port at the console
+        // too, so the way back is tried either way.
+        if *stay_in_console {
+            return read.map(|_| ());
         }
-        return Ok(());
+        return match (read, back_to_scpi(port, config)) {
+            (Ok(_), back) => back,
+            (Err(read), Ok(())) => Err(read),
+            (Err(read), Err(back)) => {
+                Err(read.context(format!("and returning to SCPI failed: {back:#}")))
+            }
+        };
     }
 
     // Capture wraps the port, so a recording covers the sync exchange

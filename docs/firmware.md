@@ -1034,7 +1034,8 @@ line and, when no console prompt comes back within three seconds,
 sends `:SYSTem:LANGuage "PFORTH"` and waits for one; then it defines
 `rd`, reads 1 KB per request with retries, writes the bytes to a file
 and, given `--compare`, checks each kilobyte against an image.  Then,
-unless given `--stay-in-console`, it returns the port to SCPI: it
+unless given `--stay-in-console`, it returns the port to SCPI, after a
+failed read as well: it
 checks that the cell and `trap #11` of exactly one known image are
 where that image has them, sends `<cell> execute`, checks that the
 installer answers `:SYSTem:LANGuage?` with `"INSTALL"`, sends
