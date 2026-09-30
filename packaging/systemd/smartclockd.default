@@ -43,6 +43,11 @@
 #SMARTCLOCKD_MEDIUM=10.0
 #SMARTCLOCKD_SLOW=60.0
 
+# Seconds between status-screen reads for the log's satellite table
+# (elevation, azimuth, signal), about 1.5 s of link each.  0 reads it
+# only while a client shows the sky.
+#SMARTCLOCKD_SKY=300.0
+
 # What clients may send.  true or false; empty is rejected.
 #SMARTCLOCKD_ALLOW_CONTROL=false
 #SMARTCLOCKD_ALLOW_DANGEROUS=false

@@ -502,10 +502,13 @@ register.  The firmware's command tree has no per-satellite node, so
 elevation, azimuth and signal strength are screen-only.  The medium
 tier, four steps totaling 0.57 s, runs every ten seconds.
 
-The screen is read only while someone is looking at it: `Op::Status`
-on the socket (op `status`), the status view in the monitor, and
-`/status` in the browser, which show the receiver's screen text beside
-the sky plot.  `Screen` keeps the text as well as what was parsed from
+The screen is on no tier, but it is read two ways: when someone is
+looking at it -- `Op::Status` on the socket (op `status`), the status
+view in the monitor, and `/status` in the browser, which show the
+receiver's screen text beside the sky plot -- and every `--sky`
+seconds (300 by default; 0 turns it off), through the same request,
+so the log's satellite table is kept without a viewer.  At 1.5 s a
+read, the default costs half a percent of the link.  `Screen` keeps the text as well as what was parsed from
 it.  A screen read is returned to whoever asked and delivered to the
 subscribers on one snapshot, about 1.8 KB per read and nothing between,
 so the log records that sky once.  It is never stored as the latest

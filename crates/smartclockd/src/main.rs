@@ -118,6 +118,14 @@ struct Cli {
     #[arg(long, env = "SMARTCLOCKD_SLOW", default_value_t = 60.0)]
     slow: f64,
 
+    /// Seconds between status-screen reads, so the log's satellite
+    /// table -- elevation, azimuth and signal, which only the screen
+    /// carries -- is kept without a client looking at the sky view.
+    /// A read costs about 1.5 s of link, so the default of 300 is half
+    /// a percent of it.  0 reads the screen only when a client asks.
+    #[arg(long, env = "SMARTCLOCKD_SKY", default_value_t = 300.0)]
+    sky: f64,
+
     /// Permit commands that change receiver state: holdover, survey,
     /// antenna delay, elevation mask.
     #[arg(long, env = "SMARTCLOCKD_ALLOW_CONTROL")]
@@ -370,7 +378,36 @@ fn main() -> Result<()> {
         })
         .context("spawning the log thread")?;
 
+    if cli.sky != 0.0 {
+        let every = seconds(cli.sky, "--sky")?;
+        read_sky(every, Handle::new(requests_tx.clone(), shared.clone()))?;
+    }
+
     supervise(cli, baud, cadence, shared, requests_tx, requests_rx, info)
+}
+
+/// Read the status screen every `every`, as the sky view does.  The
+/// screen reaches the log through the snapshot it is delivered on.  A
+/// failure is reported once, not on every read while the link is down.
+fn read_sky(every: Duration, handle: Handle) -> Result<()> {
+    thread::Builder::new()
+        .name("smartclockd-sky".to_owned())
+        .spawn(move || {
+            let mut failing = false;
+            loop {
+                thread::sleep(every);
+                match handle.status() {
+                    Ok(_) => failing = false,
+                    Err(e) if !failing => {
+                        eprintln!("smartclockd: reading the status screen for the sky: {e}");
+                        failing = true;
+                    }
+                    Err(_) => {}
+                }
+            }
+        })
+        .context("spawning the sky thread")?;
+    Ok(())
 }
 
 /// Keep a receiver open, reopening it whenever the link dies.
