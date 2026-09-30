@@ -62,8 +62,8 @@
 const haveUplot = typeof uPlot !== "undefined";
 
 // Name, the factor that puts the column in units worth reading, and
-// an optional qualifier said beside the name on the chart and in the
-// menu but not in the cursor readout, where it would crowd the numbers.
+// an optional qualifier said beside the name in the chart's title
+// only: the menu and the cursor readout use the bare name.
 // The interval is stored in seconds and is a few nanoseconds: plotted
 // as seconds, every axis tick rounds to 0.
 // Hover text for the values whose numbers mean nothing on their own.
@@ -557,7 +557,7 @@ function pickers(plottable) {
   // Only what this unit measures is offered.  `order` keeps the rest, so
   // a column ticked for another unit stays chosen for when it is back.
   const menu = order.filter((c) => c !== PAIRED[1] && measures(c));
-  const shown = (c) => (c === PAIRED[0] ? "# sats" : label(c));
+  const shown = (c) => (c === PAIRED[0] ? "# sats" : columnName(c));
   $("columns").innerHTML = menu
     .map(
       (c) =>
