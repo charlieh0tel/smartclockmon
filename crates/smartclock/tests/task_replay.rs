@@ -104,6 +104,19 @@ fn nothing_is_published_before_the_first_poll() {
     runner.join().expect("the device thread");
 }
 
+#[test]
+fn a_stop_request_ends_the_task_while_its_handles_are_still_held() {
+    // A daemon's own threads hold handles for as long as it runs, so
+    // waiting for them all to drop is no way to shut down.
+    let (requests_tx, requests_rx) = channel();
+    let mut task = DeviceTask::new(device(), Cadence::default(), Shared::new(), requests_rx);
+    requests_tx.send(Request::Stop).expect("queue a stop");
+    let runner = std::thread::spawn(move || task.run());
+    let stopped = runner.join().expect("the device thread");
+    assert!(matches!(stopped, task::Stopped::Requested), "{stopped:?}");
+    drop(requests_tx);
+}
+
 /// Build a transcript from (direction, bytes) pairs.
 fn transcript(steps: &[(&str, &str)]) -> String {
     steps

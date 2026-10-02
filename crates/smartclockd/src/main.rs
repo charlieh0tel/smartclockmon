@@ -23,6 +23,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::RecvTimeoutError;
 use std::sync::mpsc::Sender;
@@ -37,6 +39,9 @@ use clap::Parser;
 use interprocess::local_socket::GenericFilePath;
 use interprocess::local_socket::ToFsName as _;
 use jiff::Timestamp;
+use signal_hook::consts::SIGINT;
+use signal_hook::consts::SIGTERM;
+use signal_hook::iterator::Signals;
 use smartclock::attach::attach;
 use smartclock::command::Dialect;
 use smartclock::device::Device;
@@ -172,6 +177,9 @@ const CONFIGURATION_ERROR: i32 = 2;
 /// How long to wait before reopening a receiver that went away.
 const RECONNECT_DELAY: Duration = Duration::from_secs(5);
 
+/// How often a wait checks whether the daemon has been told to stop.
+const STOP_POLL: Duration = Duration::from_millis(100);
+
 /// How long after startup the receiver's own records are first read.
 const FIRST_JOURNAL: Duration = Duration::from_secs(5);
 
@@ -264,6 +272,7 @@ fn main() -> Result<()> {
 
     let shared = Shared::new();
     let (requests_tx, requests_rx) = channel();
+    let stopping = watch_for_stop(Handle::new(requests_tx.clone(), shared.clone()))?;
 
     let policy = Policy {
         control: cli.allow_control,
@@ -309,7 +318,12 @@ fn main() -> Result<()> {
         );
     }
     let log_cadence = cadence.clone();
-    thread::Builder::new()
+    // Its own flag, set only once the task has stopped, so nothing the
+    // task publishes or a command it ran can arrive after the thread
+    // has drained and gone.
+    let finished = Arc::new(AtomicBool::new(false));
+    let log_finished = Arc::clone(&finished);
+    let log_thread = thread::Builder::new()
         .name("smartclockd-log".to_owned())
         .spawn(move || {
             let mut journal = Journal::default();
@@ -363,9 +377,18 @@ fn main() -> Result<()> {
                     // its start the next would already be due.
                     next_journal = Instant::now() + JOURNAL_EVERY;
                 }
-                // Every publisher has gone, which only happens when the
-                // daemon is shutting down.  Write what is left and stop.
-                let Some(snapshots) = queued(&writes, AUDIT_POLL) else {
+                // Finished, or every publisher has gone.  Write what is
+                // left and stop: an audit entry for a command that ran
+                // is the one record of it.
+                let snapshots = if log_finished.load(Ordering::SeqCst) {
+                    None
+                } else {
+                    queued(&writes, AUDIT_POLL)
+                };
+                let Some(snapshots) = snapshots else {
+                    for snapshot in writes.try_iter() {
+                        recorder.write(&snapshot);
+                    }
                     while let Ok(entry) = audit_rx.try_recv() {
                         recorder.audit(&entry);
                     }
@@ -383,7 +406,25 @@ fn main() -> Result<()> {
         read_sky(every, Handle::new(requests_tx.clone(), shared.clone()))?;
     }
 
-    supervise(cli, baud, cadence, shared, requests_tx, requests_rx, info)
+    let supervised = supervise(Supervisor {
+        cli,
+        baud,
+        cadence,
+        shared,
+        requests_tx,
+        requests_rx,
+        info,
+        stopping: Arc::clone(&stopping),
+    });
+    // The supervisor has gone, and with it the request queue, so a
+    // journal pass in flight fails its next query at once rather than
+    // waiting out a timeout.
+    finished.store(true, Ordering::SeqCst);
+    if log_thread.join().is_err() {
+        eprintln!("smartclockd: the log thread panicked");
+    }
+    eprintln!("smartclockd: stopped");
+    supervised
 }
 
 /// Read the status screen every `every`, as the sky view does.  The
@@ -410,21 +451,76 @@ fn read_sky(every: Duration, handle: Handle) -> Result<()> {
     Ok(())
 }
 
-/// Keep a receiver open, reopening it whenever the link dies.
+/// Stop on SIGTERM or SIGINT, and at once on a second one.
+///
+/// The first sets the returned flag and wakes the task so the
+/// supervisor returns; the log thread then writes what it holds.  A
+/// second signal is someone who will not wait for that.
+fn watch_for_stop(handle: Handle) -> Result<Arc<AtomicBool>> {
+    let stopping = Arc::new(AtomicBool::new(false));
+    let mut signals = Signals::new([SIGTERM, SIGINT]).context("watching for signals")?;
+    let flag = Arc::clone(&stopping);
+    thread::Builder::new()
+        .name("smartclockd-signals".to_owned())
+        .spawn(move || {
+            for signal in signals.forever() {
+                if flag.swap(true, Ordering::SeqCst) {
+                    eprintln!("smartclockd: signal {signal} again, exiting now");
+                    std::process::exit(1);
+                }
+                eprintln!("smartclockd: signal {signal}, stopping");
+                handle.stop();
+            }
+        })
+        .context("spawning the signal thread")?;
+    Ok(stopping)
+}
+
+/// Sleep for `delay`, or less if the daemon is told to stop meanwhile.
+fn pause(delay: Duration, stopping: &AtomicBool) {
+    let until = Instant::now() + delay;
+    while !stopping.load(Ordering::SeqCst) {
+        let left = until.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return;
+        }
+        thread::sleep(left.min(STOP_POLL));
+    }
+}
+
+/// Everything the supervisor runs on, for as long as the daemon does.
+struct Supervisor {
+    cli: Cli,
+    baud: BaudRate,
+    cadence: Cadence,
+    /// Outlives every connection to the receiver.
+    shared: Shared,
+    /// Both ends of the request queue, which also outlives them.
+    requests_tx: Sender<Request>,
+    requests_rx: Receiver<Request>,
+    info: server::SharedInfo,
+    /// Set once the daemon has been told to stop.
+    stopping: Arc<AtomicBool>,
+}
+
+/// Keep a receiver open, reopening it whenever the link dies, until
+/// told to stop.
 ///
 /// The request queue outlives any one connection.  A reconnect builds a
 /// new task around a freshly opened receiver but hands it the same
 /// receiver end, or every client holding a handle would be writing to a
 /// channel nobody reads.
-fn supervise(
-    cli: Cli,
-    baud: BaudRate,
-    cadence: Cadence,
-    shared: Shared,
-    requests_tx: Sender<Request>,
-    requests_rx: Receiver<Request>,
-    info: server::SharedInfo,
-) -> Result<()> {
+fn supervise(supervisor: Supervisor) -> Result<()> {
+    let Supervisor {
+        cli,
+        baud,
+        cadence,
+        shared,
+        requests_tx,
+        requests_rx,
+        info,
+        stopping,
+    } = supervisor;
     let settings = Settings {
         path: cli.device.clone(),
         baud,
@@ -434,12 +530,17 @@ fn supervise(
     let mut requests = requests_rx;
     let mut serving = false;
     loop {
+        // Checked here as well as by the task: a stop that arrives
+        // while no task is running is discarded with the queue.
+        if stopping.load(Ordering::SeqCst) {
+            return Ok(());
+        }
         let device = match open(&settings) {
             Ok(device) => device,
             Err(e) => {
                 eprintln!("smartclockd: cannot open {}: {e}", cli.device);
                 shared.mark_disconnected(Timestamp::now(), &e.to_string());
-                thread::sleep(RECONNECT_DELAY);
+                pause(RECONNECT_DELAY, &stopping);
                 continue;
             }
         };
@@ -486,6 +587,10 @@ fn supervise(
 
         match stopped {
             Stopped::HandlesDropped => return Ok(()),
+            Stopped::Requested => {
+                task::discard_queued(&requests, "the daemon is stopping");
+                return Ok(());
+            }
             Stopped::LinkFailed(e) => {
                 eprintln!("smartclockd: link failed, reopening: {e}");
                 shared.mark_disconnected(Timestamp::now(), &e.to_string());
@@ -497,7 +602,7 @@ fn supervise(
                 if dropped > 0 {
                     eprintln!("smartclockd: dropped {dropped} queued commands");
                 }
-                thread::sleep(RECONNECT_DELAY);
+                pause(RECONNECT_DELAY, &stopping);
                 // And again: the queue is still open during the sleep,
                 // so anything submitted in that window would otherwise
                 // be the first thing run against the receiver that

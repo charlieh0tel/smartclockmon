@@ -262,7 +262,10 @@ change persists across power cycles.  The gate is a daemon flag, not
 anything a client presents (an earlier draft had the client echo a
 nonce): enabling it is a deliberate act outside the client, and a
 daemon started without it cannot be talked into the command at all.
-The audit trail records what followed.
+The audit trail records what followed.  On SIGTERM or SIGINT the
+daemon stops its task, then waits for the log thread to write the
+audit entries and snapshots it holds, so `systemctl stop` does not
+lose the record of a command that ran; a second signal exits at once.
 
 Commands are refused before classification if they could carry a second
 one: a `;`, a control character or any non-ASCII.  SCPI chains program

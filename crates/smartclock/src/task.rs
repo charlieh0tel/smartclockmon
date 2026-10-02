@@ -107,6 +107,12 @@ pub enum Request {
         /// Where to send the screen, or why there is none.
         answer: SyncSender<Result<Screen>>,
     },
+    /// Stop serving and return [`Stopped::Requested`].
+    ///
+    /// Sent when the program is shutting down.  It only wakes the task:
+    /// one queued while no task is running is discarded with the rest,
+    /// so whatever decides to stop has to remember that it did.
+    Stop,
 }
 
 /// State that outlives any one connection to the receiver.
@@ -320,6 +326,11 @@ impl Handle {
         let _ = self.requests.send(Request::Refresh);
     }
 
+    /// Ask the task to stop once what it is doing now is done.
+    pub fn stop(&self) {
+        let _ = self.requests.send(Request::Stop);
+    }
+
     /// Send one command and wait for its reply.
     ///
     /// The task services requests between scheduled polls, never during
@@ -401,6 +412,8 @@ pub enum Stopped {
     HandlesDropped,
     /// The link failed repeatedly and the device should be reopened.
     LinkFailed(Error),
+    /// A [`Request::Stop`] was served.
+    Requested,
 }
 
 /// How long a caller waits for a command before giving up.
@@ -835,6 +848,7 @@ impl<T: Transport> DeviceTask<T> {
                 }
                 None
             }
+            Request::Stop => Some(Stopped::Requested),
         }
     }
 }
