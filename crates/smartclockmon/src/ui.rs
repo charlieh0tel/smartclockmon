@@ -36,6 +36,7 @@ use crate::app::App;
 use crate::app::View;
 use crate::history::Source;
 use crate::history::Trace;
+use crate::source::Attachment;
 
 /// Block elements for the trend, lightest first.
 const TREND_BLOCKS: [char; 8] = [
@@ -1111,8 +1112,10 @@ fn time_and_place(frame: &mut Frame, area: Rect, app: &App) {
 fn console(frame: &mut Frame, area: Rect, app: &App) {
     // Say what the daemon permits, so a refusal is not a surprise and
     // the flag that would lift it is discoverable.
-    let title = if !app.console.is_connected() {
+    let title = if let Attachment::Direct { .. } = app.attachment {
         "Command  [direct mode has no daemon to ask]".to_owned()
+    } else if !app.console.is_connected() {
+        "Command  [not connected to the daemon]".to_owned()
     } else {
         let mut allowed = vec!["queries"];
         if app.policy.control {
