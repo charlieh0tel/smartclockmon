@@ -13,7 +13,9 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::Mutex;
+use std::thread;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -235,20 +237,32 @@ fn json(result: Result<serde_json::Value>) -> Response {
 /// outlasts the request that caused it.
 const CACHE_FOR: Duration = Duration::from_millis(900);
 
+/// How long a cached answer may take.
+///
+/// The daemon answers these from what it already holds, so anything
+/// near this is a daemon that has stopped answering, and the page is
+/// better told so than kept waiting.
+const ASK_BUDGET: Duration = Duration::from_secs(5);
+
 /// The daemon's answers, kept briefly.
 ///
-/// One mutex rather than one connection: a held connection has to be
+/// Locks rather than connections: a held connection has to be
 /// reconnected when the daemon restarts, and this way a request that
 /// finds the cache warm does not touch the socket at all.
 ///
-/// The lock is held while the daemon is asked, on purpose: requests
+/// A daemon's lock is held while it is asked, on purpose: requests
 /// arriving together make one connection, not one each, which is what
-/// keeps a few open tabs from taking the daemon's client slots.
+/// keeps a few open tabs from taking the daemon's client slots.  One
+/// lock per daemon, though, not one for them all, or a daemon that had
+/// stopped answering held up every request about every other.
 #[derive(Default)]
 struct Cache {
-    latest: Mutex<HashMap<PathBuf, Kept>>,
-    info: Mutex<HashMap<PathBuf, Kept>>,
+    latest: Cells,
+    info: Cells,
 }
+
+/// Each daemon's last answer, behind a lock of its own.
+type Cells = Mutex<HashMap<PathBuf, Arc<Mutex<Option<Kept>>>>>;
 
 /// One answer from a daemon, or why there was none, and when.
 type Kept = (Instant, std::result::Result<serde_json::Value, String>);
@@ -262,33 +276,37 @@ impl Cache {
     /// the last of them waited for all of them.  Kept, they share the
     /// one failure, and a daemon coming back shows at most `CACHE_FOR`
     /// later.
-    fn get<F>(
-        cell: &Mutex<HashMap<PathBuf, Kept>>,
-        socket: &Path,
-        ask: F,
-    ) -> Result<serde_json::Value>
+    fn get<F>(cells: &Cells, socket: &Path, ask: F) -> Result<serde_json::Value>
     where
         F: FnOnce() -> Result<serde_json::Value>,
     {
+        let cell = {
+            let mut cells = cells
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            Arc::clone(cells.entry(socket.to_path_buf()).or_default())
+        };
         let mut held = cell.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        if let Some((at, kept)) = held.get(socket)
+        if let Some((at, kept)) = held.as_ref()
             && at.elapsed() < CACHE_FOR
         {
             return kept.clone().map_err(anyhow::Error::msg);
         }
         let asked = ask().map_err(|e| format!("{e:#}"));
-        held.insert(socket.to_path_buf(), (Instant::now(), asked.clone()));
+        *held = Some((Instant::now(), asked.clone()));
         asked.map_err(anyhow::Error::msg)
     }
 
     fn snapshot(&self, socket: &Path) -> Result<serde_json::Value> {
         Self::get(&self.latest, socket, || {
-            Ok(Daemon::connect(socket)?.ask(Op::Latest)?)
+            Ok(Daemon::connect_within(socket, ASK_BUDGET)?.ask(Op::Latest)?)
         })
     }
 
     fn info(&self, socket: &Path) -> Result<serde_json::Value> {
-        Self::get(&self.info, socket, || Ok(Daemon::connect(socket)?.info()?))
+        Self::get(&self.info, socket, || {
+            Ok(Daemon::connect_within(socket, ASK_BUDGET)?.info()?)
+        })
     }
 }
 
@@ -315,19 +333,29 @@ impl Live {
 /// A socket nobody answers on -- an instance stopped with its
 /// directory still there -- is left out, not an error: the page
 /// shows what is live, and history for the rest.
+///
+/// All asked at once, so one that has wedged costs a request its
+/// [`ASK_BUDGET`] and no more, however many others there are.
 fn live(daemons: &Daemons, cache: &Cache) -> Vec<Live> {
-    daemons
-        .sockets()
-        .into_iter()
-        .filter_map(|instance| {
-            let info = cache.info(&instance.socket).ok()?;
-            Some(Live {
-                identity: client::identity(&info).filter(|id| !id.serial.is_empty()),
-                socket: instance.socket,
-                instance: instance.name,
+    let instances = daemons.sockets();
+    thread::scope(|scope| {
+        let asked: Vec<_> = instances
+            .iter()
+            .map(|instance| scope.spawn(|| cache.info(&instance.socket)))
+            .collect();
+        instances
+            .iter()
+            .zip(asked)
+            .filter_map(|(instance, asked)| {
+                let info = asked.join().ok()?.ok()?;
+                Some(Live {
+                    identity: client::identity(&info).filter(|id| !id.serial.is_empty()),
+                    socket: instance.socket.clone(),
+                    instance: instance.name.clone(),
+                })
             })
-        })
-        .collect()
+            .collect()
+    })
 }
 
 /// The daemon a live request is about.
@@ -674,6 +702,33 @@ mod tests {
         }
         assert_eq!(asks.load(Ordering::SeqCst), 1);
         assert!(started.elapsed() < Duration::from_millis(800));
+    }
+
+    #[test]
+    fn a_silent_daemon_holds_up_only_requests_about_itself() {
+        let cache = Arc::new(Cache::default());
+        let silent = {
+            let cache = Arc::clone(&cache);
+            std::thread::spawn(move || {
+                Cache::get(&cache.info, Path::new("/silent"), || {
+                    std::thread::sleep(Duration::from_millis(500));
+                    Err(anyhow::anyhow!("it did not answer"))
+                })
+            })
+        };
+        // Let the silent one take its lock first.
+        std::thread::sleep(Duration::from_millis(100));
+        let started = Instant::now();
+        let other = Cache::get(&cache.info, Path::new("/other"), || {
+            Ok(serde_json::json!({}))
+        });
+        assert!(other.is_ok());
+        assert!(
+            started.elapsed() < Duration::from_millis(200),
+            "waited {:?} behind another daemon",
+            started.elapsed()
+        );
+        assert!(silent.join().expect("the silent request").is_err());
     }
 
     /// No two top-level functions in the page share a name.
