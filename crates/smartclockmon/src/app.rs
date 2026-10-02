@@ -91,8 +91,11 @@ pub(crate) struct App {
     ///
     /// `None` only while no log is open or the log names no receiver;
     /// otherwise the most recently seen, which is the attached unit on
-    /// a bench where they are swapped.
+    /// a bench where they are swapped, until the operator picks one.
     pub(crate) receiver: Option<i64>,
+    /// Whether the operator chose [`App::receiver`], which then stays
+    /// chosen rather than following whichever unit was seen last.
+    pub(crate) receiver_picked: bool,
     /// The last series read from it.
     pub(crate) history: History,
     /// The Allan deviation, recomputed while its view is open.
@@ -143,6 +146,7 @@ impl App {
             journal: Vec::new(),
             receivers: Vec::new(),
             receiver: None,
+            receiver_picked: false,
             history: History::default(),
             deviation: smartclock::adev::Curve::default(),
             history_error: None,
@@ -186,9 +190,9 @@ impl App {
                 ..
             } => match Log::open(std::path::Path::new(path)) {
                 Ok(log) => {
-                    self.receivers = log.receivers().unwrap_or_default();
-                    self.receiver = self.receivers.first().map(|r| r.id);
                     self.log = Some(log);
+                    self.receiver_picked = false;
+                    self.find_receivers();
                 }
                 Err(e) => self.history_error = Some(e.to_string()),
             },
@@ -226,15 +230,68 @@ impl App {
         }
     }
 
+    /// Re-read which receivers the log holds, and follow the one seen
+    /// most recently unless the operator picked another.
+    ///
+    /// On every refresh, not only when the log is opened: a fresh log
+    /// names no receiver until the daemon writes its first row, and a
+    /// unit swapped onto the same log is seen only by looking again.
+    /// Read once, a fresh log left every history view blank for the
+    /// life of the process, saying nothing.
+    fn find_receivers(&mut self) {
+        let Some(log) = &self.log else { return };
+        match log.receivers() {
+            Ok(receivers) => self.receivers = receivers,
+            Err(e) => {
+                self.history_error = Some(e.to_string());
+                return;
+            }
+        }
+        let still_there = |id: i64| self.receivers.iter().any(|r| r.id == id);
+        if !(self.receiver_picked && self.receiver.is_some_and(still_there)) {
+            self.receiver_picked = false;
+            self.receiver = self.receivers.first().map(|r| r.id);
+        }
+        if self.receiver.is_none() {
+            self.history_error = Some("the log names no receiver yet".to_owned());
+        }
+    }
+
+    /// The log and the receiver to read, after looking again for
+    /// receivers.
+    fn chosen(&mut self) -> Option<(&Log, i64)> {
+        self.find_receivers();
+        Some((self.log.as_ref()?, self.receiver?))
+    }
+
     /// Re-read the graphs.  Called on a timer, not every frame.
     pub(crate) fn refresh_history(&mut self, columns: usize) {
-        let Some(log) = &self.log else { return };
-        let Some(receiver) = self.receiver else {
+        let window = self.window;
+        let Some((log, receiver)) = self.chosen() else {
             return;
         };
-        match log.read(receiver, self.window, columns) {
+        match log.read(receiver, window, columns) {
             Ok(history) => {
                 self.history = history;
+                self.history_error = None;
+            }
+            Err(e) => self.history_error = Some(e.to_string()),
+        }
+    }
+
+    /// Recompute the deviation for the current window.
+    ///
+    /// Only called while its view is open: it reads every 1 PPS
+    /// reading in the window at full rate, which is the one query here
+    /// that is not cheap.
+    pub(crate) fn refresh_deviation(&mut self) {
+        let window = self.window;
+        let Some((log, receiver)) = self.chosen() else {
+            return;
+        };
+        match log.deviation(receiver, window) {
+            Ok(deviation) => {
+                self.deviation = deviation;
                 self.history_error = None;
             }
             Err(e) => self.history_error = Some(e.to_string()),
@@ -246,28 +303,8 @@ impl App {
     /// Shares `history_error` with the graphs: both read the same file
     /// through the same handle, so a failure of one is a failure of the
     /// other and two separate messages would say the same thing twice.
-    /// Recompute the deviation for the current window.
-    ///
-    /// Only called while its view is open: it reads every 1 PPS
-    /// reading in the window at full rate, which is the one query here
-    /// that is not cheap.
-    pub(crate) fn refresh_deviation(&mut self) {
-        let Some(log) = &self.log else { return };
-        let Some(receiver) = self.receiver else {
-            return;
-        };
-        match log.deviation(receiver, self.window) {
-            Ok(deviation) => {
-                self.deviation = deviation;
-                self.history_error = None;
-            }
-            Err(e) => self.history_error = Some(e.to_string()),
-        }
-    }
-
     pub(crate) fn refresh_journal(&mut self) {
-        let Some(log) = &self.log else { return };
-        let Some(receiver) = self.receiver else {
+        let Some((log, receiver)) = self.chosen() else {
             return;
         };
         match log.journal(receiver, JOURNAL_LEN) {
@@ -294,6 +331,7 @@ impl App {
             .position(|r| Some(r.id) == self.receiver)
             .unwrap_or(0);
         self.receiver = Some(self.receivers[(at + 1) % self.receivers.len()].id);
+        self.receiver_picked = true;
     }
 
     /// How the chosen receiver is named on screen, when there is a
@@ -412,5 +450,43 @@ mod tests {
         assert_eq!(app.cadence.medium, Duration::from_secs(30));
         // The new log is the one opened, and it is not there.
         assert!(app.history_error.is_some());
+    }
+
+    #[test]
+    fn a_receiver_the_log_names_after_it_was_opened_is_found() {
+        let path =
+            std::env::temp_dir().join(format!("smartclockmon-fresh-{}.sqlite", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let conn = rusqlite::Connection::open(&path).expect("make a log");
+        conn.execute_batch(smartclock_log::schema::META)
+            .expect("meta");
+        conn.execute_batch(smartclock_log::schema::TABLES)
+            .expect("the tables");
+        let mut app = App::new(
+            Attachment::Daemon {
+                socket: "/run/smartclockd.sock".to_owned(),
+                database: Some(path.display().to_string()),
+            },
+            Console::default(),
+            Policy::default(),
+            Cadence::default(),
+        );
+        app.open_log();
+        app.refresh_journal();
+        let before = (app.receiver, app.history_error.clone());
+
+        conn.execute_batch(
+            "INSERT INTO receiver (id, serial, first_seen, last_seen) VALUES (7, 'AAA', '', '');",
+        )
+        .expect("the daemon's first row");
+        app.refresh_journal();
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(
+            before,
+            (None, Some("the log names no receiver yet".to_owned()))
+        );
+        assert_eq!(app.receiver, Some(7));
+        assert_eq!(app.history_error, None);
     }
 }
