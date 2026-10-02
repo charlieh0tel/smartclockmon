@@ -44,7 +44,7 @@ impl Window {
     }
 
     /// How many seconds back this reaches.
-    fn seconds(self) -> i64 {
+    pub(crate) fn seconds(self) -> i64 {
         match self {
             Self::Hour => 3600,
             Self::Day => 86_400,
@@ -75,6 +75,17 @@ pub(crate) struct Trace {
     pub(crate) low: Series,
     /// Highest reading in each column.
     pub(crate) high: Series,
+    /// Where each unbroken run of columns starts, as indices into the
+    /// series above.
+    ///
+    /// A column with no current reading -- the receiver unplugged, the
+    /// daemon stopped, a slower tier failing -- ends a run, so a chart
+    /// breaks the line there instead of drawing it straight across as
+    /// though the value had held.
+    pub(crate) runs: Vec<usize>,
+    /// Whether a column with no reading has come since the last one
+    /// pushed.
+    broken: bool,
 }
 
 impl Trace {
@@ -88,20 +99,30 @@ impl Trace {
         Some([lo - pad, hi + pad])
     }
 
-    /// The span of time covered.
-    pub(crate) fn span(&self) -> [f64; 2] {
-        [
-            self.mean.first().map_or(-1.0, |(t, _)| *t),
-            self.mean.last().map_or(0.0, |(t, _)| *t),
-        ]
+    /// Each unbroken run's mean, lowest and highest.
+    pub(crate) fn each_run(&self) -> impl Iterator<Item = [&[(f64, f64)]; 3]> {
+        self.runs.iter().enumerate().map(|(n, &start)| {
+            let end = self.runs.get(n + 1).copied().unwrap_or(self.mean.len());
+            [
+                &self.mean[start..end],
+                &self.low[start..end],
+                &self.high[start..end],
+            ]
+        })
     }
 
     fn push(&mut self, ago: f64, mean: Option<f64>, low: Option<f64>, high: Option<f64>) {
-        if let (Some(mean), Some(low), Some(high)) = (mean, low, high) {
-            self.mean.push((ago, mean));
-            self.low.push((ago, low));
-            self.high.push((ago, high));
+        let (Some(mean), Some(low), Some(high)) = (mean, low, high) else {
+            self.broken = true;
+            return;
+        };
+        if self.broken || self.runs.is_empty() {
+            self.runs.push(self.mean.len());
+            self.broken = false;
         }
+        self.mean.push((ago, mean));
+        self.low.push((ago, low));
+        self.high.push((ago, high));
     }
 
     /// Scale every value, for a unit change.
@@ -336,6 +357,21 @@ mod tests {
         fn drop(&mut self) {
             self.wipe();
         }
+    }
+
+    #[test]
+    fn a_column_with_no_reading_breaks_the_trace_into_runs() {
+        let mut trace = super::Trace::default();
+        trace.push(-30.0, None, None, None);
+        trace.push(-20.0, Some(1.0), Some(1.0), Some(1.0));
+        trace.push(-15.0, Some(2.0), Some(2.0), Some(2.0));
+        trace.push(-10.0, None, None, None);
+        trace.push(-5.0, Some(3.0), Some(3.0), Some(3.0));
+        let means: Vec<Vec<f64>> = trace
+            .each_run()
+            .map(|[mean, _, _]| mean.iter().map(|&(_, v)| v).collect())
+            .collect();
+        assert_eq!(means, vec![vec![1.0, 2.0], vec![3.0]]);
     }
 
     #[test]

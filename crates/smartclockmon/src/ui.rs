@@ -188,27 +188,35 @@ fn history(frame: &mut Frame, area: Rect, app: &App) {
     }
 
     let span = app.window.label();
-    graph(
-        frame,
-        rows[1],
-        &format!("EFC percent, {span}"),
-        &app.history.efc,
-        Color::Cyan,
-    );
-    graph(
-        frame,
-        rows[2],
-        &format!("Internal temperature C, {span}"),
-        &app.history.temperature,
-        Color::Yellow,
-    );
-    graph(
-        frame,
-        rows[3],
-        &format!("1 PPS TI ns, {span}"),
-        &app.history.time_interval,
-        Color::Green,
-    );
+    // The whole window on every pane, not each trace's own extent, so
+    // the three line up: a tier that stopped reading would otherwise
+    // stretch its trace to the edge and put its last value under the
+    // others' "now".
+    let window = -(app.window.seconds() as f64);
+    for (area, title, trace, colour) in [
+        (rows[1], "EFC percent", &app.history.efc, Color::Cyan),
+        (
+            rows[2],
+            "Internal temperature C",
+            &app.history.temperature,
+            Color::Yellow,
+        ),
+        (
+            rows[3],
+            "1 PPS TI ns",
+            &app.history.time_interval,
+            Color::Green,
+        ),
+    ] {
+        graph(
+            frame,
+            area,
+            &format!("{title}, {span}"),
+            trace,
+            colour,
+            window,
+        );
+    }
 }
 
 /// One metric against time, drawn as a band between its extremes with
@@ -218,7 +226,7 @@ fn history(frame: &mut Frame, area: Rect, app: &App) {
 /// reads as a single line.  Where they did not, the band shows how far
 /// apart they were, which is the only way a step survives being thinned
 /// into a column.
-fn graph(frame: &mut Frame, area: Rect, title: &str, trace: &Trace, colour: Color) {
+fn graph(frame: &mut Frame, area: Rect, title: &str, trace: &Trace, colour: Color, since: f64) {
     let Some(y) = trace.bounds() else {
         frame.render_widget(
             Paragraph::new("no readings in this window").block(block(title)),
@@ -233,35 +241,28 @@ fn graph(frame: &mut Frame, area: Rect, title: &str, trace: &Trace, colour: Colo
     // Braille packs four times the horizontal resolution of a cell, so
     // an hour of readings fits a terminal width.
     let marker = Marker::Braille;
-    // A line between fewer than two points draws nothing, and a slow
-    // series has exactly one early on.  Scatter still shows it.
-    let kind = if trace.mean.len() < 2 {
-        GraphType::Scatter
-    } else {
-        GraphType::Line
-    };
     let edge = Style::new().fg(colour).add_modifier(Modifier::DIM);
-    // Named so the band explains itself.  Three unlabelled lines invite
-    // the question of what they are, and dim against bright is not a
-    // distinction every terminal renders.
-    let datasets = vec![
-        Dataset::default()
-            .marker(marker)
-            .graph_type(kind)
-            .style(edge)
-            .data(&trace.low),
-        Dataset::default()
-            .marker(marker)
-            .graph_type(kind)
-            .style(edge)
-            .data(&trace.high),
-        Dataset::default()
-            .marker(marker)
-            .graph_type(kind)
-            .style(Style::new().fg(colour))
-            .data(&trace.mean),
-    ];
-    let x = trace.span();
+    // A dataset per run, so the line breaks where the record does.
+    let datasets: Vec<Dataset> = trace
+        .each_run()
+        .flat_map(|[mean, low, high]| {
+            // A line between fewer than two points draws nothing, and
+            // a run can be a single column.  Scatter still shows it.
+            let kind = if mean.len() < 2 {
+                GraphType::Scatter
+            } else {
+                GraphType::Line
+            };
+            [(low, edge), (high, edge), (mean, Style::new().fg(colour))].map(|(data, style)| {
+                Dataset::default()
+                    .marker(marker)
+                    .graph_type(kind)
+                    .style(style)
+                    .data(data)
+            })
+        })
+        .collect();
+    let x = [since, 0.0];
     let axis = Style::new().fg(Color::DarkGray);
     let chart = Chart::new(datasets)
         .block(block(&titled))
