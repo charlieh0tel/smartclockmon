@@ -10,8 +10,10 @@ use jiff::Timestamp;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::history::current_window;
 use crate::rollover::ReceiverDate;
 use crate::screen::Screen;
+use crate::task::Cadence;
 use crate::types::AlarmCondition;
 use crate::types::EfcPercent;
 use crate::types::Ffom;
@@ -228,6 +230,16 @@ impl Polled {
     /// success alone, since the values it wrote are still that old.
     pub fn failed(&mut self, tier: Tier, why: &str) {
         self.get_mut(tier).error = Some(why.to_owned());
+    }
+
+    /// Whether what `tier` last read is too old to call current, by
+    /// the rule history is filtered with ([`current_window`]).
+    ///
+    /// A tier that has never read is not stale: it has no values to
+    /// mislabel.
+    pub fn is_stale(&self, tier: Tier, cadence: &Cadence, now: Timestamp) -> bool {
+        self.age(tier, now)
+            .is_some_and(|age| age > current_window(tier, cadence))
     }
 
     /// How long ago `tier` last succeeded, in seconds.

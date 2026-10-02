@@ -28,6 +28,7 @@ use crate::protocol::Op;
 use crate::protocol::Request;
 use crate::protocol::VERSION;
 use crate::screen::Screen;
+use crate::task::Cadence;
 use crate::wire::Reading;
 
 /// How long to wait on a daemon that has stopped answering.
@@ -262,6 +263,27 @@ impl Daemons {
     }
 }
 
+/// How often the daemon polls each tier, from its [`Daemon::info`]
+/// reply.
+///
+/// An older daemon does not report these, so each falls back to the
+/// default rather than to zero.
+pub fn cadence(info: &serde_json::Value) -> Cadence {
+    let seconds = |name: &str, fallback: Duration| {
+        info.get(name)
+            .and_then(serde_json::Value::as_f64)
+            .and_then(|s| Duration::try_from_secs_f64(s).ok())
+            .filter(|d| !d.is_zero())
+            .unwrap_or(fallback)
+    };
+    let default = Cadence::default();
+    Cadence {
+        fast: seconds("cadence_fast", default.fast),
+        medium: seconds("cadence_medium", default.medium),
+        slow: seconds("cadence_slow", default.slow),
+    }
+}
+
 /// The receiver a daemon is attached to, from its [`Daemon::info`]
 /// reply.
 ///
@@ -276,7 +298,10 @@ pub fn identity(info: &serde_json::Value) -> Option<Identity> {
 #[cfg(test)]
 mod tests {
     use super::Daemons;
+    use super::cadence;
     use super::identity;
+    use crate::task::Cadence;
+    use std::time::Duration;
 
     #[test]
     fn sockets_lists_instances_with_a_socket_in_name_order() {
@@ -311,5 +336,16 @@ mod tests {
         );
         assert!(identity(&serde_json::json!({})).is_none());
         assert!(identity(&serde_json::json!({ "identity": "garbled" })).is_none());
+    }
+
+    #[test]
+    fn cadence_comes_from_the_info_reply_and_falls_back_per_tier() {
+        let info =
+            serde_json::json!({ "cadence_fast": 2.0, "cadence_medium": 0.0, "cadence_slow": -1.0 });
+        let got = cadence(&info);
+        let default = Cadence::default();
+        assert_eq!(got.fast, Duration::from_secs(2));
+        assert_eq!(got.medium, default.medium, "zero is not a cadence");
+        assert_eq!(got.slow, default.slow, "nor is a negative");
     }
 }

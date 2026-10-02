@@ -332,7 +332,10 @@ rather than running flat.  A window rather than one row per read,
 because at an hour's zoom a ten-second tier would leave most buckets
 empty; the cost is that a slow column's mean is weighted by time, not
 by read.  The daemon records its cadence in `meta` for this; a log
-without it is read at the default cadence.
+without it is read at the default cadence.  The monitor's live panes
+and the exporter use the same three intervals (`smartclock::history`),
+with the daemon's cadence taken from its `info` reply: a pane past it
+is labeled with its age, and the exporter leaves its values out.
 
 Use a `/dev/serial/by-id/...` path, not `/dev/ttyUSB0`, which is not
 stable across re-enumeration.  The device path has no default and the

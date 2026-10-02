@@ -23,6 +23,7 @@ use interprocess::local_socket::Stream;
 use interprocess::local_socket::ToFsName as _;
 use interprocess::local_socket::traits::Stream as _;
 use smartclock::attach::attach;
+use smartclock::client;
 use smartclock::session::Config;
 use smartclock::task;
 use smartclock::task::Cadence;
@@ -336,21 +337,9 @@ fn connect_and_ask(socket: &str) -> Result<(Reader, SendHalf, Option<String>, Po
                 dangerous: flag("allow_dangerous"),
                 raw: flag("allow_raw"),
             };
-            // An older daemon does not report these, so each falls back
-            // to the default rather than to zero.
-            let seconds = |name: &str, fallback: Duration| {
-                value
-                    .pointer(&format!("/ok/{name}"))
-                    .and_then(serde_json::Value::as_f64)
-                    .filter(|s| s.is_finite() && *s > 0.0)
-                    .map_or(fallback, Duration::from_secs_f64)
-            };
-            let default = Cadence::default();
-            cadence = Cadence {
-                fast: seconds("cadence_fast", default.fast),
-                medium: seconds("cadence_medium", default.medium),
-                slow: seconds("cadence_slow", default.slow),
-            };
+            if let Some(info) = value.get("ok") {
+                cadence = client::cadence(info);
+            }
             break;
         }
     }

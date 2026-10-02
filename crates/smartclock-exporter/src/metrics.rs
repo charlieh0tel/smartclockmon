@@ -15,6 +15,7 @@ use std::fmt::Write as _;
 
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Tier;
+use smartclock::task::Cadence;
 use smartclock::wire::Reading;
 
 /// Every metric this exporter emits, prefixed to keep the namespace.
@@ -29,6 +30,9 @@ pub(crate) struct Scrape {
     pub(crate) labels: String,
     /// The daemon's last reading, or nothing if it could not be asked.
     pub(crate) reading: Option<Reading>,
+    /// How often the daemon polls, which says how old a tier's values
+    /// may be and still be current.
+    pub(crate) cadence: Cadence,
 }
 
 /// One metric's samples across every daemon scraped, in the order the
@@ -144,10 +148,15 @@ fn one(out: &mut Families, scrape: &Scrape) {
     );
 
     // A value is exported only while the tier that reads it is reading.
-    // With the link down or that tier failing, the number is the last
-    // one read, and a panel would draw it as current.
-    let current =
-        |tier: Tier| r.freshness != Freshness::Disconnected && r.polled.get(tier).error.is_none();
+    // With the link down, that tier failing, or its last read older
+    // than history would keep, the number is the last one read, and a
+    // panel would draw it as current.
+    let now = jiff::Timestamp::now();
+    let current = |tier: Tier| {
+        r.freshness != Freshness::Disconnected
+            && r.polled.get(tier).error.is_none()
+            && !r.polled.is_stale(tier, &scrape.cadence, now)
+    };
     let fast = current(Tier::Fast);
     let medium = current(Tier::Medium);
     let slow = current(Tier::Slow);
@@ -373,6 +382,7 @@ mod tests {
     use smartclock::snapshot::Freshness;
     use smartclock::snapshot::Snapshot;
     use smartclock::snapshot::Tier;
+    use smartclock::task::Cadence;
     use smartclock::types::EfcPercent;
     use smartclock::wire::Reading;
 
@@ -384,6 +394,7 @@ mod tests {
         let out = render(&[Scrape {
             labels: String::new(),
             reading: None,
+            cadence: Cadence::default(),
         }]);
         assert!(out.contains("smartclock_up 0"));
         assert!(
@@ -413,10 +424,12 @@ mod tests {
             Scrape {
                 labels: r#"daemon="a",serial="1""#.to_owned(),
                 reading: Some(Reading::from(&read_everywhere())),
+                cadence: Cadence::default(),
             },
             Scrape {
                 labels: r#"daemon="b""#.to_owned(),
                 reading: None,
+                cadence: Cadence::default(),
             },
         ]);
         assert_eq!(out.matches("# HELP smartclock_up ").count(), 1);
@@ -441,6 +454,7 @@ mod tests {
         let out = render(&[Scrape {
             labels: String::new(),
             reading: Some(Reading::from(&snapshot)),
+            cadence: Cadence::default(),
         }]);
         assert!(out.contains("smartclock_reading_disconnected 1"));
         for absent in [
@@ -456,6 +470,22 @@ mod tests {
     }
 
     #[test]
+    fn a_tier_that_has_not_read_for_three_intervals_exports_none_of_its_values() {
+        let mut snapshot = read_everywhere();
+        let cadence = Cadence::default();
+        let long_ago = jiff::Timestamp::now()
+            - jiff::SignedDuration::try_from(cadence.medium * 4).expect("a short duration");
+        snapshot.polled.succeeded(Tier::Medium, long_ago);
+        let out = render(&[Scrape {
+            labels: String::new(),
+            reading: Some(Reading::from(&snapshot)),
+            cadence,
+        }]);
+        assert!(!out.contains("smartclock_temperature_celsius"));
+        assert!(out.contains("smartclock_efc_percent 1"));
+    }
+
+    #[test]
     fn a_failing_tier_exports_none_of_its_values_and_the_others_still_report() {
         let mut snapshot = read_everywhere();
         snapshot.polled.failed(Tier::Medium, "no answer");
@@ -463,6 +493,7 @@ mod tests {
         let out = render(&[Scrape {
             labels: String::new(),
             reading: Some(Reading::from(&snapshot)),
+            cadence: Cadence::default(),
         }]);
         assert!(!out.contains("smartclock_temperature_celsius"));
         assert!(out.contains("smartclock_efc_percent 1"));
@@ -478,6 +509,7 @@ mod tests {
         let out = render(&[Scrape {
             labels: String::new(),
             reading: Some(empty),
+            cadence: Cadence::default(),
         }]);
         assert!(out.contains("smartclock_up 1"));
         for absent in [

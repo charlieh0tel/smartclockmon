@@ -23,6 +23,7 @@ use clap::Parser;
 use smartclock::client;
 use smartclock::client::Daemon;
 use smartclock::client::Daemons;
+use smartclock::task::Cadence;
 use smartclock_http::Response;
 
 use crate::metrics::Scrape;
@@ -126,6 +127,7 @@ fn scrape(instance: &str, socket: &Path) -> Scrape {
             Scrape {
                 labels,
                 reading: Some(reading),
+                cadence: client::cadence(&info),
             }
         }
         Err(e) => {
@@ -133,6 +135,7 @@ fn scrape(instance: &str, socket: &Path) -> Scrape {
             Scrape {
                 labels,
                 reading: None,
+                cadence: Cadence::default(),
             }
         }
     }

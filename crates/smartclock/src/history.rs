@@ -3,7 +3,8 @@
 //! The daemon writes the log and two programs read it, the web view and
 //! the monitor.  Neither reader links the daemon, so what they must
 //! agree with it about lives here: where it records its cadence, and
-//! when a slower tier's value is still a measurement.
+//! when a slower tier's value is still a measurement.  The monitor's
+//! live panes and the exporter judge a live reading by the same rule.
 
 use std::time::Duration;
 
@@ -17,6 +18,11 @@ use crate::task::Cadence;
 /// its intervals without a read the tier is failing, and the value
 /// carried is not a measurement.
 pub const STALE_AFTER_INTERVALS: f64 = 3.0;
+
+/// How long a value `tier` read stays current, in seconds.
+pub fn current_window(tier: Tier, cadence: &Cadence) -> f64 {
+    cadence.of(tier).as_secs_f64() * STALE_AFTER_INTERVALS
+}
 
 /// The `meta` key the daemon records a tier's cadence under, in
 /// seconds.
@@ -52,7 +58,7 @@ pub fn current(column: &str, tier: Tier, cadence: &Cadence) -> String {
     if tier == Tier::Fast {
         return column.to_owned();
     }
-    let window = cadence.of(tier).as_secs_f64() * STALE_AFTER_INTERVALS;
+    let window = current_window(tier, cadence);
     let read = tier.name();
     format!(
         "CASE WHEN fast_at IS NULL

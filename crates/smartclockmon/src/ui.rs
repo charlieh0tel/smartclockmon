@@ -381,10 +381,6 @@ fn header(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
-/// How many times its own cadence a tier may lag before its pane is
-/// called stale.  Two misses is a blip; four is a tier that has stopped.
-const STALE_AFTER: f64 = 4.0;
-
 /// A note for a pane heading when the tier behind it has gone quiet.
 ///
 /// The whole snapshot used to carry one timestamp, so the one-second
@@ -393,12 +389,15 @@ const STALE_AFTER: f64 = 4.0;
 /// showing.
 fn staleness(app: &App, tier: Tier) -> Option<String> {
     let snapshot = app.snapshot.as_ref()?;
-    let age = snapshot.polled.age(tier, jiff::Timestamp::now())?;
+    let now = jiff::Timestamp::now();
     // The daemon's own cadence, not this tier's default: run with
     // --medium 30 and a ten-second rule calls perfectly fresh data
     // stale, which is the opposite of what the label is for.
-    let cadence = app.cadence.of(tier).as_secs_f64();
-    (age > cadence * STALE_AFTER).then(|| format!("  [{age:.0}s old]"))
+    let age = snapshot.polled.age(tier, now)?;
+    snapshot
+        .polled
+        .is_stale(tier, &app.cadence, now)
+        .then(|| format!("  [{age:.0}s old]"))
 }
 
 /// Pair a label with a value, padded so the columns line up.

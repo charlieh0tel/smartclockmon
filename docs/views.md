@@ -120,5 +120,6 @@ the receiver's serial and model.  It exports `smartclock_up`, and the
 age of each tier as `smartclock_tier_age_seconds`, since a daemon that
 has stopped polling otherwise leaves every value where it was.  A
 reading the receiver declined is left out rather than exported as
-zero, and so is every value whose tier is failing or whose link is
-down, so a panel does not go on drawing the last number read.
+zero, and so is every value whose tier is failing, has not read for
+three of its intervals, or whose link is down, so a panel does not go
+on drawing the last number read.
