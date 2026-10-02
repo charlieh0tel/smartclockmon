@@ -67,6 +67,15 @@ impl Default for Cadence {
     }
 }
 
+/// How many of its tier's intervals a value stays current for.
+///
+/// A slower tier's value is carried in every snapshot, and every logged
+/// row, until that tier reads again.  Past this many of its intervals
+/// without a read the tier is failing, and the value carried is not a
+/// measurement.  The log's readers, the monitor's live panes and the
+/// exporter all judge by this.
+pub const STALE_AFTER_INTERVALS: f64 = 3.0;
+
 impl Cadence {
     /// How often `tier` runs.
     pub fn of(&self, tier: Tier) -> Duration {
@@ -75,6 +84,11 @@ impl Cadence {
             Tier::Medium => self.medium,
             Tier::Slow => self.slow,
         }
+    }
+
+    /// How long a value `tier` read stays current, in seconds.
+    pub fn current_window(&self, tier: Tier) -> f64 {
+        self.of(tier).as_secs_f64() * STALE_AFTER_INTERVALS
     }
 }
 

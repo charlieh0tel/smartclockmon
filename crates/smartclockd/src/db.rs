@@ -18,28 +18,16 @@ use anyhow::Result;
 use rusqlite::Connection;
 use rusqlite::OptionalExtension as _;
 use rusqlite::params;
-use smartclock::history::cadence_key;
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Snapshot;
 use smartclock::snapshot::Tier;
 use smartclock::task::Cadence;
-
-/// Bumped when the tables change shape, or what a column holds.
-const SCHEMA: i64 = 9;
+use smartclock_log::schema;
+use smartclock_log::schema::cadence_key;
+use smartclock_log::schema::stored;
 
 /// The first schema whose timestamps all carry nine fractional digits.
 const FIXED_WIDTH_STAMPS: i64 = 8;
-
-/// A timestamp as the log stores it: RFC 3339 in UTC, always with nine
-/// fractional digits.
-///
-/// Fixed width so that text order is time order.  The default form
-/// trims trailing zeros, and `00Z`, `00.1Z` and `00.11Z` sort the
-/// wrong way round as text; every range and every `ORDER BY at` in the
-/// readers compares the text.
-fn stored(at: jiff::Timestamp) -> String {
-    format!("{at:.9}")
-}
 
 /// How long to wait for another writer before giving up on a statement.
 ///
@@ -120,12 +108,7 @@ impl Log {
         // and was then refused, which is the opposite of what the
         // refusal is for: a future schema that renamed one of these
         // would find it silently resurrected.
-        self.conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS meta (
-                key   TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );",
-        )?;
+        self.conn.execute_batch(schema::META)?;
         // Refuse a database this binary is too old to understand
         // rather than writing into it and restamping it as ours.  A
         // newer daemon may have added columns or changed what a column
@@ -146,208 +129,14 @@ impl Log {
             .transpose()?;
         if let Some(found) = found {
             anyhow::ensure!(
-                found <= SCHEMA,
-                "this database is schema {found} and this smartclockd understands {SCHEMA}; \
-                 it was written by a newer version"
+                found <= schema::VERSION,
+                "this database is schema {found} and this smartclockd understands {}; \
+                 it was written by a newer version",
+                schema::VERSION
             );
         }
 
-        self.conn.execute_batch(
-            r#"
-            -- One row per poll that produced a publishable snapshot.
-            CREATE TABLE IF NOT EXISTS snapshot (
-                id                   INTEGER PRIMARY KEY,
-                at                   TEXT    NOT NULL,
-                freshness            TEXT    NOT NULL,
-                mode                 TEXT,
-                tfom                 INTEGER,
-                ffom                 INTEGER,
-                time_interval_s      REAL,
-                efc_percent          REAL,
-                hardware_bits        INTEGER,
-                holdover_waiting     TEXT,
-                temperature_c        REAL,
-                oven_current         REAL,
-                oven_tempco          REAL,
-                efc_dac              INTEGER,
-                alarm_bits           INTEGER,
-                operation_bits       INTEGER,
-                holdover_bits        INTEGER,
-                powerup_bits         INTEGER,
-                holdover_active      INTEGER,
-                holdover_elapsed_s   REAL,
-                holdover_predicted_s REAL,
-                holdover_present_s   REAL,
-                tracking             INTEGER,
-                not_tracking         INTEGER,
-                date_raw             TEXT,
-                time_utc             TEXT,
-                rollover_epochs      INTEGER,
-                log_count            INTEGER,
-                last_error           TEXT,
-                -- When each group of fields was last read.  Without
-                -- these a fast row restates the ten- and sixty-second
-                -- values under a fresh timestamp, and a later query
-                -- cannot tell a measurement from a repeat.
-                fast_at              TEXT,
-                medium_at            TEXT,
-                slow_at              TEXT,
-                -- Which unit this row describes.  NULL in rows written
-                -- before the log recorded that at all.
-                receiver_id          INTEGER REFERENCES receiver(id)
-            );
-            CREATE INDEX IF NOT EXISTS snapshot_at ON snapshot(at);
-
-            -- The satellite table, which exists only on the status
-            -- screen and so only on slow-tier polls.  The counts above
-            -- are queried directly and move with the medium tier.
-            CREATE TABLE IF NOT EXISTS satellite (
-                snapshot_id INTEGER NOT NULL REFERENCES snapshot(id),
-                prn         INTEGER NOT NULL,
-                tracked     INTEGER NOT NULL,
-                acquiring   INTEGER NOT NULL,
-                elevation   INTEGER,
-                azimuth     INTEGER,
-                signal      INTEGER
-            );
-            CREATE INDEX IF NOT EXISTS satellite_snapshot ON satellite(snapshot_id);
-
-            -- Every receiver that has written to this log.
-            --
-            -- A log file outlives the daemon and the receiver alike,
-            -- and a bench where units are swapped accumulates more than
-            -- one unit's history in one file.  Without this the rows
-            -- are anonymous: you can see that two receivers wrote and
-            -- not which rows belong to which, which makes every
-            -- long-run comparison worthless.
-            CREATE TABLE IF NOT EXISTS receiver (
-                id           INTEGER PRIMARY KEY,
-                -- The serial alone identifies the unit.  Firmware and
-                -- even the reported model can change under it; the
-                -- serial is what stays.
-                serial       TEXT NOT NULL UNIQUE,
-                manufacturer TEXT,
-                model        TEXT,
-                -- As last seen, since an upgrade changes it.
-                firmware     TEXT,
-                first_seen   TEXT NOT NULL,
-                last_seen    TEXT NOT NULL,
-                -- The internal GPS engine's identity, exactly as
-                -- :DIAGnostic:IDENtification:GPSystem? answered it, as
-                -- last read.  NULL until a daemon of schema 9 or later
-                -- has asked.
-                gps_engine   TEXT
-            );
-
-            -- Every change in the receiver's alarm condition register.
-            --
-            -- The snapshot table carries the same register sampled
-            -- every poll, which answers "what was it at 14:02" but
-            -- makes "when did it change" a scan.  These rows are the
-            -- changes alone, which is what anyone reading a history
-            -- actually wants and what the monitor and the browser show.
-            --
-            -- The register itself is read with *STB?, which is real
-            -- time and non-destructive.  The event registers behind it
-            -- are deliberately never read: reading one clears it, which
-            -- clears the alarm, which puts out a lamp that belongs to
-            -- whoever is standing at the instrument.
-            CREATE TABLE IF NOT EXISTS receiver_event (
-                id      INTEGER PRIMARY KEY,
-                at      TEXT    NOT NULL,
-                -- Which register, as the short names used in the code:
-                -- operation, questionable, hardware, holdover, powerup.
-                register TEXT   NOT NULL,
-                bits    INTEGER NOT NULL,
-                -- The bits named, so a row can be read without the
-                -- manual and without this daemon's bit tables.
-                decoded TEXT    NOT NULL,
-                receiver_id INTEGER REFERENCES receiver(id)
-            );
-            CREATE INDEX IF NOT EXISTS receiver_event_at ON receiver_event(at);
-
-            -- The transition filters in force when those events were
-            -- captured.
-            --
-            -- Kept because the events cannot be read without them.  A
-            -- filter selects which condition transitions latch, and
-            -- this receiver ships with every negative filter at zero:
-            -- faults latch appearing and never clearing.  Without this
-            -- table, the absence of a clear-event looks like evidence a
-            -- fault persisted, when it only means nobody enabled the
-            -- transition that would have recorded its end.
-            CREATE TABLE IF NOT EXISTS receiver_filter (
-                receiver_id INTEGER NOT NULL REFERENCES receiver(id),
-                register    TEXT    NOT NULL,
-                -- Which transitions latch: positive, negative.
-                positive    INTEGER,
-                negative    INTEGER,
-                at          TEXT    NOT NULL,
-                PRIMARY KEY (receiver_id, register)
-            );
-
-            -- Entries taken from the receiver's error queue.  Reading
-            -- an entry removes it from the receiver, so once the queue
-            -- has been drained this table is the only copy there is.
-            CREATE TABLE IF NOT EXISTS receiver_error (
-                id      INTEGER PRIMARY KEY,
-                -- When it was read, which is not when it happened: the
-                -- queue carries no timestamps of its own.
-                at      TEXT    NOT NULL,
-                code    INTEGER NOT NULL,
-                message TEXT    NOT NULL,
-                receiver_id INTEGER REFERENCES receiver(id)
-            );
-            CREATE INDEX IF NOT EXISTS receiver_error_at ON receiver_error(at);
-
-            -- The receiver's own diagnostic log, copied out entry by
-            -- entry.  Its ring holds 222 entries and then stops
-            -- recording, so anything not copied out is eventually lost.
-            CREATE TABLE IF NOT EXISTS receiver_log (
-                id      INTEGER PRIMARY KEY,
-                -- When we read it.
-                at      TEXT    NOT NULL,
-                -- The receiver's own entry number, which restarts at 1
-                -- when the log is cleared.
-                entry   INTEGER NOT NULL,
-                -- The entry's own timestamp, kept as written.  It comes
-                -- from the receiver's calendar and carries whatever GPS
-                -- week rollover that calendar has; folding it in here
-                -- would destroy the evidence of the rollover.
-                stamp   TEXT,
-                message TEXT    NOT NULL,
-                receiver_id INTEGER REFERENCES receiver(id),
-                -- Which run of the log's numbering this entry belongs
-                -- to.  Clearing the log restarts the numbering at one,
-                -- so the entry number alone orders a generation and
-                -- says nothing across one; without this there is no
-                -- ordering over the stored columns that is right both
-                -- within a generation and across a clear.  The stamp
-                -- cannot stand in: before the first GPS lock it is
-                -- elapsed time since boot on a stale date.
-                generation INTEGER NOT NULL DEFAULT 0,
-                -- Within one unit and one generation an entry number
-                -- is the receiver's own key, and re-reading an entry
-                -- must not duplicate it.
-                UNIQUE (receiver_id, generation, entry)
-            );
-
-            -- Every command a client asked for.  Not a complete record
-            -- of what was sent: the poll schedule is not audited, and
-            -- neither are the journal's own queries, which are polls in
-            -- everything but the tier they run on.
-            CREATE TABLE IF NOT EXISTS audit (
-                id      INTEGER PRIMARY KEY,
-                at      TEXT NOT NULL,
-                scpi    TEXT NOT NULL,
-                class   TEXT,
-                outcome TEXT,
-                label   TEXT,
-                receiver_id INTEGER REFERENCES receiver(id)
-            );
-            CREATE INDEX IF NOT EXISTS audit_at ON audit(at);
-            "#,
-        )?;
+        self.conn.execute_batch(schema::TABLES)?;
         // Databases written before the per-tier columns existed keep
         // their rows; the new columns read NULL there, which says
         // honestly that the age of those fields was not recorded.
@@ -388,7 +177,7 @@ impl Log {
         }
         self.conn.execute(
             "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema', ?1)",
-            params![SCHEMA.to_string()],
+            params![schema::VERSION.to_string()],
         )?;
         // Which build last wrote here.  A row that looks wrong is worth
         // little without knowing what produced it, and the database
@@ -439,7 +228,6 @@ impl Log {
         Ok(())
     }
 
-    /// Whether a table already has a column, for migrating in place.
     /// Give a pre-schema-7 `receiver_log` its generation column.
     ///
     /// The column cannot simply be added: the old table's uniqueness
@@ -522,10 +310,9 @@ impl Log {
         Ok(())
     }
 
+    /// Whether a table already has a column, for migrating in place.
     fn has_column(&self, table: &str, column: &str) -> Result<bool> {
-        let mut statement = self.conn.prepare(&format!("PRAGMA table_info({table})"))?;
-        let mut names = statement.query_map([], |row| row.get::<_, String>(1))?;
-        Ok(names.any(|name| name.is_ok_and(|n| n == column)))
+        Ok(schema::has_column(&self.conn, table, column)?)
     }
 
     /// Append a snapshot and its satellite table.
@@ -997,10 +784,10 @@ impl Log {
 #[cfg(test)]
 mod tests {
     use super::Log;
-    use super::SCHEMA;
     use super::file_name;
-    use super::stored;
     use rusqlite::Connection;
+    use smartclock_log::schema::VERSION;
+    use smartclock_log::schema::stored;
 
     /// A database file of our own, under the test runner's temp dir.
     /// A database path that deletes itself, and the `-wal` and `-shm`
@@ -1452,7 +1239,7 @@ mod tests {
                 row.get(0)
             })
             .expect("a stamp");
-        assert_eq!(found, SCHEMA.to_string());
+        assert_eq!(found, VERSION.to_string());
         drop(log);
         // Reopening its own database is not a refusal.
         Log::open(path).expect("reopening our own schema");

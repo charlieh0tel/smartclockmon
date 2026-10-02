@@ -10,7 +10,6 @@ use jiff::Timestamp;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::history::current_window;
 use crate::rollover::ReceiverDate;
 use crate::screen::Screen;
 use crate::task::Cadence;
@@ -233,13 +232,13 @@ impl Polled {
     }
 
     /// Whether what `tier` last read is too old to call current, by
-    /// the rule history is filtered with ([`current_window`]).
+    /// the rule history is filtered with ([`Cadence::current_window`]).
     ///
     /// A tier that has never read is not stale: it has no values to
     /// mislabel.
     pub fn is_stale(&self, tier: Tier, cadence: &Cadence, now: Timestamp) -> bool {
         self.age(tier, now)
-            .is_some_and(|age| age > current_window(tier, cadence))
+            .is_some_and(|age| age > cadence.current_window(tier))
     }
 
     /// How long ago `tier` last succeeded, in seconds.

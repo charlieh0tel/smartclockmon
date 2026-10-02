@@ -10,8 +10,6 @@
 //! deliberate: the socket's group membership is the whole of the
 //! daemon's authorization, and a page on a TCP port has none of it.
 
-mod history;
-
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
@@ -28,11 +26,11 @@ use smartclock::client::Daemons;
 use smartclock::parse::Identity;
 use smartclock::protocol::Op;
 use smartclock_http::Response;
-
-use crate::history::Log;
-use crate::history::PLOTTABLE;
-use crate::history::Receiver;
-use crate::history::measured;
+use smartclock_log::reader::Log;
+use smartclock_log::reader::MAX_PHASE_ROWS;
+use smartclock_log::reader::Receiver;
+use smartclock_log::schema::PLOTTABLE;
+use smartclock_log::schema::measured;
 
 /// The page, built in rather than read from disk: one file to install,
 /// and a running server cannot be made to serve something else by
@@ -401,7 +399,7 @@ fn deviation(logs: &Logs, query: &str) -> Result<serde_json::Value> {
     #[expect(clippy::cast_possible_truncation, reason = "unix seconds fit an i64")]
     let to = to.unwrap_or(last as i64);
     let from = from.unwrap_or_else(|| to.saturating_sub(DEFAULT_WINDOW));
-    let (curve, truncated) = log.phase(receiver, from, to)?;
+    let (curve, truncated) = log.phase(receiver, from, to, MAX_PHASE_ROWS)?;
     let mut value = serde_json::to_value(curve)?;
     if let Some(fields) = value.as_object_mut() {
         fields.insert("truncated".to_owned(), truncated.into());
@@ -457,7 +455,7 @@ impl Logs {
                     eprintln!("smartclock-web: {e:#}; skipped");
                     continue;
                 }
-                Err(e) => return Err(e),
+                Err(e) => return Err(e.into()),
             };
             found.extend(receivers.into_iter().map(|receiver| Found {
                 path: path.clone(),
@@ -513,35 +511,60 @@ impl Logs {
 /// actually on the bench.
 fn receivers(logs: &Logs, daemons: &Daemons, cache: &Cache) -> Result<serde_json::Value> {
     let attached = live(daemons, cache);
-    let mut found: Vec<Receiver> = logs.receivers()?.into_iter().map(|f| f.receiver).collect();
+    let mut found: Vec<Listed> = logs
+        .receivers()?
+        .into_iter()
+        .map(|f| Listed::new(f.receiver, None))
+        .collect();
     for daemon in &attached {
         let Some(id) = &daemon.identity else {
             continue;
         };
-        match found.iter_mut().find(|r| r.serial == id.serial) {
-            Some(receiver) => receiver.instance = Some(daemon.instance.clone()),
-            None => {
-                found.push(Receiver {
+        match found.iter_mut().find(|l| l.receiver.serial == id.serial) {
+            Some(listed) => listed.instance = Some(daemon.instance.clone()),
+            None => found.push(Listed::new(
+                Receiver {
                     id: 0,
                     serial: id.serial.clone(),
-                    columns: measured(&id.model),
                     model: id.model.clone(),
                     firmware: id.firmware.clone(),
                     first_seen: String::new(),
                     last_seen: String::new(),
                     gps_engine: None,
-                    instance: Some(daemon.instance.clone()),
-                });
-            }
+                },
+                Some(daemon.instance.clone()),
+            )),
         }
     }
     found.sort_by(|a, b| {
         b.instance
             .is_some()
             .cmp(&a.instance.is_some())
-            .then_with(|| b.last_seen.cmp(&a.last_seen))
+            .then_with(|| b.receiver.last_seen.cmp(&a.receiver.last_seen))
     });
     Ok(serde_json::to_value(found)?)
+}
+
+/// One receiver as the page's selector lists it.
+#[derive(serde::Serialize)]
+struct Listed {
+    #[serde(flatten)]
+    receiver: Receiver,
+    /// The daemon instance attached to it now, if one is.  Not the
+    /// log's to know; filled in from the daemons that answer.
+    instance: Option<String>,
+    /// The plottable columns this unit measures, from its model.
+    columns: Vec<&'static str>,
+}
+
+impl Listed {
+    fn new(receiver: Receiver, instance: Option<String>) -> Self {
+        Self {
+            columns: measured(&receiver.model),
+            receiver,
+            instance,
+        }
+    }
 }
 
 /// How much history a request that does not say gets.

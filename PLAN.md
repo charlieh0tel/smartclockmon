@@ -333,9 +333,10 @@ because at an hour's zoom a ten-second tier would leave most buckets
 empty; the cost is that a slow column's mean is weighted by time, not
 by read.  The daemon records its cadence in `meta` for this; a log
 without it is read at the default cadence.  The monitor's live panes
-and the exporter use the same three intervals (`smartclock::history`),
-with the daemon's cadence taken from its `info` reply: a pane past it
-is labeled with its age, and the exporter leaves its values out.
+and the exporter use the same three intervals
+(`Cadence::current_window`), with the daemon's cadence taken from its
+`info` reply: a pane past it is labeled with its age, and the exporter
+leaves its values out.
 
 Use a `/dev/serial/by-id/...` path, not `/dev/ttyUSB0`, which is not
 stable across re-enumeration.  The device path has no default and the
@@ -762,6 +763,15 @@ Cargo workspace:
 - `smartclock-web` -- the browser views, over the logs and sockets.
 - `smartclock-http` -- the minimal HTTP server the exporter and web
   view share.
+- `smartclock-log` -- the log's schema and every query that reads it.
+  The table definitions, the schema version, the stored timestamp form
+  and the `meta` keys live here; the daemon creates the tables from
+  them and keeps its own writes and migrations, and the monitor and
+  the web view read through it.  One copy of the readers rather than
+  one per front end: two copies had drifted, the monitor's scanning
+  the whole table on every refresh where the web view's used the
+  index.  Its tests build every log from the same definitions the
+  daemon creates, so a table change that forgets a reader fails there.
 
 `smartclock-cli` works two ways: `--device <path>` talks to the
 receiver directly, which requires the daemon stopped, and `--socket

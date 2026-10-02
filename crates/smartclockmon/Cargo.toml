@@ -18,9 +18,10 @@ crossterm = "0.29.0"
 interprocess = "2.4.4"
 jiff = "0.2.37"
 ratatui = "0.30.2"
-rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde_json = "1.0.151"
 smartclock = { path = "../smartclock" }
+smartclock-log = { path = "../smartclock-log" }
 
 [dev-dependencies]
+rusqlite = { version = "0.40.2", features = ["bundled"] }
 smartclock-sim = { path = "../smartclock-sim" }

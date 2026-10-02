@@ -8,6 +8,7 @@ use smartclock::snapshot::Tier;
 use smartclock::task::Cadence;
 use smartclock::types::EfcPercent;
 use smartclock::wire::Reading;
+use smartclock_log::reader::Receiver;
 
 use crate::history::History;
 use crate::history::Log;
@@ -75,7 +76,7 @@ pub(crate) struct App {
     /// The daemon's log, when there is one to read.
     pub(crate) log: Option<Log>,
     /// Every receiver the log holds, most recently seen first.
-    pub(crate) receivers: Vec<crate::history::Receiver>,
+    pub(crate) receivers: Vec<Receiver>,
     /// Which of them the graphs and the journal are showing.
     ///
     /// `None` only while no log is open or the log names no receiver;
@@ -289,7 +290,7 @@ impl App {
         self.receivers
             .iter()
             .find(|r| Some(r.id) == self.receiver)
-            .map(crate::history::Receiver::label)
+            .map(Receiver::label)
     }
 
     /// Note that the source went away, keeping the last values on

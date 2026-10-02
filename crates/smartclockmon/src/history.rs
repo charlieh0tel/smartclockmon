@@ -1,20 +1,17 @@
-//! Reading the daemon's log.
+//! The daemon's log, shaped for the monitor's panes.
 //!
-//! Opened read-only.  The daemon holds the one write connection and
-//! runs the database in WAL, so a reader runs alongside it without
-//! coordination and without holding it up.
+//! The reading itself is `smartclock_log`'s, shared with the web view;
+//! what is here is what a terminal wants from it: windows that end
+//! now, time as seconds ago, and the journal's three records as one
+//! list.
 
 use std::path::Path;
 
-use anyhow::Context as _;
 use anyhow::Result;
-use rusqlite::Connection;
-use rusqlite::OpenFlags;
 use smartclock::adev::Curve;
-use smartclock::history::current;
-use smartclock::history::recorded_cadence;
-use smartclock::snapshot::Tier;
-use smartclock::task::Cadence;
+use smartclock_log::reader;
+use smartclock_log::reader::MAX_PHASE_ROWS;
+use smartclock_log::reader::Receiver;
 
 /// How far back a graph looks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,12 +123,7 @@ pub(crate) struct History {
     pub(crate) temperature: Trace,
     /// 1 PPS interval against GPS, nanoseconds.
     pub(crate) time_interval: Trace,
-    /// How many snapshots the window covered.
-    pub(crate) rows: usize,
 }
-
-/// The most notes one read will return.
-const MAX_JOURNAL: usize = 500;
 
 /// Which of the receiver's records a note came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -182,73 +174,26 @@ pub(crate) struct Note {
     pub(crate) source: Source,
 }
 
-/// One receiver the log holds rows for.
-#[derive(Debug, Clone)]
-pub(crate) struct Receiver {
-    /// The `receiver_id` this unit's rows carry.
-    pub(crate) id: i64,
-    /// Its serial number, which is the only thing it is known by.
-    pub(crate) serial: String,
-    pub(crate) model: String,
-}
+/// The columns the graphs draw, in the order [`History`] holds them.
+const GRAPHED: [&str; 3] = ["efc_percent", "temperature_c", "time_interval_s"];
 
-impl Receiver {
-    /// How the status line names it.
-    pub(crate) fn label(&self) -> String {
-        if self.model.is_empty() {
-            self.serial.clone()
-        } else {
-            format!("{} {}", self.model, self.serial)
-        }
-    }
-}
-
-/// A read-only view of the daemon's log.
+/// The daemon's log, open for reading.
 #[derive(Debug)]
-pub(crate) struct Log {
-    conn: Connection,
-}
+pub(crate) struct Log(reader::Log);
 
 impl Log {
     /// Open the log without taking a write lock on it.
     pub(crate) fn open(path: &Path) -> Result<Self> {
-        let conn = Connection::open_with_flags(
-            path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
-        )
-        .with_context(|| format!("opening {} read-only", path.display()))?;
-        Ok(Self { conn })
+        Ok(Self(reader::Log::open(path)?))
     }
 
     /// Every receiver this log holds, most recently seen first.
-    ///
-    /// Empty on a log written before receivers were recorded, which is
-    /// not an error: such a log has one unit's rows and no name for it.
     pub(crate) fn receivers(&self) -> Result<Vec<Receiver>> {
-        let mut statement = match self.conn.prepare(
-            "SELECT id, serial, COALESCE(model, '') FROM receiver
-             ORDER BY last_seen DESC",
-        ) {
-            Ok(statement) => statement,
-            Err(rusqlite::Error::SqliteFailure(_, Some(ref why)))
-                if why.contains("no such table") =>
-            {
-                return Ok(Vec::new());
-            }
-            Err(e) => return Err(e.into()),
-        };
-        Ok(statement
-            .query_map([], |row| {
-                Ok(Receiver {
-                    id: row.get(0)?,
-                    serial: row.get(1)?,
-                    model: row.get(2)?,
-                })
-            })?
-            .collect::<std::result::Result<_, _>>()?)
+        Ok(self.0.receivers()?)
     }
 
-    /// The receiver's own record-keeping.
+    /// The receiver's own record-keeping, at most `limit` of each
+    /// record.
     ///
     /// Grouped, not interleaved.  The three records run on two clocks:
     /// events and errors are stamped when the daemon read them, while
@@ -261,241 +206,121 @@ impl Log {
     /// shown in sequence: what has happened recently first, then the
     /// receiver's own history in its own sequence.
     pub(crate) fn journal(&self, receiver: i64, limit: usize) -> Result<Vec<Note>> {
-        let limit = limit.min(MAX_JOURNAL) as i64;
-        let mut notes = Vec::new();
-        // The receiver's own stamp where there is one: an entry it
+        let journal = self.0.journal(receiver, limit)?;
+        // Events and errors share the host clock, so these two do
+        // merge, newest first.
+        let mut notes: Vec<Note> = journal
+            .events
+            .into_iter()
+            .map(|event| Note {
+                stamp: event.at.clone(),
+                at: event.at,
+                text: event.decoded,
+                source: Source::Event,
+            })
+            .chain(journal.errors.into_iter().map(|error| Note {
+                stamp: error.at.clone(),
+                at: error.at,
+                text: format!("{} {}", error.code, error.message),
+                source: Source::Error,
+            }))
+            .collect();
+        notes.sort_by(|a, b| b.at.cmp(&a.at));
+        // Then the receiver's log in the receiver's own sequence.  The
+        // receiver's own stamp where there is one: an entry it
         // timestamped itself is better dated by the receiver than by
         // when we happened to copy it out, even though that clock can
         // be behind by whole GPS epochs.
-        // Events and errors share the host clock, so these two do
-        // merge, newest first.
-        let mut recent = self.stream(
-            "SELECT at, at, decoded FROM receiver_event WHERE receiver_id = ?1",
-            receiver,
-            limit,
-            Source::Event,
-        )?;
-        recent.extend(self.stream(
-            "SELECT at, at, code || ' ' || message FROM receiver_error
-             WHERE receiver_id = ?1",
-            receiver,
-            limit,
-            Source::Error,
-        )?);
-        recent.sort_by(|a, b| b.at.cmp(&a.at));
-        notes.extend(recent);
-
-        // Then the receiver's log in the receiver's own sequence:
-        // newest generation first, and within it by entry number.  Not
-        // by stamp, which this used to use -- before the first GPS lock
-        // the receiver stamps entries with elapsed time since boot on a
-        // stale date, so every power-on sorts to the start of that day
-        // and boot sessions interleave.  Not by when we copied it
-        // either, which for a backfill walking newest-to-oldest is
-        // exactly backwards.  The generation counts the clears that
-        // restart the numbering.
-        notes.extend(self.ordered(
-            "SELECT at, COALESCE(stamp, at), message FROM receiver_log
-             WHERE receiver_id = ?1
-             ORDER BY generation DESC, entry DESC LIMIT ?2",
-            receiver,
-            limit,
-            Source::Log,
-        )?);
-        notes.truncate(limit as usize);
+        notes.extend(journal.entries.into_iter().map(|entry| Note {
+            stamp: if entry.stamp.is_empty() {
+                entry.at.clone()
+            } else {
+                entry.stamp
+            },
+            at: entry.at,
+            text: entry.message,
+            source: Source::Log,
+        }));
         Ok(notes)
     }
 
-    /// One stream, empty if this log predates it.
-    ///
-    /// A reader is not a writer and must not require the file be as new
-    /// as itself: the monitor can be upgraded before the daemon is
-    /// restarted, or pointed at an archived log, and either should show
-    /// what is there rather than refusing the lot.
-    fn stream(&self, select: &str, receiver: i64, limit: i64, source: Source) -> Result<Vec<Note>> {
-        self.ordered(
-            &format!("{select} ORDER BY id DESC LIMIT ?2"),
-            receiver,
-            limit,
-            source,
-        )
-    }
-
-    /// As [`Log::stream`], for a query that states its own ordering.
-    fn ordered(&self, sql: &str, receiver: i64, limit: i64, source: Source) -> Result<Vec<Note>> {
-        let mut statement = match self.conn.prepare(sql) {
-            Ok(statement) => statement,
-            Err(rusqlite::Error::SqliteFailure(_, Some(ref why)))
-                if why.contains("no such table") =>
-            {
-                return Ok(Vec::new());
-            }
-            Err(e) => return Err(e.into()),
-        };
-        Ok(statement
-            .query_map((receiver, limit), |row| {
-                Ok(Note {
-                    at: row.get(0)?,
-                    stamp: row.get(1)?,
-                    text: row.get(2)?,
-                    source,
-                })
-            })?
-            .collect::<std::result::Result<_, _>>()?)
-    }
-
-    /// Read the series a graph needs.
-    ///
-    /// Rows are thinned to at most `columns` points, since a week at one
-    /// second is six hundred thousand rows and a terminal has a couple
-    /// of hundred columns.  Thinning happens in SQL so the rows never
-    /// cross the process boundary.
-    ///
-    /// The window is compared as a number, not as text.  `at` is
-    /// written by jiff as `2026-09-20T00:05:00.123456789Z` with a
-    /// `T`, while `datetime('now')` yields `2026-09-20 23:07:40`
-    /// with a space, and `'T'` sorts after `' '`.  A lexical
-    /// comparison therefore passed every row whose date matched, so
-    /// the pane titled "1 hour" could show two days.  Measured
-    /// against the development log: 3133 rows returned for the last
-    /// hour where 2545 was correct.
     /// The Allan deviation of the 1 PPS interval over the window.
-    ///
-    /// The readings are taken at full rate rather than bucketed: a
-    /// deviation is not a time series, and averaging readings before
-    /// the estimator sees them is the operation it exists to perform.
-    /// A run is split where the phase either side is incomparable --
-    /// a relock, a holdover, a power cycle -- so no second difference
-    /// is ever taken across one.
     pub(crate) fn deviation(&self, receiver: i64, window: Window) -> Result<Curve> {
-        let mut statement = self.conn.prepare(
-            // `at` as stored, not `unixepoch(at)`: that truncates to
-            // the second, and the sub-second part decides which grid
-            // point a reading belongs to.  `fast_at = at` keeps one row
-            // per reading, since the slower tiers publish rows of their
-            // own restating the fast tier's last value.
-            "SELECT at, time_interval_s, COALESCE(mode, 'unknown'),
-                    COALESCE(holdover_active, 0)
-             FROM snapshot
-             WHERE unixepoch(at) >= unixepoch('now') - ?2
-               AND receiver_id = ?1
-               AND (fast_at = at OR (fast_at IS NULL AND freshness = 'live'))
-             ORDER BY at",
-        )?;
-        let rows = statement.query_map(rusqlite::params![receiver, window.seconds()], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, Option<f64>>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, i64>(3)? != 0,
-            ))
-        })?;
-
-        // Rows without an interval are kept for their state; see
-        // `Curve::from_logged`.
-        let mut logged = Vec::new();
-        for row in rows {
-            let (at, interval, mode, holdover) = row?;
-            let Ok(at) = at.parse::<jiff::Timestamp>() else {
-                continue;
-            };
-            logged.push((at, interval, (mode, holdover)));
-        }
-        Ok(Curve::from_logged(logged))
+        let now = jiff::Timestamp::now().as_second();
+        let (curve, _) = self
+            .0
+            .phase(receiver, now - window.seconds(), now, MAX_PHASE_ROWS)?;
+        Ok(curve)
     }
 
-    /// How often the daemon ran each tier, as it recorded.
-    fn cadence(&self) -> Cadence {
-        recorded_cadence(|key| {
-            self.conn
-                .query_row("SELECT value FROM meta WHERE key = ?1", [key], |row| {
-                    row.get(0)
-                })
-                .ok()
-        })
-    }
-
+    /// Read the series a graph needs, thinned to at most `columns`
+    /// points, since a week at one second is six hundred thousand rows
+    /// and a terminal has a couple of hundred columns.
     pub(crate) fn read(&self, receiver: i64, window: Window, columns: usize) -> Result<History> {
-        let span = window.seconds();
-        let buckets = columns.clamp(16, 1024) as i64;
-        // Bucket by time so each column is one averaged point.  Averaging
-        // rather than sampling keeps a spike from vanishing between
-        // columns.
-        // Temperature is the medium tier's, carried in the fast tier's
-        // rows until it reads again, and counted only while current.
-        let temperature = current("temperature_c", Tier::Medium, &self.cadence());
-        let mut statement = self.conn.prepare(&format!(
-            "SELECT
-                 CAST((unixepoch(at) - unixepoch('now')) / MAX(?1 / ?2, 1) AS INTEGER) AS bucket,
-                 AVG(unixepoch(at) - unixepoch('now')) AS ago,
-                 AVG(efc_percent),       MIN(efc_percent),       MAX(efc_percent),
-                 AVG({temperature}),     MIN({temperature}),     MAX({temperature}),
-                 AVG(time_interval_s),   MIN(time_interval_s),   MAX(time_interval_s)
-             FROM snapshot
-             WHERE unixepoch(at) >= unixepoch('now') - ?1
-               -- The question is whether the fast tier measured this
-               -- row or the row merely restates the last one.  fast_at
-               -- answers it exactly; the freshness flag does not, since
-               -- it now reports the whole snapshot and goes Stale when
-               -- some other tier fails.  Rows from before those columns
-               -- existed have no fast_at and fall back to the flag.
-               AND (fast_at = at OR (fast_at IS NULL AND freshness = 'live'))
-               -- One unit per graph: two receivers' readings drawn
-               -- together make a swap look like an oscillator moving.
-               AND receiver_id = ?3
-             GROUP BY bucket
-             ORDER BY ago"
-        ))?;
-
-        let mut out = History::default();
-        let rows = statement.query_map((span, buckets, receiver), |row| {
-            let value = |n: usize| row.get::<_, Option<f64>>(n);
-            Ok((
-                row.get::<_, f64>(1)?,
-                (value(2)?, value(3)?, value(4)?),
-                (value(5)?, value(6)?, value(7)?),
-                (value(8)?, value(9)?, value(10)?),
-            ))
-        })?;
-        for row in rows {
-            let (ago, efc, temperature, interval) = row?;
-            out.rows += 1;
-            out.efc.push(ago, efc.0, efc.1, efc.2);
-            out.temperature
-                .push(ago, temperature.0, temperature.1, temperature.2);
-            out.time_interval
-                .push(ago, interval.0, interval.1, interval.2);
+        let now = jiff::Timestamp::now().as_second();
+        let asked = GRAPHED.map(str::to_owned);
+        let series = self
+            .0
+            .series(receiver, &asked, now - window.seconds(), now, columns)?;
+        let mut traces = [Trace::default(), Trace::default(), Trace::default()];
+        for (trace, plot) in traces.iter_mut().zip(&series.plots) {
+            for (n, &at) in series.at.iter().enumerate() {
+                trace.push(at - now as f64, plot.mean[n], plot.min[n], plot.max[n]);
+            }
         }
+        let [efc, temperature, mut time_interval] = traces;
         // Nanoseconds: the interval is a few parts in a billion of a
         // second and would render as a flat zero.
-        out.time_interval.scale(1e9);
-        Ok(out)
+        time_interval.scale(1e9);
+        Ok(History {
+            efc,
+            temperature,
+            time_interval,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    const PREFIX: &str = "smartclockmon";
+    use super::Log;
+    use super::Note;
+    use super::Series;
+    use super::Source;
+    use super::Window;
+    use rusqlite::Connection;
+    use smartclock_log::schema::META;
+    use smartclock_log::schema::TABLES;
+    use smartclock_log::schema::stored;
 
-    /// A database path that deletes itself, and the `-wal` and `-shm`
-    /// SQLite writes beside it, on drop.  Drop also runs on a panicking
-    /// test, where a line at the end of the test body would not.
+    /// A log path that deletes itself, and the `-wal` and `-shm` SQLite
+    /// writes beside it, on drop.  Drop also runs on a panicking test.
     struct Scratch(std::path::PathBuf);
 
     impl Scratch {
+        /// A new log holding the empty tables and one receiver.
         fn new(name: &str) -> Self {
-            let path = std::env::temp_dir().join(format!(
-                "{}-{name}-{}.sqlite",
-                PREFIX,
+            let guard = Self(std::env::temp_dir().join(format!(
+                "smartclockmon-{name}-{}.sqlite",
                 std::process::id()
-            ));
-            let guard = Self(path);
+            )));
             guard.wipe();
+            let conn = guard.connect();
+            conn.execute_batch(META).expect("meta");
+            conn.execute_batch(TABLES).expect("the tables");
+            conn.execute_batch(
+                "INSERT INTO receiver (id, serial, first_seen, last_seen)
+                 VALUES (1, 'AAA', '', '');",
+            )
+            .expect("a receiver");
             guard
         }
 
-        fn path(&self) -> &std::path::Path {
-            &self.0
+        fn connect(&self) -> Connection {
+            Connection::open(&self.0).expect("open the log for writing")
+        }
+
+        fn open(&self) -> Log {
+            Log::open(&self.0).expect("open the log for reading")
         }
 
         fn wipe(&self) {
@@ -513,56 +338,6 @@ mod tests {
         }
     }
 
-    use super::Log;
-    use super::Source;
-    use rusqlite::Connection;
-
-    /// A log holding two receivers, with a cleared diagnostic log and
-    /// a power-on stamped at midnight on a stale date.
-    fn two_units(name: &str) -> Scratch {
-        let scratch = Scratch::new(name);
-        let path = scratch.path();
-        let conn = Connection::open(path).expect("make a log");
-        conn.execute_batch(
-            r#"
-            CREATE TABLE receiver (
-                id INTEGER PRIMARY KEY, serial TEXT UNIQUE NOT NULL,
-                manufacturer TEXT, model TEXT, firmware TEXT,
-                first_seen TEXT, last_seen TEXT);
-            INSERT INTO receiver VALUES
-                (1,'AAA','HEWLETT-PACKARD','58503A','3704-C','x','2026-09-01T02:00:00Z'),
-                (2,'BBB','HEWLETT-PACKARD','Z3805A','3611-A','x','2026-09-02T02:00:00Z');
-
-            CREATE TABLE receiver_log (
-                id INTEGER PRIMARY KEY, at TEXT NOT NULL, entry INTEGER NOT NULL,
-                stamp TEXT, message TEXT NOT NULL, receiver_id INTEGER,
-                generation INTEGER NOT NULL DEFAULT 0);
-            INSERT INTO receiver_log (at, entry, stamp, message, receiver_id, generation) VALUES
-                ('2026-09-01T00:00:00Z',1,'20050528.00:01:00','one A',         1,0),
-                ('2026-09-01T00:00:01Z',2,'20050528.00:00:00','Power on',      1,0),
-                ('2026-09-01T00:00:02Z',1,'20050530.00:00:00','after clear A', 1,1),
-                ('2026-09-02T00:00:00Z',1,'20050601.00:00:00','one B',         2,0);
-
-            CREATE TABLE receiver_event (
-                id INTEGER PRIMARY KEY, at TEXT NOT NULL, register TEXT,
-                bits INTEGER, decoded TEXT, receiver_id INTEGER);
-            INSERT INTO receiver_event (at, register, bits, decoded, receiver_id) VALUES
-                ('2026-09-01T00:00:00Z','alarm',0,'clear A',1),
-                ('2026-09-02T00:00:00Z','alarm',8,'holdover B',2);
-
-            CREATE TABLE receiver_error (
-                id INTEGER PRIMARY KEY, at TEXT NOT NULL, code INTEGER,
-                message TEXT, receiver_id INTEGER);
-            INSERT INTO receiver_error (at, code, message, receiver_id) VALUES
-                ('2026-09-01T00:00:00Z',-113,'undefined header A',1),
-                ('2026-09-02T00:00:00Z',-230,'stale B',2);
-            "#,
-        )
-        .expect("fill it");
-        drop(conn);
-        scratch
-    }
-
     #[test]
     fn temperature_is_not_drawn_after_its_tier_stops_reading() {
         // Two minutes of fast rows ending now.  The medium tier reads
@@ -570,33 +345,24 @@ mod tests {
         // read is 110 s ago and its value is current for three of its
         // ten-second intervals after that: to 80 s ago.
         let scratch = Scratch::new("stale-tier");
-        let conn = Connection::open(scratch.path()).expect("make a log");
-        conn.execute_batch(
-            "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-             INSERT INTO meta VALUES ('cadence_medium', '10');
-             CREATE TABLE snapshot (
-                 id INTEGER PRIMARY KEY, at TEXT NOT NULL, freshness TEXT,
-                 fast_at TEXT, medium_at TEXT, efc_percent REAL,
-                 temperature_c REAL, time_interval_s REAL, receiver_id INTEGER);",
-        )
-        .expect("schema");
+        let conn = scratch.connect();
+        conn.execute_batch("INSERT INTO meta VALUES ('cadence_medium', '10');")
+            .expect("cadence");
         let now = jiff::Timestamp::now().as_second();
+        let at = |second: i64| stored(jiff::Timestamp::from_second(second).expect("a timestamp"));
         for ago in (0..120).rev() {
-            let at = jiff::Timestamp::from_second(now - ago).expect("a timestamp");
-            let medium = jiff::Timestamp::from_second(now - ago.max(110)).expect("a timestamp");
             conn.execute(
                 "INSERT INTO snapshot
                  (at, freshness, fast_at, medium_at, efc_percent, temperature_c, receiver_id)
                  VALUES (?1, 'stale', ?1, ?2, 50.0, 35.0, 1)",
-                rusqlite::params![at.to_string(), medium.to_string()],
+                rusqlite::params![at(now - ago), at(now - ago.max(110))],
             )
             .expect("a row");
         }
         drop(conn);
 
-        let log = Log::open(scratch.path()).expect("open");
-        let history = log.read(1, super::Window::Hour, 1024).expect("read");
-        let newest = |series: &super::Series| {
+        let history = scratch.open().read(1, Window::Hour, 1024).expect("read");
+        let newest = |series: &Series| {
             series
                 .iter()
                 .map(|&(ago, _)| ago)
@@ -608,48 +374,36 @@ mod tests {
     }
 
     #[test]
-    fn the_journal_holds_one_receiver_and_not_the_other() {
-        let scratch = two_units("journal");
-        let path = scratch.path();
-        let log = Log::open(path).expect("open");
-        let a = log.journal(1, 50).expect("A");
-        let texts: Vec<&str> = a.iter().map(|n| n.text.as_str()).collect();
-        assert!(
-            texts.iter().all(|t| !t.contains('B')),
-            "B's records must not appear in A's journal: {texts:?}"
-        );
-        assert!(texts.contains(&"clear A"));
-        assert!(texts.contains(&"-113 undefined header A"));
-    }
-
-    #[test]
-    fn a_power_on_does_not_sort_to_the_start_of_its_day() {
-        // Before the first GPS lock the receiver stamps entries with
-        // elapsed time since boot on a stale date, so ordering by the
-        // stamp put `Power on` -- at 00:00:00 -- above the entry that
-        // preceded it.  The generation and the entry number are the
-        // receiver's own sequence and do not have that problem.
-        let scratch = two_units("order");
-        let path = scratch.path();
-        let log = Log::open(path).expect("open");
-        let journal = log.journal(1, 50).expect("A");
-        let entries: Vec<&str> = journal
-            .iter()
-            .filter(|n| n.source == Source::Log)
-            .map(|n| n.text.as_str())
-            .collect();
-        assert_eq!(entries, vec!["after clear A", "Power on", "one A"]);
-    }
-
-    #[test]
-    fn the_receivers_are_listed_most_recently_seen_first() {
-        let scratch = two_units("list");
-        let path = scratch.path();
-        let log = Log::open(path).expect("open");
-        let found = log.receivers().expect("list");
+    fn recent_records_come_first_and_the_receivers_log_after_in_its_own_order() {
+        let scratch = Scratch::new("journal");
+        scratch
+            .connect()
+            .execute_batch(
+                "INSERT INTO receiver_log (at, entry, stamp, message, receiver_id, generation) VALUES
+                     ('2026-09-01T00:00:00.000000000Z', 1, '20050528.00:01:00', 'one', 1, 0),
+                     ('2026-09-01T00:00:01.000000000Z', 2, NULL, 'two', 1, 0);
+                 INSERT INTO receiver_event (at, register, bits, decoded, receiver_id) VALUES
+                     ('2026-09-01T00:00:00.000000000Z', 'alarm', 0, 'clear', 1);
+                 INSERT INTO receiver_error (at, code, message, receiver_id) VALUES
+                     ('2026-09-01T00:00:05.000000000Z', -113, 'undefined header', 1);",
+            )
+            .expect("fill it");
+        let notes: Vec<Note> = scratch.open().journal(1, 50).expect("journal");
         assert_eq!(
-            found.iter().map(super::Receiver::label).collect::<Vec<_>>(),
-            vec!["Z3805A BBB".to_owned(), "58503A AAA".to_owned()]
+            notes
+                .iter()
+                .map(|n| (n.text.as_str(), n.source))
+                .collect::<Vec<_>>(),
+            vec![
+                ("-113 undefined header", Source::Error),
+                ("clear", Source::Event),
+                ("two", Source::Log),
+                ("one", Source::Log),
+            ]
         );
+        // An entry the receiver did not stamp is dated by when it was
+        // read; one it did keeps its own stamp.
+        assert_eq!(notes[2].stamp, "2026-09-01T00:00:01.000000000Z");
+        assert_eq!(notes[3].stamp, "20050528.00:01:00");
     }
 }

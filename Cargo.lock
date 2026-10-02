@@ -1763,6 +1763,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "smartclock-log"
+version = "1.0.3"
+dependencies = [
+ "jiff",
+ "rusqlite",
+ "serde",
+ "smartclock",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "smartclock-sim"
 version = "1.0.3"
 dependencies = [
@@ -1777,12 +1788,11 @@ version = "1.0.3"
 dependencies = [
  "anyhow",
  "clap",
- "jiff",
- "rusqlite",
  "serde",
  "serde_json",
  "smartclock",
  "smartclock-http",
+ "smartclock-log",
 ]
 
 [[package]]
@@ -1798,6 +1808,7 @@ dependencies = [
  "serde_json",
  "signal-hook 0.4.4",
  "smartclock",
+ "smartclock-log",
  "smartclock-sim",
 ]
 
@@ -1814,6 +1825,7 @@ dependencies = [
  "rusqlite",
  "serde_json",
  "smartclock",
+ "smartclock-log",
  "smartclock-sim",
 ]
 
