@@ -1137,6 +1137,14 @@ Things not decided, as distinct from the defects below.
    deliberate acknowledgment and the wrong thing to do on a timer.
    Nothing needs it yet.
 
+5. **Maybe: a Host allowlist for the web view.**  `smartclock-http`
+   checks neither `Host` nor `Origin`, so a page in the operator's
+   browser can rebind its own name to the web view's address and read
+   `/api/status`, position included, or force screen reads at 1.5 s of
+   link each.  The likely shape is `--allow-host NAME`, repeatable,
+   with loopback always allowed and a non-loopback bind refused
+   without one.  Deferred: no access-control work for now.
+
 ## Known defects
 
 Known and unfixed, each because the fix is not yet worth its cost.
