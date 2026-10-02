@@ -843,9 +843,9 @@ reported, and it agrees with the code.
 - Whether the outer oven then runs continuously is disputed on
   time-nuts: Bob Camp called it "simply a warmup heater" that "drops
   out in normal operation"
-  (<https://time-nuts.febo.narkive.com/sZqRYuxp/10811-outer-oven-controller>);
+  (<https://www.febo.com/pipermail/time-nuts/2013-July/078414.html>);
   Jarl Risum wrote that it holds 60 to 65 °C in normal operation
-  (<https://www.mail-archive.com/time-nuts@lists.febo.com/msg06566.html>).
+  (<https://febo.com/pipermail/time-nuts_lists.febo.com/2020-April/099815.html>).
   The code settles only the processor's part: once the enable is set it
   is never cleared, so what the heater does after that is the analog
   controller's doing.
