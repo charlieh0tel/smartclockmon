@@ -20,7 +20,9 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::Parser;
+use smartclock::client;
 use smartclock::client::Daemon;
+use smartclock::client::Daemons;
 use smartclock_http::Response;
 
 use crate::metrics::Scrape;
@@ -71,7 +73,7 @@ fn main() -> Result<()> {
     smartclock_http::serve(&cli.listen, move |path| match path {
         "/metrics" => Response::ok(
             "text/plain; version=0.0.4; charset=utf-8",
-            metrics::render(&daemons.scrape()),
+            metrics::render(&scrape_all(&daemons)),
         ),
         "/" => Response::ok(
             "text/plain; charset=utf-8",
@@ -81,52 +83,16 @@ fn main() -> Result<()> {
     })
 }
 
-/// Where the daemons are.
-enum Daemons {
-    /// The run directory: one instance per subdirectory, its socket
-    /// inside.
-    Dir(PathBuf),
-    /// One socket.
-    File(PathBuf),
-}
-
-impl Daemons {
-    /// Every socket that could be a daemon's, by instance name.
-    ///
-    /// An instance's directory outlives nothing: systemd removes it
-    /// when the instance stops, so a socket that is there is one
-    /// something should be answering on, and one nobody answers on is
-    /// reported as `up 0` under its name rather than left out.
-    fn sockets(&self) -> Vec<(String, PathBuf)> {
-        match self {
-            Self::File(file) => vec![(String::new(), file.clone())],
-            Self::Dir(dir) => {
-                let Ok(entries) = std::fs::read_dir(dir) else {
-                    return Vec::new();
-                };
-                let mut sockets: Vec<(String, PathBuf)> = entries
-                    .filter_map(|entry| entry.ok())
-                    .filter(|entry| entry.path().join("socket").exists())
-                    .map(|entry| {
-                        (
-                            entry.file_name().to_string_lossy().into_owned(),
-                            entry.path().join("socket"),
-                        )
-                    })
-                    .collect();
-                sockets.sort();
-                sockets
-            }
-        }
-    }
-
-    /// Ask every daemon, once each.
-    fn scrape(&self) -> Vec<Scrape> {
-        self.sockets()
-            .into_iter()
-            .map(|(instance, socket)| scrape(&instance, &socket))
-            .collect()
-    }
+/// Ask every daemon, once each.
+///
+/// A socket nobody answers on is reported as `up 0` under its name
+/// rather than left out.
+fn scrape_all(daemons: &Daemons) -> Vec<Scrape> {
+    daemons
+        .sockets()
+        .into_iter()
+        .map(|instance| scrape(&instance.name, &instance.socket))
+        .collect()
 }
 
 /// One daemon's last reading, labelled by who it is.
@@ -149,11 +115,7 @@ fn scrape(instance: &str, socket: &Path) -> Scrape {
     });
     match asked {
         Ok((info, reading)) => {
-            let identity = info
-                .get("identity")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or_default();
-            if let Ok(id) = smartclock::parse::identity(identity) {
+            if let Some(id) = client::identity(&info) {
                 for (key, value) in [("serial", &id.serial), ("model", &id.model)] {
                     if !labels.is_empty() {
                         labels.push(',');

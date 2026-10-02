@@ -1,7 +1,8 @@
 //! Talking to a running daemon over its socket.
 //!
-//! Here rather than in each program because three of them do it: the
-//! monitor, the command line tool and the exporter.  The daemon owns
+//! Here rather than in each program because four of them do it: the
+//! monitor, the command line tool, the exporter and the web view.  The
+//! daemon owns
 //! the serial port for as long as it runs, so asking it is the only way
 //! to read the receiver without stopping it.
 
@@ -9,6 +10,7 @@ use std::io::BufRead as _;
 use std::io::BufReader;
 use std::io::Write as _;
 use std::path::Path;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use interprocess::TryClone as _;
@@ -19,6 +21,8 @@ use interprocess::local_socket::traits::Stream as _;
 
 use crate::error::Error;
 use crate::error::Result;
+use crate::parse;
+use crate::parse::Identity;
 use crate::protocol::Message;
 use crate::protocol::Op;
 use crate::protocol::Request;
@@ -203,5 +207,109 @@ impl Daemon {
             .get("lines")
             .and_then(|l| serde_json::from_value::<Vec<String>>(l.clone()).ok())
             .unwrap_or_default())
+    }
+}
+
+/// Where the daemons on a host are.
+#[derive(Debug, Clone)]
+pub enum Daemons {
+    /// The run directory: one instance per subdirectory, its socket
+    /// inside, `<dir>/<instance>/socket`.
+    Dir(PathBuf),
+    /// One socket, named outright.
+    File(PathBuf),
+}
+
+/// One socket a daemon could be listening on.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Instance {
+    /// The instance name, its subdirectory's; empty for a socket named
+    /// outright.
+    pub name: String,
+    /// The socket.
+    pub socket: PathBuf,
+}
+
+impl Daemons {
+    /// Every socket that could be a daemon's, by instance name.
+    ///
+    /// An instance's directory outlives nothing: systemd removes it
+    /// when the instance stops, so a socket that is there is one
+    /// something should be answering on.  Whether anything does is the
+    /// caller's to find out.
+    pub fn sockets(&self) -> Vec<Instance> {
+        match self {
+            Self::File(file) => vec![Instance {
+                name: String::new(),
+                socket: file.clone(),
+            }],
+            Self::Dir(dir) => {
+                let Ok(entries) = std::fs::read_dir(dir) else {
+                    return Vec::new();
+                };
+                let mut sockets: Vec<Instance> = entries
+                    .filter_map(|entry| entry.ok())
+                    .map(|entry| Instance {
+                        name: entry.file_name().to_string_lossy().into_owned(),
+                        socket: entry.path().join("socket"),
+                    })
+                    .filter(|instance| instance.socket.exists())
+                    .collect();
+                sockets.sort();
+                sockets
+            }
+        }
+    }
+}
+
+/// The receiver a daemon is attached to, from its [`Daemon::info`]
+/// reply.
+///
+/// `None` when it is attached to nothing yet or its `*IDN?` did not
+/// parse.
+pub fn identity(info: &serde_json::Value) -> Option<Identity> {
+    info.get("identity")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|text| parse::identity(text).ok())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Daemons;
+    use super::identity;
+
+    #[test]
+    fn sockets_lists_instances_with_a_socket_in_name_order() {
+        let dir = std::env::temp_dir().join(format!("smartclock-daemons-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        for name in ["b", "a", "stopped"] {
+            std::fs::create_dir_all(dir.join(name)).expect("instance directory");
+        }
+        for name in ["b", "a"] {
+            std::fs::write(dir.join(name).join("socket"), b"").expect("socket stand-in");
+        }
+        let found = Daemons::Dir(dir.clone()).sockets();
+        let _ = std::fs::remove_dir_all(&dir);
+        let names: Vec<&str> = found.iter().map(|i| i.name.as_str()).collect();
+        assert_eq!(names, ["a", "b"]);
+        assert_eq!(found[0].socket, dir.join("a").join("socket"));
+    }
+
+    #[test]
+    fn sockets_of_a_missing_directory_is_empty() {
+        let dir = std::env::temp_dir().join("smartclock-daemons-does-not-exist");
+        assert!(Daemons::Dir(dir).sockets().is_empty());
+    }
+
+    #[test]
+    fn identity_comes_from_the_info_reply() {
+        let info = serde_json::json!({ "identity": "HEWLETT-PACKARD,58503A,0000A00000,3704-C" });
+        let id = identity(&info).expect("identity");
+        assert_eq!(
+            (id.model.as_str(), id.serial.as_str()),
+            ("58503A", "0000A00000")
+        );
+        assert!(identity(&serde_json::json!({})).is_none());
+        assert!(identity(&serde_json::json!({ "identity": "garbled" })).is_none());
     }
 }

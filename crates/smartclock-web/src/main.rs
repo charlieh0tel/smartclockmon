@@ -22,7 +22,10 @@ use std::time::Instant;
 use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
+use smartclock::client;
 use smartclock::client::Daemon;
+use smartclock::client::Daemons;
+use smartclock::parse::Identity;
 use smartclock::protocol::Op;
 use smartclock_http::Response;
 
@@ -121,15 +124,13 @@ fn main() -> Result<()> {
             "/style.css" => Response::ok("text/css; charset=utf-8", STYLE.to_owned()),
             "/common.js" => Response::ok("text/javascript; charset=utf-8", COMMON.to_owned()),
             "/api/about" => json(Ok(about())),
-            "/api/snapshot" => json(
-                daemons
-                    .choose(&cache, query)
-                    .and_then(|s| cache.snapshot(&s)),
-            ),
-            "/api/info" => json(daemons.choose(&cache, query).and_then(|s| cache.info(&s))),
+            "/api/snapshot" => {
+                json(choose(&daemons, &cache, query).and_then(|s| cache.snapshot(&s)))
+            }
+            "/api/info" => json(choose(&daemons, &cache, query).and_then(|s| cache.info(&s))),
             // Uncached, and the only endpoint that goes to the wire on
             // request: it is what the status page is paying for.
-            "/api/status" => json(daemons.choose(&cache, query).and_then(|s| status(&s))),
+            "/api/status" => json(choose(&daemons, &cache, query).and_then(|s| status(&s))),
             "/api/history" => json(series(&logs, query)),
             "/api/journal" => json(journal(&logs, query)),
             "/api/receivers" => json(receivers(&logs, &daemons, &cache)),
@@ -293,107 +294,68 @@ impl Cache {
     }
 }
 
-/// Where the daemons are.
-enum Daemons {
-    /// The run directory: one instance per subdirectory, its socket
-    /// inside.
-    Dir(PathBuf),
-    /// One socket.
-    File(PathBuf),
-}
-
 /// One daemon that answered, and what it is attached to.
 struct Live {
     socket: PathBuf,
     /// The instance name, the subdirectory's; empty for a socket
     /// named outright.
     instance: String,
-    /// The serial of the receiver it is attached to, when it is
-    /// attached to one whose identity parses.
-    serial: Option<String>,
-    identity: String,
+    /// The receiver it is attached to, when its identity parses and
+    /// names a serial.
+    identity: Option<Identity>,
 }
 
-impl Daemons {
-    /// Every socket that could be a daemon's, by instance name.
-    fn sockets(&self) -> Vec<(String, PathBuf)> {
-        match self {
-            Self::File(file) => vec![(String::new(), file.clone())],
-            Self::Dir(dir) => {
-                let Ok(entries) = std::fs::read_dir(dir) else {
-                    return Vec::new();
-                };
-                let mut sockets: Vec<(String, PathBuf)> = entries
-                    .filter_map(|entry| entry.ok())
-                    .filter(|entry| entry.path().join("socket").exists())
-                    .map(|entry| {
-                        (
-                            entry.file_name().to_string_lossy().into_owned(),
-                            entry.path().join("socket"),
-                        )
-                    })
-                    .collect();
-                sockets.sort();
-                sockets
-            }
-        }
+impl Live {
+    /// The serial of the receiver it is attached to.
+    fn serial(&self) -> Option<&str> {
+        self.identity.as_ref().map(|id| id.serial.as_str())
     }
+}
 
-    /// Every daemon that answers, by instance name.
-    ///
-    /// A socket nobody answers on -- an instance stopped with its
-    /// directory still there -- is left out, not an error: the page
-    /// shows what is live, and history for the rest.
-    fn live(&self, cache: &Cache) -> Vec<Live> {
-        self.sockets()
-            .into_iter()
-            .filter_map(|(instance, socket)| {
-                let info = cache.info(&socket).ok()?;
-                let identity = info
-                    .get("identity")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or_default()
-                    .to_owned();
-                let serial = smartclock::parse::identity(&identity)
-                    .ok()
-                    .map(|id| id.serial)
-                    .filter(|serial| !serial.is_empty());
-                Some(Live {
-                    socket,
-                    instance,
-                    serial,
-                    identity,
-                })
+/// Every daemon that answers, by instance name.
+///
+/// A socket nobody answers on -- an instance stopped with its
+/// directory still there -- is left out, not an error: the page
+/// shows what is live, and history for the rest.
+fn live(daemons: &Daemons, cache: &Cache) -> Vec<Live> {
+    daemons
+        .sockets()
+        .into_iter()
+        .filter_map(|instance| {
+            let info = cache.info(&instance.socket).ok()?;
+            Some(Live {
+                identity: client::identity(&info).filter(|id| !id.serial.is_empty()),
+                socket: instance.socket,
+                instance: instance.name,
             })
-            .collect()
-    }
+        })
+        .collect()
+}
 
-    /// The daemon a live request is about.
-    ///
-    /// `?receiver=<serial>` names the daemon attached to that unit; a
-    /// unit no daemon is attached to has history and no live strip,
-    /// and the page is told so.  Without one, the only daemon, or the
-    /// first by instance name.
-    fn choose(&self, cache: &Cache, query: &str) -> Result<PathBuf> {
-        let asked = query.split('&').find_map(|pair| {
-            pair.split_once('=')
-                .filter(|(key, _)| *key == "receiver")
-                .map(|(_, value)| decode(value))
-        });
-        match asked {
-            Some(serial) => self
-                .live(cache)
-                .into_iter()
-                .find(|d| d.serial.as_deref() == Some(serial.as_str()))
-                .map(|d| d.socket)
-                .ok_or_else(|| anyhow::anyhow!("no daemon is attached to receiver {serial}")),
-            None => self
-                .sockets()
-                .into_iter()
-                .next()
-                .map(|(_, socket)| socket)
-                .ok_or_else(|| anyhow::anyhow!("no daemon is running")),
-        }
+/// The daemon a live request is about.
+///
+/// `?receiver=<serial>` names the daemon attached to that unit; a
+/// unit no daemon is attached to has history and no live strip,
+/// and the page is told so.  Without one, the only daemon, or the
+/// first by instance name.
+fn choose(daemons: &Daemons, cache: &Cache, query: &str) -> Result<PathBuf> {
+    let asked = query.split('&').find_map(|pair| {
+        pair.split_once('=')
+            .filter(|(key, _)| *key == "receiver")
+            .map(|(_, value)| decode(value))
+    });
+    match asked {
+        Some(serial) => live(daemons, cache)
+            .into_iter()
+            .find(|d| d.serial() == Some(serial.as_str()))
+            .map(|d| d.socket)
+            .ok_or_else(|| anyhow::anyhow!("no daemon is attached to receiver {serial}")),
+        None => daemons
+            .sockets()
+            .into_iter()
+            .next()
+            .map(|instance| instance.socket)
+            .ok_or_else(|| anyhow::anyhow!("no daemon is running")),
     }
 }
 
@@ -550,22 +512,21 @@ impl Logs {
 /// its identity alone, so the selector never lacks the unit that is
 /// actually on the bench.
 fn receivers(logs: &Logs, daemons: &Daemons, cache: &Cache) -> Result<serde_json::Value> {
-    let live = daemons.live(cache);
+    let attached = live(daemons, cache);
     let mut found: Vec<Receiver> = logs.receivers()?.into_iter().map(|f| f.receiver).collect();
-    for daemon in &live {
-        let Some(serial) = &daemon.serial else {
+    for daemon in &attached {
+        let Some(id) = &daemon.identity else {
             continue;
         };
-        match found.iter_mut().find(|r| r.serial == *serial) {
+        match found.iter_mut().find(|r| r.serial == id.serial) {
             Some(receiver) => receiver.instance = Some(daemon.instance.clone()),
             None => {
-                let id = smartclock::parse::identity(&daemon.identity)?;
                 found.push(Receiver {
                     id: 0,
-                    serial: id.serial,
+                    serial: id.serial.clone(),
                     columns: measured(&id.model),
-                    model: id.model,
-                    firmware: id.firmware,
+                    model: id.model.clone(),
+                    firmware: id.firmware.clone(),
                     first_seen: String::new(),
                     last_seen: String::new(),
                     gps_engine: None,
