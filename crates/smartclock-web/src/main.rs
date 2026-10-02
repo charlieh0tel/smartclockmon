@@ -11,6 +11,7 @@
 //! daemon's authorization, and a page on a TCP port has none of it.
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -495,7 +496,10 @@ impl Logs {
         // a copy left in the directory, or the old single log beside
         // its split -- is the same unit, and the file seen most recently
         // is the one with its history.
-        found.dedup_by(|later, earlier| later.receiver.serial == earlier.receiver.serial);
+        // Not `dedup_by`, which only merges neighbors: two files
+        // seen between them leave a unit listed twice.
+        let mut listed = HashSet::new();
+        found.retain(|f| listed.insert(f.receiver.serial.clone()));
         Ok(found)
     }
 
@@ -667,6 +671,7 @@ fn series(logs: &Logs, query: &str) -> Result<serde_json::Value> {
 #[cfg(test)]
 mod tests {
     use super::Cache;
+    use super::Logs;
     use super::PAGE;
     use super::decode;
     use std::path::Path;
@@ -729,6 +734,44 @@ mod tests {
             started.elapsed()
         );
         assert!(silent.join().expect("the silent request").is_err());
+    }
+
+    #[test]
+    fn a_unit_in_two_logs_is_listed_once_even_with_another_between() {
+        let dir = std::env::temp_dir().join(format!("smartclock-web-dupes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("a log directory");
+        // X seen most recently in one file and earliest in another,
+        // with Y seen in between: sorted by when seen, the two X are
+        // not neighbors.
+        for (file, serial, seen) in [
+            ("a.sqlite", "X", "2026-09-03"),
+            ("b.sqlite", "Y", "2026-09-02"),
+            ("c.sqlite", "X", "2026-09-01"),
+        ] {
+            let conn = rusqlite::Connection::open(dir.join(file)).expect("a log");
+            conn.execute_batch(smartclock_log::schema::META)
+                .expect("meta");
+            conn.execute_batch(smartclock_log::schema::TABLES)
+                .expect("the tables");
+            conn.execute(
+                "INSERT INTO receiver (serial, first_seen, last_seen) VALUES (?1, ?2, ?2)",
+                [serial, seen],
+            )
+            .expect("a receiver");
+        }
+        let found = Logs::Dir(dir.clone()).receivers().expect("the receivers");
+        let _ = std::fs::remove_dir_all(&dir);
+        let listed: Vec<(&str, &str)> = found
+            .iter()
+            .map(|f| {
+                (
+                    f.receiver.serial.as_str(),
+                    f.path.file_name().and_then(|n| n.to_str()).unwrap_or(""),
+                )
+            })
+            .collect();
+        assert_eq!(listed, vec![("X", "a.sqlite"), ("Y", "b.sqlite")]);
     }
 
     /// No two top-level functions in the page share a name.
