@@ -9,7 +9,7 @@ mod history;
 mod source;
 mod ui;
 
-use std::sync::mpsc::RecvTimeoutError;
+use std::sync::mpsc::TryRecvError;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -18,7 +18,9 @@ use clap::Parser;
 use crossterm::event;
 use crossterm::event::Event;
 use crossterm::event::KeyCode;
+use crossterm::event::KeyEvent;
 use crossterm::event::KeyEventKind;
+use crossterm::event::KeyModifiers;
 
 use crate::app::App;
 use smartclock::types::Framing;
@@ -53,6 +55,10 @@ struct Cli {
 /// How often to redraw when nothing has arrived, so the clock in the
 /// header does not look frozen.
 const TICK: Duration = Duration::from_millis(500);
+
+/// How long one wait on the keyboard lasts before the snapshots are
+/// looked at: the most a key or a snapshot waits for the other.
+const INPUT_POLL: Duration = Duration::from_millis(50);
 
 /// How often to re-read the log.  Querying a week of rows every frame
 /// would be wasteful, and the graphs do not move that fast.
@@ -91,6 +97,8 @@ fn run(
     updates: &std::sync::mpsc::Receiver<crate::source::Update>,
 ) -> Result<()> {
     let mut due = Instant::now();
+    let mut last_draw = Instant::now();
+    let mut dirty = true;
     while !app.quitting {
         if app.view == View::Journal && Instant::now() >= due {
             app.refresh_journal();
@@ -113,83 +121,150 @@ fn run(
             let _ = app.console.status();
             due = Instant::now() + STATUS_REFRESH;
         }
-        terminal.draw(|frame| ui::draw(frame, &app))?;
-
-        // Wait for a snapshot, but wake often enough to notice a
-        // keypress and to redraw.
-        match updates.recv_timeout(TICK) {
-            Ok(Update::Reading(snapshot)) => app.accept(*snapshot),
-            Ok(Update::Reply(answer)) => app.console_reply = Some(answer),
-            // The daemon restarts under systemd, so losing it is not a
-            // reason to quit: say so and keep waiting for it to return.
-            Ok(Update::Lost(why)) => app.lost(why),
-            Ok(Update::Reattached {
-                database,
-                policy,
-                cadence,
-            }) => app.reattached(database, policy, cadence),
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => {
-                app.lost("the source thread stopped".to_owned());
-                terminal.draw(|frame| ui::draw(frame, &app))?;
-                return Ok(());
-            }
+        if dirty || last_draw.elapsed() >= TICK {
+            terminal.draw(|frame| ui::draw(frame, &app))?;
+            last_draw = Instant::now();
+            dirty = false;
         }
 
-        while event::poll(Duration::ZERO)? {
+        // Wait on the keyboard in short slices rather than on the
+        // snapshots: waiting on the channel left a key unanswered until
+        // the next snapshot or tick, up to half a second.
+        while event::poll(INPUT_POLL)? {
             if let Event::Key(key) = event::read()?
                 && key.kind == KeyEventKind::Press
             {
-                // While the console has focus every printable key is
-                // input, or there would be no way to type a command
-                // containing q, g or w.
-                if app.console_open {
-                    match key.code {
-                        KeyCode::Esc => {
-                            app.console_open = false;
-                            app.console_input.clear();
-                        }
-                        KeyCode::Enter => app.submit(),
-                        KeyCode::Backspace => {
-                            app.console_input.pop();
-                        }
-                        KeyCode::Char(c) => app.console_input.push(c),
-                        _ => {}
-                    }
-                    continue;
+                press(&mut app, key, &mut due);
+                dirty = true;
+            }
+        }
+
+        // Then everything that arrived meanwhile, drawn once.
+        loop {
+            match updates.try_recv() {
+                Ok(update) => {
+                    apply(&mut app, update);
+                    dirty = true;
                 }
-                match key.code {
-                    KeyCode::Char('q') | KeyCode::Esc => app.quitting = true,
-                    KeyCode::Char('g') | KeyCode::Tab => {
-                        app.view = match app.view {
-                            View::Dashboard => View::History,
-                            View::History => View::Journal,
-                            View::Journal => View::Status,
-                            View::Status => View::Stability,
-                            View::Stability => View::Dashboard,
-                        };
-                        due = Instant::now();
-                    }
-                    KeyCode::Char('l') => {
-                        app.view = match app.view {
-                            View::Journal => View::Dashboard,
-                            _ => View::Journal,
-                        };
-                        due = Instant::now();
-                    }
-                    KeyCode::Char('w') => {
-                        app.window = app.window.next();
-                        due = Instant::now();
-                    }
-                    KeyCode::Char('r') => {
-                        app.next_receiver();
-                        due = Instant::now();
-                    }
-                    KeyCode::Char('c') | KeyCode::Char(':') => app.console_open = true,
-                    _ => {}
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    app.lost("the source thread stopped".to_owned());
+                    terminal.draw(|frame| ui::draw(frame, &app))?;
+                    return Ok(());
                 }
             }
         }
     }
     Ok(())
+}
+
+/// Take one update from the source.
+fn apply(app: &mut App, update: Update) {
+    match update {
+        Update::Reading(snapshot) => app.accept(*snapshot),
+        Update::Reply(answer) => app.console_reply = Some(answer),
+        // The daemon restarts under systemd, so losing it is not a
+        // reason to quit: say so and keep waiting for it to return.
+        Update::Lost(why) => app.lost(why),
+        Update::Reattached {
+            database,
+            policy,
+            cadence,
+        } => app.reattached(database, policy, cadence),
+    }
+}
+
+/// Act on one key.  `due` is when the open view next re-reads, and is
+/// brought forward by anything that changes what it shows.
+fn press(app: &mut App, key: KeyEvent, due: &mut Instant) {
+    // Before the console's own handling, which would otherwise type
+    // the `c` of a Ctrl-C into the command line.  In raw mode Ctrl-C
+    // raises no signal, so this is the only way it quits.
+    if key.modifiers.contains(KeyModifiers::CONTROL) && matches!(key.code, KeyCode::Char('c' | 'd'))
+    {
+        app.quitting = true;
+        return;
+    }
+    // While the console has focus every printable key is input, or
+    // there would be no way to type a command containing q, g or w.
+    if app.console_open {
+        match key.code {
+            KeyCode::Esc => {
+                app.console_open = false;
+                app.console_input.clear();
+            }
+            KeyCode::Enter => app.submit(),
+            KeyCode::Backspace => {
+                app.console_input.pop();
+            }
+            KeyCode::Char(c) => app.console_input.push(c),
+            _ => {}
+        }
+        return;
+    }
+    match key.code {
+        KeyCode::Char('q') | KeyCode::Esc => app.quitting = true,
+        KeyCode::Char('g') | KeyCode::Tab => {
+            app.view = match app.view {
+                View::Dashboard => View::History,
+                View::History => View::Journal,
+                View::Journal => View::Status,
+                View::Status => View::Stability,
+                View::Stability => View::Dashboard,
+            };
+            *due = Instant::now();
+        }
+        KeyCode::Char('l') => {
+            app.view = match app.view {
+                View::Journal => View::Dashboard,
+                _ => View::Journal,
+            };
+            *due = Instant::now();
+        }
+        KeyCode::Char('w') => {
+            app.window = app.window.next();
+            *due = Instant::now();
+        }
+        KeyCode::Char('r') => {
+            app.next_receiver();
+            *due = Instant::now();
+        }
+        KeyCode::Char('c') | KeyCode::Char(':') => app.console_open = true,
+        _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::press;
+    use crate::app::App;
+    use crate::source::Attachment;
+    use crate::source::Console;
+    use crate::source::Policy;
+    use crossterm::event::KeyCode;
+    use crossterm::event::KeyEvent;
+    use crossterm::event::KeyModifiers;
+    use smartclock::task::Cadence;
+    use std::time::Instant;
+
+    #[test]
+    fn control_c_quits_even_from_the_console() {
+        let mut app = App::new(
+            Attachment::Direct {
+                device: "/dev/null".to_owned(),
+            },
+            Console::default(),
+            Policy::default(),
+            Cadence::default(),
+        );
+        app.console_open = true;
+        let mut due = Instant::now();
+        press(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            &mut due,
+        );
+        assert!(app.quitting);
+        assert!(app.console_input.is_empty(), "the c was typed");
+    }
 }

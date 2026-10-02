@@ -7,7 +7,8 @@ they show it that way.  Installing and configuring them is in
 ## The monitor
 
 In the monitor, `g` cycles the views, `l` jumps to the journal, `w`
-cycles the graph span, `c` opens a command line, `q` quits.  The
+cycles the graph span, `c` opens a command line, `q` quits, and
+Ctrl-C quits from anywhere, the command line included.  The
 journal is what the receiver has recorded about itself -- its
 diagnostic log, its error queue, and the changes in its alarm -- none of
 which is in the snapshot table or can be plotted, and all of which the
