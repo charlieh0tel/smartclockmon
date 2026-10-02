@@ -14,6 +14,9 @@ the project is, `PLAN.md` for architecture, decisions and phases.
   `097-59551-02` is authoritative for the 58503A; `097-z3801-01` for the
   Z3801A.  Do not guess at SCPI commands, response formats or status
   register bits -- look them up and cite the document.
+- Cite time-nuts postings only by their febo.com archive URL
+  (`febo.com/pipermail/...`), never mirrors such as narkive or
+  mail-archive.com.  Find the febo.com copy by date, subject and author.
 
 
 ## Hardware
