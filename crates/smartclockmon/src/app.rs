@@ -18,13 +18,21 @@ use crate::source::Attachment;
 use crate::source::Console;
 use crate::source::Policy;
 
-/// How many EFC readings to keep for the trend.
+/// How many fast-tier readings each trend keeps.
 ///
 /// At the daemon's one-second fast tier this is about twenty minutes,
 /// which is enough to see the oscillator breathe with temperature but
 /// nowhere near enough to see it age.  Ageing is what the SQLite log is
 /// for; this is the live view.
 const TREND_LEN: usize = 240;
+
+/// Append to a trend, dropping its oldest once it holds [`TREND_LEN`].
+fn push_bounded<T>(trend: &mut VecDeque<T>, value: T) {
+    if trend.len() == TREND_LEN {
+        trend.pop_front();
+    }
+    trend.push_back(value);
+}
 
 /// How many of the receiver's notes to hold for the journal view.
 ///
@@ -79,6 +87,8 @@ pub(crate) struct App {
     pub(crate) quitting: bool,
     /// Recent 1 PPS intervals in nanoseconds, oldest first.
     pub(crate) ti_trend: VecDeque<f64>,
+    /// When the fast tier read the last values the trends took.
+    last_fast: Option<Timestamp>,
     /// Which screen is showing.
     pub(crate) view: View,
     /// How far back the history graphs look.
@@ -140,6 +150,7 @@ impl App {
             attachment,
             quitting: false,
             ti_trend: VecDeque::with_capacity(TREND_LEN),
+            last_fast: None,
             view: View::Dashboard,
             window: Window::Hour,
             log: None,
@@ -362,28 +373,26 @@ impl App {
 
     /// Take a new reading.
     pub(crate) fn accept(&mut self, snapshot: Reading) {
-        // Only record EFC from a reading that describes the receiver.
-        // A stale or disconnected snapshot repeats the last value, and
-        // flattening the trend with repeats would hide a real change.
-        if snapshot.freshness == Freshness::Live
-            && let Some(efc) = snapshot.efc
-            && self.efc_trend.back() != Some(&efc)
+        // One point per fast-tier reading, so a trend's length is
+        // time.  Every tier publishes a snapshot and the slower ones
+        // restate the fast tier's last values, and a disconnected one
+        // repeats them too; counting those put several points a
+        // fraction of a second apart.  Dropping a value equal to the
+        // last instead collapsed a steady EFC to nothing.
+        let fast = snapshot.polled.fast.at;
+        if snapshot.freshness != Freshness::Disconnected && fast.is_some() && fast > self.last_fast
         {
-            if self.efc_trend.len() == TREND_LEN {
-                self.efc_trend.pop_front();
+            self.last_fast = fast;
+            if let Some(efc) = snapshot.efc {
+                push_bounded(&mut self.efc_trend, efc);
             }
-            self.efc_trend.push_back(efc);
-        }
-        // The interval is the loop's error signal, so its shape matters
-        // more than any single reading: hunting, sawtooth and residual
-        // frequency error all show there and nowhere else.
-        if snapshot.freshness == Freshness::Live
-            && let Some(interval) = snapshot.time_interval_ns
-        {
-            if self.ti_trend.len() == TREND_LEN {
-                self.ti_trend.pop_front();
+            // The interval is the loop's error signal, so its shape
+            // matters more than any single reading: hunting, sawtooth
+            // and residual frequency error all show there and nowhere
+            // else.
+            if let Some(interval) = snapshot.time_interval_ns {
+                push_bounded(&mut self.ti_trend, interval);
             }
-            self.ti_trend.push_back(interval);
         }
         // As in `lost`, for a link that went down without the daemon
         // going away.
@@ -413,7 +422,14 @@ mod tests {
     use crate::source::Attachment;
     use crate::source::Console;
     use crate::source::Policy;
+    use jiff::SignedDuration;
+    use jiff::Timestamp;
+    use smartclock::snapshot::Freshness;
+    use smartclock::snapshot::Snapshot;
+    use smartclock::snapshot::Tier;
     use smartclock::task::Cadence;
+    use smartclock::types::EfcPercent;
+    use smartclock::wire::Reading;
     use std::time::Duration;
 
     #[test]
@@ -488,5 +504,32 @@ mod tests {
         );
         assert_eq!(app.receiver, Some(7));
         assert_eq!(app.history_error, None);
+    }
+
+    #[test]
+    fn a_trend_takes_one_point_per_fast_reading_and_keeps_a_steady_value() {
+        let mut app = App::new(
+            Attachment::Direct {
+                device: "/dev/null".to_owned(),
+            },
+            Console::default(),
+            Policy::default(),
+            Cadence::default(),
+        );
+        let start = Timestamp::now();
+        let reading = |fast_second: i64, published_ms: i64| {
+            let fast = start + SignedDuration::from_secs(fast_second);
+            let mut s = Snapshot::new(fast + SignedDuration::from_millis(published_ms));
+            s.polled.succeeded(Tier::Fast, fast);
+            s.efc = EfcPercent::new(1.0);
+            s.freshness = Freshness::Live;
+            Reading::from(&s)
+        };
+        // Two fast readings of the same EFC, each restated by a slower
+        // tier's publication half a second later.
+        for (fast, published) in [(0, 0), (0, 500), (1, 0), (1, 500)] {
+            app.accept(reading(fast, published));
+        }
+        assert_eq!(app.efc_trend.len(), 2);
     }
 }
