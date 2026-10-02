@@ -77,13 +77,21 @@ fn tail(path: &str, keep: usize) -> String {
     format!("...{}", name.chars().skip(skip).collect::<String>())
 }
 
+/// What the console's command came to: the receiver's answer, or why
+/// there was none.
+///
+/// Kept apart rather than told apart by the text: an answer can say
+/// "error" and be a perfectly good one, as `:SYSTem:ERRor?` answering
+/// `+0,"No error"` does.
+pub(crate) type Answer = std::result::Result<String, String>;
+
 /// Something the monitor should react to.
 #[derive(Debug)]
 pub(crate) enum Update {
     /// A new reading.
     Reading(Box<Reading>),
     /// An answer to something the console sent.
-    Reply(String),
+    Reply(Answer),
     /// The source went away.  The monitor keeps the last values on
     /// screen but must stop presenting them as current.
     Lost(String),
@@ -426,8 +434,8 @@ fn forward(reader: Reader, early: Vec<String>, tx: &Sender<Update>) -> Result<St
             // Not a snapshot, so it is an answer to something the
             // console asked.
             if value.get("id").and_then(serde_json::Value::as_str) == Some("console") {
-                let answer = match (value.pointer("/ok/lines"), value.get("err")) {
-                    (Some(lines), _) => lines
+                let answer: Answer = match (value.pointer("/ok/lines"), value.get("err")) {
+                    (Some(lines), _) => Ok(lines
                         .as_array()
                         .map(|l| {
                             l.iter()
@@ -436,9 +444,9 @@ fn forward(reader: Reader, early: Vec<String>, tx: &Sender<Update>) -> Result<St
                                 .join(" | ")
                         })
                         .filter(|s| !s.is_empty())
-                        .unwrap_or_else(|| "ok".to_owned()),
+                        .unwrap_or_else(|| "ok".to_owned())),
                     (None, Some(err)) => {
-                        format!("error: {}", err.as_str().unwrap_or_default())
+                        Err(format!("error: {}", err.as_str().unwrap_or_default()))
                     }
                     _ => continue,
                 };

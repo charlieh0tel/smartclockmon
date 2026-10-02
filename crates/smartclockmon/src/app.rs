@@ -14,6 +14,7 @@ use smartclock_log::reader::Receiver;
 use crate::history::History;
 use crate::history::Log;
 use crate::history::Window;
+use crate::source::Answer;
 use crate::source::Attachment;
 use crate::source::Console;
 use crate::source::Policy;
@@ -127,7 +128,7 @@ pub(crate) struct App {
     /// What has been typed into it.
     pub(crate) console_input: String,
     /// The last answer, or the reason there was none.
-    pub(crate) console_reply: Option<String>,
+    pub(crate) console_reply: Option<Answer>,
 }
 
 impl App {
@@ -182,10 +183,10 @@ impl App {
         if scpi.is_empty() {
             return;
         }
-        self.console_reply = match self.console.send(&scpi) {
-            Ok(()) => Some(format!("{scpi}  ...")),
-            Err(e) => Some(format!("{scpi}  {e}")),
-        };
+        self.console_reply = Some(match self.console.send(&scpi) {
+            Ok(()) => Ok(format!("{scpi}  ...")),
+            Err(e) => Err(format!("{scpi}  {e}")),
+        });
     }
 
     /// Open the daemon's log, if the daemon named one.

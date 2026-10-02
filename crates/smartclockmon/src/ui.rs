@@ -1134,13 +1134,16 @@ fn console(frame: &mut Frame, area: Rect, app: &App) {
         Span::raw(app.console_input.clone()),
         Span::styled("_", Style::new().add_modifier(Modifier::SLOW_BLINK)),
     ])];
-    if let Some(reply) = &app.console_reply {
-        let style = if reply.contains("error") {
-            Style::new().fg(Color::Red)
-        } else {
-            Style::new().fg(Color::DarkGray)
-        };
-        lines.push(Line::from(Span::styled(reply.clone(), style)));
+    match &app.console_reply {
+        Some(Ok(answer)) => lines.push(Line::from(Span::styled(
+            answer.clone(),
+            Style::new().fg(Color::DarkGray),
+        ))),
+        Some(Err(why)) => lines.push(Line::from(Span::styled(
+            why.clone(),
+            Style::new().fg(Color::Red),
+        ))),
+        None => {}
     }
     frame.render_widget(Paragraph::new(lines).block(block(&title)), area);
 }
