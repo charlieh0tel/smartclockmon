@@ -12,6 +12,7 @@ use std::io::Write as _;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
+use std::time::Instant;
 
 use interprocess::TryClone as _;
 use interprocess::local_socket::GenericFilePath;
@@ -50,19 +51,29 @@ pub const DEADLINE: Duration = Duration::from_secs(20);
 /// `Stream` exposes no timeout of its own and no handle to set one on;
 /// the Unix variant does.  Elsewhere the deadline is simply absent,
 /// which is the same position this was in before.
-#[cfg(unix)]
 pub fn set_deadlines(stream: &Stream) {
+    set_timeouts(stream, Some(DEADLINE), Some(DEADLINE));
+}
+
+/// Set a connection's read and write timeouts, where they are left
+/// alone when `None`.
+#[cfg(unix)]
+fn set_timeouts(stream: &Stream, read: Option<Duration>, write: Option<Duration>) {
     use std::os::fd::AsFd;
 
     let Stream::UdSocket(stream) = stream;
     let fd = stream.as_fd();
     let socket = socket2::SockRef::from(&fd);
-    let _ = socket.set_read_timeout(Some(DEADLINE));
-    let _ = socket.set_write_timeout(Some(DEADLINE));
+    if read.is_some() {
+        let _ = socket.set_read_timeout(read);
+    }
+    if write.is_some() {
+        let _ = socket.set_write_timeout(write);
+    }
 }
 
 #[cfg(not(unix))]
-pub fn set_deadlines(_stream: &Stream) {}
+fn set_timeouts(_stream: &Stream, _read: Option<Duration>, _write: Option<Duration>) {}
 
 /// A connection to a running daemon.
 #[derive(Debug)]
@@ -72,11 +83,29 @@ pub struct Daemon {
     /// Distinguishes this client's replies from the snapshots that
     /// arrive unasked on the same stream.
     next_id: u32,
+    /// When the whole connection gives up, if it was opened with a
+    /// budget: every request on it fails past this, however recently
+    /// the daemon last said something.
+    until: Option<Instant>,
 }
 
 impl Daemon {
     /// Connect to the daemon listening on `socket`.
     pub fn connect(socket: &Path) -> Result<Self> {
+        Self::open(socket, None)
+    }
+
+    /// Connect, and give up on everything asked of this connection
+    /// once `budget` has passed.
+    ///
+    /// For a caller with a deadline of its own to keep: a scrape that
+    /// Prometheus abandons after ten seconds is no use answered after
+    /// twenty.
+    pub fn connect_within(socket: &Path, budget: Duration) -> Result<Self> {
+        Self::open(socket, Some(Instant::now() + budget))
+    }
+
+    fn open(socket: &Path, until: Option<Instant>) -> Result<Self> {
         let name = socket.to_fs_name::<GenericFilePath>().map_err(|e| {
             Error::Daemon(format!(
                 "{} is not a usable socket name: {e}",
@@ -90,6 +119,7 @@ impl Daemon {
             writer: stream,
             reader,
             next_id: 0,
+            until,
         })
     }
 
@@ -112,10 +142,25 @@ impl Daemon {
         };
         let line = serde_json::to_string(&request)
             .map_err(|e| Error::Daemon(format!("cannot encode a request: {e}")))?;
+        // One deadline for the whole request, not one per read: the
+        // daemon pushes a snapshot every second, and each restarted a
+        // per-read timeout, so a request it never answered was never
+        // timed out at all.
+        let asked = Instant::now();
+        let until = self
+            .until
+            .map_or(asked + DEADLINE, |budget| budget.min(asked + DEADLINE));
+        let allowed = until.saturating_duration_since(asked).as_secs_f64();
+        let timed_out = || Error::Daemon(format!("it did not answer within {allowed:.1}s"));
         writeln!(self.writer, "{line}")?;
         self.writer.flush()?;
 
         loop {
+            let left = until.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Err(timed_out());
+            }
+            set_timeouts(self.reader.get_ref(), Some(left), None);
             let mut line = String::new();
             match self.reader.read_line(&mut line) {
                 Ok(0) => return Err(Error::Daemon("it closed the connection".to_owned())),
@@ -129,10 +174,7 @@ impl Daemon {
                         std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
                     ) =>
                 {
-                    return Err(Error::Daemon(format!(
-                        "it did not answer within {}s",
-                        DEADLINE.as_secs()
-                    )));
+                    return Err(timed_out());
                 }
                 Err(e) => return Err(e.into()),
             }
@@ -301,11 +343,18 @@ pub fn identity(info: &serde_json::Value) -> Option<Identity> {
 
 #[cfg(test)]
 mod tests {
+    use super::Daemon;
     use super::Daemons;
     use super::cadence;
     use super::identity;
     use crate::task::Cadence;
+    use interprocess::local_socket::GenericFilePath;
+    use interprocess::local_socket::ListenerOptions;
+    use interprocess::local_socket::ToFsName as _;
+    use interprocess::local_socket::traits::Listener as _;
+    use std::io::Write as _;
     use std::time::Duration;
+    use std::time::Instant;
 
     #[test]
     fn sockets_lists_instances_with_a_socket_in_name_order() {
@@ -351,5 +400,41 @@ mod tests {
         assert_eq!(got.fast, Duration::from_secs(2));
         assert_eq!(got.medium, default.medium, "zero is not a cadence");
         assert_eq!(got.slow, default.slow, "nor is a negative");
+    }
+
+    #[test]
+    fn a_daemon_that_chatters_but_never_answers_is_given_up_on() {
+        // Snapshots every tenth of a second and no reply.  Each snapshot
+        // used to restart the read timeout, so the request never ended.
+        let path =
+            std::env::temp_dir().join(format!("smartclock-chatter-{}.sock", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let listener = ListenerOptions::new()
+            .name(
+                path.as_path()
+                    .to_fs_name::<GenericFilePath>()
+                    .expect("a name"),
+            )
+            .create_sync()
+            .expect("listen");
+        std::thread::spawn(move || {
+            let Ok(mut stream) = listener.accept() else {
+                return;
+            };
+            while writeln!(stream, r#"{{"snapshot":{{}}}}"#).is_ok() {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        });
+        let started = Instant::now();
+        let mut daemon =
+            Daemon::connect_within(&path, Duration::from_millis(800)).expect("connect");
+        let asked = daemon.info();
+        let _ = std::fs::remove_file(&path);
+        assert!(asked.is_err());
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "{:?}",
+            started.elapsed()
+        );
     }
 }
