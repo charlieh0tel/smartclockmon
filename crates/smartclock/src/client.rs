@@ -38,16 +38,20 @@ use crate::wire::Reading;
 /// Without a deadline a daemon that is alive but wedged parks its
 /// caller for good: the exporter would leak the thread serving each
 /// scrape, one every fifteen seconds, until the process died.
-const DEADLINE: Duration = Duration::from_secs(20);
+pub const DEADLINE: Duration = Duration::from_secs(20);
 
-/// Put a deadline on a connection.
+/// Put a [`DEADLINE`] on every read and write of a connection.
+///
+/// Public for a client that holds its own stream rather than a
+/// [`Daemon`], which must not wait on a wedged daemon any more than
+/// this one does.
 ///
 /// Reaching through the enum because `interprocess`'s portable
 /// `Stream` exposes no timeout of its own and no handle to set one on;
 /// the Unix variant does.  Elsewhere the deadline is simply absent,
 /// which is the same position this was in before.
 #[cfg(unix)]
-fn set_deadlines(stream: &Stream) {
+pub fn set_deadlines(stream: &Stream) {
     use std::os::fd::AsFd;
 
     let Stream::UdSocket(stream) = stream;
@@ -58,7 +62,7 @@ fn set_deadlines(stream: &Stream) {
 }
 
 #[cfg(not(unix))]
-fn set_deadlines(_stream: &Stream) {}
+pub fn set_deadlines(_stream: &Stream) {}
 
 /// A connection to a running daemon.
 #[derive(Debug)]

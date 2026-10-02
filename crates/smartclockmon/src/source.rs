@@ -147,6 +147,15 @@ impl Console {
         }
     }
 
+    /// Forget a connection that has gone, so a command typed before
+    /// the next one is refused as not connected rather than written
+    /// into a dead socket.
+    fn detach(&self) {
+        if let Ok(mut writer) = self.writer.lock() {
+            *writer = None;
+        }
+    }
+
     /// Ask the daemon to read one status screen.
     ///
     /// The snapshot carrying it arrives on the subscription like any
@@ -227,7 +236,7 @@ pub(crate) fn from_daemon(
     // without risking a mismatch with the daemon's own.  The reader is
     // handed on rather than rebuilt: it has already buffered whatever
     // snapshots arrived alongside the reply.
-    let (first, send, database, policy, cadence) = connect_and_ask(socket)
+    let (first, early, send, database, policy, cadence) = connect_and_ask(socket)
         .with_context(|| format!("connecting to {socket}; is smartclockd running?"))?;
     let console = Console::default();
     console.attach(send);
@@ -238,24 +247,22 @@ pub(crate) fn from_daemon(
     thread::Builder::new()
         .name("smartclockmon-reader".to_owned())
         .spawn(move || {
-            let mut stream = Some(first);
+            let mut stream = Some((first, early));
             loop {
                 match stream.take() {
-                    Some(open) => {
-                        if forward(open, &tx).is_err() {
+                    Some((open, early)) => {
+                        let Ok(why) = forward(open, early, &tx) else {
                             return;
-                        }
-                        if tx
-                            .send(Update::Lost("the daemon closed the connection".to_owned()))
-                            .is_err()
-                        {
+                        };
+                        reconnected.detach();
+                        if tx.send(Update::Lost(why)).is_err() {
                             return;
                         }
                     }
                     None => {
                         thread::sleep(RECONNECT_DELAY);
                         match connect_and_ask(&path) {
-                            Ok((open, send, database, policy, cadence)) => {
+                            Ok((open, early, send, database, policy, cadence)) => {
                                 // The console follows the link, or it
                                 // would keep writing to the socket that
                                 // just died.
@@ -268,7 +275,7 @@ pub(crate) fn from_daemon(
                                 if tx.send(told).is_err() {
                                     return;
                                 }
-                                stream = Some(open);
+                                stream = Some((open, early));
                             }
                             Err(e) => {
                                 if tx.send(Update::Lost(e.to_string())).is_err() {
@@ -297,10 +304,11 @@ pub(crate) fn from_daemon(
 /// Connect, ask where the log lives, and return the reader with the
 /// answer.
 ///
-/// The reply shares the stream with snapshots, so lines that are not it
-/// are forwarded rather than dropped: the reader is returned still
-/// holding them.
-fn connect_and_ask(socket: &str) -> Result<(Reader, SendHalf, Option<String>, Policy, Cadence)> {
+/// The reply shares the stream with snapshots, so lines that came
+/// before it are returned to be forwarded rather than dropped: the
+/// daemon sends its current snapshot on connect, and that is the one
+/// that fills the screen at once.
+fn connect_and_ask(socket: &str) -> Result<Handshake> {
     let mut stream = connect(socket)?;
     writeln!(stream, r#"{{"v":1,"id":"info","op":{{"kind":"info"}}}}"#)?;
     stream.flush()?;
@@ -313,6 +321,7 @@ fn connect_and_ask(socket: &str) -> Result<(Reader, SendHalf, Option<String>, Po
     // started with any cadence, and a pane that calls data stale needs
     // the real one to know what late means.
     let mut cadence = Cadence::default();
+    let mut early = Vec::new();
     for _ in 0..MAX_LINES_BEFORE_INFO {
         let mut line = String::new();
         if reader.read_line(&mut line)? == 0 {
@@ -321,30 +330,44 @@ fn connect_and_ask(socket: &str) -> Result<(Reader, SendHalf, Option<String>, Po
         let Ok(value) = serde_json::from_str::<serde_json::Value>(&line) else {
             continue;
         };
-        if value.get("id").and_then(serde_json::Value::as_str) == Some("info") {
-            database = value
-                .pointer("/ok/database")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_owned);
-            let flag = |name: &str| {
-                value
-                    .pointer(&format!("/ok/{name}"))
-                    .and_then(serde_json::Value::as_bool)
-                    .unwrap_or(false)
-            };
-            policy = Policy {
-                control: flag("allow_control"),
-                dangerous: flag("allow_dangerous"),
-                raw: flag("allow_raw"),
-            };
-            if let Some(info) = value.get("ok") {
-                cadence = client::cadence(info);
-            }
-            break;
+        if value.get("id").and_then(serde_json::Value::as_str) != Some("info") {
+            early.push(line);
+            continue;
         }
+        database = value
+            .pointer("/ok/database")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned);
+        let flag = |name: &str| {
+            value
+                .pointer(&format!("/ok/{name}"))
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false)
+        };
+        policy = Policy {
+            control: flag("allow_control"),
+            dangerous: flag("allow_dangerous"),
+            raw: flag("allow_raw"),
+        };
+        if let Some(info) = value.get("ok") {
+            cadence = client::cadence(info);
+        }
+        break;
     }
-    Ok((reader, send, database, policy, cadence))
+    Ok((reader, early, send, database, policy, cadence))
 }
+
+/// What connecting tells: the reader, the lines that arrived ahead of
+/// the info reply, the write half, the log's path, the policy and the
+/// cadence.
+type Handshake = (
+    Reader,
+    Vec<String>,
+    SendHalf,
+    Option<String>,
+    Policy,
+    Cadence,
+);
 
 /// The buffered read half of a connection to the daemon.
 type Reader = BufReader<<Stream as interprocess::local_socket::traits::Stream>::RecvHalf>;
@@ -358,16 +381,41 @@ fn connect(socket: &str) -> Result<Stream> {
     let name = socket
         .to_fs_name::<GenericFilePath>()
         .context("naming the socket")?;
-    Ok(Stream::connect(name)?)
+    let stream = Stream::connect(name)?;
+    // Every read bounded, the handshake's included: a daemon that has
+    // accepted and then wedged would otherwise hold the reader for
+    // good, and the monitor would never try again.  Snapshots arrive at
+    // least every few seconds even with the receiver gone, so silence
+    // this long is a daemon not answering.
+    client::set_deadlines(&stream);
+    Ok(stream)
 }
 
-/// Forward snapshots until the daemon hangs up.
+/// Forward snapshots, `early` first, until the daemon hangs up or
+/// stops answering, and say which.
 ///
 /// `Err` means the monitor has gone, not the daemon, so the caller
 /// stops rather than reconnecting to nobody.
-fn forward(reader: Reader, tx: &Sender<Update>) -> Result<(), ()> {
-    for line in reader.lines() {
-        let Ok(line) = line else { return Ok(()) };
+fn forward(reader: Reader, early: Vec<String>, tx: &Sender<Update>) -> Result<String, ()> {
+    for line in early.into_iter().map(Ok).chain(reader.lines()) {
+        let line = match line {
+            Ok(line) => line,
+            // The deadline expiring arrives as EAGAIN or ETIMEDOUT,
+            // which as a message says only "resource temporarily
+            // unavailable".
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                return Ok(format!(
+                    "the daemon sent nothing for {}s",
+                    client::DEADLINE.as_secs()
+                ));
+            }
+            Err(e) => return Ok(format!("lost the daemon: {e}")),
+        };
         // Replies to requests share the stream with snapshots; the
         // monitor only watches, so anything without a snapshot is not
         // its business.
@@ -404,7 +452,7 @@ fn forward(reader: Reader, tx: &Sender<Update>) -> Result<(), ()> {
         tx.send(Update::Reading(Box::new(snapshot)))
             .map_err(|_| ())?;
     }
-    Ok(())
+    Ok("the daemon closed the connection".to_owned())
 }
 
 /// Open the receiver directly and poll it in this process.
@@ -473,11 +521,19 @@ pub(crate) fn from_device(
 #[cfg(test)]
 mod tests {
     use super::Update;
+    use super::from_daemon;
     use super::from_device;
+    use interprocess::local_socket::GenericFilePath;
+    use interprocess::local_socket::ListenerOptions;
+    use interprocess::local_socket::ToFsName as _;
+    use interprocess::local_socket::traits::Listener as _;
+    use smartclock::snapshot::Snapshot;
     use smartclock::types::Framing;
+    use smartclock::wire::Reading;
     use smartclock_sim::net::serve;
     use smartclock_sim::receiver::Receiver;
     use smartclock_sim::transport::SimTransport;
+    use std::io::Write as _;
     use std::net::TcpListener;
     use std::time::Duration;
 
@@ -519,5 +575,39 @@ mod tests {
             Ok(Update::Reading(_)) => {}
             other => panic!("expected a reading, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn the_snapshot_sent_on_connect_is_not_lost_to_the_handshake() {
+        // The daemon sends its current snapshot as soon as a client
+        // connects, ahead of the reply to the client's info request.
+        let path = std::env::temp_dir().join(format!(
+            "smartclockmon-handshake-{}.sock",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        let listener = ListenerOptions::new()
+            .name(
+                path.as_path()
+                    .to_fs_name::<GenericFilePath>()
+                    .expect("a name"),
+            )
+            .create_sync()
+            .expect("listen");
+        let snapshot = serde_json::json!({
+            "snapshot": Reading::from(&Snapshot::new(jiff::Timestamp::now())),
+        });
+        let daemon = std::thread::spawn(move || {
+            let mut stream = listener.accept().expect("a client");
+            writeln!(stream, "{snapshot}").expect("the snapshot");
+            writeln!(stream, r#"{{"v":1,"id":"info","ok":{{}}}}"#).expect("the reply");
+            // Held open until the client has read both.
+            std::thread::sleep(Duration::from_secs(2));
+        });
+        let (updates, ..) = from_daemon(&path.display().to_string()).expect("connect");
+        let first = updates.recv_timeout(Duration::from_secs(5));
+        let _ = std::fs::remove_file(&path);
+        assert!(matches!(first, Ok(Update::Reading(_))), "{first:?}");
+        daemon.join().expect("the daemon");
     }
 }
