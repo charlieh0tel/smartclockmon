@@ -1749,6 +1749,7 @@ version = "1.0.3"
 dependencies = [
  "anyhow",
  "clap",
+ "interprocess",
  "jiff",
  "serde_json",
  "smartclock",

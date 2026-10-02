@@ -132,3 +132,14 @@ reading the receiver declined is left out rather than exported as
 zero, and so is every value whose tier is failing, has not read for
 three of its intervals, or whose link is down, so a panel does not go
 on drawing the last number read.
+
+The daemons are asked all at once, each given five seconds, so one
+that has wedged costs a scrape five seconds rather than pushing it
+past Prometheus' timeout and losing every receiver's series.  A daemon
+that stops, and whose directory systemd removes with it, goes on
+reporting `smartclock_up 0` under its instance name until the exporter
+restarts, so an alert on `up == 0` fires instead of the series simply
+ending.  Restarting the exporter is how a unit retired on purpose is
+forgotten.  The receiver's identity is asked before and after its
+reading, and a scrape in which it changed is skipped, so a swap never
+labels one unit's reading with the other's serial.

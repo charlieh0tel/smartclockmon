@@ -14,15 +14,20 @@
 
 mod metrics;
 
+use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Mutex;
+use std::thread;
+use std::time::Duration;
 
 use anyhow::Result;
 use clap::Parser;
 use smartclock::client;
 use smartclock::client::Daemon;
 use smartclock::client::Daemons;
+use smartclock::error::Error;
 use smartclock::task::Cadence;
 use smartclock_http::Response;
 
@@ -71,10 +76,11 @@ fn main() -> Result<()> {
             Daemons::Dir(dir) => format!("every daemon under {}", dir.display()),
         }
     );
+    let seen = Mutex::new(BTreeSet::new());
     smartclock_http::serve(&cli.listen, move |path| match path {
         "/metrics" => Response::ok(
             "text/plain; version=0.0.4; charset=utf-8",
-            metrics::render(&scrape_all(&daemons)),
+            metrics::render(&scrape_all(&daemons, &seen)),
         ),
         "/" => Response::ok(
             "text/plain; charset=utf-8",
@@ -84,16 +90,73 @@ fn main() -> Result<()> {
     })
 }
 
-/// Ask every daemon, once each.
+/// How long one daemon may take to answer a scrape.
+///
+/// Every daemon is asked at once, so this is about how long a whole
+/// scrape takes when one is wedged.  Well under Prometheus' default
+/// ten-second scrape timeout, past which the scrape is abandoned and
+/// every receiver loses every series, `up` included -- not only the
+/// daemon that was slow.
+const SCRAPE_BUDGET: Duration = Duration::from_secs(5);
+
+/// Ask every daemon, once each and all at once.
 ///
 /// A socket nobody answers on is reported as `up 0` under its name
-/// rather than left out.
-fn scrape_all(daemons: &Daemons) -> Vec<Scrape> {
-    daemons
-        .sockets()
-        .into_iter()
-        .map(|instance| scrape(&instance.name, &instance.socket))
-        .collect()
+/// rather than left out, and so is an instance `seen` before whose
+/// socket has since gone.  systemd removes an instance's directory when
+/// it stops, so without remembering it a stopped daemon's series would
+/// simply end, and an alert on `up == 0` would never fire.  Remembered
+/// until the exporter restarts, which is how a unit retired on purpose
+/// is forgotten.
+fn scrape_all(daemons: &Daemons, seen: &Mutex<BTreeSet<String>>) -> Vec<Scrape> {
+    let current = daemons.sockets();
+    let mut scrapes: Vec<(String, Scrape)> = thread::scope(|scope| {
+        let asked: Vec<_> = current
+            .iter()
+            .map(|instance| scope.spawn(|| scrape(&instance.name, &instance.socket)))
+            .collect();
+        current
+            .iter()
+            .zip(asked)
+            .map(|(instance, asked)| {
+                let scrape = asked.join().unwrap_or_else(|_| unanswered(&instance.name));
+                (instance.name.clone(), scrape)
+            })
+            .collect()
+    });
+    let mut seen = seen.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    seen.extend(
+        current
+            .iter()
+            .map(|instance| instance.name.clone())
+            .filter(|name| !name.is_empty()),
+    );
+    for name in seen.iter() {
+        if !current.iter().any(|instance| instance.name == *name) {
+            scrapes.push((name.clone(), unanswered(name)));
+        }
+    }
+    scrapes.sort_by(|a, b| a.0.cmp(&b.0));
+    scrapes.into_iter().map(|(_, scrape)| scrape).collect()
+}
+
+/// The labels naming one daemon instance, before anything is known of
+/// the receiver it is attached to.
+fn instance_labels(instance: &str) -> String {
+    if instance.is_empty() {
+        String::new()
+    } else {
+        format!("daemon=\"{}\"", escape(instance))
+    }
+}
+
+/// A daemon that did not answer: `up 0` and nothing else.
+fn unanswered(instance: &str) -> Scrape {
+    Scrape {
+        labels: instance_labels(instance),
+        reading: None,
+        cadence: Cadence::default(),
+    }
 }
 
 /// One daemon's last reading, labelled by who it is.
@@ -105,13 +168,19 @@ fn scrape_all(daemons: &Daemons) -> Vec<Scrape> {
 /// identity comes from the same connection, so a swap on the port
 /// relabels the next scrape.
 fn scrape(instance: &str, socket: &Path) -> Scrape {
-    let mut labels = String::new();
-    if !instance.is_empty() {
-        labels = format!("daemon=\"{}\"", escape(instance));
-    }
-    let asked = Daemon::connect(socket).and_then(|mut d| {
+    let mut labels = instance_labels(instance);
+    let asked = Daemon::connect_within(socket, SCRAPE_BUDGET).and_then(|mut d| {
         let info = d.info()?;
         let reading = d.latest()?;
+        // Asked again, because the reading does not say which receiver
+        // it is of: one swapped in between the two answers would have
+        // its reading filed under the unit before it.  Rare enough that
+        // skipping this one scrape costs nothing.
+        if client::identity(&d.info()?) != client::identity(&info) {
+            return Err(Error::Daemon(
+                "the receiver changed during the scrape".to_owned(),
+            ));
+        }
         Ok((info, reading))
     });
     match asked {
@@ -132,11 +201,7 @@ fn scrape(instance: &str, socket: &Path) -> Scrape {
         }
         Err(e) => {
             eprintln!("smartclock-exporter: {}: {e}", socket.display());
-            Scrape {
-                labels,
-                reading: None,
-                cadence: Cadence::default(),
-            }
+            unanswered(instance)
         }
     }
 }
@@ -147,4 +212,92 @@ fn escape(value: &str) -> String {
         .replace('\\', "\\\\")
         .replace('"', "\\\"")
         .replace('\n', "\\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SCRAPE_BUDGET;
+    use super::scrape_all;
+    use crate::metrics::render;
+    use interprocess::local_socket::GenericFilePath;
+    use interprocess::local_socket::ListenerOptions;
+    use interprocess::local_socket::ToFsName as _;
+    use interprocess::local_socket::traits::Listener as _;
+    use smartclock::client::Daemons;
+    use std::collections::BTreeSet;
+    use std::path::PathBuf;
+    use std::sync::Mutex;
+    use std::time::Instant;
+
+    /// A run directory of our own, removed on drop.
+    struct RunDir(PathBuf);
+
+    impl RunDir {
+        fn new(name: &str) -> Self {
+            let dir = std::env::temp_dir()
+                .join(format!("smartclock-exporter-{name}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).expect("a run directory");
+            Self(dir)
+        }
+
+        /// An instance whose daemon accepts and then never answers.
+        fn wedged(&self, name: &str) {
+            let socket = self.0.join(name).join("socket");
+            std::fs::create_dir_all(socket.parent().expect("a parent")).expect("instance");
+            let listener = ListenerOptions::new()
+                .name(
+                    socket
+                        .as_path()
+                        .to_fs_name::<GenericFilePath>()
+                        .expect("a name"),
+                )
+                .create_sync()
+                .expect("listen");
+            std::thread::spawn(move || {
+                let held = listener.accept();
+                std::thread::sleep(SCRAPE_BUDGET * 3);
+                drop(held);
+            });
+        }
+    }
+
+    impl Drop for RunDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn a_stopped_daemon_stays_down_rather_than_disappearing() {
+        let run = RunDir::new("stopped");
+        // A socket file nobody listens on: up 0 while it is there.
+        std::fs::create_dir_all(run.0.join("bench")).expect("instance");
+        std::fs::write(run.0.join("bench").join("socket"), b"").expect("socket");
+        let daemons = Daemons::Dir(run.0.clone());
+        let seen = Mutex::new(BTreeSet::new());
+        assert!(
+            render(&scrape_all(&daemons, &seen)).contains(r#"smartclock_up{daemon="bench"} 0"#)
+        );
+        // systemd removes the directory when the instance stops.
+        std::fs::remove_dir_all(run.0.join("bench")).expect("stop it");
+        let out = render(&scrape_all(&daemons, &seen));
+        assert!(out.contains(r#"smartclock_up{daemon="bench"} 0"#), "{out}");
+    }
+
+    #[test]
+    fn wedged_daemons_are_asked_together_and_given_up_on() {
+        let run = RunDir::new("wedged");
+        run.wedged("one");
+        run.wedged("two");
+        let started = Instant::now();
+        let scrapes = scrape_all(&Daemons::Dir(run.0.clone()), &Mutex::new(BTreeSet::new()));
+        let took = started.elapsed();
+        assert_eq!(scrapes.len(), 2);
+        assert!(scrapes.iter().all(|s| s.reading.is_none()));
+        assert!(
+            took < SCRAPE_BUDGET * 3 / 2,
+            "two wedged daemons took {took:?}"
+        );
+    }
 }
