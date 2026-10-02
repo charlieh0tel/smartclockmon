@@ -36,6 +36,14 @@ the socket op `status`, only while the view is open: it costs about
 polls it.  The satellite counts are queried directly, on the
 one-second tier with everything else.
 
+The monitor's dashboard shows what only the screen says -- the hold
+threshold, the time and its scale, the 1 PPS status, the survey, the
+receiver's own health report -- from the last screen read, each with
+how long ago that was, and forgets it when the link drops.  The mode's
+detail ("stabilizing frequency") is taken only from a screen read
+within the last three medium-tier intervals, since a stale explanation
+of a fresh state is worse than none.
+
 ## Stability
 
 Stability is its own view in both, `/adev` in the browser: the

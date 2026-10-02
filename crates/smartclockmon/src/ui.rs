@@ -24,6 +24,7 @@ use ratatui::widgets::GraphType;
 use ratatui::widgets::Paragraph;
 use ratatui::widgets::Row;
 use ratatui::widgets::Table;
+use smartclock::screen::Screen;
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Tier;
 use smartclock::types::EfcPercent;
@@ -400,6 +401,45 @@ fn staleness(app: &App, tier: Tier) -> Option<String> {
         .then(|| format!("  [{age:.0}s old]"))
 }
 
+/// The last screen, if it was read recently enough to explain the
+/// mode: within the medium tier's current window.
+fn recent_screen(app: &App) -> Option<&Screen> {
+    let read = app.last_screen.as_ref()?;
+    let age = (jiff::Timestamp::now() - read.at)
+        .total(jiff::Unit::Second)
+        .ok()?;
+    (age <= app.cadence.current_window(Tier::Medium)).then_some(&read.screen)
+}
+
+/// A field read off the last status screen, with how long ago that
+/// was: nothing polls the screen, so it is as old as the last time the
+/// status view was open.
+fn from_screen<'a>(app: &App, label: &'a str, value: String, style: Style) -> Line<'a> {
+    let Some(read) = app.last_screen.as_ref() else {
+        return field(label, value, style);
+    };
+    let age = (jiff::Timestamp::now() - read.at)
+        .total(jiff::Unit::Second)
+        .unwrap_or(0.0);
+    let mut line = field(label, value, style);
+    line.spans.push(Span::styled(
+        format!("  ({} ago)", elapsed(age)),
+        Style::new().fg(Color::DarkGray),
+    ));
+    line
+}
+
+/// A duration in the coarsest unit that still says it.
+fn elapsed(seconds: f64) -> String {
+    if seconds < 90.0 {
+        format!("{seconds:.0} s")
+    } else if seconds < 90.0 * 60.0 {
+        format!("{:.0} min", seconds / 60.0)
+    } else {
+        format!("{:.1} h", seconds / 3600.0)
+    }
+}
+
 /// Pair a label with a value, padded so the columns line up.
 fn field<'a>(label: &'a str, value: String, style: Style) -> Line<'a> {
     Line::from(vec![
@@ -433,7 +473,7 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
         );
         return;
     };
-    let (mode_text, mode_style) = mode_line(s);
+    let (mode_text, mode_style) = mode_line(s, recent_screen(app));
     let mode = field("mode", mode_text, mode_style);
 
     let lines = vec![
@@ -468,10 +508,12 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
             // Only meaningful in holdover, so its absence is normal.
             None => absent("now off by"),
         },
-        s.screen
-            .as_ref()
+        app.screen()
             .and_then(|sc| sc.hold_threshold.clone())
-            .map_or_else(|| absent("hold thr"), |v| plain("hold thr", v)),
+            .map_or_else(
+                || absent("hold thr"),
+                |v| from_screen(app, "hold thr", v, Style::new()),
+            ),
         match (s.holdover_active, s.holdover_seconds) {
             (Some(active), Some(seconds)) => {
                 let elapsed = Seconds::new(seconds);
@@ -498,14 +540,14 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
 /// The state comes from `:SYNChronization:STATe?`, which is on the
 /// one-second tier, but that returns a bare `LOCK` with no detail.  The
 /// detail -- "stabilizing frequency", "GPS acquisition", "GPS 1PPS
-/// invalid" -- exists only on the status screen, which is polled every
-/// ten seconds.
+/// invalid" -- exists only on the status screen, which nothing polls.
 ///
-/// So the two are combined, and the suffix is used only while the
-/// screen still agrees about the base state.  Otherwise a transition
-/// would show the fresh state carrying ten seconds of stale
-/// explanation, which is worse than no explanation.
-fn mode_line(snapshot: &Reading) -> (String, Style) {
+/// So the two are combined, from a recent screen only
+/// ([`recent_screen`]), and the suffix is used only while the screen
+/// still agrees about the base state.  Otherwise a transition would
+/// show the fresh state carrying a stale explanation, which is worse
+/// than no explanation.
+fn mode_line(snapshot: &Reading, screen: Option<&Screen>) -> (String, Style) {
     let Some(mode) = snapshot.mode else {
         return ("--".to_owned(), Style::new().fg(Color::DarkGray));
     };
@@ -522,9 +564,7 @@ fn mode_line(snapshot: &Reading) -> (String, Style) {
         SmartClockMode::Other => ("Other", "Other", Style::new().fg(Color::Magenta)),
     };
 
-    let detail = snapshot
-        .screen
-        .as_ref()
+    let detail = screen
         .and_then(|s| s.mode.as_deref())
         .filter(|text| text.starts_with(screen_word))
         .and_then(|text| text.split_once(':'))
@@ -614,26 +654,26 @@ fn oscillator(frame: &mut Frame, area: Rect, app: &App) {
 
     // The receiver's own health monitor line, which covers the ovens
     // and supplies that the condition register does not spell out.
-    if let Some(s) = app.snapshot.as_ref() {
-        match health_faults(s) {
-            Some(faults) if faults.is_empty() => {
-                lines.push(field(
-                    "self report",
-                    "all OK".to_owned(),
-                    Style::new().fg(Color::Green),
+    match app.screen().and_then(health_faults) {
+        Some(faults) if faults.is_empty() => {
+            lines.push(from_screen(
+                app,
+                "self report",
+                "all OK".to_owned(),
+                Style::new().fg(Color::Green),
+            ));
+        }
+        Some(faults) => {
+            for fault in faults {
+                lines.push(from_screen(
+                    app,
+                    "REPORTED",
+                    fault,
+                    Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
                 ));
             }
-            Some(faults) => {
-                for fault in faults {
-                    lines.push(field(
-                        "REPORTED",
-                        fault,
-                        Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
-                    ));
-                }
-            }
-            None => {}
         }
+        None => {}
     }
 
     let mut title = "Oscillator".to_owned();
@@ -861,7 +901,7 @@ fn status(frame: &mut Frame, area: Rect, app: &App) {
     header(frame, rows[0], app);
     // Side by side when the screen fits whole beside the table, stacked
     // otherwise, so that neither is clipped on a narrow terminal.
-    let text = app.screen.as_ref().map(|s| s.text.as_str());
+    let text = app.screen().map(|s| s.text.as_str());
     let border = 2;
     let screen_width = text
         .and_then(|t| t.lines().map(|l| l.chars().count()).max())
@@ -888,14 +928,13 @@ fn status(frame: &mut Frame, area: Rect, app: &App) {
 /// The screen as received, one line per line.
 fn screen_text(frame: &mut Frame, area: Rect, app: &App) {
     let text = app
-        .screen
-        .as_ref()
+        .screen()
         .map_or("reading the status screen...", |s| s.text.as_str());
     frame.render_widget(Paragraph::new(text).block(block("Status screen")), area);
 }
 
 fn satellites(frame: &mut Frame, area: Rect, app: &App) {
-    let Some(screen) = app.screen.as_ref() else {
+    let Some(screen) = app.screen() else {
         frame.render_widget(
             Paragraph::new("reading the status screen...").block(block("Satellites")),
             area,
@@ -1013,16 +1052,21 @@ fn time_and_place(frame: &mut Frame, area: Rect, app: &App) {
         None => lines.push(absent("date")),
     }
 
-    if let Some(screen) = s.screen.as_ref() {
+    if let Some(screen) = app.screen() {
         match (&screen.time, &screen.time_scale) {
             (Some(t), Some(scale)) => {
                 let suspect = if screen.time_suspect { "  [?]" } else { "" };
-                lines.push(plain("time", format!("{t} {scale}{suspect}")));
+                lines.push(from_screen(
+                    app,
+                    "time",
+                    format!("{t} {scale}{suspect}"),
+                    Style::new(),
+                ));
             }
             _ => lines.push(absent("time")),
         }
         if let Some(status) = &screen.sync_status {
-            lines.push(plain("1 PPS", status.clone()));
+            lines.push(from_screen(app, "1 PPS", status.clone(), Style::new()));
         }
     }
 
@@ -1035,12 +1079,13 @@ fn time_and_place(frame: &mut Frame, area: Rect, app: &App) {
         None => lines.push(absent("position")),
     }
 
-    if let Some(screen) = s.screen.as_ref() {
+    if let Some(screen) = app.screen() {
         if let Some(mode) = &screen.position_mode {
-            lines.push(plain("survey", mode.clone()));
+            lines.push(from_screen(app, "survey", mode.clone(), Style::new()));
         }
         if let Some(why) = &screen.survey_suspended {
-            lines.push(field(
+            lines.push(from_screen(
+                app,
                 "suspended",
                 why.clone(),
                 Style::new().fg(Color::Yellow),
@@ -1126,8 +1171,8 @@ fn footer(frame: &mut Frame, area: Rect, app: &App) {
 /// The full line runs to about seventy characters, which will not fit a
 /// half-width pane, and reading six "OK"s to find the one that is not
 /// is worse than being told directly.  `None` means nothing to report.
-fn health_faults(snapshot: &Reading) -> Option<Vec<String>> {
-    let items = &snapshot.screen.as_ref()?.health_items;
+fn health_faults(screen: &Screen) -> Option<Vec<String>> {
+    let items = &screen.health_items;
     if items.is_empty() {
         return None;
     }
@@ -1153,6 +1198,7 @@ mod tests {
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
     use smartclock::screen;
+    use smartclock::snapshot::Freshness;
     use smartclock::snapshot::Snapshot;
     use smartclock::task::Cadence;
     use smartclock::types::SmartClockMode;
@@ -1199,7 +1245,10 @@ mod tests {
             Some(SmartClockMode::Locked),
             Some(&screen_with("Locked to GPS: stabilizing frequency")),
         );
-        assert_eq!(mode_line(&s).0, "Locked to GPS: stabilizing frequency");
+        assert_eq!(
+            mode_line(&s, s.screen.as_ref()).0,
+            "Locked to GPS: stabilizing frequency"
+        );
     }
 
     #[test]
@@ -1208,7 +1257,7 @@ mod tests {
             Some(SmartClockMode::Locked),
             Some(&screen_with("Locked to GPS")),
         );
-        assert_eq!(mode_line(&s).0, "Locked to GPS");
+        assert_eq!(mode_line(&s, s.screen.as_ref()).0, "Locked to GPS");
     }
 
     #[test]
@@ -1221,7 +1270,7 @@ mod tests {
             Some(SmartClockMode::Holdover),
             Some(&screen_with("Locked to GPS: stabilizing frequency")),
         );
-        assert_eq!(mode_line(&s).0, "Holdover");
+        assert_eq!(mode_line(&s, s.screen.as_ref()).0, "Holdover");
     }
 
     #[test]
@@ -1230,7 +1279,10 @@ mod tests {
             Some(SmartClockMode::Holdover),
             Some(&screen_with("Holdover: GPS 1PPS invalid")),
         );
-        assert_eq!(mode_line(&s).0, "Holdover: GPS 1PPS invalid");
+        assert_eq!(
+            mode_line(&s, s.screen.as_ref()).0,
+            "Holdover: GPS 1PPS invalid"
+        );
     }
 
     #[test]
@@ -1240,32 +1292,93 @@ mod tests {
             Some(SmartClockMode::PowerUp),
             Some(&screen_with("Power-up:GPS acquisition")),
         );
-        assert_eq!(mode_line(&s).0, "Power-up: GPS acquisition");
+        assert_eq!(
+            mode_line(&s, s.screen.as_ref()).0,
+            "Power-up: GPS acquisition"
+        );
     }
 
     #[test]
     fn without_a_screen_the_state_still_shows() {
         let s = snapshot(Some(SmartClockMode::Locked), None);
-        assert_eq!(mode_line(&s).0, "Locked to GPS");
+        assert_eq!(mode_line(&s, s.screen.as_ref()).0, "Locked to GPS");
     }
 
     #[test]
     fn nothing_polled_yet_shows_as_absent() {
-        assert_eq!(mode_line(&snapshot(None, None)).0, "--");
+        let s = snapshot(None, None);
+        assert_eq!(mode_line(&s, s.screen.as_ref()).0, "--");
     }
 
-    #[test]
-    fn the_console_is_drawn_in_every_view() {
-        // The keys that open it work everywhere, so a view that did not
-        // draw it had the operator typing into nothing.
-        let mut app = App::new(
+    /// What `app` draws in `view`, as text.
+    fn drawn(app: &mut App, view: View) -> String {
+        app.view = view;
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).expect("a terminal");
+        terminal.draw(|frame| draw(frame, app)).expect("draw");
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect()
+    }
+
+    fn app() -> App {
+        App::new(
             Attachment::Direct {
                 device: "/dev/null".to_owned(),
             },
             Console::default(),
             Policy::default(),
             Cadence::default(),
+        )
+    }
+
+    #[test]
+    fn the_dashboard_shows_the_screen_after_the_snapshot_that_carried_it() {
+        // The screen arrives on one snapshot and the next poll's has
+        // none, which left every screen-only field on the dashboard
+        // blank.
+        let live = |screen: Option<&str>| {
+            let mut s = snapshot(Some(SmartClockMode::Locked), screen);
+            s.freshness = Freshness::Live;
+            s
+        };
+        let mut app = app();
+        app.accept(live(Some(&screen_with(
+            "Locked to GPS: stabilizing frequency",
+        ))));
+        app.accept(live(None));
+        let screen = drawn(&mut app, View::Dashboard);
+        assert!(
+            screen.contains("Locked to GPS: stabilizing frequency"),
+            "{screen}"
         );
+        assert!(screen.contains("s ago)"), "the age is not shown: {screen}");
+    }
+
+    #[test]
+    fn a_disconnected_reading_forgets_the_screen() {
+        let mut app = app();
+        let mut read = snapshot(
+            Some(SmartClockMode::Locked),
+            Some(&screen_with("Locked to GPS")),
+        );
+        read.freshness = Freshness::Live;
+        app.accept(read);
+        assert!(app.screen().is_some());
+        let mut gone = snapshot(Some(SmartClockMode::Locked), None);
+        gone.freshness = Freshness::Disconnected;
+        app.accept(gone);
+        assert!(app.screen().is_none());
+    }
+
+    #[test]
+    fn the_console_is_drawn_in_every_view() {
+        // The keys that open it work everywhere, so a view that did not
+        // draw it had the operator typing into nothing.
+        let mut app = app();
         app.console_open = true;
         app.console_input = "*IDN?".to_owned();
         for view in [
@@ -1275,17 +1388,7 @@ mod tests {
             View::Status,
             View::Stability,
         ] {
-            app.view = view;
-            let mut terminal = Terminal::new(TestBackend::new(100, 40)).expect("a terminal");
-            terminal.draw(|frame| draw(frame, &app)).expect("draw");
-            let screen: String = terminal
-                .backend()
-                .buffer()
-                .content()
-                .iter()
-                .map(|cell| cell.symbol())
-                .collect();
-            assert!(screen.contains("scpi> *IDN?"), "{view:?}");
+            assert!(drawn(&mut app, view).contains("scpi> *IDN?"), "{view:?}");
         }
     }
 }

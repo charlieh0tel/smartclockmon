@@ -2,6 +2,7 @@
 
 use std::collections::VecDeque;
 
+use jiff::Timestamp;
 use smartclock::screen::Screen;
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Tier;
@@ -49,18 +50,27 @@ pub(crate) enum View {
     Stability,
 }
 
+/// A status screen, and when it was read.
+#[derive(Debug)]
+pub(crate) struct ScreenRead {
+    pub(crate) screen: Screen,
+    pub(crate) at: Timestamp,
+}
+
 /// Monitor state.
 #[derive(Debug)]
 pub(crate) struct App {
     /// The most recent reading, if any has arrived.
     pub(crate) snapshot: Option<Reading>,
-    /// The last status screen read, for the status view.
+    /// The last status screen read, and when.
     ///
     /// Held here because it arrives on one snapshot only: the daemon
     /// delivers the screen with the snapshot that read it and keeps it
     /// out of every one after, so reading it off the newest snapshot
-    /// would lose it at the next poll.
-    pub(crate) screen: Option<Screen>,
+    /// would lose it at the next poll.  Nothing polls the screen, so
+    /// this is as old as the last time the status view was open, and
+    /// every pane that shows from it says how old.
+    pub(crate) last_screen: Option<ScreenRead>,
     /// Recent EFC readings, oldest first.
     pub(crate) efc_trend: VecDeque<EfcPercent>,
     /// How the monitor is attached.
@@ -108,6 +118,11 @@ pub(crate) struct App {
 }
 
 impl App {
+    /// The last status screen read, however old.
+    pub(crate) fn screen(&self) -> Option<&Screen> {
+        self.last_screen.as_ref().map(|read| &read.screen)
+    }
+
     /// A monitor with nothing received yet.
     pub(crate) fn new(
         attachment: Attachment,
@@ -117,7 +132,7 @@ impl App {
     ) -> Self {
         Self {
             snapshot: None,
-            screen: None,
+            last_screen: None,
             efc_trend: VecDeque::with_capacity(TREND_LEN),
             attachment,
             quitting: false,
@@ -298,7 +313,7 @@ impl App {
     pub(crate) fn lost(&mut self, why: String) {
         // A screen from before the link dropped may not be this
         // receiver's by the time it comes back.
-        self.screen = None;
+        self.last_screen = None;
         if let Some(snapshot) = self.snapshot.as_mut() {
             snapshot.freshness = Freshness::Disconnected;
             for tier in Tier::ALL {
@@ -332,8 +347,16 @@ impl App {
             }
             self.ti_trend.push_back(interval);
         }
+        // As in `lost`, for a link that went down without the daemon
+        // going away.
+        if snapshot.freshness == Freshness::Disconnected {
+            self.last_screen = None;
+        }
         if let Some(screen) = snapshot.screen.clone() {
-            self.screen = Some(screen);
+            self.last_screen = Some(ScreenRead {
+                screen,
+                at: snapshot.at,
+            });
         }
         self.snapshot = Some(snapshot);
     }
