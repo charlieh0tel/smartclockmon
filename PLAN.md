@@ -1074,6 +1074,14 @@ receiver:
 Once built, the events in `hardware-investigations.md` are entered as
 notes at their recorded times.
 
+### Next: comparing receivers
+
+When the host logs more than one receiver, a page of its own shows
+them together over the same range: 1 PPS TI, EFC, temperature, TFOM
+and FFOM overlaid, and ADEV and MDEV curves on one plot.  The live,
+status and stability pages stay one receiver each.  Notes and facts
+mark what differs between the units.
+
 ## Open questions
 
 Things not decided, as distinct from the defects below.
