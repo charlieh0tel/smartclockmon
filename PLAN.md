@@ -1050,6 +1050,30 @@ phase 2, before the daemon or the TUI.
 
 Suggest a commit at each phase boundary.
 
+### Next: notes and receiver facts
+
+Bench events and what is inside a unit are not visible from the
+receiver, and so far live only in `docs/hardware-investigations.md`,
+where they cannot be lined up against the log.  Two additions to each
+receiver's log, written through the daemon and never sent to the
+receiver:
+
+- *Notes.*  Timestamped free text -- "added a 20 dB LNA ahead of the
+  Z3805A", "ran `master_reset`" -- for one receiver or for the whole
+  bench, such as a splitter change.  `smartclock-cli --socket ... note
+  TEXT`, with `--at TIME` to backdate.  Shown as markers on the web
+  history charts, with the text on hover, in a list beside the
+  journal, and in the TUI's journal view.
+- *Facts.*  Free-form `key=value` describing the unit:
+  `ocxo.serial`, `ocxo.model`, `antenna.feed`, an engine swapped in.
+  Each records when it became true, so a replaced part keeps its old
+  value in the history.  `smartclock-cli --socket ... fact KEY VALUE`;
+  setting one also leaves a note.  Current facts head `diagnose` and
+  the web receiver info, beside what the unit reports itself.
+
+Once built, the events in `hardware-investigations.md` are entered as
+notes at their recorded times.
+
 ## Open questions
 
 Things not decided, as distinct from the defects below.
