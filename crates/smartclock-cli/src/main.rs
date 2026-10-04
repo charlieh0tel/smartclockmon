@@ -60,8 +60,8 @@ struct Cli {
     framing: Framing,
 
     /// Seconds to wait for a prompt.
-    #[arg(long, default_value_t = 5.0, global = true)]
-    timeout: f64,
+    #[arg(long, default_value = "5", value_parser = seconds, global = true)]
+    timeout: Duration,
 
     /// Ask a running smartclockd instead of opening the port.
     ///
@@ -201,6 +201,21 @@ fn report(progress: Progress) {
     }
 }
 
+/// A `--timeout`: a positive, finite number of seconds.
+///
+/// Parsed here rather than converted later, where `Duration`'s own
+/// conversion panics on a negative or non-finite value and a zero
+/// timeout gives up before anything can answer.
+fn seconds(text: &str) -> std::result::Result<Duration, String> {
+    let value: f64 = text
+        .parse()
+        .map_err(|e| format!("{text} is not a number of seconds: {e}"))?;
+    Duration::try_from_secs_f64(value)
+        .ok()
+        .filter(|d| !d.is_zero())
+        .ok_or_else(|| format!("{text} is not a positive number of seconds"))
+}
+
 /// A `--from` or `--length`: 0x-prefixed hex, or decimal.
 fn address(text: &str) -> std::result::Result<u32, String> {
     let parsed = match text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
@@ -261,7 +276,7 @@ fn main() -> Result<()> {
         read_timeout: Duration::from_millis(250),
     };
     let config = Config {
-        timeout: Duration::from_secs_f64(cli.timeout),
+        timeout: cli.timeout,
         ..Config::default()
     };
     // The console has its own prompt, where `*IDN?` means nothing, so
@@ -986,4 +1001,18 @@ fn diagnose_daemon(daemon: &mut Daemon) -> Result<()> {
     let reading = daemon.latest()?;
     render(&info, &reading);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::seconds;
+    use std::time::Duration;
+
+    #[test]
+    fn a_timeout_is_a_positive_finite_number_of_seconds() {
+        assert_eq!(seconds("2.5"), Ok(Duration::from_millis(2500)));
+        for bad in ["-1", "0", "nan", "inf", "soon"] {
+            assert!(seconds(bad).is_err(), "{bad} was accepted");
+        }
+    }
 }
