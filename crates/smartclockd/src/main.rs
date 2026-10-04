@@ -403,7 +403,11 @@ fn main() -> Result<()> {
 
     if cli.sky != 0.0 {
         let every = seconds(cli.sky, "--sky")?;
-        read_sky(every, Handle::new(requests_tx.clone(), shared.clone()))?;
+        read_sky(
+            every,
+            Handle::new(requests_tx.clone(), shared.clone()),
+            Arc::clone(&stopping),
+        )?;
     }
 
     let supervised = supervise(Supervisor {
@@ -430,13 +434,18 @@ fn main() -> Result<()> {
 /// Read the status screen every `every`, as the sky view does.  The
 /// screen reaches the log through the snapshot it is delivered on.  A
 /// failure is reported once, not on every read while the link is down.
-fn read_sky(every: Duration, handle: Handle) -> Result<()> {
+/// Stops when the daemon does, rather than reporting the request queue
+/// gone as a failed read on the way out.
+fn read_sky(every: Duration, handle: Handle, stopping: Arc<AtomicBool>) -> Result<()> {
     thread::Builder::new()
         .name("smartclockd-sky".to_owned())
         .spawn(move || {
             let mut failing = false;
             loop {
-                thread::sleep(every);
+                pause(every, &stopping);
+                if stopping.load(Ordering::SeqCst) {
+                    return;
+                }
                 match handle.status() {
                     Ok(_) => failing = false,
                     Err(e) if !failing => {
