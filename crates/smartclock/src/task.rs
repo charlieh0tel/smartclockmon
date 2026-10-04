@@ -307,11 +307,11 @@ impl Handle {
 
     /// Read one status screen and wait for it.
     ///
-    /// Nothing polls the screen, so this is the only way to the status
-    /// view.
-    /// It costs about 1.5 s of link, four fast passes, which is why a
-    /// client asks for one while someone is looking at it rather than
-    /// having the daemon pay for it around the clock.
+    /// No tier polls the screen, so this is the only way to it: for the
+    /// status view, and for the daemon's own occasional read that keeps
+    /// the log's satellite table.  It costs about 1.5 s of link, four
+    /// fast passes, which is why it is asked for while someone is
+    /// looking, or every few minutes, and not on every pass.
     ///
     /// The screen comes back here and nowhere else lasting.  One
     /// snapshot carrying it is delivered to the subscribers, so the log

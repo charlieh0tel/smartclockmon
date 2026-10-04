@@ -335,7 +335,7 @@ fn dashboard(frame: &mut Frame, area: Rect, app: &App) {
     oscillator(frame, middle[1], app);
 
     // The satellite table is not here: it comes from the status screen,
-    // which nothing polls.  It has a view of its own, which asks.
+    // which no tier polls.  It has a view of its own, which asks.
     time_and_place(frame, rows[2], app);
 }
 
@@ -414,8 +414,9 @@ fn recent_screen(app: &App) -> Option<&Screen> {
 }
 
 /// A field read off the last status screen, with how long ago that
-/// was: nothing polls the screen, so it is as old as the last time the
-/// status view was open.
+/// was: no tier polls the screen, so it is as old as the last read --
+/// the status view's, or the daemon's own for its log, every `--sky`
+/// seconds.
 fn from_screen<'a>(app: &App, label: &'a str, value: String, style: Style) -> Line<'a> {
     let Some(read) = app.last_screen.as_ref() else {
         return field(label, value, style);
@@ -542,7 +543,7 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
 /// The state comes from `:SYNChronization:STATe?`, which is on the
 /// one-second tier, but that returns a bare `LOCK` with no detail.  The
 /// detail -- "stabilizing frequency", "GPS acquisition", "GPS 1PPS
-/// invalid" -- exists only on the status screen, which nothing polls.
+/// invalid" -- exists only on the status screen, which no tier polls.
 ///
 /// So the two are combined, from a recent screen only
 /// ([`recent_screen`]), and the suffix is used only while the screen

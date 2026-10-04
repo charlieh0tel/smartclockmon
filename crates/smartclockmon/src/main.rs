@@ -109,10 +109,10 @@ fn run(
             app.refresh_history(columns);
             due = Instant::now() + HISTORY_REFRESH;
         }
-        // Nothing polls the status screen, so it is only as fresh as
-        // the status view asks for it -- and it asks only while it is the
-        // view being shown, because each read costs the receiver about
-        // 1.5 s of its serial link.
+        // No tier polls the status screen, and the daemon reads it for
+        // its log only every few minutes, so the status view asks for
+        // its own -- only while it is the view being shown, because
+        // each read costs the receiver about 1.5 s of its serial link.
         if app.view == View::Stability && Instant::now() >= due {
             app.refresh_deviation();
             due = Instant::now() + HISTORY_REFRESH;

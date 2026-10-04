@@ -40,7 +40,9 @@ one-second tier with everything else.
 The monitor's dashboard shows what only the screen says -- the hold
 threshold, the time and its scale, the 1 PPS status, the survey, the
 receiver's own health report -- from the last screen read, each with
-how long ago that was, and forgets it when the link drops.  The mode's
+how long ago that was, and forgets it when the link drops.  With the
+status view closed that is the daemon's own read for its log, every
+`--sky` seconds, five minutes by default.  The mode's
 detail ("stabilizing frequency") is taken only from a screen read
 within the last three medium-tier intervals, since a stale explanation
 of a fresh state is worse than none.

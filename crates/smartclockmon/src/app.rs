@@ -76,8 +76,9 @@ pub(crate) struct App {
     /// Held here because it arrives on one snapshot only: the daemon
     /// delivers the screen with the snapshot that read it and keeps it
     /// out of every one after, so reading it off the newest snapshot
-    /// would lose it at the next poll.  Nothing polls the screen, so
-    /// this is as old as the last time the status view was open, and
+    /// would lose it at the next poll.  No tier polls the screen, so
+    /// this is as old as the last read -- the status view's, or the
+    /// daemon's own for its log every `--sky` seconds -- and
     /// every pane that shows from it says how old.
     pub(crate) last_screen: Option<ScreenRead>,
     /// Recent EFC readings, oldest first.
