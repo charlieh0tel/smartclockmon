@@ -206,6 +206,16 @@ const JOURNAL_EVERY: Duration = Duration::from_secs(10);
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    // Absolute, because the log's path is told to clients, which open it
+    // from a working directory of their own.
+    let absolute = |path: &Path| {
+        std::path::absolute(path).with_context(|| format!("resolving {}", path.display()))
+    };
+    let cli = Cli {
+        log_dir: absolute(&cli.log_dir)?,
+        database: cli.database.as_deref().map(absolute).transpose()?,
+        ..cli
+    };
     let baud = BaudRate::new(cli.baud).with_context(|| {
         let supported = BaudRate::ALL.map(|b| b.to_string()).join(", ");
         format!(
