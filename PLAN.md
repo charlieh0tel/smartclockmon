@@ -930,11 +930,12 @@ written through the daemon and never sent to the receiver:
   the web receiver info, beside what the unit reports itself.
 
 Built: the `note` and `fact` tables (schema 11), the socket requests,
-the CLI commands, notes in the web and TUI journals, and current facts
-in `diagnose` and the web view.  `diagnose` reads facts from the log
+the CLI commands, notes in the web and TUI journals and as dashed
+lines on the web charts with their text in the cursor readout, and
+current facts in `diagnose` and the web view.  `diagnose` reads facts from the log
 the daemon names, so it needs the log's group, as the monitor does.  To
-do: chart markers, and entering the events in
-`hardware-investigations.md` at their recorded times.  A
+do: entering the events in `hardware-investigations.md` at their
+recorded times.  A
 note is filed under the receiver attached when it is written, even
 when `--at` backdates it past a swap.  A bench-wide note is written to
 each daemon in turn.

@@ -205,8 +205,9 @@ the oscillator's serial -- goes into its log through the daemon:
     smartclock-cli --socket ... fact ocxo.model 10811-60159
 
 Both are filed under the receiver attached now; nothing is sent to it.
-Notes show in the journal of the web view and the monitor; current
-facts head `diagnose` and sit under the web view's history.
+Notes show in the journal of the web view and the monitor, and as
+dashed lines across the web view's charts; current facts head
+`diagnose` and sit under the web view's history.
 A fact keeps its history, so a replaced part's old value stays, and
 each one also leaves a note.  Rows are not edited through the daemon;
 fix a mistake with `sqlite3` on the log.

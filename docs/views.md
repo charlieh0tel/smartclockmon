@@ -9,8 +9,8 @@ In the monitor, `g` cycles the views, `l` jumps to the journal, `w`
 cycles the graph span, `c` opens a command line, `q` quits, and Ctrl-C
 quits from anywhere, the command line included.  The journal is what
 the receiver has recorded about itself -- its diagnostic log, its
-error queue and its alarm changes -- none of which is in the snapshot
-table or can be plotted; the browser view shows it too.
+error queue and its alarm changes -- and the notes written about it
+(`docs/running.md`, "Notes and facts"); the browser view shows it too.
 
 `smartclockmon --device ...` talks to the receiver directly, which
 needs the daemon stopped and records no history; the header says so.

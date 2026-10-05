@@ -141,6 +141,40 @@ const SYNC = haveUplot ? uPlot.sync("smartclock") : null;
 // disagrees with the lines is worse than no key.
 const TRACE = "#38bdf8";
 const MATE = "#fbbf24";
+// A person's note, drawn as a dashed line across every chart.
+const NOTE = "#4ade80";
+// How near the cursor must be to a note's line, in CSS pixels, for the
+// readout to show its text.
+const NOTE_REACH = 6;
+// The notes for the receiver shown, from the journal: [unix seconds,
+// text] pairs.
+let notes = [];
+
+// Each note's line, across the plot area at its time.
+function drawNotes(u) {
+  const [lo, hi] = [u.scales.x.min, u.scales.x.max];
+  const { ctx } = u;
+  ctx.save();
+  ctx.strokeStyle = NOTE;
+  ctx.lineWidth = devicePixelRatio;
+  ctx.setLineDash([4 * devicePixelRatio, 4 * devicePixelRatio]);
+  for (const [at] of notes) {
+    if (at < lo || at > hi) continue;
+    const x = Math.round(u.valToPos(at, "x", true));
+    ctx.beginPath();
+    ctx.moveTo(x, u.bbox.top);
+    ctx.lineTo(x, u.bbox.top + u.bbox.height);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// The text of the note under the cursor, if one is within reach.
+function noteNear(u) {
+  if (u.cursor.left == null || u.cursor.left < 0) return null;
+  const near = notes.find(([at]) => Math.abs(u.valToPos(at, "x") - u.cursor.left) <= NOTE_REACH);
+  return near ? near[1] : null;
+}
 
 // ---------------------------------------------------------------- charts
 
@@ -433,6 +467,7 @@ async function draw(signal) {
         // history updating for the life of the page.  setSelect fires
         // only for a drag.
         setCursor: [() => readout()],
+        draw: [drawNotes],
         setSelect: [(u) => {
           if (u.select.width <= 0) return;
           setAbsolute(
@@ -540,9 +575,11 @@ function readout() {
         ]
       : [one(c.smartclockColumn, value(3))];
   });
+  const note = charts.map(noteNear).find((n) => n != null);
   el.innerHTML =
     `<span class="v">${at ? esc(at.toLocaleTimeString()) : "--:--:--"}</span>` +
-    cells.join("");
+    cells.join("") +
+    (note ? `<span><span class="k" style="color:${NOTE}">note</span> ${esc(note)}</span>` : "");
 }
 
 function pickers(plottable) {
@@ -684,7 +721,10 @@ function showStream(journal) {
 }
 
 async function loadJournal(signal) {
-  drawJournal(await ask("/api/journal?" + withUnit(new URLSearchParams()), signal));
+  const journal = await ask("/api/journal?" + withUnit(new URLSearchParams()), signal);
+  drawJournal(journal);
+  notes = (journal.notes ?? []).map((n) => [Date.parse(n.at) / 1000, n.text]);
+  for (const c of charts) c.redraw(false);
 }
 
 // What the daemon says it is attached to, in the footer.
@@ -741,6 +781,7 @@ const HISTORY_EVERY = 30000;
     auto: () => range.last !== null,
     clear(why) {
       clearCharts(why);
+      notes = [];
       $("journal").innerHTML = muted(why);
       $("about").textContent = "";
       $("facts").textContent = "";
