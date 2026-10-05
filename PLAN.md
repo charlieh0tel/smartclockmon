@@ -1254,5 +1254,4 @@ instance label).
 **Smaller.**
 
 - The audit `label` column is always NULL.
-- Refactors: status register newtypes by macro; `Screen` fields as the
-  existing newtypes.
+- Refactor: `Screen` fields as the existing newtypes.

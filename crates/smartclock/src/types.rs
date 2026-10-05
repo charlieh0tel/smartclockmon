@@ -198,18 +198,56 @@ impl HoldoverWaitReason {
     }
 }
 
-/// The names of the bits set in `bits`, in register order.
+/// The common half of a status register: wrapping and unwrapping the
+/// raw value, the names of the bits set, and an accessor for each bit
+/// that has one.
 ///
-/// Shared by every status register here.  A register stored as a bare
+/// Every register is named bit by bit because one stored as a bare
 /// integer is unreadable without the manual open beside it, and the bit
 /// table belongs with the receiver rather than copied into whatever
 /// happens to be displaying it.
-fn named_bits(bits: u16, table: &[(u16, &'static str)]) -> Vec<&'static str> {
-    table
-        .iter()
-        .filter(|(bit, _)| bits & (1 << bit) != 0)
-        .map(|(_, name)| *name)
-        .collect()
+macro_rules! status_register {
+    (
+        $t:ty {
+            $(
+                $bit:literal => $name:literal $({
+                    $(#[$doc:meta])*
+                    $accessor:ident
+                })?,
+            )*
+        }
+    ) => {
+        impl $t {
+            /// Every named bit with its position, in register order.
+            const NAMES: &[(u16, &'static str)] = &[$(($bit, $name)),*];
+
+            /// Wrap a raw register value.
+            pub fn from_bits(bits: u16) -> Self {
+                Self(bits)
+            }
+
+            /// The raw register value.
+            pub fn bits(self) -> u16 {
+                self.0
+            }
+
+            /// The names of the bits set, for recording or display.
+            pub fn named_bits(self) -> Vec<&'static str> {
+                Self::NAMES
+                    .iter()
+                    .filter(|(bit, _)| self.0 & (1 << bit) != 0)
+                    .map(|(_, name)| *name)
+                    .collect()
+            }
+
+            $($(
+                $(#[$doc])*
+                pub fn $accessor(self) -> bool {
+                    self.0 & (1 << $bit) != 0
+                }
+            )?)*
+        }
+    };
 }
 
 /// Bits of `:STATus:OPERation:HARDware:CONDition?`.
@@ -220,7 +258,23 @@ fn named_bits(bits: u16, table: &[(u16, &'static str)]) -> Vec<&'static str> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HardwareCondition(u16);
 
-/// One named bit of the hardware condition register.
+status_register!(HardwareCondition {
+    0 => "selftest failure",
+    1 => "+15V supply out of tolerance",
+    2 => "-15V supply out of tolerance",
+    3 => "+5V supply out of tolerance",
+    4 => "oven supply out of tolerance",
+    6 => "EFC near full scale",
+    7 => "EFC at full scale",
+    8 => "GPS 1 PPS failure",
+    9 => "GPS failure",
+    10 => "time interval measurement failed",
+    11 => "EEPROM write failed",
+    12 => "internal reference failure",
+});
+
+/// One named bit of the hardware condition register, in register
+/// order: the `n`-th variant is the `n`-th of the register's names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HardwareFault {
     /// Bit 0.
@@ -249,54 +303,23 @@ pub enum HardwareFault {
     InternalReferenceFailure,
 }
 
-/// Every fault with its bit position, in register order.
-const HARDWARE_FAULTS: [(u16, HardwareFault); 12] = [
-    (0, HardwareFault::SelfTest),
-    (1, HardwareFault::Supply15VPositive),
-    (2, HardwareFault::Supply15VNegative),
-    (3, HardwareFault::Supply5V),
-    (4, HardwareFault::OvenSupply),
-    (6, HardwareFault::EfcNearFullScale),
-    (7, HardwareFault::EfcFullScale),
-    (8, HardwareFault::Gps1PpsFailure),
-    (9, HardwareFault::GpsFailure),
-    (10, HardwareFault::TimeIntervalFailed),
-    (11, HardwareFault::EepromWriteFailed),
-    (12, HardwareFault::InternalReferenceFailure),
+/// Every fault, in register order.
+const HARDWARE_FAULTS: [HardwareFault; 12] = [
+    HardwareFault::SelfTest,
+    HardwareFault::Supply15VPositive,
+    HardwareFault::Supply15VNegative,
+    HardwareFault::Supply5V,
+    HardwareFault::OvenSupply,
+    HardwareFault::EfcNearFullScale,
+    HardwareFault::EfcFullScale,
+    HardwareFault::Gps1PpsFailure,
+    HardwareFault::GpsFailure,
+    HardwareFault::TimeIntervalFailed,
+    HardwareFault::EepromWriteFailed,
+    HardwareFault::InternalReferenceFailure,
 ];
 
 impl HardwareCondition {
-    /// The names of the faults asserted, for recording or display.
-    pub fn named_bits(self) -> Vec<&'static str> {
-        named_bits(
-            self.0,
-            &[
-                (0, "selftest failure"),
-                (1, "+15V supply out of tolerance"),
-                (2, "-15V supply out of tolerance"),
-                (3, "+5V supply out of tolerance"),
-                (4, "oven supply out of tolerance"),
-                (6, "EFC near full scale"),
-                (7, "EFC at full scale"),
-                (8, "GPS 1 PPS failure"),
-                (9, "GPS failure"),
-                (10, "time interval measurement failed"),
-                (11, "EEPROM write failed"),
-                (12, "internal reference failure"),
-            ],
-        )
-    }
-
-    /// Wrap a raw register value.
-    pub fn from_bits(bits: u16) -> Self {
-        Self(bits)
-    }
-
-    /// The raw register value.
-    pub fn bits(self) -> u16 {
-        self.0
-    }
-
     /// Whether any fault is asserted.
     pub fn is_healthy(self) -> bool {
         self.faults().next().is_none()
@@ -304,9 +327,10 @@ impl HardwareCondition {
 
     /// The faults currently asserted.
     pub fn faults(self) -> impl Iterator<Item = HardwareFault> {
-        HARDWARE_FAULTS
-            .into_iter()
-            .filter(move |(bit, _)| self.0 & (1 << bit) != 0)
+        Self::NAMES
+            .iter()
+            .zip(HARDWARE_FAULTS)
+            .filter(move |((bit, _), _)| self.0 & (1 << bit) != 0)
             .map(|(_, fault)| fault)
     }
 }
@@ -314,20 +338,7 @@ impl HardwareCondition {
 impl HardwareFault {
     /// A short description for display.
     pub fn describe(self) -> &'static str {
-        match self {
-            Self::SelfTest => "selftest failure",
-            Self::Supply15VPositive => "+15V supply out of tolerance",
-            Self::Supply15VNegative => "-15V supply out of tolerance",
-            Self::Supply5V => "+5V supply out of tolerance",
-            Self::OvenSupply => "oven supply out of tolerance",
-            Self::EfcNearFullScale => "EFC near full scale",
-            Self::EfcFullScale => "EFC at full scale",
-            Self::Gps1PpsFailure => "GPS 1 PPS failure",
-            Self::GpsFailure => "GPS failure",
-            Self::TimeIntervalFailed => "time interval measurement failed",
-            Self::EepromWriteFailed => "EEPROM write failed",
-            Self::InternalReferenceFailure => "internal reference failure",
-        }
+        HardwareCondition::NAMES[self as usize].1
     }
 }
 
@@ -335,50 +346,24 @@ impl HardwareFault {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HoldoverCondition(u16);
 
-impl HoldoverCondition {
-    /// The names of the bits set, for recording or display.
-    pub fn named_bits(self) -> Vec<&'static str> {
-        named_bits(
-            self.0,
-            &[
-                (0, "holding"),
-                (1, "waiting to recover"),
-                (2, "recovering"),
-                (3, "exceeding the duration threshold"),
-            ],
-        )
-    }
-
-    /// Wrap a raw register value.
-    pub fn from_bits(bits: u16) -> Self {
-        Self(bits)
-    }
-
-    /// The raw register value.
-    pub fn bits(self) -> u16 {
-        self.0
-    }
-
-    /// Bit 0: in holdover.
-    pub fn holding(self) -> bool {
-        self.0 & 1 != 0
-    }
-
-    /// Bit 1: waiting to recover.
-    pub fn waiting_to_recover(self) -> bool {
-        self.0 & (1 << 1) != 0
-    }
-
-    /// Bit 2: recovering.
-    pub fn recovering(self) -> bool {
-        self.0 & (1 << 2) != 0
-    }
-
-    /// Bit 3: holdover has run past its duration threshold.
-    pub fn exceeding_threshold(self) -> bool {
-        self.0 & (1 << 3) != 0
-    }
-}
+status_register!(HoldoverCondition {
+    0 => "holding" {
+        /// Bit 0: in holdover.
+        holding
+    },
+    1 => "waiting to recover" {
+        /// Bit 1: waiting to recover.
+        waiting_to_recover
+    },
+    2 => "recovering" {
+        /// Bit 2: recovering.
+        recovering
+    },
+    3 => "exceeding the duration threshold" {
+        /// Bit 3: holdover has run past its duration threshold.
+        exceeding_threshold
+    },
+});
 
 /// Bits of `:STATus:OPERation:CONDition?`.
 ///
@@ -389,56 +374,30 @@ impl HoldoverCondition {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OperationCondition(u16);
 
-impl OperationCondition {
-    /// The names of the bits set, for recording or display.
-    pub fn named_bits(self) -> Vec<&'static str> {
-        named_bits(
-            self.0,
-            &[
-                (0, "powerup summary"),
-                (1, "locked to GPS"),
-                (2, "holdover summary"),
-                (3, "position hold"),
-                (4, "1 PPS reference valid"),
-                (5, "hardware summary"),
-                (6, "diagnostic log almost full"),
-            ],
-        )
-    }
-
-    /// Wrap a raw register value.
-    pub fn from_bits(bits: u16) -> Self {
-        Self(bits)
-    }
-
-    /// The raw register value.
-    pub fn bits(self) -> u16 {
-        self.0
-    }
-
-    /// Bit 1: locked to GPS.
-    pub fn locked(self) -> bool {
-        self.0 & (1 << 1) != 0
-    }
-
-    /// Bit 3: holding a surveyed position rather than surveying.
-    pub fn position_hold(self) -> bool {
-        self.0 & (1 << 3) != 0
-    }
-
-    /// Bit 4: the GPS 1 PPS is fit to discipline against.
-    pub fn reference_valid(self) -> bool {
-        self.0 & (1 << 4) != 0
-    }
-
-    /// Bit 6: the diagnostic log is near the point where it stops
-    /// recording.  Entries are lost quietly once it is full, so this is
-    /// the only warning that the receiver's own history is about to
-    /// stop being written.
-    pub fn log_almost_full(self) -> bool {
-        self.0 & (1 << 6) != 0
-    }
-}
+status_register!(OperationCondition {
+    0 => "powerup summary",
+    1 => "locked to GPS" {
+        /// Bit 1: locked to GPS.
+        locked
+    },
+    2 => "holdover summary",
+    3 => "position hold" {
+        /// Bit 3: holding a surveyed position rather than surveying.
+        position_hold
+    },
+    4 => "1 PPS reference valid" {
+        /// Bit 4: the GPS 1 PPS is fit to discipline against.
+        reference_valid
+    },
+    5 => "hardware summary",
+    6 => "diagnostic log almost full" {
+        /// Bit 6: the diagnostic log is near the point where it stops
+        /// recording.  Entries are lost quietly once it is full, so this is
+        /// the only warning that the receiver's own history is about to
+        /// stop being written.
+        log_almost_full
+    },
+});
 
 /// Bits of `:STATus:OPERation:POWerup:CONDition?`.
 ///
@@ -449,49 +408,25 @@ impl OperationCondition {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PowerupCondition(u16);
 
-impl PowerupCondition {
-    /// The names of the bits set, for recording or display.
-    pub fn named_bits(self) -> Vec<&'static str> {
-        named_bits(
-            self.0,
-            &[
-                (0, "first satellite tracked"),
-                (1, "oscillator oven warm"),
-                (2, "date and time valid"),
-            ],
-        )
-    }
-
-    /// Wrap a raw register value.
-    pub fn from_bits(bits: u16) -> Self {
-        Self(bits)
-    }
-
-    /// The raw register value.
-    pub fn bits(self) -> u16 {
-        self.0
-    }
-
-    /// Bit 0: a satellite has been tracked since powerup.
-    pub fn first_satellite_tracked(self) -> bool {
-        self.0 & 1 != 0
-    }
-
-    /// Bit 1: the oscillator oven has warmed up.
-    ///
-    /// The nearest thing the receiver offers to oven telemetry beyond
-    /// the current draw: a warm oven that goes cold again says the
-    /// oven, not the crystal, is the fault.
-    pub fn oven_warm(self) -> bool {
-        self.0 & (1 << 1) != 0
-    }
-
-    /// Bit 2: the date and time were set at the first lock after
-    /// powerup.
-    pub fn date_time_valid(self) -> bool {
-        self.0 & (1 << 2) != 0
-    }
-}
+status_register!(PowerupCondition {
+    0 => "first satellite tracked" {
+        /// Bit 0: a satellite has been tracked since powerup.
+        first_satellite_tracked
+    },
+    1 => "oscillator oven warm" {
+        /// Bit 1: the oscillator oven has warmed up.
+        ///
+        /// The nearest thing the receiver offers to oven telemetry beyond
+        /// the current draw: a warm oven that goes cold again says the
+        /// oven, not the crystal, is the fault.
+        oven_warm
+    },
+    2 => "date and time valid" {
+        /// Bit 2: the date and time were set at the first lock after
+        /// powerup.
+        date_time_valid
+    },
+});
 
 /// Bits of `:STATus:QUEStionable:CONDition?` and its event register.
 ///
@@ -512,40 +447,18 @@ impl PowerupCondition {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QuestionableStatus(u16);
 
-impl QuestionableStatus {
-    /// The names of the bits set, for recording or display.
-    pub fn named_bits(self) -> Vec<&'static str> {
-        named_bits(
-            self.0,
-            &[
-                (0, "time reset to match the satellites"),
-                (1, "user reported"),
-            ],
-        )
-    }
-
-    /// Wrap a raw register value.
-    pub fn from_bits(bits: u16) -> Self {
-        Self(bits)
-    }
-
-    /// The raw register value.
-    pub fn bits(self) -> u16 {
-        self.0
-    }
-
-    /// Bit 0: the receiver stepped its clock to match the satellites.
-    ///
-    /// Event-only, so this is never true of a condition register read.
-    pub fn time_reset(self) -> bool {
-        self.0 & 1 != 0
-    }
-
-    /// Bit 1: the bit a user set for themselves.
-    pub fn user_reported(self) -> bool {
-        self.0 & (1 << 1) != 0
-    }
-}
+status_register!(QuestionableStatus {
+    0 => "time reset to match the satellites" {
+        /// Bit 0: the receiver stepped its clock to match the satellites.
+        ///
+        /// Event-only, so this is never true of a condition register read.
+        time_reset
+    },
+    1 => "user reported" {
+        /// Bit 1: the bit a user set for themselves.
+        user_reported
+    },
+});
 
 /// Bits of the alarm condition register, which `*STB?` reads.
 ///
@@ -569,56 +482,32 @@ impl QuestionableStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AlarmCondition(u16);
 
+status_register!(AlarmCondition {
+    3 => "questionable" {
+        /// Bit 3: something is latched in the questionable group.
+        ///
+        /// Which, while nothing sets the user-reported bit, means the
+        /// receiver reset its time to match the satellites.
+        questionable
+    },
+    5 => "command error" {
+        /// Bit 5: a command error.  Ours, usually.
+        command_error
+    },
+    6 => "alarm" {
+        /// Bit 6: at least one reason to alarm.
+        master
+    },
+    7 => "operation" {
+        /// Bit 7: something is latched in the operation group.
+        operation
+    },
+});
+
 impl AlarmCondition {
-    /// Wrap a raw register value.
-    pub fn from_bits(bits: u16) -> Self {
-        Self(bits)
-    }
-
-    /// The raw register value.
-    pub fn bits(self) -> u16 {
-        self.0
-    }
-
-    /// Bit 3: something is latched in the questionable group.
-    ///
-    /// Which, while nothing sets the user-reported bit, means the
-    /// receiver reset its time to match the satellites.
-    pub fn questionable(self) -> bool {
-        self.0 & (1 << 3) != 0
-    }
-
-    /// Bit 5: a command error.  Ours, usually.
-    pub fn command_error(self) -> bool {
-        self.0 & (1 << 5) != 0
-    }
-
-    /// Bit 6: at least one reason to alarm.
-    pub fn master(self) -> bool {
-        self.0 & (1 << 6) != 0
-    }
-
-    /// Bit 7: something is latched in the operation group.
-    pub fn operation(self) -> bool {
-        self.0 & (1 << 7) != 0
-    }
-
     /// Whether anything is latched at all.
     pub fn is_clear(self) -> bool {
         self.0 == 0
-    }
-
-    /// The names of the bits set, for recording or display.
-    pub fn named_bits(self) -> Vec<&'static str> {
-        named_bits(
-            self.0,
-            &[
-                (3, "questionable"),
-                (5, "command error"),
-                (6, "alarm"),
-                (7, "operation"),
-            ],
-        )
     }
 }
 
@@ -1074,6 +963,8 @@ mod tests {
     use super::BaudRate;
     use super::Ffom;
     use super::Framing;
+    use super::HARDWARE_FAULTS;
+    use super::HardwareCondition;
     use super::HoldoverWaitReason;
     use super::Seconds;
     use super::SmartClockMode;
@@ -1179,6 +1070,26 @@ mod tests {
             "the interval exceeds the recovery limit"
         );
         assert_eq!(HoldoverWaitReason::None.to_string(), "nothing; not waiting");
+    }
+
+    #[test]
+    fn each_hardware_fault_is_named_by_its_own_bit() {
+        assert_eq!(HARDWARE_FAULTS.len(), HardwareCondition::NAMES.len());
+        for (index, (fault, (bit, name))) in HARDWARE_FAULTS
+            .into_iter()
+            .zip(HardwareCondition::NAMES)
+            .enumerate()
+        {
+            assert_eq!(fault as usize, index, "{fault:?} out of register order");
+            let alone = HardwareCondition::from_bits(1 << bit);
+            assert_eq!(alone.faults().collect::<Vec<_>>(), vec![fault]);
+            assert_eq!(fault.describe(), *name);
+            assert_eq!(alone.named_bits(), vec![*name]);
+        }
+        assert!(
+            HardwareCondition::from_bits(1 << 5).is_healthy(),
+            "bit 5 is unused"
+        );
     }
 }
 
