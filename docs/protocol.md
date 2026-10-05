@@ -55,5 +55,6 @@ response, only the prompt (097-59551-02, A-6).
 So when the last prompt showed queued errors, the session reads the
 queue before sending anything but `:SYSTem:ERRor?` or `*CLS`, keeping
 what it read as strays; the daemon logs them, and `smartclock-cli`
-prints them on stderr.
+prints them on stderr.  An answer to `:SYSTem:ERRor?` leaves the rest
+of the queue for the next read rather than setting it aside.
 

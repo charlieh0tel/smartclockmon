@@ -244,7 +244,8 @@ impl<T: Transport> Session<T> {
     /// except a command that reads or clears the queue itself.
     /// After it, a query that answered succeeded, since a failing one
     /// answers with the prompt alone (097-59551-02, A-6), and whatever
-    /// the prompt shows is kept as a stray.  Otherwise the error is the
+    /// the prompt shows is kept as a stray -- except after a read of the
+    /// queue, whose remaining entries are left for the next read.  Otherwise the error is the
     /// command's: the whole queue is read, its newest entry explains the
     /// command, and anything older is kept as a stray.  That is right
     /// unless the receiver raised something on its own during the
@@ -265,7 +266,11 @@ impl<T: Transport> Session<T> {
         // (097-59551-02, A-6), so one that answered succeeded; the error
         // arrived unasked.
         if is_query(command) && !reply.lines.is_empty() {
-            self.keep_queued_as_strays()?;
+            // Unless the query reads the queue: the rest is for its
+            // reader's next reads, not for setting aside.
+            if !reads_queue(command) {
+                self.keep_queued_as_strays()?;
+            }
             return Ok(reply);
         }
         let prompt = prompt.clone();

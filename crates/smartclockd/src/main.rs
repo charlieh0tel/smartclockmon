@@ -540,6 +540,15 @@ fn record(log_thread: LogThread) {
             while let Ok(request) = inbox.try_recv() {
                 recorder.serve(request);
             }
+            // Errors read off the queue since the last pass, which
+            // would otherwise go with the process.
+            let identity = server::lock_or_poisoned(&journal_info).identity.clone();
+            recorder.note(&identity);
+            if recorder.noted.as_ref() == Some(&identity)
+                && let Some(log) = recorder.log_mut()
+            {
+                record_strays(&journal_handle, &identity, log);
+            }
             return;
         };
         for snapshot in snapshots {

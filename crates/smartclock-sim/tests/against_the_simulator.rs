@@ -1039,3 +1039,23 @@ fn the_error_query_reads_the_queue_itself() {
     let reply = session.query(":SYSTem:ERRor?").expect("the oldest error");
     assert_eq!(reply.lines, ["-313,\"Calibration memory lost\""]);
 }
+
+#[test]
+fn reading_one_error_leaves_the_rest_queued_for_the_next_read() {
+    // The first answer comes under an error prompt while more are
+    // queued; taking those aside as strays left a reader of the queue
+    // one entry and then "No error".
+    let transport = SimTransport::new(Receiver::default());
+    {
+        let mut receiver = transport.receiver().lock().expect("receiver mutex");
+        receiver.queue_error(-313, "Calibration memory lost");
+        receiver.queue_error(-330, "Self-test failed");
+    }
+    let mut session = Session::new(transport, Config::default());
+    session.sync().expect("a prompt");
+    let first = session.query(":SYSTem:ERRor?").expect("the oldest error");
+    assert_eq!(first.lines, ["-313,\"Calibration memory lost\""]);
+    let second = session.query(":SYSTem:ERRor?").expect("the next error");
+    assert_eq!(second.lines, ["-330,\"Self-test failed\""]);
+    assert!(session.take_stray_errors().is_empty());
+}
