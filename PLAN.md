@@ -1256,4 +1256,4 @@ instance label).
 - The audit `label` column is always NULL.
 - Refactors: the rollover and date wording is written three times;
   status register newtypes by macro; `Screen` fields as the existing
-  newtypes; the daemon's test databases through one fixture.
+  newtypes.

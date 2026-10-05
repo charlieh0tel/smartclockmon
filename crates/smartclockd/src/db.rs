@@ -793,45 +793,12 @@ impl Log {
 mod tests {
     use super::Log;
     use super::file_name;
+    use crate::scratch::Scratch;
     use rusqlite::Connection;
     use smartclock::snapshot::Freshness;
     use smartclock::snapshot::Snapshot;
     use smartclock_log::schema::VERSION;
     use smartclock_log::schema::stored;
-
-    /// A database file of our own, under the test runner's temp dir.
-    /// A database path that deletes itself, and the `-wal` and `-shm`
-    /// SQLite writes beside it, on drop.  Drop also runs on a panicking
-    /// test, where a line at the end of the test body would not.
-    struct Scratch(std::path::PathBuf);
-
-    impl Scratch {
-        fn new(name: &str) -> Self {
-            let path =
-                std::env::temp_dir().join(format!("smartclockd-{name}-{}.db", std::process::id()));
-            let guard = Self(path);
-            guard.wipe();
-            guard
-        }
-
-        fn path(&self) -> &std::path::Path {
-            &self.0
-        }
-
-        fn wipe(&self) {
-            for suffix in ["", "-wal", "-shm"] {
-                let mut name = self.0.clone().into_os_string();
-                name.push(suffix);
-                let _ = std::fs::remove_file(std::path::PathBuf::from(name));
-            }
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            self.wipe();
-        }
-    }
 
     #[test]
     fn a_receiver_is_filed_by_model_and_serial_and_an_unparsed_one_by_device() {
@@ -1275,8 +1242,5 @@ mod tests {
         drop(log);
         // Reopening its own database is not a refusal.
         Log::open(path).expect("reopening our own schema");
-        for suffix in ["", "-wal", "-shm"] {
-            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
-        }
     }
 }

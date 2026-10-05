@@ -741,6 +741,7 @@ mod tests {
     use super::split_entry;
     use super::wanted;
     use crate::db::Log;
+    use crate::scratch::Scratch;
     use smartclock::command::Dialect;
     use smartclock::device::Device;
     use smartclock::session::Config;
@@ -940,17 +941,9 @@ mod tests {
         // a unit swapped in for another whose whole log had been copied
         // would have its entries judged copied on the first unit's
         // progress and never read.
-        let path =
-            std::env::temp_dir().join(format!("smartclockd-swapped-{}.db", std::process::id()));
-        let wipe = || {
-            for suffix in ["", "-wal", "-shm"] {
-                let mut name = path.clone().into_os_string();
-                name.push(suffix);
-                let _ = std::fs::remove_file(name);
-            }
-        };
-        wipe();
-        let mut log = Log::open(&path).expect("open the database");
+        let scratch = Scratch::new("swapped");
+        let path = scratch.path();
+        let mut log = Log::open(path).expect("open the database");
         let mut journal = Journal::default();
 
         let (first, identity, dialect) = simulated("A");
@@ -965,8 +958,6 @@ mod tests {
         let b = log.current_receiver().expect("a receiver");
         journal.pass(&second, dialect, b, first_attachment.next(), &mut log);
         let span = log.log_span(b, 0).expect("the span");
-        drop(log);
-        wipe();
         assert_eq!(span.map(|(_, newest)| newest), Some(222), "{span:?}");
     }
 
@@ -980,10 +971,9 @@ mod tests {
         let device = Device::open(Session::new(transport, Config::default()))
             .expect("open the simulated receiver");
         let (handle, _joiner) = task::spawn(device, Cadence::default());
-        let path =
-            std::env::temp_dir().join(format!("smartclockd-refilled-{}.db", std::process::id()));
-        let _ = std::fs::remove_file(&path);
-        let mut log = Log::open(&path).expect("open the database");
+        let scratch = Scratch::new("refilled");
+        let path = scratch.path();
+        let mut log = Log::open(path).expect("open the database");
         log.note_receiver(&identity).expect("note the receiver");
         let id = log.current_receiver().expect("a receiver");
 
@@ -1013,12 +1003,6 @@ mod tests {
 
         assert_eq!(receiver.lock().expect("receiver").log_entries(), 222);
         assert_eq!(log.log_generation(id).expect("generation"), 1);
-        drop(log);
-        for suffix in ["", "-wal", "-shm"] {
-            let mut name = path.clone().into_os_string();
-            name.push(suffix);
-            let _ = std::fs::remove_file(name);
-        }
     }
 
     #[test]
@@ -1031,10 +1015,9 @@ mod tests {
         let device = Device::open(Session::new(transport, Config::default()))
             .expect("open the simulated receiver");
         let (handle, _joiner) = task::spawn(device, Cadence::default());
-        let path =
-            std::env::temp_dir().join(format!("smartclockd-matching-{}.db", std::process::id()));
-        let _ = std::fs::remove_file(&path);
-        let mut log = Log::open(&path).expect("open the database");
+        let scratch = Scratch::new("matching");
+        let path = scratch.path();
+        let mut log = Log::open(path).expect("open the database");
         log.note_receiver(&identity).expect("note the receiver");
         let id = log.current_receiver().expect("a receiver");
 
@@ -1064,27 +1047,13 @@ mod tests {
 
         assert_eq!(receiver.lock().expect("receiver").log_entries(), 222);
         assert_eq!(log.log_generation(id).expect("generation"), 1);
-        drop(log);
-        for suffix in ["", "-wal", "-shm"] {
-            let mut name = path.clone().into_os_string();
-            name.push(suffix);
-            let _ = std::fs::remove_file(name);
-        }
     }
 
     #[test]
     fn a_pass_out_of_time_reads_no_filters() {
-        let path =
-            std::env::temp_dir().join(format!("smartclockd-budget-{}.db", std::process::id()));
-        let wipe = || {
-            for suffix in ["", "-wal", "-shm"] {
-                let mut name = path.clone().into_os_string();
-                name.push(suffix);
-                let _ = std::fs::remove_file(name);
-            }
-        };
-        wipe();
-        let mut log = Log::open(&path).expect("open the database");
+        let scratch = Scratch::new("budget");
+        let path = scratch.path();
+        let mut log = Log::open(path).expect("open the database");
         // Nothing serves this queue: a request would wait its timeout.
         let (requests, _queue) = std::sync::mpsc::channel();
         let handle = Handle::new(requests, task::Shared::new());
@@ -1097,6 +1066,5 @@ mod tests {
             started.elapsed() < super::TIMEOUT,
             "asked the receiver with no time left"
         );
-        wipe();
     }
 }

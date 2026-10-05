@@ -9,6 +9,8 @@ mod audit;
 
 mod db;
 mod journal;
+#[cfg(test)]
+mod scratch;
 mod server;
 
 use crate::audit::Audit;
@@ -1081,6 +1083,7 @@ mod tests {
     use super::record_strays;
     use super::server;
     use super::start_server;
+    use crate::scratch::Scratch;
     use smartclock::device::Device;
     use smartclock::session::Config;
     use smartclock::session::Session;
@@ -1181,38 +1184,20 @@ mod tests {
                 .is_err()
         );
 
-        let path =
-            std::env::temp_dir().join(format!("smartclockd-strays-{}.db", std::process::id()));
-        let wipe = || {
-            for suffix in ["", "-wal", "-shm"] {
-                let mut name = path.clone().into_os_string();
-                name.push(suffix);
-                let _ = std::fs::remove_file(name);
-            }
-        };
-        wipe();
-        let mut log = db::Log::open(&path).expect("open the database");
+        let scratch = Scratch::new("strays");
+        let path = scratch.path();
+        let mut log = db::Log::open(path).expect("open the database");
         log.note_receiver(&identity).expect("note the receiver");
         record_strays(&handle, &identity, &mut log);
         let (errors, _, _) = log.journal_counts().expect("count");
-        drop(log);
-        wipe();
         assert_eq!(errors, 1);
     }
 
     #[test]
     fn each_receiver_is_compared_with_its_own_last_alarm() {
-        let path =
-            std::env::temp_dir().join(format!("smartclockd-alarms-{}.db", std::process::id()));
-        let wipe = || {
-            for suffix in ["", "-wal", "-shm"] {
-                let mut name = path.clone().into_os_string();
-                name.push(suffix);
-                let _ = std::fs::remove_file(name);
-            }
-        };
-        wipe();
-        let mut recorder = Recorder::fixed(db::Log::open(&path).expect("open the database"));
+        let scratch = Scratch::new("alarms");
+        let path = scratch.path();
+        let mut recorder = Recorder::fixed(db::Log::open(path).expect("open the database"));
         let mut write = |serial: &str, bits: u16| {
             let mut snapshot = Snapshot::new(jiff::Timestamp::now());
             snapshot.freshness = Freshness::Live;
@@ -1238,24 +1223,14 @@ mod tests {
             .expect("a log")
             .last_alarm(b)
             .expect("read the alarm");
-        drop(recorder);
-        wipe();
         assert_eq!(last, Some(0));
     }
 
     #[test]
     fn a_command_is_audited_when_and_where_it_ran() {
-        let path =
-            std::env::temp_dir().join(format!("smartclockd-audit-{}.db", std::process::id()));
-        let wipe = || {
-            for suffix in ["", "-wal", "-shm"] {
-                let mut name = path.clone().into_os_string();
-                name.push(suffix);
-                let _ = std::fs::remove_file(name);
-            }
-        };
-        wipe();
-        let mut recorder = Recorder::fixed(db::Log::open(&path).expect("open the database"));
+        let scratch = Scratch::new("audit");
+        let path = scratch.path();
+        let mut recorder = Recorder::fixed(db::Log::open(path).expect("open the database"));
         // Written after a swap, and after a journal pass kept the
         // writer busy: neither may change the row.
         recorder.note("HEWLETT-PACKARD,58503A,B,3704-C");
@@ -1273,8 +1248,6 @@ mod tests {
             .expect("a log")
             .audit_rows()
             .expect("read");
-        drop(recorder);
-        wipe();
         assert_eq!(
             rows,
             vec![(
@@ -1286,16 +1259,9 @@ mod tests {
 
     #[test]
     fn a_snapshot_queued_across_a_swap_is_filed_under_the_unit_it_came_from() {
-        let path = std::env::temp_dir().join(format!("smartclockd-swap-{}.db", std::process::id()));
-        let wipe = || {
-            for suffix in ["", "-wal", "-shm"] {
-                let mut name = path.clone().into_os_string();
-                name.push(suffix);
-                let _ = std::fs::remove_file(name);
-            }
-        };
-        wipe();
-        let mut recorder = Recorder::fixed(db::Log::open(&path).expect("open the database"));
+        let scratch = Scratch::new("swap");
+        let path = scratch.path();
+        let mut recorder = Recorder::fixed(db::Log::open(path).expect("open the database"));
         // The journal has already noted the new unit when a snapshot
         // read from the old one comes off the queue.
         recorder.note("HEWLETT-PACKARD,58503A,B,3704-C");
@@ -1310,8 +1276,6 @@ mod tests {
             .expect("a log")
             .snapshot_serials()
             .expect("read the rows");
-        drop(recorder);
-        wipe();
         assert_eq!(serials, vec![Some("A".to_owned())]);
     }
 
