@@ -28,6 +28,8 @@ use std::time::Duration;
 use std::time::Instant;
 
 use jiff::Timestamp;
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::device::Device;
 use crate::device::step_count;
@@ -100,7 +102,11 @@ impl Cadence {
 /// rather than once per receiver keys on this, because the identity
 /// alone cannot tell a reconnection to the same unit from never having
 /// disconnected.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+///
+/// Clients see it in every reading, so a change of receiver under a
+/// daemon that kept running is something they can notice.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct AttachmentId(u64);
 
 impl AttachmentId {
@@ -613,6 +619,7 @@ impl<T: Transport> DeviceTask<T> {
 
     fn stamped(&self, mut snapshot: Snapshot) -> Snapshot {
         snapshot.receiver = Some(self.device.identity().to_string());
+        snapshot.attachment = self.attachment;
         snapshot
     }
 

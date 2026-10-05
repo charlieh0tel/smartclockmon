@@ -12,6 +12,7 @@ use serde::Serialize;
 
 use crate::rollover::ReceiverDate;
 use crate::screen::Screen;
+use crate::task::AttachmentId;
 use crate::task::Cadence;
 use crate::types::AlarmCondition;
 use crate::types::EfcPercent;
@@ -88,6 +89,10 @@ pub struct Snapshot {
     /// Carried with the values rather than looked up when they are
     /// written, because a snapshot can wait in a queue across a swap.
     pub receiver: Option<String>,
+    /// Which attachment the values were read under; the default until
+    /// one has been polled, and from a daemon that predates it.
+    #[serde(default)]
+    pub attachment: AttachmentId,
     /// Whether it still describes the receiver.
     pub freshness: Freshness,
     /// When each tier last succeeded.
@@ -266,6 +271,7 @@ impl Snapshot {
         Self {
             at,
             receiver: None,
+            attachment: AttachmentId::default(),
             freshness: Freshness::Disconnected,
             polled: Polled::default(),
             mode: None,

@@ -26,6 +26,7 @@ use smartclock::attach::attach;
 use smartclock::client;
 use smartclock::session::Config;
 use smartclock::task;
+use smartclock::task::AttachmentId;
 use smartclock::task::Cadence;
 use smartclock::task::Handle;
 use smartclock::transport::serial::Settings;
@@ -405,6 +406,11 @@ fn connect(socket: &str) -> Result<Stream> {
 /// `Err` means the monitor has gone, not the daemon, so the caller
 /// stops rather than reconnecting to nobody.
 fn forward(reader: Reader, early: Vec<String>, tx: &Sender<Update>) -> Result<String, ()> {
+    // The attachment this session's first reading was taken under.  A
+    // reading under another means the daemon reconnected to its receiver,
+    // perhaps a different unit with its own log, so the session ends and
+    // the reconnect asks again, as it would after a daemon restart.
+    let mut attachment = None;
     for line in early.into_iter().map(Ok).chain(reader.lines()) {
         let line = match line {
             Ok(line) => line,
@@ -457,6 +463,17 @@ fn forward(reader: Reader, early: Vec<String>, tx: &Sender<Update>) -> Result<St
         let Ok(snapshot) = serde_json::from_value::<Reading>(snapshot.clone()) else {
             continue;
         };
+        // The default is a reading from before any poll, or from a
+        // daemon too old to say; neither marks a change.
+        if snapshot.attachment != AttachmentId::default() {
+            match attachment {
+                None => attachment = Some(snapshot.attachment),
+                Some(seen) if seen != snapshot.attachment => {
+                    return Ok("the daemon reattached its receiver".to_owned());
+                }
+                Some(_) => {}
+            }
+        }
         tx.send(Update::Reading(Box::new(snapshot)))
             .map_err(|_| ())?;
     }
@@ -536,6 +553,7 @@ mod tests {
     use interprocess::local_socket::ToFsName as _;
     use interprocess::local_socket::traits::Listener as _;
     use smartclock::snapshot::Snapshot;
+    use smartclock::task::AttachmentId;
     use smartclock::types::Framing;
     use smartclock::wire::Reading;
     use smartclock_sim::net::serve;
@@ -583,6 +601,53 @@ mod tests {
             Ok(Update::Reading(_)) => {}
             other => panic!("expected a reading, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_reattached_receiver_ends_the_session_so_it_is_asked_again() {
+        // A daemon that reconnects to its receiver keeps its clients'
+        // sockets, so the reading is the only sign; the monitor must
+        // not go on showing the old unit's screen and log.
+        let path = std::env::temp_dir().join(format!(
+            "smartclockmon-reattach-{}.sock",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        let listener = ListenerOptions::new()
+            .name(
+                path.as_path()
+                    .to_fs_name::<GenericFilePath>()
+                    .expect("a name"),
+            )
+            .create_sync()
+            .expect("listen");
+        let reading = |attachment| {
+            let mut snapshot = Snapshot::new(jiff::Timestamp::now());
+            snapshot.attachment = attachment;
+            serde_json::json!({ "snapshot": Reading::from(&snapshot) })
+        };
+        let first = AttachmentId::default().next();
+        let (before, after) = (reading(first), reading(first.next()));
+        let daemon = std::thread::spawn(move || {
+            let mut stream = listener.accept().expect("a client");
+            writeln!(stream, r#"{{"v":1,"id":"info","ok":{{}}}}"#).expect("the reply");
+            writeln!(stream, "{before}").expect("a reading");
+            writeln!(stream, "{after}").expect("a reading after the reattach");
+            std::thread::sleep(Duration::from_secs(2));
+        });
+        let (updates, ..) = from_daemon(&path.display().to_string()).expect("connect");
+        let first_update = updates.recv_timeout(Duration::from_secs(5));
+        let second_update = updates.recv_timeout(Duration::from_secs(5));
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            matches!(first_update, Ok(Update::Reading(_))),
+            "{first_update:?}"
+        );
+        assert!(
+            matches!(&second_update, Ok(Update::Lost(why)) if why.contains("reattached")),
+            "{second_update:?}"
+        );
+        daemon.join().expect("the daemon");
     }
 
     #[test]

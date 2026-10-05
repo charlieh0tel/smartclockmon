@@ -342,7 +342,10 @@ Each opening of the receiver is an attachment (`AttachmentId`).  A new
 one starts from an empty snapshot, not the last unit's, and a command
 carries the attachment it was sent under: one that reaches a later
 attachment is answered `Reattached` and not sent, since it was meant
-and audited for the unit attached then.
+and audited for the unit attached then.  Every reading carries its
+attachment, and the monitor, whose socket outlives the daemon's
+reconnects, ends its session on a change and asks for the log path,
+policy and cadence again, as it does after a daemon restart.
 
 Use a `/dev/serial/by-id/...` path, not `/dev/ttyUSB0`, which is not
 stable across re-enumeration.  The device path has no default and the
@@ -1236,14 +1239,11 @@ labels (`oven_tempco` stays; a stopped daemon's `up 0` carries only its
 instance label).
 
 **Daemon and library, receiver identity.**  A swap is noticed only when
-the link breaks (see "Known defects"), and two things go wrong around
+the link breaks (see "Known defects"), and one thing goes wrong around
 one even then:
 
 - A failed poll republishes the previous snapshot under the same `at`,
   so the log holds the row twice and history weights it double.
-- Clients are not told of a new attachment: the monitor keeps the old
-  unit's screen, and in per-receiver mode keeps reading the old unit's
-  log.  Push the attachment to subscribers.
 
 **Daemon, other.**
 

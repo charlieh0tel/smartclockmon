@@ -20,6 +20,7 @@ use crate::screen::Screen;
 use crate::snapshot::Freshness;
 use crate::snapshot::Polled;
 use crate::snapshot::Snapshot;
+use crate::task::AttachmentId;
 use crate::types::AlarmCondition;
 use crate::types::EfcPercent;
 use crate::types::Ffom;
@@ -38,6 +39,10 @@ use crate::types::TimeOfDay;
 pub struct Reading {
     /// When the reading was taken.
     pub at: Timestamp,
+    /// Which attachment it was read under.  A change means the daemon
+    /// has a new connection to its receiver, perhaps to another unit.
+    #[serde(default)]
+    pub attachment: AttachmentId,
     /// Whether it still describes the receiver.
     pub freshness: Freshness,
 
@@ -162,6 +167,7 @@ impl From<&Snapshot> for Reading {
     fn from(s: &Snapshot) -> Self {
         Self {
             at: s.at,
+            attachment: s.attachment,
             freshness: s.freshness,
             mode: s.mode,
             tfom: s.tfom,
