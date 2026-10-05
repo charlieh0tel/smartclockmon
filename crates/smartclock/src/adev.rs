@@ -185,14 +185,14 @@ const GAP_SEGMENTS_AFTER: f64 = 10.0;
 /// holdover, a different receiver entirely -- and the estimator would
 /// read that jump as enormous instability at every tau it spans.
 #[derive(Debug, Clone, Default)]
-pub struct Segment {
+struct Segment {
     /// The readings, in time order.
-    pub samples: Vec<Sample>,
+    samples: Vec<Sample>,
 }
 
 /// Phase readings divided into segments, on a common grid.
 #[derive(Debug, Clone)]
-pub struct Run {
+struct Run {
     /// Nominal spacing between readings, in seconds.
     tau0: f64,
     /// Each segment as a regular grid, `None` where a reading is
@@ -210,7 +210,7 @@ impl Run {
     /// reading's index and its time.  Two readings landing on one index
     /// keep the first: at that point they are the same measurement seen
     /// twice, which is what a repeated row in the log is.
-    pub fn new(segments: &[Segment], tau0: f64) -> Self {
+    fn new(segments: &[Segment], tau0: f64) -> Self {
         let grids = segments
             .iter()
             .filter(|s| !s.samples.is_empty())
@@ -282,7 +282,7 @@ impl Run {
     /// A long absence splits a segment on its own, since the daemon was
     /// not watching and cannot say what happened.  Long is judged
     /// against the readings' own spacing, whatever `tau0` is.
-    pub fn from_samples(
+    fn from_samples(
         samples: &[Sample],
         tau0: f64,
         mut discontinuous: impl FnMut(usize, usize) -> bool,
@@ -318,7 +318,7 @@ impl Run {
     /// the first tau with too few differences behind it rather than running
     /// to some fraction of the run length, so the curve ends where the
     /// data does.
-    pub fn curve(&self) -> Vec<Point> {
+    fn curve(&self) -> Vec<Point> {
         let longest = self.grids.iter().map(Vec::len).max().unwrap_or(0);
         let mut points: Vec<Point> = Vec::new();
         for m in multipliers(longest, self.tau0) {
@@ -333,19 +333,20 @@ impl Run {
         points
     }
 
+    /// [`Run::at_with`] with no noise type to fall back on.
+    #[cfg(test)]
+    fn at(&self, m: usize) -> Option<Point> {
+        self.at_with(m, None)
+    }
+
     /// The deviation at one averaging time, or `None` if too little of
-    /// the run supports it.
+    /// the run supports it, with a noise type to fall back on when this
+    /// tau has too few readings to identify its own.
     ///
     /// Segments are pooled: each contributes the differences it has, and
     /// the sum and the count run across all of them.  Pooling is what
     /// makes a broken run usable at all -- averaging each segment's own
     /// deviation would weight a two-minute fragment like a two-day run.
-    pub fn at(&self, m: usize) -> Option<Point> {
-        self.at_with(m, None)
-    }
-
-    /// As [`Run::at`], with a noise type to fall back on when this tau
-    /// has too few readings to identify its own.
     ///
     /// The degrees of freedom are pooled as the differences are: each
     /// segment's, from the readings it holds -- its holes not counted --
@@ -533,7 +534,7 @@ impl Run {
     /// A curve says nothing about how complete the run behind it was,
     /// and a run that is mostly holes can still produce a confident
     /// looking line.
-    pub fn coverage(&self) -> (usize, usize) {
+    fn coverage(&self) -> (usize, usize) {
         let present = self
             .grids
             .iter()
@@ -545,7 +546,7 @@ impl Run {
     }
 
     /// How many segments the run broke into.
-    pub fn segments(&self) -> usize {
+    fn segments(&self) -> usize {
         self.grids.len()
     }
 }
@@ -591,7 +592,7 @@ impl Curve {
     ///
     /// A range too long to grid at full rate is gridded more coarsely;
     /// see [`MAX_SAMPLES`].
-    pub fn from_readings<S: PartialEq>(samples: &[Sample], states: &[S]) -> Self {
+    fn from_readings<S: PartialEq>(samples: &[Sample], states: &[S]) -> Self {
         let keep = updates(samples);
         let kept: Vec<Sample> = keep.iter().map(|&i| samples[i]).collect();
         // broken[k]: the state changed somewhere after kept reading k-1
@@ -606,14 +607,14 @@ impl Curve {
         Self::measure(&kept, stride(kept.len()), |_, b| broken[b])
     }
 
-    /// As [`Curve::from_readings`], for rows as the log holds them,
+    /// As `Curve::from_readings`, for rows as the log holds them,
     /// with the interval possibly missing.
     ///
     /// A row without an interval is still evidence of the receiver's
     /// state: a holdover during which the interval was refused lies
     /// entirely in such rows, and leaving them out joined the locked
     /// readings either side across it.  Each stands in as a repeat of
-    /// the reading before, which [`updates`] drops as a reading while
+    /// the reading before, which `updates` drops as a reading while
     /// its state still counts.  One before any reading has nothing to
     /// repeat and is left out.
     pub fn from_logged<S: PartialEq>(
@@ -684,7 +685,7 @@ fn stride(readings: usize) -> usize {
 /// Returns the indices to keep, so a caller holding anything alongside
 /// the readings -- the mode and holdover flag that decide where a run
 /// is cut -- can drop the same ones and stay in step.
-pub fn updates(samples: &[Sample]) -> Vec<usize> {
+fn updates(samples: &[Sample]) -> Vec<usize> {
     let mut keep: Vec<usize> = Vec::with_capacity(samples.len());
     let mut held: Option<f64> = None;
     for (i, sample) in samples.iter().enumerate() {
@@ -719,7 +720,7 @@ pub fn updates(samples: &[Sample]) -> Vec<usize> {
 /// `jitter / n`; a slope over every reading falls off as
 /// `n^-3/2`, which is the difference between four tenths of a grid
 /// step of drift across a day and four thousandths.
-pub fn spacing(samples: &[Sample]) -> Option<f64> {
+fn spacing(samples: &[Sample]) -> Option<f64> {
     let offsets: Vec<f64> = samples
         .iter()
         .filter_map(|s| (s.at - samples.first()?.at).total(jiff::Unit::Second).ok())

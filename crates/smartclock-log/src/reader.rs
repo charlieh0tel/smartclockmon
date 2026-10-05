@@ -23,6 +23,7 @@ use rusqlite::OpenFlags;
 use rusqlite::Row;
 use serde::Serialize;
 use smartclock::adev::Curve;
+use smartclock::adev::MAX_SAMPLES;
 use smartclock::snapshot::Tier;
 use smartclock::task::Cadence;
 
@@ -35,12 +36,11 @@ use crate::schema::has_column;
 /// The most rows one Allan deviation reads, after held readings are
 /// thinned out.
 ///
-/// Twice what the estimator grids before it starts striding (see
-/// `smartclock::adev::MAX_SAMPLES`): about two months of ten-second
-/// updates, and some tens of megabytes held at once.  A longer range is
-/// measured over its newest rows and says so, rather than reading a
-/// year of the log into memory.
-pub const MAX_PHASE_ROWS: usize = 500_000;
+/// Twice what the estimator grids before it starts striding: about two
+/// months of ten-second updates, and some tens of megabytes held at
+/// once.  A longer range is measured over its newest rows and says so,
+/// rather than reading a year of the log into memory.
+pub const MAX_PHASE_ROWS: usize = 2 * MAX_SAMPLES;
 
 /// The most series one request will bucket together.
 ///
