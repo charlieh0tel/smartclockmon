@@ -1813,6 +1813,7 @@ dependencies = [
  "smartclock",
  "smartclock-log",
  "smartclock-sim",
+ "socket2",
 ]
 
 [[package]]

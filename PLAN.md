@@ -1222,13 +1222,14 @@ Two things are not defended against, because the threat model is a
 careless operator on a single-operator machine, not an attacker.
 
 - Socket permissions are the whole of the authorization.
-- A client that connects and never speaks holds one of the sixteen
-  slots until the process ends.  `interprocess` 2.4.4's portable
-  `Stream` exposes no handle to set a read timeout on, so closing this
-  would mean `socket2` and a `cfg(unix)` arm for `SO_RCVTIMEO` in the
-  part of the daemon written to stay portable.  The daemon says so in
-  the journal.  A client half-closing its sending side releases its
-  slot and stops the push thread, and is tested.
+- A client that connects and only reads holds one of the sixteen slots
+  for as long as it stays connected; a watcher does exactly that, so it
+  is not refused.  One that stops reading is cut off once a write has
+  waited `client::DEADLINE`, and when either half of a connection ends
+  the socket is shut both ways, so the other half ends with it (Unix;
+  `interprocess`'s portable stream has neither).  A client
+  half-closing its sending side releases its slot and stops the push
+  thread, and is tested.
 
 ## Backlog
 
@@ -1243,11 +1244,6 @@ instance label).
 
 **Daemon, other.**
 
-- A subscriber dropped for falling behind keeps its socket open, and no
-  write has a timeout, so a client that stops reading holds a slot and
-  two threads for good.  The library now sets socket timeouts with
-  `socket2` under `cfg(unix)`; the same would close the "client that
-  never speaks" defect above.
 - Starting a second daemon on a live socket unlinks it; probe with a
   connect first.  The accept loop spins on EMFILE; back off.
 - A log that fails to open is retried, and reported, on every snapshot.

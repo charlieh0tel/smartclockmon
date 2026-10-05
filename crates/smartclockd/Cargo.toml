@@ -26,6 +26,9 @@ smartclock-log = { path = "../smartclock-log" }
 [dev-dependencies]
 smartclock-sim = { path = "../smartclock-sim" }
 
+[target."cfg(unix)".dependencies]
+socket2 = "0.6.5"
+
 # Packaging lives on this crate because cargo-deb wants a single
 # package, and the daemon is what the deb exists to install.  The other
 # binaries ride along as assets, so "make deb" builds the workspace

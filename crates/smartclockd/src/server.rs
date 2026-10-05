@@ -28,6 +28,7 @@ use interprocess::local_socket::ListenerOptions;
 use interprocess::local_socket::Name;
 use interprocess::local_socket::Stream;
 use interprocess::local_socket::prelude::*;
+use smartclock::client;
 use smartclock::command::Argument;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
@@ -164,6 +165,62 @@ pub(crate) fn bind(name: Name<'static>) -> Result<Listener> {
 /// Clears a flag when it goes, whatever ended the thread holding it.
 struct Hangup(Arc<AtomicBool>);
 
+/// A client's socket, held by the half of the connection that holds its
+/// slot: it bounds every write to [`client::DEADLINE`], and shuts the
+/// socket both ways when dropped.
+///
+/// Without the deadline a client that stopped reading filled its buffer
+/// and left the push thread blocked in a write for good, holding the
+/// slot, its subscription and both threads.  Without the shutdown a
+/// push thread that ended -- its subscription dropped for falling
+/// behind, a write failed -- left the request thread reading a socket
+/// nobody would close.  Unix only: `interprocess`'s portable stream has
+/// neither, and elsewhere this does nothing.
+struct Closer {
+    #[cfg(unix)]
+    socket: Option<socket2::Socket>,
+}
+
+impl Closer {
+    #[cfg(unix)]
+    fn new(fd: std::os::fd::BorrowedFd<'_>) -> Self {
+        let socket = fd.try_clone_to_owned().ok().map(socket2::Socket::from);
+        if let Some(socket) = &socket {
+            let _ = socket.set_write_timeout(Some(client::DEADLINE));
+        }
+        Self { socket }
+    }
+
+    #[cfg(not(unix))]
+    fn new() -> Self {
+        Self {}
+    }
+
+    /// For a stream as the listener hands it over.
+    fn for_stream(stream: &Stream) -> Self {
+        #[cfg(unix)]
+        {
+            use std::os::fd::AsFd;
+            let Stream::UdSocket(stream) = stream;
+            Self::new(stream.as_fd())
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = stream;
+            Self::new()
+        }
+    }
+}
+
+impl Drop for Closer {
+    fn drop(&mut self) {
+        #[cfg(unix)]
+        if let Some(socket) = &self.socket {
+            let _ = socket.shutdown(std::net::Shutdown::Both);
+        }
+    }
+}
+
 impl Drop for Hangup {
     fn drop(&mut self) {
         self.0.store(false, Ordering::Relaxed);
@@ -257,6 +314,7 @@ pub(crate) fn serve(listener: Listener, handle: Handle, info: SharedInfo) -> Res
 /// thread running; repeating that accumulated subscriptions and threads
 /// without limit while `MAX_CLIENTS` was never reached.
 fn talk(stream: Stream, handle: &Handle, info: &SharedInfo, slot: Slot) -> Result<()> {
+    let closer = Closer::for_stream(&stream);
     let (recv, send_half) = stream.split();
     let writer = Arc::new(Mutex::new(send_half));
 
@@ -277,8 +335,11 @@ fn talk(stream: Stream, handle: &Handle, info: &SharedInfo, slot: Slot) -> Resul
         .name("smartclockd-push".to_owned())
         .spawn(move || {
             // The slot lives here, and is released when this thread
-            // ends rather than when the request thread does.
+            // ends rather than when the request thread does.  The
+            // socket is shut when it ends, too, so the request thread's
+            // read returns rather than waiting on a client nobody serves.
             let _slot = slot;
+            let _closer = closer;
             loop {
                 let next = updates.recv_timeout(HANGUP_CHECK);
                 if !serving.load(Ordering::Relaxed) {
@@ -1046,6 +1107,26 @@ mod socket_tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_file(&self.socket);
         }
+    }
+
+    #[test]
+    fn a_client_socket_has_a_write_deadline_and_is_shut_when_its_closer_goes() {
+        use std::io::Read as _;
+        use std::os::fd::AsFd as _;
+        let (daemon_side, mut client_side) = UnixStream::pair().expect("a socket pair");
+        let closer = super::Closer::new(daemon_side.as_fd());
+        assert_eq!(
+            daemon_side.write_timeout().expect("the write timeout"),
+            Some(smartclock::client::DEADLINE)
+        );
+        client_side
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .expect("timeout");
+        drop(closer);
+        // End of stream, not a timeout: the socket was shut, though the
+        // daemon side's own descriptor is still open.
+        let mut byte = [0u8; 1];
+        assert_eq!(client_side.read(&mut byte).expect("end of stream"), 0);
     }
 
     #[test]
