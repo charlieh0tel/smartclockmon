@@ -550,8 +550,10 @@ impl<T: Transport> Device<T> {
     }
 
     fn poll_holdover(&mut self, into: &mut Snapshot) -> Result<()> {
-        let holdover = self.holdover_duration()?;
-        into.holdover_duration = Some(holdover);
+        // Absent when refused, like every other field, rather than
+        // abandoning the rest of the step.
+        let holdover = absent_if_unsupported(self.holdover_duration())?;
+        into.holdover_duration = holdover;
         into.holdover_predicted = absent_if_unsupported(self.holdover_predicted())?.flatten();
         // Only asked for while it exists.  Present holdover error is
         // refused with -230 whenever the receiver is locked, and a
@@ -562,7 +564,7 @@ impl<T: Transport> Device<T> {
         // the command-error bit in the standard event status register
         // each time, which made that register a record of our own
         // manners rather than of the receiver's.
-        into.holdover_present = if holdover.active {
+        into.holdover_present = if holdover.is_some_and(|h| h.active) {
             self.holdover_present()?
         } else {
             None

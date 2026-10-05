@@ -162,6 +162,24 @@ fn a_value_the_receiver_declines_reads_as_absent_not_as_a_failure() {
 }
 
 #[test]
+fn a_declined_holdover_duration_leaves_the_rest_of_the_step() {
+    // The duration is the first of its step, and a refusal of it used
+    // to abandon the step where every other field is left absent.
+    let mut receiver = Receiver::default();
+    receiver
+        .refused
+        .push(":SYNChronization:HOLDover:DURation?".to_owned());
+    let mut device = device(receiver);
+    let mut snapshot = Snapshot::new(jiff::Timestamp::now());
+    device
+        .poll(Tier::Medium, &mut snapshot, jiff::Timestamp::now())
+        .expect("the medium tier");
+    assert_eq!(snapshot.holdover_duration, None);
+    assert!(snapshot.holdover_predicted.is_some());
+    assert!(snapshot.polled.medium.at.is_some());
+}
+
+#[test]
 fn a_question_with_a_known_answer_is_not_asked() {
     // Present holdover error exists only in holdover.  Asking while
     // locked is answered with -230, and a refusal is not free: the

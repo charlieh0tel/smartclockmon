@@ -1249,8 +1249,6 @@ instance label).
 
 **Daemon, other.**
 
-- The medium tier aborts when `holdover_duration` is refused, where
-  every other field is left absent.
 - The fixed five-second prompt timeout is too short for the status
   screen below 4800 baud.
 
