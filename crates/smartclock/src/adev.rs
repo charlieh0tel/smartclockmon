@@ -348,9 +348,8 @@ impl Run {
     /// has too few readings to identify its own.
     ///
     /// The degrees of freedom are pooled as the differences are: each
-    /// segment's, from the readings it holds, summed.  A segment's
-    /// holes are not subtracted from its count, so a segment with many
-    /// is credited slightly more freedom than it has.
+    /// segment's, from the readings it holds -- its holes not counted --
+    /// summed.
     fn at_with(&self, m: usize, carried: Option<i32>) -> Option<Point> {
         if m == 0 {
             return None;

@@ -187,17 +187,16 @@ const FIRST_JOURNAL: Duration = Duration::from_secs(5);
 
 /// How often they are read after that.
 ///
-/// Matched to the medium tier rather than to the minute it used to be,
-/// because reading the event registers is now part of a pass and an
-/// event register is the only thing that catches a transition between
-/// two condition polls.  Reading them a minute apart would collapse a
-/// minute of transitions into one bitmask and lose the timing that is
-/// the whole reason to read them.
+/// The medium tier's period: an error the receiver raises is read off
+/// its queue, and logged, within ten seconds of when it happened, and a
+/// diagnostic log being copied takes a few entries a pass.  The event
+/// registers are not read: reading one clears it, which a logger has no
+/// business doing (`PLAN.md`, Phases, 10).  The engine's identity and
+/// the transition filters are read once per attachment.
 ///
-/// The cost when nothing has happened is seven short queries: five
-/// event registers, the error queue, and the diagnostic log count.  The
-/// error queue and the log answer in one reply each when empty and
-/// unchanged, which is nearly always.
+/// The cost when nothing has happened is two short queries, the error
+/// queue and the diagnostic log count, which answer in one reply each
+/// when empty and unchanged, nearly always.
 const JOURNAL_EVERY: Duration = Duration::from_secs(10);
 
 fn main() -> Result<()> {

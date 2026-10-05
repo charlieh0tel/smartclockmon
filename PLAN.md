@@ -1251,10 +1251,6 @@ instance label).
 
 **Smaller.**
 
-- Comments that describe something else: `JOURNAL_EVERY` says passes
-  read the event registers; `adev::at_with` says holes are not
-  subtracted; doc comments sit on the wrong items in `smartclockd/db.rs`
-  and `smartclock-web`.
 - The audit `label` column is always NULL.
 - Allan deviation confidence references cover one noise type; add white
   and flicker phase and random walk, and the boundary cases.

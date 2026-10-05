@@ -150,9 +150,6 @@ fn status(socket: &Path) -> Result<serde_json::Value> {
     Ok(Daemon::connect(socket)?.ask(Op::Status)?)
 }
 
-/// Wrap a result as JSON, reporting a failure as data rather than as an
-/// HTTP error: the page can then say what went wrong in the place the
-/// value would have been, instead of silently showing nothing.
 /// The first year of the project's copyright.
 const COPYRIGHT_FROM: u16 = 2026;
 
@@ -171,6 +168,9 @@ fn about() -> serde_json::Value {
     })
 }
 
+/// Wrap a result as JSON, reporting a failure as data rather than as an
+/// HTTP error: the page can then say what went wrong in the place the
+/// value would have been, instead of silently showing nothing.
 fn json(result: Result<serde_json::Value>) -> Response {
     let value = match result {
         Ok(value) => value,

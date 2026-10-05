@@ -454,21 +454,6 @@ impl Log {
             .query_row("SELECT COUNT(*) FROM audit", [], |r| r.get(0))?)
     }
 
-    /// Note which receiver is attached, so that what follows is
-    /// written against it.
-    ///
-    /// A log file outlives the daemon that wrote it and says nothing
-    /// about its subject otherwise: the identity was printed to the
-    /// journal at startup and kept nowhere that travels with the data.
-    /// Worse, a bench where units are swapped puts two receivers'
-    /// history in one file with no way to tell the rows apart.
-    ///
-    /// Keyed on the serial alone, because that is the only field that
-    /// identifies the unit: firmware changes under it, and comparing
-    /// the whole of `*IDN?` would call an upgrade a different receiver.
-    ///
-    /// Returns the serials of any other units that have written here,
-    /// which is worth saying out loud the first time it happens.
     /// Record the current receiver's GPS engine identity, returning
     /// what was held before when it differs -- `Some(None)` on the first
     /// record -- and `None` when it is unchanged or no receiver is
@@ -492,6 +477,21 @@ impl Log {
         Ok(Some(held))
     }
 
+    /// Note which receiver is attached, so that what follows is
+    /// written against it.
+    ///
+    /// A log file outlives the daemon that wrote it and says nothing
+    /// about its subject otherwise: the identity was printed to the
+    /// journal at startup and kept nowhere that travels with the data.
+    /// Worse, a bench where units are swapped puts two receivers'
+    /// history in one file with no way to tell the rows apart.
+    ///
+    /// Keyed on the serial alone, because that is the only field that
+    /// identifies the unit: firmware changes under it, and comparing
+    /// the whole of `*IDN?` would call an upgrade a different receiver.
+    ///
+    /// Returns the serials of any other units that have written here,
+    /// which is worth saying out loud the first time it happens.
     pub(crate) fn note_receiver(&mut self, identity: &str) -> Result<Vec<String>> {
         // The joined form is exactly what the receiver answered, so the
         // library's own parser reads it rather than a second splitter
