@@ -231,6 +231,11 @@ impl App {
     ) {
         self.policy = policy;
         self.cadence = cadence;
+        // A new attachment may be another unit, and a trend that runs
+        // on from the last one splices two oscillators together.
+        self.efc_trend.clear();
+        self.ti_trend.clear();
+        self.last_fast = None;
         if let Attachment::Daemon {
             database: current, ..
         } = &mut self.attachment
@@ -533,5 +538,10 @@ mod tests {
             app.accept(reading(fast, published));
         }
         assert_eq!(app.efc_trend.len(), 2);
+        // A reattach may be another unit, whose trend starts afresh.
+        app.reattached(None, Policy::default(), Cadence::default());
+        assert!(app.efc_trend.is_empty());
+        app.accept(reading(2, 0));
+        assert_eq!(app.efc_trend.len(), 1);
     }
 }
