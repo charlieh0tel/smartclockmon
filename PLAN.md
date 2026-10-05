@@ -1236,7 +1236,7 @@ labels (`oven_tempco` stays; a stopped daemon's `up 0` carries only its
 instance label).
 
 **Daemon and library, receiver identity.**  A swap is noticed only when
-the link breaks (see "Known defects"), and three things go wrong around
+the link breaks (see "Known defects"), and two things go wrong around
 one even then:
 
 - A failed poll republishes the previous snapshot under the same `at`,
@@ -1244,8 +1244,6 @@ one even then:
 - Clients are not told of a new attachment: the monitor keeps the old
   unit's screen, and in per-receiver mode keeps reading the old unit's
   log.  Push the attachment to subscribers.
-- `receiver.last_seen` is updated only on attach; it should follow the
-  last row logged, which is what every reader takes it to mean.
 
 **Daemon, other.**
 

@@ -143,7 +143,7 @@ pub struct Receiver {
     pub firmware: String,
     /// When the log first recorded it.
     pub first_seen: String,
-    /// When the log last recorded it.
+    /// When the log last recorded a measurement from it.
     pub last_seen: String,
     /// The internal GPS engine's identity as the receiver answered it,
     /// once a daemon has read it.

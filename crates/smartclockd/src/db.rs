@@ -396,6 +396,14 @@ impl Log {
                 ])?;
             }
         }
+        // The last measurement, which is what every reader takes it to
+        // mean; a row saying the link went down measured nothing.
+        if snapshot.freshness != Freshness::Disconnected {
+            tx.execute(
+                "UPDATE receiver SET last_seen = ?1 WHERE id = ?2",
+                params![stored(snapshot.at), self.current],
+            )?;
+        }
         tx.commit()?;
         Ok(id)
     }
@@ -786,6 +794,8 @@ mod tests {
     use super::Log;
     use super::file_name;
     use rusqlite::Connection;
+    use smartclock::snapshot::Freshness;
+    use smartclock::snapshot::Snapshot;
     use smartclock_log::schema::VERSION;
     use smartclock_log::schema::stored;
 
@@ -841,6 +851,28 @@ mod tests {
             file_name("A,B/C,D:E,F", "tcp://host:1234"),
             "B_C-D_E.sqlite"
         );
+    }
+
+    #[test]
+    fn last_seen_follows_the_last_measured_row() {
+        let scratch = Scratch::new("last-seen");
+        let mut log = Log::open(scratch.path()).expect("open");
+        log.note_receiver("HEWLETT-PACKARD,58503A,3710A01056,3704-C")
+            .expect("note the receiver");
+        let at = |s: &str| s.parse::<jiff::Timestamp>().expect("a timestamp");
+        let last_seen = |log: &Log| -> String {
+            log.conn
+                .query_row("SELECT last_seen FROM receiver", [], |row| row.get(0))
+                .expect("last_seen")
+        };
+        let mut measured = Snapshot::new(at("2030-01-01T00:00:00Z"));
+        measured.freshness = Freshness::Live;
+        log.record(&measured).expect("record a measurement");
+        assert_eq!(last_seen(&log), stored(measured.at));
+        let mut down = Snapshot::new(at("2030-01-01T00:01:00Z"));
+        down.freshness = Freshness::Disconnected;
+        log.record(&down).expect("record a disconnection");
+        assert_eq!(last_seen(&log), stored(measured.at));
     }
 
     #[test]

@@ -105,6 +105,8 @@ pub const TABLES: &str = r#"
         -- As last seen, since an upgrade changes it.
         firmware     TEXT,
         first_seen   TEXT NOT NULL,
+        -- The newest measured row's time: set on attach, then with
+        -- every snapshot logged that is not a disconnection.
         last_seen    TEXT NOT NULL,
         -- The internal GPS engine's identity, exactly as
         -- :DIAGnostic:IDENtification:GPSystem? answered it, as
