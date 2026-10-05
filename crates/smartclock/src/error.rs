@@ -73,6 +73,12 @@ pub enum Error {
         expected: &'static str,
     },
 
+    /// The receiver was reattached after a command was sent, so it was
+    /// answered without being sent: it was meant for the receiver
+    /// attached then, which may not be the one attached now.
+    #[error("the receiver was reattached after this command was sent; it was not sent")]
+    Reattached,
+
     /// The device task was asked for something after it stopped.
     #[error("the device task has stopped: {0}")]
     TaskStopped(&'static str),

@@ -32,7 +32,6 @@ use smartclock::command::Argument;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
 use smartclock::command::Spec;
-use smartclock::task::AttachmentId;
 use smartclock::task::Cadence;
 use smartclock::task::Handle;
 
@@ -147,8 +146,6 @@ pub(crate) struct Info {
     pub cadence: Cadence,
     /// Where to record commands that were not scheduled polls.
     pub audit: Audit,
-    /// The receiver's current attachment.
-    pub attachment: AttachmentId,
 }
 
 /// Bind the socket.
@@ -961,7 +958,6 @@ mod socket_tests {
     use super::bind;
     use super::serve;
     use crate::audit::Audit;
-    use smartclock::task::AttachmentId;
 
     use std::io::BufRead;
     use std::io::BufReader;
@@ -1010,7 +1006,6 @@ mod socket_tests {
                 policy: Policy::default(),
                 audit: Audit::new(audit_tx),
                 cadence: smartclock::task::Cadence::default(),
-                attachment: AttachmentId::default().next(),
             }));
 
             let shared_info = Arc::clone(&info);

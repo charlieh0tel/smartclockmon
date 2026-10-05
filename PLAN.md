@@ -338,6 +338,12 @@ and the exporter use the same three intervals
 `info` reply: a pane past it is labeled with its age, and the exporter
 leaves its values out.
 
+Each opening of the receiver is an attachment (`AttachmentId`).  A new
+one starts from an empty snapshot, not the last unit's, and a command
+carries the attachment it was sent under: one that reaches a later
+attachment is answered `Reattached` and not sent, since it was meant
+and audited for the unit attached then.
+
 Use a `/dev/serial/by-id/...` path, not `/dev/ttyUSB0`, which is not
 stable across re-enumeration.  The device path has no default and the
 daemon and CLI refuse to run without one: a wrong default opens
@@ -1233,9 +1239,6 @@ instance label).
 the link breaks (see "Known defects"), and three things go wrong around
 one even then:
 
-- A command queued while one unit was attached can run against the
-  next, audited under the first; a journal pass can run across the
-  change.  Bind requests to an attachment and check it before sending.
 - A failed poll republishes the previous snapshot under the same `at`,
   so the log holds the row twice and history weights it double.
 - Clients are not told of a new attachment: the monitor keeps the old

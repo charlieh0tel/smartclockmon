@@ -121,6 +121,10 @@ pub enum Request {
         /// answered but not sent: a caller that has given up must not
         /// have its command executed behind its back.
         deadline: Instant,
+        /// The attachment it was sent under.  Under any other it is
+        /// answered but not sent: it was meant for that receiver, and
+        /// was audited as sent to it.
+        attachment: AttachmentId,
         /// Where to put the answer.
         answer: SyncSender<Result<Reply>>,
     },
@@ -164,6 +168,8 @@ pub struct Shared {
     /// asked for them, each with the `*IDN?` of the receiver that
     /// raised it, oldest first.  See [`Shared::take_stray_errors`].
     strays: Arc<Mutex<Vec<(String, ErrorEntry)>>>,
+    /// The attachment being served now, moved on by each new task.
+    attachment: Arc<Mutex<AttachmentId>>,
 }
 
 impl Shared {
@@ -276,6 +282,18 @@ impl Shared {
 
     /// Mark the last snapshot as no longer describing the receiver.
     ///
+    /// The attachment being served now.
+    pub fn attachment(&self) -> AttachmentId {
+        *self.attachment.lock().expect("attachment mutex")
+    }
+
+    /// Begin the next attachment and return it.
+    fn attach(&self) -> AttachmentId {
+        let mut current = self.attachment.lock().expect("attachment mutex");
+        *current = current.next();
+        *current
+    }
+
     /// Drop the latest snapshot, so nothing more starts from it.
     fn forget_latest(&self) {
         *self.latest.lock().expect("snapshot mutex") = None;
@@ -312,6 +330,11 @@ impl Handle {
     /// The state shared with any client.
     pub fn shared(&self) -> &Shared {
         &self.shared
+    }
+
+    /// The attachment a command sent now is bound to.
+    pub fn attachment(&self) -> AttachmentId {
+        self.shared.attachment()
     }
 
     /// The most recent snapshot, without waiting for the next one.
@@ -389,6 +412,7 @@ impl Handle {
         let request = Request::Command {
             scpi: scpi.into(),
             deadline: Instant::now() + within,
+            attachment: self.shared.attachment(),
             answer: tx,
         };
         self.requests
@@ -519,6 +543,8 @@ pub struct DeviceTask<T: Transport> {
     failures: u32,
     /// Set when a served command left the session mid-reply.
     resync: bool,
+    /// Which attachment this task is.
+    attachment: AttachmentId,
 }
 
 /// Start a task on its own thread and return a handle to it.
@@ -558,9 +584,11 @@ impl<T: Transport> DeviceTask<T> {
         requests: Receiver<Request>,
     ) -> Self {
         shared.forget_latest();
+        let attachment = shared.attach();
         let now = Instant::now();
         Self {
             device,
+            attachment,
             cadence,
             shared,
             requests,
@@ -795,6 +823,7 @@ impl<T: Transport> DeviceTask<T> {
             Request::Command {
                 scpi,
                 deadline,
+                attachment,
                 answer,
             } => {
                 // Nobody is waiting for this any more.  Sending it
@@ -810,6 +839,10 @@ impl<T: Transport> DeviceTask<T> {
                 };
                 if Instant::now() >= deadline {
                     expired(&answer);
+                    return None;
+                }
+                if attachment != self.attachment {
+                    let _ = answer.send(Err(Error::Reattached));
                     return None;
                 }
                 // A command served since the last exchange failed left
@@ -900,6 +933,7 @@ impl<T: Transport> DeviceTask<T> {
 
 #[cfg(test)]
 mod tests {
+    use super::AttachmentId;
     use super::Request;
     use super::discard_queued;
     use super::next_tier;
@@ -954,6 +988,7 @@ mod tests {
             Request::Command {
                 scpi: scpi.to_owned(),
                 deadline: Instant::now() + Duration::from_secs(60),
+                attachment: AttachmentId::default().next(),
                 answer: tx,
             },
             rx,

@@ -3,6 +3,7 @@
 use std::time::Duration;
 
 use smartclock::device::Device;
+use smartclock::error::Error;
 use smartclock::session::Config;
 use smartclock::session::Reply;
 use smartclock::session::Session;
@@ -17,6 +18,7 @@ use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Snapshot;
 use smartclock::snapshot::Tier;
 use smartclock::task;
+use smartclock::task::AttachmentId;
 use smartclock::task::Cadence;
 use smartclock::task::DeviceTask;
 use smartclock::task::Request;
@@ -152,10 +154,38 @@ fn queue(requests: &Sender<Request>, scpi: &str) -> Receiver<smartclock::error::
         .send(Request::Command {
             scpi: scpi.to_owned(),
             deadline: Instant::now() + Duration::from_secs(10),
+            // A fresh task's: the first attachment.
+            attachment: AttachmentId::default().next(),
             answer,
         })
         .expect("queue a command");
     reply
+}
+
+#[test]
+fn a_command_sent_under_another_attachment_is_not_sent() {
+    // Sent while the previous receiver was attached: it was audited as
+    // sent to that unit, so it must not run against this one.
+    let (requests_tx, requests_rx) = channel();
+    let mut task = DeviceTask::new(device(), Cadence::default(), Shared::new(), requests_rx);
+    let (answer, reply) = sync_channel(1);
+    requests_tx
+        .send(Request::Command {
+            scpi: ":PTIMe:TZONe?".to_owned(),
+            deadline: Instant::now() + Duration::from_secs(10),
+            attachment: AttachmentId::default(),
+            answer,
+        })
+        .expect("queue a command");
+    let runner = std::thread::spawn(move || {
+        task.run();
+    });
+    let answered = reply
+        .recv_timeout(Duration::from_secs(5))
+        .expect("an answer");
+    assert!(matches!(answered, Err(Error::Reattached)), "{answered:?}");
+    drop(requests_tx);
+    runner.join().expect("the device thread");
 }
 
 #[test]
