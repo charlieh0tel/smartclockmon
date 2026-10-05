@@ -438,21 +438,29 @@ impl Receiver {
         self.errors.push_back((code, message.to_owned()));
     }
 
-    /// The prompt that ends an exchange.  The receiver reports the code
-    /// in the prompt and keeps the detail in its error queue until
-    /// someone reads it.
-    pub(crate) fn prompt(&self, accepted: bool) -> String {
-        if accepted {
-            PROMPT.to_owned()
-        } else {
-            "E-113 > ".to_owned()
+    /// The prompt that ends an exchange: `scpi > ` while the error
+    /// queue is empty, and `E-nnn> ` while it holds anything, the
+    /// prompt reflecting the queue (097-59551-02, 5-40) until
+    /// `:SYSTem:ERRor?` or `*CLS` empties it.  Spaced as the 58503A's
+    /// recorded probe has it: no space before the bracket, where
+    /// `scpi > ` has one.
+    ///
+    /// The code shown is the newest queued, while `:SYSTem:ERRor?`
+    /// returns the oldest first: a Z3805A with -113 then -108 queued
+    /// prompted `E-108> `, and again after giving up the -113
+    /// (`docs/protocol.md`, "The error prompt").
+    pub(crate) fn prompt(&self) -> String {
+        match self.errors.back() {
+            None => PROMPT.to_owned(),
+            Some((code, _)) => format!("E{code}> "),
         }
     }
 
     /// The prompt after a line too long for the input buffer, which is
-    /// discarded.
+    /// discarded with an error queued for it.
     pub(crate) fn overrun(&mut self) -> String {
-        "E-363 > ".to_owned()
+        self.queue_error(-363, "Input buffer overrun");
+        self.prompt()
     }
 
     /// The operation condition register this receiver would report.

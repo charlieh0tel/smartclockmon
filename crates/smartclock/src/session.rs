@@ -106,6 +106,12 @@ pub struct Session<T: Transport> {
     /// particular and would otherwise be silently consumed.  A caller
     /// that cares takes them with [`Session::take_stray_errors`].
     strays: Vec<ErrorEntry>,
+    /// Whether the last prompt said the error queue holds anything.  The
+    /// prompt follows the queue, not the last command
+    /// (`docs/protocol.md`, "The error prompt"), so a queue left
+    /// holding errors would make the next command's prompt say nothing
+    /// about that command.
+    errors_queued: bool,
 }
 
 impl<T: Transport> Session<T> {
@@ -117,6 +123,7 @@ impl<T: Transport> Session<T> {
             config,
             buf: String::new(),
             strays: Vec::new(),
+            errors_queued: false,
         }
     }
 
@@ -210,24 +217,35 @@ impl<T: Transport> Session<T> {
     /// Send a command, turning an error prompt into an [`Error::Device`]
     /// by reading the receiver's error queue.
     ///
-    /// The whole queue, not one entry.  It is first in, first out, so
-    /// reading once returns the *oldest* unread error, which is this
-    /// command's only if the queue was empty beforehand.  It often is,
-    /// because the daemon drains it periodically -- but when it is not,
-    /// a routine refusal was reported as whatever unrelated thing the
-    /// receiver had raised earlier, and that earlier error was consumed
-    /// in the process.  Observed against a simulator seeded with a
-    /// spontaneous -313: the next -230 refusal reported itself as -313.
-    ///
-    /// Draining makes the last entry this command's, which is right
-    /// unless the receiver raised something spontaneously during the
-    /// exchange.  Anything older is kept in [`Session::strays`] rather
-    /// than dropped.
+    /// The prompt shows the queue, not the command (`docs/protocol.md`,
+    /// "The error prompt"): it carries the newest queued error, and a
+    /// command that succeeds while one is queued answers under it.  So
+    /// a queue the last prompt showed holding errors is read off first,
+    /// into [`Session::strays`], and only then is the command sent.
+    /// After it, a query that answered succeeded, since a failing one
+    /// answers with the prompt alone (097-59551-02, A-6), and whatever
+    /// the prompt shows is kept as a stray.  Otherwise the error is the
+    /// command's: the whole queue is read, its newest entry explains the
+    /// command, and anything older is kept as a stray.  That is right
+    /// unless the receiver raised something on its own during the
+    /// exchange.
     pub fn query(&mut self, command: &str) -> Result<Reply> {
+        // Emptied first, so that an error prompt after this command can
+        // only mean something happened since it was sent.
+        if self.errors_queued {
+            self.keep_queued_as_strays()?;
+        }
         let reply = self.send_raw(command)?;
         let Prompt::Error(prompt) = &reply.prompt else {
             return Ok(reply);
         };
+        // A query that fails answers with the prompt alone
+        // (097-59551-02, A-6), so one that answered succeeded; the error
+        // arrived unasked.
+        if is_query(command) && !reply.lines.is_empty() {
+            self.keep_queued_as_strays()?;
+            return Ok(reply);
+        }
         let prompt = prompt.clone();
 
         let mut own = None;
@@ -277,6 +295,18 @@ impl<T: Transport> Session<T> {
         Ok(discarded)
     }
 
+    /// Read the error queue until it is empty, keeping what it held as
+    /// strays: errors no command of ours is known to have caused.
+    fn keep_queued_as_strays(&mut self) -> Result<()> {
+        for _ in 0..MAX_QUEUE_DRAIN {
+            let Some(entry) = self.next_error()? else {
+                break;
+            };
+            self.remember_stray(entry);
+        }
+        Ok(())
+    }
+
     /// Read one entry off the error queue: `None` when it is empty, or
     /// when the answer does not parse.
     fn next_error(&mut self) -> Result<Option<ErrorEntry>> {
@@ -322,6 +352,7 @@ impl<T: Transport> Session<T> {
             if let Some((body, prompt)) = split_prompt(&self.buf) {
                 let body = body.to_owned();
                 self.buf.clear();
+                self.errors_queued = matches!(prompt, Prompt::Error(_));
                 return Ok((body, prompt));
             }
             if Instant::now() >= deadline {
@@ -384,6 +415,14 @@ fn split_prompt(buf: &str) -> Option<(&str, Prompt)> {
         return None;
     };
     Some((body, prompt))
+}
+
+/// Whether a command asks for an answer: its header ends in `?`.
+fn is_query(command: &str) -> bool {
+    command
+        .split_whitespace()
+        .next()
+        .is_some_and(|header| header.ends_with('?'))
 }
 
 /// How many entries one explanation will take from the queue.

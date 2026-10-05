@@ -1827,10 +1827,11 @@ prove that every allowlisted installer/primary pairing has been tested.
 The CLI reports this policy in check-only mode and immediately before
 erase.
 
-A queued error stops even check-only mode.  The preflight query reads
-and reports the oldest error; the tool does not send `*CLS`.  Review
-remaining entries with `:SYSTem:ERRor?` and clear the remaining queue
-with `*CLS` before retrying, as the failure message instructs.
+Errors the receiver held from before the run stop even check-only
+mode, all of them listed.  The session reads them off the queue as it
+meets them, so that no command is judged by an older error
+(`protocol.md`, "The error prompt"); run again once they are
+understood.  The tool never sends `*CLS`.
 
 Only the model's writable range is downloaded, as word-aligned 64-byte
 S2 records, each passed as a quoted SCPI string.  A bare S-record is

@@ -4,9 +4,11 @@ SCPI over RS-232, but not a VISA-style instrument.  The receiver behaves
 as an interactive terminal:
 
 - It echoes received characters, one at a time as they arrive.
-- It prompts with `scpi > `, or `E-nnn > ` when the previous command
-  raised an error.  Note the space before the angle bracket: the manuals
-  render the prompt `scpi>`, but the wire carries `scpi > `.
+- It prompts with `scpi > ` while its error queue is empty, and with
+  `E-nnn> ` while it holds anything, whatever the last command did
+  ("The error prompt", below).  Note the space before the angle bracket
+  in `scpi > `: the manuals render the prompt `scpi>`, but the wire
+  carries `scpi > `.  The error prompt has none.
 - The prompt's trailing space often arrives after the rest of the
   prompt, so it turns up at the head of the next reply.
 - Abandoning a reply part-read leaves the receiver still sending.  The
@@ -29,3 +31,25 @@ as an interactive terminal:
 Error reporting and the status registers do follow the standards:
 `:SYSTem:ERRor?` returns the conventional `<code>,"<description>"`, and
 the status register structure is IEEE 488.2.
+
+## The error prompt
+
+The prompt reflects the error queue, not the last command
+(097-59551-02, 5-40: `*CLS` clears "the error queue (and corresponding
+serial port prompt)").  On 2026-10-04 the bench Z3805A (3625A01487,
+3543B-A), with its queue empty, was sent:
+
+| Sent | Reply | Prompt after |
+| ---- | ----- | ------------ |
+| `:NO:SUCH?` | (none) | `E-113> ` |
+| `*IDN? 1` | (none) | `E-108> ` |
+| `*IDN?` | its identity | `E-108> ` |
+| `:SYSTem:ERRor?` | `-113,"Undefined header"` | `E-108> ` |
+| `:SYSTem:ERRor?` | `-108,"Parameter not allowed"` | `scpi > ` |
+
+So the prompt carries the newest queued error while `:SYSTem:ERRor?`
+returns the oldest first, and a command that succeeds while errors are
+queued answers in full under an error prompt.  An error prompt alone
+does not say the command just sent failed.  A query that fails returns
+no response, only the prompt (097-59551-02, A-6).
+

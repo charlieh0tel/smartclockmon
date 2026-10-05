@@ -23,6 +23,7 @@ use smartclock::transport::Transport;
 use smartclock::transport::serial::Settings;
 use smartclock::transport::tee::TeeTransport;
 use smartclock::types::BaudRate;
+use smartclock::types::ErrorEntry;
 use smartclock::types::Framing;
 use thiserror::Error;
 
@@ -64,6 +65,9 @@ pub(crate) struct FlashArgs {
 trait Link {
     fn command(&mut self, command: &str) -> Result<String>;
     fn settle(&mut self) -> Result<()>;
+    /// Errors the receiver held that no command here caused, read off
+    /// its queue so they could not be taken for a command's own.
+    fn take_strays(&mut self) -> Vec<ErrorEntry>;
 }
 
 /// The two audited interpreters and their corresponding firmware IDs.
@@ -102,6 +106,10 @@ impl<T: Transport> Link for Session<T> {
         std::thread::sleep(LANGUAGE_SETTLE);
         self.sync()?;
         Ok(())
+    }
+
+    fn take_strays(&mut self) -> Vec<ErrorEntry> {
+        self.take_stray_errors()
     }
 }
 
@@ -174,10 +182,22 @@ fn flash(
     );
     let (before, mode) = receiver(link, firmware, serial)?;
     println!("Receiver: {before}; mode {mode:?}");
-    no_error(link).context(
-        "preflight error check failed; review queued errors with :SYSTem:ERRor? and \
-         clear remaining errors with *CLS before retrying; the flasher does not send *CLS",
-    )?;
+    no_error(link).context("preflight error check failed")?;
+    // Errors from before this run are read off the queue as they turn
+    // up, so the commands here are judged on their own.  Something
+    // was wrong, or someone else was talking to the unit, so stop and
+    // show them; they are gone from the queue, and a second run goes on.
+    let earlier = link.take_strays();
+    ensure!(
+        earlier.is_empty(),
+        "the receiver held errors from before this run: {}.  They have been read off \
+         its queue; look into them, then run again",
+        earlier
+            .iter()
+            .map(|e| format!("{} {}", e.code, e.message))
+            .collect::<Vec<_>>()
+            .join("; ")
+    );
     if !write {
         println!("{COMPATIBILITY_NOTICE}");
         println!("Compatible. Check only: no language change, erase or programming.");

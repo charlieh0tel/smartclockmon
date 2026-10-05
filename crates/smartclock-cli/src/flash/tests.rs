@@ -9,6 +9,7 @@ use smartclock::error::Error as SessionError;
 use smartclock::session::Config;
 use smartclock::session::Session;
 use smartclock::transport::serial::Settings;
+use smartclock::types::ErrorEntry;
 use smartclock_sim::installer::FlashLayout;
 use smartclock_sim::installer::Installer;
 use smartclock_sim::net::serve;
@@ -185,6 +186,9 @@ impl Link for Script {
     }
     fn settle(&mut self) -> Result<()> {
         Ok(())
+    }
+    fn take_strays(&mut self) -> Vec<ErrorEntry> {
+        Vec::new()
     }
 }
 
@@ -459,7 +463,7 @@ fn simulator_distinguishes_installer_headers_from_bad_data() {
 }
 
 #[test]
-fn stale_errors_explain_recovery_without_clearing_the_remaining_queue() {
+fn errors_from_before_stop_the_run_once_and_are_all_shown() {
     let firmware = Firmware::validate(DUMP.to_vec()).unwrap();
     for write in [false, true] {
         let transport = simulated(&firmware, DUMP.to_vec(), FlashLayout::AmdLanes);
@@ -473,32 +477,14 @@ fn stale_errors_explain_recovery_without_clearing_the_remaining_queue() {
         let error = flash(&mut session, &firmware, write, Some("3542A01548")).unwrap_err();
         let message = format!("{error:#}");
         for expected in [
-            "preflight",
-            ":SYSTem:ERRor?",
-            "*CLS",
-            "before retrying",
-            "-113",
-            "Undefined header",
+            "-113 Undefined header",
+            "-230 Data corrupt or stale",
+            "-222 Data out of range",
+            "run again",
         ] {
             assert!(message.contains(expected), "{message}");
         }
-        assert!(
-            session
-                .query(":SYSTem:ERRor?")
-                .unwrap()
-                .one_line("queued error")
-                .unwrap()
-                .starts_with("-230,")
-        );
-        session.query("*CLS").unwrap();
-        assert_eq!(
-            session
-                .query(":SYSTem:ERRor?")
-                .unwrap()
-                .one_line("empty queue")
-                .unwrap(),
-            "+0,\"No error\""
-        );
+        // Nothing was erased, and the second run finds the queue empty.
         flash(&mut session, &firmware, false, Some("3542A01548")).unwrap();
         let receiver = transport.receiver().lock().unwrap();
         let installer = receiver.installer.as_ref().unwrap();

@@ -71,9 +71,9 @@ embedded model-string guesses cannot establish compatibility.
 Installer revisions are checked against the model/layout allowlist, not
 paired with a particular primary revision: boot flash survives upgrades.
 The CLI states this limitation in check-only mode and immediately before
-erase.  A nonempty error queue stops preflight and asks the operator to
-review and clear it; the flasher does not issue `*CLS` or silently
-discard the remaining errors.
+erase.  Errors the receiver held from before the run stop the
+preflight, every one listed; the session has read them off the queue,
+so a second run goes on.  The flasher never sends `*CLS`.
 
 The existing simulator optionally models the installer, flash contents,
 record validation and boot checksums.  Tests compare the entire
@@ -1243,11 +1243,6 @@ instance label).
 
 **Daemon, other.**
 
-- `query()` treats an `E-nnn>` prompt as this command's failure, but the
-  prompt shows the error queue (097-59551-02 pp. 3-6, A-6): a valid
-  reply is dropped while an older error is queued, and draining a queue
-  of two or more loses entries.  Confirm on the bench, and make the
-  simulator's prompt reflect its queue first.
 - A subscriber dropped for falling behind keeps its socket open, and no
   write has a timeout, so a client that stops reading holds a slot and
   two threads for good.  The library now sets socket timeouts with
@@ -1270,8 +1265,7 @@ instance label).
 string is parsed by hand in two places; move it into `smartclock-http`.
 `smartclock-http` uses `anyhow`, which AGENTS.md forbids in a library.
 
-**Simulator.**  Its prompt is always `E-113`; it should carry the real
-queue state, and a Z3801A with no echo should exist so both framings
+**Simulator.**  A Z3801A with no echo should exist so both framings
 are tested.  Its binary takes arguments by position.
 
 **Smaller.**

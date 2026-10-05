@@ -1,10 +1,10 @@
 //! The simulated receiver behind a [`Transport`].
 //!
 //! Framing is the part worth simulating.  The receiver echoes what it
-//! is sent, ends every exchange with `scpi > `, and switches to
-//! `E-nnn > ` after a bad command; those are what the session layer
-//! exists to handle, and a simulator that skipped them would test
-//! nothing that matters.
+//! is sent and ends every exchange with a prompt that reflects its error
+//! queue: `scpi > ` while it is empty, `E-nnn> ` while it holds
+//! anything.  Those are what the session layer exists to handle, and a
+//! simulator that skipped them would test nothing that matters.
 
 use std::collections::VecDeque;
 use std::io::Read;
@@ -74,11 +74,7 @@ impl SimTransport {
             self.emit(line);
             self.emit("\r\n");
         }
-        let prompt = self
-            .receiver
-            .lock()
-            .expect("receiver mutex")
-            .prompt(answer.accepted);
+        let prompt = self.receiver.lock().expect("receiver mutex").prompt();
         self.emit(&prompt);
     }
 }

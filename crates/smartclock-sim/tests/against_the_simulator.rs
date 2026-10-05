@@ -871,24 +871,48 @@ fn a_steady_stream_of_refreshes_does_not_starve_the_slow_tier() {
 /// here: the right code comes back, and the older error is still
 /// available rather than gone.
 #[test]
-fn a_command_whose_error_was_lost_to_a_full_queue_says_so() {
+fn a_full_queue_is_read_off_first_so_the_command_keeps_its_own_error() {
     // A full queue replaces its last entry with -350 and discards the
-    // newest, so a command failing then leaves only the -350 behind.
-    // That is the queue's state, not the command's error.
+    // newest, so a command failing into it would leave only the -350.
+    // The prompt shows the queue is not empty, so it is read off before
+    // the command is sent, and the command's error is its own.
     let mut receiver = Receiver::default();
     for _ in 0..MAX_ERRORS + 8 {
         assert!(!receiver.respond(":NO:SUCH:COMMAND?").accepted);
     }
     let mut device = device(receiver);
-    match device.session().query(":NO:SUCH:COMMAND?") {
-        Err(smartclock::error::Error::ErrorLost { .. }) => {}
-        other => panic!("expected the error to be reported lost, got {other:?}"),
+    match device.session().query(":SYSTem:NOSUCH?") {
+        Err(smartclock::error::Error::Device { code: -113, .. }) => {}
+        other => panic!("expected the command's own -113, got {other:?}"),
     }
     let strays = device.session().take_stray_errors();
     assert!(
         strays.iter().any(|e| e.code == -350),
         "the overflow marker should be kept as a stray: {strays:?}"
     );
+}
+
+/// A valid reply under an error prompt is kept: the prompt shows the
+/// queue, and an older error does not make this query a failure
+/// (docs/protocol.md, "The error prompt").
+#[test]
+fn a_reply_under_an_error_prompt_is_kept() {
+    let transport = SimTransport::new(Receiver::default());
+    let mut session = Session::new(transport.clone(), Config::default());
+    session.sync().expect("a prompt");
+    // Raised after the last prompt, so the session cannot know of it
+    // until this query's prompt shows it.
+    transport
+        .receiver()
+        .lock()
+        .expect("receiver mutex")
+        .queue_error(-313, "Calibration memory lost");
+    let reply = session
+        .query("*IDN?")
+        .expect("the identity, though an error is queued");
+    assert!(reply.lines[0].contains("58503A"), "{reply:?}");
+    let strays = session.take_stray_errors();
+    assert!(strays.iter().any(|e| e.code == -313), "{strays:?}");
 }
 
 #[test]
