@@ -196,6 +196,9 @@ pub(crate) struct Journal {
     /// repeats a power-on stamp and message, so one entry matching is
     /// not proof of the same log.
     verified: bool,
+    /// The `*IDN?` of the receiver this pass is for, as the daemon had
+    /// it when the pass began.
+    attached: String,
 }
 
 impl Journal {
@@ -216,8 +219,24 @@ impl Journal {
         dialect: Dialect,
         receiver: i64,
         connection: AttachmentId,
+        identity: &str,
         log: &mut Log,
     ) {
+        identity.clone_into(&mut self.attached);
+        match still_attached(handle, dialect, identity) {
+            Ok(true) => {}
+            Ok(false) => {
+                eprintln!(
+                    "smartclockd: another receiver answers than {identity}; \
+                     skipping the journal until it is reattached"
+                );
+                return;
+            }
+            Err(e) => {
+                eprintln!("smartclockd: could not confirm the receiver before the journal: {e:#}");
+                return;
+            }
+        }
         if self.connection != Some(connection) {
             // Resume where the database says this receiver got to,
             // rather than from nothing: at sixteen entries a minute a
@@ -506,6 +525,14 @@ impl Journal {
                 return;
             }
         }
+        // Asked again here because the erase cannot be undone: a unit
+        // swapped in since the pass began would lose a log never copied.
+        if !matches!(still_attached(handle, dialect, &self.attached), Ok(true)) {
+            eprintln!(
+                "smartclockd: not clearing the receiver's log: it could not be confirmed as the one copied"
+            );
+            return;
+        }
         // The count is the guard, not a courtesy: without it the clear
         // would take an entry written since the copy finished.
         match send(handle, dialect, CommandId::LogClear, Some(count)) {
@@ -680,6 +707,20 @@ fn engine_summary(line: &str) -> String {
 }
 
 /// Send one logical query and return its single reply line.
+/// Whether the receiver answering is still the unit `identity` names.
+///
+/// The device task notices a swap only on its slow tier, up to a minute
+/// later, and until then the journal's state -- what is copied, what
+/// may be erased -- is the old unit's.  Asked at the start of each pass
+/// and again before an erase, so a unit swapped in meanwhile has
+/// neither its log filed under the old one nor erased on the old one's
+/// progress.
+fn still_attached(handle: &Handle, dialect: Dialect, identity: &str) -> Result<bool> {
+    let expected = parse::identity(identity)?;
+    let answering = parse::identity(&ask(handle, dialect, CommandId::Idn, None)?)?;
+    Ok(expected.same_unit(&answering))
+}
+
 fn ask(handle: &Handle, dialect: Dialect, id: CommandId, argument: Option<i64>) -> Result<String> {
     let reply = handle.request_within(scpi(dialect, id, argument)?, TIMEOUT)?;
     Ok(reply.one_line("a single line")?.to_owned())
@@ -950,15 +991,45 @@ mod tests {
         log.note_receiver(&identity).expect("note the first unit");
         let a = log.current_receiver().expect("a receiver");
         while log.log_complete(a, 0, 222).ok() != Some(true) {
-            journal.pass(&first, dialect, a, first_attachment, &mut log);
+            journal.pass(&first, dialect, a, first_attachment, &identity, &mut log);
         }
 
         let (second, identity, dialect) = simulated("B");
         log.note_receiver(&identity).expect("note the second unit");
         let b = log.current_receiver().expect("a receiver");
-        journal.pass(&second, dialect, b, first_attachment.next(), &mut log);
+        journal.pass(
+            &second,
+            dialect,
+            b,
+            first_attachment.next(),
+            &identity,
+            &mut log,
+        );
         let span = log.log_span(b, 0).expect("the span");
         assert_eq!(span.map(|(_, newest)| newest), Some(222), "{span:?}");
+    }
+
+    #[test]
+    fn a_unit_answering_for_another_has_nothing_filed_or_erased() {
+        // The device task notices a swap only on its slow tier; until it
+        // does, the journal must not take the new unit's log for the old
+        // one's, still less erase it on the old one's progress.
+        let scratch = Scratch::new("impostor");
+        let mut log = Log::open(scratch.path()).expect("open the database");
+        let (_, expected, _) = simulated("A");
+        log.note_receiver(&expected).expect("note the unit");
+        let a = log.current_receiver().expect("a receiver");
+        let (answering, _, dialect) = simulated("B");
+        let mut journal = Journal::default().clearing_when_full();
+        journal.pass(
+            &answering,
+            dialect,
+            a,
+            AttachmentId::default().next(),
+            &expected,
+            &mut log,
+        );
+        assert_eq!(log.log_span(a, 0).expect("the span"), None);
     }
 
     #[test]
@@ -985,6 +1056,7 @@ mod tests {
                 dialect,
                 id,
                 AttachmentId::default().next(),
+                &identity,
                 &mut log,
             );
         }
@@ -998,6 +1070,7 @@ mod tests {
             dialect,
             id,
             AttachmentId::default().next().next(),
+            &identity,
             &mut log,
         );
 
@@ -1029,6 +1102,7 @@ mod tests {
                 dialect,
                 id,
                 AttachmentId::default().next(),
+                &identity,
                 &mut log,
             );
         }
@@ -1042,6 +1116,7 @@ mod tests {
             dialect,
             id,
             AttachmentId::default().next().next(),
+            &identity,
             &mut log,
         );
 

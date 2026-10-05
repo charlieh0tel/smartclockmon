@@ -376,7 +376,11 @@ firmware) stops the task, so the daemon reopens under the new serial
 even when the link stays up.  Readings between the swap and that check,
 at most one slow interval (a minute by default), are filed under the
 old unit, so stop the daemon before moving a cable.  Asking more often
-would cost a query on a faster tier.
+would cost a query on a faster tier.  The journal does not wait for
+that check: it asks `*IDN?` at the start of every pass and again before
+erasing the receiver's log, and skips on a different unit, so the new
+unit's log is neither filed under the old one nor erased on the old
+one's progress.
 
 ### Storage: SQLite
 

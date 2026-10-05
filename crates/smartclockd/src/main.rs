@@ -511,7 +511,14 @@ fn record(log_thread: LogThread) {
                 && let Some(receiver) = log.current_receiver()
             {
                 record_strays(&journal_handle, &identity, log);
-                journal.pass(&journal_handle, dialect, receiver, attachment, log);
+                journal.pass(
+                    &journal_handle,
+                    dialect,
+                    receiver,
+                    attachment,
+                    &identity,
+                    log,
+                );
             }
             // From the end of the pass, not its start.  A pass
             // can run longer than the interval, and timed from
