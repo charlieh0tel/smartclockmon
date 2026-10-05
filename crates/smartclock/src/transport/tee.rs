@@ -80,7 +80,9 @@ impl<T: Transport, W: Write> TeeTransport<T, W> {
         }
     }
 
-    /// Write the pending run, if any, as one record.
+    /// Write the pending run, if any, as one record, and flush it: a
+    /// process ended abruptly -- a second Ctrl-C exits at once -- keeps
+    /// every record but the run in progress.
     fn emit(&mut self) {
         let Some((dir, at, bytes)) = self.run.take() else {
             return;
@@ -90,6 +92,7 @@ impl<T: Transport, W: Write> TeeTransport<T, W> {
         // take down the session producing it.
         if let Ok(line) = serde_json::to_string(&record) {
             let _ = writeln!(self.sink, "{line}");
+            let _ = self.sink.flush();
         }
     }
 }
