@@ -107,9 +107,7 @@ offset from the pin voltage, and this unit, at +36.0 percent, sits
 within a few millivolts of the oscillator's electrical center.  That
 extrapolates about 8,400 counts beyond a fit spanning 987, and the
 quoted error is the fit's alone; it indicates where zero lies but does
-not measure it.  (An earlier version gave
-+/- 15,500 counts, having scaled the slope's error by the whole count
-rather than by the distance from the data.)
+not measure it.
 
 ### At full scale
 

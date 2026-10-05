@@ -171,13 +171,13 @@ Candidate paths built from the keyword table and sent to a receiver
 show which it implements: an unknown header returns -113 and changes
 nothing.  A read can still change state; see `z3801-tree.md` on
 event registers.  1,530 candidates over the `:DIAGnostic` subtree
-found fifteen commands, none of which appear in any manual here.
+found the commands below, none of which appear in any manual here.
 
 | Command | Reading on the 58503A |
 | ------- | --------------------- |
 | `:DIAGnostic:TEMPerature?` | `+3.68550E+001`, degrees Celsius |
 | `:DIAGnostic:ROSCillator:CURRent?` | `+1.05882E+002`, oven current |
-| `:DIAGnostic:ROSCillator:TCOefficient?` | `-3.36500E+001`, learned tempco |
+| `:DIAGnostic:ROSCillator:TCOefficient?` | `-3.36500E+001`, oven-current constant (`firmware.md`) |
 | `:DIAGnostic:ROSCillator:EFControl:ABSolute?` | `+713392`, DAC code |
 | `:DIAGnostic:ROSCillator:EFControl:DATA?` | `+0` |
 | `:DIAGnostic:ROSCillator:EFControl?` | same as `:RELative?` |
