@@ -78,6 +78,12 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
 #readout .w { color: var(--dim); }
 #readout .k { color: var(--dim); }
 #readout .v { color: var(--text); }
+/* A person's note, beside the pointer while it is on the note's line. */
+#note-tip { position: fixed; display: none; pointer-events: none; z-index: 10;
+            max-width: 48ch; padding: 2px 6px; font-size: 12px;
+            background: var(--panel); color: var(--text); border: 1px solid var(--ok); }
+/* A note in the journal, which centers the charts on its time. */
+.note-link { color: var(--ok); cursor: pointer; text-decoration: underline dotted; }
 #journal { max-height: 20rem; overflow-y: auto; }
 #journal table { font-variant-numeric: tabular-nums; }
 #journal td:first-child { color: var(--dim); white-space: nowrap; padding-right: 10px; }

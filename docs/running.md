@@ -206,7 +206,9 @@ the oscillator's serial -- goes into its log through the daemon:
 
 Both are filed under the receiver attached now; nothing is sent to it.
 Notes show in the journal of the web view and the monitor, and as
-dashed lines across the web view's charts; current facts head
+dashed lines across the web view's charts, with the text beside the
+pointer on a line; clicking a note in the web journal shows an hour
+either side of it; current facts head
 `diagnose` and sit under the web view's history.
 A fact keeps its history, so a replaced part's old value stays, and
 each one also leaves a note.  Rows are not edited through the daemon;

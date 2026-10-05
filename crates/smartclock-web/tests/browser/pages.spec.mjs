@@ -105,8 +105,22 @@ test("a note is marked on the charts and named when the cursor is on it", async 
   });
   await page.mouse.move(x, y);
   await expect(page.locator("#readout")).toContainText(`note of ${B}`);
+  await expect(page.locator("#note-tip")).toBeVisible();
+  await expect(page.locator("#note-tip")).toHaveText(`note of ${B}`);
   await page.mouse.move(x + 40, y);
   await expect(page.locator("#readout")).not.toContainText("note of");
+  await expect(page.locator("#note-tip")).toBeHidden();
+});
+
+test("a note clicked in the journal shows an hour either side of it", async ({ page }) => {
+  await open(page, twoUnits(), "/", B);
+  await page.locator('#journal-tabs button[data-stream="notes"]').click();
+  const link = page.locator("#journal .note-link");
+  await expect(link).toHaveText(`note of ${B}`);
+  const at = Number(await link.getAttribute("data-at"));
+  await link.click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("from")).toBe(String(Math.round(at - 3600)));
+  expect(new URL(page.url()).searchParams.get("to")).toBe(String(Math.round(at + 3600)));
 });
 
 test("the range and the receiver go along to the next page", async ({ page }) => {

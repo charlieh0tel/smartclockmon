@@ -35,6 +35,7 @@
   </div>
   <div id="charts"></div>
   <div id="readout"></div>
+  <div id="note-tip"></div>
   <div id="note"></div>
 </div>
 
@@ -146,9 +147,34 @@ const NOTE = "#4ade80";
 // How near the cursor must be to a note's line, in CSS pixels, for the
 // readout to show its text.
 const NOTE_REACH = 6;
+// How far either side of a note the charts show when it is clicked in
+// the journal, in seconds.
+const NOTE_SPAN = 3600;
 // The notes for the receiver shown, from the journal: [unix seconds,
 // text] pairs.
 let notes = [];
+
+// Center the charts on a note's time, and bring them into view.
+function showNote(at) {
+  setAbsolute(at - NOTE_SPAN, at + NOTE_SPAN);
+  buttons();
+  load();
+  $("charts").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// The note under the pointer, beside it, or nothing.
+function noteTip(chart, text) {
+  const tip = $("note-tip");
+  if (!chart || text == null) {
+    tip.style.display = "none";
+    return;
+  }
+  const box = chart.over.getBoundingClientRect();
+  tip.textContent = text;
+  tip.style.left = `${box.left + chart.cursor.left + 12}px`;
+  tip.style.top = `${box.top + chart.cursor.top + 12}px`;
+  tip.style.display = "block";
+}
 
 // Each note's line, across the plot area at its time.
 function drawNotes(u) {
@@ -328,6 +354,7 @@ function clearCharts(why) {
   charts = [];
   $("charts").innerHTML = "";
   $("readout").innerHTML = "";
+  noteTip(null, null);
   $("note").textContent = why;
 }
 
@@ -576,6 +603,10 @@ function readout() {
       : [one(c.smartclockColumn, value(3))];
   });
   const note = charts.map(noteNear).find((n) => n != null);
+  // Beside the pointer on the chart it is over; the others follow
+  // the cursor's time only.
+  const under = charts.find((c) => c.over.matches(":hover"));
+  noteTip(under, under ? noteNear(under) : null);
   el.innerHTML =
     `<span class="v">${at ? esc(at.toLocaleTimeString()) : "--:--:--"}</span>` +
     cells.join("") +
@@ -666,7 +697,11 @@ const rows = {
   events: (r) => [local(r.at), `${esc(r.decoded)} <span class="muted">(${esc(r.register)} ${r.bits})</span>`],
   entries: (r) => [stamped(r), `<span class="muted">#${r.entry}</span> ${esc(r.message)}`],
   errors: (r) => [local(r.at), `<span class="muted">${r.code}</span> ${esc(r.message)}`],
-  notes: (r) => [local(r.at), esc(r.text)],
+  notes: (r) => [
+    local(r.at),
+    `<span class="note-link" data-at="${Date.parse(r.at) / 1000}" ` +
+      `title="Show an hour either side on the charts">${esc(r.text)}</span>`,
+  ],
 };
 
 // The receiver's own stamp as it wrote it, or when the daemon read the
@@ -718,6 +753,9 @@ function showStream(journal) {
         .map((r) => `<tr><td>${rows[stream](r)[0]}</td><td>${rows[stream](r)[1]}</td></tr>`)
         .join("")}</tbody></table>`
     : `<span class="muted">nothing recorded</span>`;
+  for (const link of $("journal").querySelectorAll(".note-link")) {
+    link.onclick = () => showNote(Number(link.dataset.at));
+  }
 }
 
 async function loadJournal(signal) {
