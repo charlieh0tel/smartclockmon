@@ -1080,7 +1080,8 @@ bytes.  `smartclock-cli read-memory` does the rest: it sends an empty
 line and, when no console prompt comes back within three seconds,
 sends `:SYSTem:LANGuage "PFORTH"` and waits for one; then it defines
 `rd`, reads 1 KB per request with retries, writes the bytes to a file
-and, given `--compare`, checks each kilobyte against an image.  Then,
+and, given `--compare`, checks each kilobyte against an image of the
+same length, failing on any difference.  Then,
 unless given `--stay-in-console`, it returns the port to SCPI, after a
 failed read as well.  It sends `halt` and checks that
 `:SYSTem:LANGuage?` answers `"PRIMARY"` ("Leaving it").  If it does

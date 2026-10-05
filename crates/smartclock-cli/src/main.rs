@@ -160,7 +160,8 @@ struct ReadTo {
     /// Where to write what was read.
     #[arg(long)]
     out: PathBuf,
-    /// An image to check each chunk against, from its first byte.
+    /// An image of the same length to check the read against, from its
+    /// first byte.  Any difference makes the command fail.
     #[arg(long)]
     compare: Option<PathBuf>,
     /// Leave the port at the console instead of returning it to
@@ -321,6 +322,16 @@ fn main() -> Result<()> {
             .as_ref()
             .map(|path| std::fs::read(path).with_context(|| format!("reading {}", path.display())))
             .transpose()?;
+        // Checked before anything is sent: a comparison image of another
+        // length cannot say whether the read matches.
+        if let (Some(path), Some(bytes)) = (compare, &expected) {
+            anyhow::ensure!(
+                bytes.len() == length as usize,
+                "{} is {:#x} bytes, but {length:#x} are to be read; nothing was sent",
+                path.display(),
+                bytes.len()
+            );
+        }
         let mut file = File::create(out).with_context(|| format!("creating {}", out.display()))?;
         let summary = if *stay_in_console {
             console::read_memory(
@@ -350,13 +361,16 @@ fn main() -> Result<()> {
             summary.took.as_secs()
         );
         if let Some(path) = compare {
-            if summary.differing.is_empty() {
-                eprintln!("identical to {}", path.display());
-            } else {
-                for chunk in &summary.differing {
-                    eprintln!("differs from {} in the 1 KB at {chunk:#x}", path.display());
-                }
+            for chunk in &summary.differing {
+                eprintln!("differs from {} in the 1 KB at {chunk:#x}", path.display());
             }
+            anyhow::ensure!(
+                summary.differing.is_empty(),
+                "{} of the read's 1 KB blocks differ from {}",
+                summary.differing.len(),
+                path.display()
+            );
+            eprintln!("identical to {}", path.display());
         }
         return Ok(());
     }

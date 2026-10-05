@@ -1231,9 +1231,6 @@ instance label).
 
 **Command-line tool.**
 
-- `read-* --compare` exits 0 when bytes differ, and a comparison file
-  longer than the read is reported identical.  Check the length first
-  and fail on a difference.
 - `flash` has no Ctrl-C handling: stop at a record boundary, print the
   recovery command, and still return to SCPI after an interrupted
   readback.
