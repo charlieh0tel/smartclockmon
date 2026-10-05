@@ -1082,13 +1082,14 @@ sends `:SYSTem:LANGuage "PFORTH"` and waits for one; then it defines
 `rd`, reads 1 KB per request with retries, writes the bytes to a file
 and, given `--compare`, checks each kilobyte against an image.  Then,
 unless given `--stay-in-console`, it returns the port to SCPI, after a
-failed read as well: it
-checks that the cell and `trap #11` of exactly one known image are
-where that image has them, sends `<cell> execute`, checks that the
-installer answers `:SYSTem:LANGuage?` with `"INSTALL"`, sends
-`:SYSTem:LANGuage "PRIMARY"`, and checks for `"PRIMARY"` again (see
-"Forced installer entry with an unusable primary").  Nothing is erased
-or programmed.  The procedure:
+failed read as well.  It sends `halt` and checks that
+`:SYSTem:LANGuage?` answers `"PRIMARY"` ("Leaving it").  If it does
+not, it falls back to the installer: it checks that the cell and
+`trap #11` of exactly one known image are where that image has them,
+sends `<cell> execute`, checks that the installer answers
+`:SYSTem:LANGuage?` with `"INSTALL"`, sends `:SYSTem:LANGuage
+"PRIMARY"`, and checks for `"PRIMARY"` again ("Forced installer entry
+with an unusable primary").  Nothing is erased or programmed.  The procedure:
 
 1. Stop the unit's daemon, which holds the port:
    `sudo systemctl stop smartclockd@<port>`.
@@ -1103,9 +1104,9 @@ or programmed.  The procedure:
    `read-flash` and `read-eeprom` are `read-memory` with those two
    ranges fixed.
 
-3. Start the daemon again.  With `--stay-in-console`, or for an image
-   the exit table does not know, power cycle the unit first, which
-   returns the port to SCPI.
+3. Start the daemon again.  With `--stay-in-console`, or if neither
+   way out worked, leave the console with `halt` by hand or power cycle
+   the unit first.
 
 On 2026-09-28 the bench Z3801A (3542A01548, 3543-A) read 4 bytes this
 way and came back to SCPI on 3543-A, in PRIMARY, with an empty error
@@ -1845,10 +1846,10 @@ checks, then requires the same serial and the candidate revision in
 PRIMARY.  After that, unless given `--no-readback`, it reads the whole
 512 KiB back through the debug console, as `smartclock-cli read-flash`
 does, requires it to equal the image, protected boot region included,
-and returns the port to SCPI through the installer (see "Reading memory
-through it").  That adds about eleven minutes.  It is skipped, with a
-message, for an image the console's exit table does not know, such as
-the Z3816A's.  Simulator tests compare all bytes after programming for
+and returns the port to SCPI as `read-flash` does (see "Reading memory
+through it").  That adds about eleven minutes.  For an image with no
+known installer exit, such as the Z3816A's, it says so and relies on
+`halt` alone.  Simulator tests compare all bytes after programming for
 each catalog image, including the protected boot region; the simulator
 has no console, so the readback is not among them.
 

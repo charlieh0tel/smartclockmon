@@ -152,8 +152,9 @@ undocumented `:SYSTem:PON`, anything under `:SYSTem:COMMunicate`,
 `:DIAGnostic:ERASe`, or a `:SYSTem:LANGuage` setting.  The one
 exception is `read-memory`, with `read-flash` and `read-eeprom`, which
 enters the debug console with `:SYSTem:LANGuage "PFORTH"` and returns
-through the installer with `:SYSTem:LANGuage "PRIMARY"` (`firmware.md`,
-"Reading memory through it").
+with the console's `halt`, or failing that through the installer with
+`:SYSTem:LANGuage "PRIMARY"` (`firmware.md`, "Reading memory through
+it").
 
 ## Where things live
 

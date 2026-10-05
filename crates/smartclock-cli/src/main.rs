@@ -115,10 +115,10 @@ enum Command {
     /// `:SYSTem:LANGuage "PFORTH"` if the port is not already there
     /// (docs/firmware.md, "Reading memory through it").  Defines one word
     /// in the console's RAM and writes nothing else.  Afterwards the
-    /// port is returned to SCPI through the primary's exit into the
-    /// installer and `:SYSTem:LANGuage "PRIMARY"` (docs/firmware.md,
-    /// "Forced installer entry with an unusable primary"); nothing is
-    /// erased or programmed.
+    /// port is returned to SCPI with the console's `halt`, or failing
+    /// that through the primary's exit into the installer and
+    /// `:SYSTem:LANGuage "PRIMARY"` (docs/firmware.md, "Leaving it");
+    /// nothing is erased or programmed.
     ReadMemory {
         /// First address, as 0x-prefixed hex or decimal.
         #[arg(long, value_parser = address)]
@@ -325,7 +325,7 @@ fn main() -> Result<()> {
                 report,
                 config,
             )?;
-            eprintln!("back at SCPI through the installer: {identity}");
+            eprintln!("back at SCPI: {identity}");
             summary
         };
         eprintln!(

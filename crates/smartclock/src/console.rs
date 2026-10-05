@@ -15,11 +15,13 @@
 //! entered with `:SYSTem:LANGuage "PFORTH"`.  That command's `"INSTALL"`
 //! value is one this project never sends, and only this value is.
 //!
-//! The console has no word that returns to SCPI.  [`back_to_scpi`]
-//! leaves it through the primary's own exit into the installer, from
-//! which `:SYSTem:LANGuage "PRIMARY"` restarts the primary
-//! (docs/firmware.md, "Forced installer entry with an unusable
-//! primary").  Nothing is erased or programmed on the way.
+//! [`back_to_scpi`] leaves the console with its own word `halt`, which
+//! recreates the SCPI task and deletes the console's (docs/firmware.md,
+//! "Leaving it").  If that does not bring back the primary's SCPI, it
+//! falls back to the primary's own exit into the installer, from which
+//! `:SYSTem:LANGuage "PRIMARY"` restarts the primary (docs/firmware.md,
+//! "Forced installer entry with an unusable primary").  Nothing is
+//! erased or programmed on either way.
 
 use std::fmt;
 use std::io::Read;
@@ -58,6 +60,9 @@ const PROGRESS_INTERVAL: u32 = 0x10000;
 /// How long a language change is given before the port is synced: the
 /// old interpreter can acknowledge before it exits.
 pub const LANGUAGE_SETTLE: Duration = Duration::from_secs(2);
+
+/// The console's word that recreates the SCPI task and ends the console.
+const HALT: &str = "halt";
 
 /// The `trap #11` instruction, the primary's only way into the installer.
 const TRAP_11: u32 = 0x4e4b;
@@ -148,6 +153,19 @@ pub enum ConsoleError {
         read: Box<ConsoleError>,
         /// Why the way back failed.
         back: Box<ConsoleError>,
+    },
+
+    /// `halt` did not leave the port at the primary's SCPI parser.
+    #[error("after halt the port is at {0:?}, not the primary's SCPI")]
+    NotPrimary(String),
+
+    /// Neither way out of the console worked.
+    #[error("halt failed ({halt}), and so did the installer exit ({installer})")]
+    NoWayOut {
+        /// Why `halt` failed.
+        halt: Box<ConsoleError>,
+        /// Why the installer exit failed.
+        installer: Box<ConsoleError>,
     },
 
     /// `:SYSTem:LANGuage "PRIMARY"` left the unit in the installer.
@@ -437,12 +455,42 @@ fn enter_installer<T: Read + Write>(port: T) -> Result<&'static Exit> {
     Ok(exit)
 }
 
-/// Return a port at the console to the primary's SCPI parser: through
-/// the image's exit into the installer, then `:SYSTem:LANGuage
-/// "PRIMARY"`, which reruns the reset code's checksums and starts the
-/// primary.  Each step is checked, and the primary's `*IDN?` answer is
-/// returned.
-pub fn back_to_scpi<T: Transport>(mut port: T, config: Config) -> Result<String> {
+/// Leave the console with `halt`, and return the primary's `*IDN?`
+/// answer once `:SYSTem:LANGuage?` says `"PRIMARY"`.  The port comes
+/// back either way, for the fallback.
+fn by_halt<T: Transport>(mut port: T, config: &Config) -> (Result<String>, T) {
+    let halted = Console { port: &mut port }
+        .send_within("", PROBE_TIMEOUT)
+        .and_then(|_| {
+            port.write_all(format!("{HALT}\r").as_bytes())?;
+            port.flush()?;
+            Ok(())
+        });
+    if let Err(e) = halted {
+        return (Err(e), port);
+    }
+    std::thread::sleep(LANGUAGE_SETTLE);
+    let mut session = Session::new(port, config.clone());
+    let primary = primary(&mut session);
+    (primary, session.into_transport())
+}
+
+/// The primary's `*IDN?` answer, if `:SYSTem:LANGuage?` says the port
+/// is at its SCPI parser.
+fn primary<T: Transport>(session: &mut Session<T>) -> Result<String> {
+    session.sync()?;
+    let language = session.query(":SYSTem:LANGuage?")?;
+    let language = language.one_line("language")?;
+    if language != "\"PRIMARY\"" {
+        return Err(ConsoleError::NotPrimary(language.to_owned()));
+    }
+    Ok(session.query("*IDN?")?.one_line("identity")?.to_owned())
+}
+
+/// Leave the console through the image's exit into the installer, then
+/// `:SYSTem:LANGuage "PRIMARY"`, which reruns the reset code's
+/// checksums and starts the primary.
+fn by_installer<T: Transport>(mut port: T, config: Config) -> Result<String> {
     let exit = enter_installer(&mut port)?;
     std::thread::sleep(LANGUAGE_SETTLE);
     let mut session = Session::new(port, config);
@@ -463,13 +511,24 @@ pub fn back_to_scpi<T: Transport>(mut port: T, config: Config) -> Result<String>
         Err(e) => return Err(e.into()),
     }
     std::thread::sleep(LANGUAGE_SETTLE);
-    session.sync()?;
-    let language = session.query(":SYSTem:LANGuage?")?;
-    let language = language.one_line("language")?;
-    if language != "\"PRIMARY\"" {
-        return Err(ConsoleError::StayedInInstaller(language.to_owned()));
-    }
-    Ok(session.query("*IDN?")?.one_line("identity")?.to_owned())
+    primary(&mut session).map_err(|e| match e {
+        ConsoleError::NotPrimary(language) => ConsoleError::StayedInInstaller(language),
+        e => e,
+    })
+}
+
+/// Return a port at the console to the primary's SCPI parser, with
+/// `halt` and, failing that, through the installer.  Each step is
+/// checked, and the primary's `*IDN?` answer is returned.
+pub fn back_to_scpi<T: Transport>(port: T, config: Config) -> Result<String> {
+    let (halted, port) = by_halt(port, &config);
+    let Err(halt) = halted else {
+        return halted;
+    };
+    by_installer(port, config).map_err(|installer| ConsoleError::NoWayOut {
+        halt: Box::new(halt),
+        installer: Box::new(installer),
+    })
 }
 
 /// [`read_memory`], then [`back_to_scpi`] whether or not the read
@@ -504,17 +563,26 @@ mod tests {
     use std::collections::HashMap;
     use std::io::Read;
     use std::io::Write;
+    use std::time::Duration;
 
+    use super::ConsoleError;
     use super::EXITS;
     use super::at_prompt;
+    use super::back_to_scpi;
     use super::enter_installer;
     use super::exit_for;
     use super::words;
+    use crate::session::Config;
+    use crate::transport::Transport;
 
     /// A console that answers `<hex> @ u.` from `memory`, and anything
-    /// else with a bare prompt, recording every line it was sent.
+    /// else with a bare prompt, recording every line it was sent.  With
+    /// `halts`, `halt` hands the port to an SCPI parser that echoes and
+    /// answers `*IDN?` and `:SYSTem:LANGuage?` as a primary does.
     struct Fake {
         memory: HashMap<u32, u32>,
+        halts: bool,
+        at_scpi: bool,
         pending: Vec<u8>,
         reply: Vec<u8>,
         sent: Vec<String>,
@@ -524,10 +592,30 @@ mod tests {
         fn new(memory: &[(u32, u32)]) -> Self {
             Self {
                 memory: memory.iter().copied().collect(),
+                halts: false,
+                at_scpi: false,
                 pending: Vec::new(),
                 reply: Vec::new(),
                 sent: Vec::new(),
             }
+        }
+
+        fn scpi(&mut self, line: &str) {
+            let answer = match line {
+                "*IDN?" => "HEWLETT-PACKARD,Z3805A,3625A01487,3543B-A\r\n",
+                ":SYSTem:LANGuage?" => "\"PRIMARY\"\r\n",
+                _ => "",
+            };
+            self.reply
+                .extend_from_slice(format!("{line}\r\n{answer}scpi > ").as_bytes());
+        }
+    }
+
+    // Borrowed, so a test can read what was sent once the session that
+    // took the port is gone.
+    impl Transport for &mut Fake {
+        fn describe(&self) -> String {
+            "fake console".to_owned()
         }
     }
 
@@ -535,8 +623,21 @@ mod tests {
         fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
             self.pending.extend_from_slice(bytes);
             while let Some(end) = self.pending.iter().position(|&b| b == b'\r') {
-                let line = String::from_utf8_lossy(&self.pending[..end]).into_owned();
+                let line = String::from_utf8_lossy(&self.pending[..end])
+                    .trim_start_matches('\n')
+                    .to_owned();
                 self.pending.drain(..=end);
+                if self.at_scpi {
+                    self.scpi(&line);
+                    self.sent.push(line);
+                    continue;
+                }
+                if line == "halt" && self.halts {
+                    self.at_scpi = true;
+                    self.reply.extend_from_slice(b"\r\nscpi > ");
+                    self.sent.push(line);
+                    continue;
+                }
                 let word = line
                     .strip_suffix(" @ u.")
                     .and_then(|address| u32::from_str_radix(address, 16).ok())
@@ -627,5 +728,30 @@ mod tests {
         let mut unknown = Fake::new(&[(0x28ffc, 0x12f2c)]);
         assert!(enter_installer(&mut unknown).is_err());
         assert!(!unknown.sent.iter().any(|line| line.ends_with("execute")));
+    }
+
+    fn quick() -> Config {
+        Config {
+            timeout: Duration::from_millis(200),
+            idle: Duration::from_millis(1),
+            ..Config::default()
+        }
+    }
+
+    #[test]
+    fn halt_is_tried_first_and_checked() {
+        let mut console = Fake::new(&[]);
+        console.halts = true;
+        let identity = back_to_scpi(&mut console, quick()).expect("back at SCPI");
+        assert!(identity.ends_with("3543B-A"), "{identity}");
+        assert!(!console.sent.iter().any(|line| line.ends_with("execute")));
+    }
+
+    #[test]
+    fn the_installer_exit_is_the_fallback_and_both_failures_are_reported() {
+        let mut console = Fake::new(&[]);
+        let error = back_to_scpi(&mut console, quick()).expect_err("no way out");
+        assert!(matches!(error, ConsoleError::NoWayOut { .. }), "{error}");
+        assert!(console.sent.iter().any(|line| line == "halt"));
     }
 }

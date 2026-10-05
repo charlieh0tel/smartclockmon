@@ -311,10 +311,10 @@ pub(crate) fn run(
     let profile = firmware.profile;
     if console::exit_for(profile.model, profile.revision).is_none() {
         println!(
-            "No debug-console exit is known for {} {}; not reading the flash back.",
+            "No installer exit is known for {} {}: the readback leaves the console \
+             with halt only, and a power cycle if that fails.",
             profile.model, profile.revision
         );
-        return Ok(());
     }
     readback(session.into_transport(), &firmware, config)
 }
@@ -342,7 +342,7 @@ fn open(
 
 /// Read the whole flash back through the debug console and compare it
 /// with the image, protected boot region included, then return the port
-/// to SCPI through the installer.
+/// to SCPI as `read-flash` does.
 fn readback(port: Box<dyn Transport>, firmware: &Firmware, config: Config) -> Result<()> {
     eprintln!("Reading the flash back through the debug console.");
     let (summary, identity) = console::read_and_return(

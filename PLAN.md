@@ -1231,14 +1231,6 @@ instance label).
 
 **Command-line tool.**
 
-- Leaving the console: try the console word `halt` first -- it
-  recreates the SCPI task and deletes the console's, the same on every
-  image (docs/firmware.md) -- then check `*IDN?` and
-  `:SYSTem:LANGuage?`, and only then fall back to the per-image
-  installer exit.  Firmware with no known installer exit is then a
-  warning, not a refusal.  Waits on the bench test of `halt`
-  (`docs/hardware-investigations.md`, 14): whether it returns to SCPI,
-  and how much memory each console visit leaks.
 - `sweep` checks its file for forbidden commands and then reads it
   again to send; read once and send what was checked.
 - `--capture` behaves three ways: the console reads ignore it, other
