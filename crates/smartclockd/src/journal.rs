@@ -41,6 +41,7 @@ use anyhow::Result;
 use smartclock::command::CommandId;
 use smartclock::command::Dialect;
 use smartclock::parse;
+use smartclock::task::AttachmentId;
 use smartclock::task::Handle;
 use smartclock::types::OperationCondition;
 use std::time::Duration;
@@ -145,7 +146,7 @@ pub(crate) struct Journal {
     ///
     /// Re-deriving costs one query against the database and one read
     /// of five filter registers, which a reconnect can afford.
-    connection: Option<u64>,
+    connection: Option<AttachmentId>,
     /// The inclusive span of diagnostic log entry numbers already
     /// copied, or `None` before the first pass for this receiver.
     ///
@@ -211,7 +212,7 @@ impl Journal {
         handle: &Handle,
         dialect: Dialect,
         receiver: i64,
-        connection: u64,
+        connection: AttachmentId,
         log: &mut Log,
     ) {
         if self.connection != Some(connection) {
@@ -732,6 +733,7 @@ mod tests {
     use smartclock::session::Config;
     use smartclock::session::Session;
     use smartclock::task;
+    use smartclock::task::AttachmentId;
     use smartclock::task::Cadence;
     use smartclock::task::Handle;
     use smartclock_sim::receiver::Receiver;
@@ -920,6 +922,7 @@ mod tests {
 
     #[test]
     fn a_unit_swapped_in_is_copied_from_its_own_newest_entry() {
+        let first_attachment = AttachmentId::default().next();
         // The copied span belongs to a connection.  Carried across one,
         // a unit swapped in for another whose whole log had been copied
         // would have its entries judged copied on the first unit's
@@ -941,13 +944,13 @@ mod tests {
         log.note_receiver(&identity).expect("note the first unit");
         let a = log.current_receiver().expect("a receiver");
         while log.log_complete(a, 0, 222).ok() != Some(true) {
-            journal.pass(&first, dialect, a, 1, &mut log);
+            journal.pass(&first, dialect, a, first_attachment, &mut log);
         }
 
         let (second, identity, dialect) = simulated("B");
         log.note_receiver(&identity).expect("note the second unit");
         let b = log.current_receiver().expect("a receiver");
-        journal.pass(&second, dialect, b, 2, &mut log);
+        journal.pass(&second, dialect, b, first_attachment.next(), &mut log);
         let span = log.log_span(b, 0).expect("the span");
         drop(log);
         wipe();
@@ -974,14 +977,26 @@ mod tests {
         // Everything copied, with erasing off.
         let mut journal = Journal::default();
         while log.log_complete(id, 0, 222).ok() != Some(true) {
-            journal.pass(&handle, dialect, id, 1, &mut log);
+            journal.pass(
+                &handle,
+                dialect,
+                id,
+                AttachmentId::default().next(),
+                &mut log,
+            );
         }
 
         // Cleared and refilled while the daemon was away, then a
         // restart that is allowed to erase.
         receiver.lock().expect("receiver").refill_log();
         let mut restarted = Journal::default().clearing_when_full();
-        restarted.pass(&handle, dialect, id, 2, &mut log);
+        restarted.pass(
+            &handle,
+            dialect,
+            id,
+            AttachmentId::default().next().next(),
+            &mut log,
+        );
 
         assert_eq!(receiver.lock().expect("receiver").log_entries(), 222);
         assert_eq!(log.log_generation(id).expect("generation"), 1);
@@ -1013,14 +1028,26 @@ mod tests {
         // Everything copied, with erasing off.
         let mut journal = Journal::default();
         while log.log_complete(id, 0, 222).ok() != Some(true) {
-            journal.pass(&handle, dialect, id, 1, &mut log);
+            journal.pass(
+                &handle,
+                dialect,
+                id,
+                AttachmentId::default().next(),
+                &mut log,
+            );
         }
 
         // Cleared and refilled while the daemon was away, then a
         // restart that is allowed to erase.
         receiver.lock().expect("receiver").refill_log_matching(222);
         let mut restarted = Journal::default().clearing_when_full();
-        restarted.pass(&handle, dialect, id, 2, &mut log);
+        restarted.pass(
+            &handle,
+            dialect,
+            id,
+            AttachmentId::default().next().next(),
+            &mut log,
+        );
 
         assert_eq!(receiver.lock().expect("receiver").log_entries(), 222);
         assert_eq!(log.log_generation(id).expect("generation"), 1);

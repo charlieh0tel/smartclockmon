@@ -49,6 +49,7 @@ use smartclock::session::Config;
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Snapshot;
 use smartclock::task;
+use smartclock::task::AttachmentId;
 use smartclock::task::Cadence;
 use smartclock::task::DeviceTask;
 use smartclock::task::Handle;
@@ -296,7 +297,7 @@ fn main() -> Result<()> {
         policy,
         audit: Audit::new(audit_tx),
         cadence: cadence.clone(),
-        generation: 0,
+        attachment: AttachmentId::default(),
     }));
 
     // Writing the log is a subscriber, so a slow or failing write
@@ -353,12 +354,12 @@ fn main() -> Result<()> {
                     let attached = journal_handle
                         .latest()
                         .is_some_and(|s| s.freshness != Freshness::Disconnected);
-                    let (identity, dialect, generation) = {
+                    let (identity, dialect, attachment) = {
                         let current = server::lock_or_poisoned(&journal_info);
                         (
                             current.identity.clone(),
                             current.dialect,
-                            current.generation,
+                            current.attachment,
                         )
                     };
                     // The journal's rows are read from the receiver
@@ -370,7 +371,7 @@ fn main() -> Result<()> {
                         && let Some(receiver) = log.current_receiver()
                     {
                         record_strays(&journal_handle, &identity, log);
-                        journal.pass(&journal_handle, dialect, receiver, generation, log);
+                        journal.pass(&journal_handle, dialect, receiver, attachment, log);
                     }
                     // From the end of the pass, not its start.  A pass
                     // can run longer than the interval, and timed from
@@ -564,7 +565,7 @@ fn supervise(supervisor: Supervisor) -> Result<()> {
             let mut current = server::lock_or_poisoned(&info);
             current.identity = identity.clone();
             current.dialect = device.dialect();
-            current.generation += 1;
+            current.attachment = current.attachment.next();
             // Named here, before the socket opens, rather than when the
             // log thread gets round to opening it: a client asking on
             // connection is told the file its history will be in.

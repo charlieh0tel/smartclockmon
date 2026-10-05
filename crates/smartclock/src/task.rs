@@ -92,6 +92,24 @@ impl Cadence {
     }
 }
 
+/// One opening of a receiver, counted from one; zero before the first.
+///
+/// An attachment is the boundary across which nothing is known: the
+/// unit may have been power cycled, swapped, or talked to by somebody
+/// else while the link was down.  Anything done once per attachment
+/// rather than once per receiver keys on this, because the identity
+/// alone cannot tell a reconnection to the same unit from never having
+/// disconnected.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AttachmentId(u64);
+
+impl AttachmentId {
+    /// The attachment after this one.
+    pub fn next(self) -> Self {
+        Self(self.0 + 1)
+    }
+}
+
 /// Something asked of the task from outside.
 #[derive(Debug)]
 pub enum Request {
