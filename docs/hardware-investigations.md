@@ -249,6 +249,11 @@ Checked on 2026-09-27:
   of nine hours on 2 to 4 satellites; the Z3801A locked for part of an
   hour, then tracked nothing from 10:00 UTC on.
 
+On 2026-10-03, over 24 hours on one splitter beside a 58503A and a
+u-blox NEO-M8T, the Z3805A held no satellite the NEO-M8T read below
+39 dB-Hz, with a 20 dB LNA ahead of it that the others lacked; the
+58503A held 88% of those at 36 to 39 dB-Hz (`sky-comparison.html`).
+
 *Next:* one of these engines in the 58503A (3710A01056), whose
 firmware takes a six-channel engine (`firmware.md`, "Six or eight
 channels").  Tracking there puts the fault in the Z380x unit; not

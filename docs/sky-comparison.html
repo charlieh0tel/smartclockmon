@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Three-Receiver Sky Comparison</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column of bench notes; tables and the chart sit in
+   their own scroll boxes so the page never widens. */
+:root {
+  --bg: #f3f5f7;
+  --surface: #ffffff;
+  --ink: #18212b;
+  --muted: #5b6672;
+  --rule: #d5dbe1;
+  --ublox: #0f8b7d;
+  --hp58503: #2f5fd0;
+  --z3805: #c26a12;
+  --flag: #a13a2a;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161c; --surface: #19202a; --ink: #e4e9ee; --muted: #93a0ad; --rule: #2c3643;
+    --ublox: #3cc4b2; --hp58503: #7d9ff0; --z3805: #eb9a45; --flag: #e57a66;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161c; --surface: #19202a; --ink: #e4e9ee; --muted: #93a0ad; --rule: #2c3643;
+  --ublox: #3cc4b2; --hp58503: #7d9ff0; --z3805: #eb9a45; --flag: #e57a66;
+  color-scheme: dark;
+}
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.55; }
+main { max-width: 860px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 64px; display: grid; gap: 36px; }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 800; letter-spacing: -0.01em; line-height: 1.1; }
+h2 { font-size: 20px; font-weight: 700; }
+p { margin: 0; max-width: 68ch; }
+section { display: grid; gap: 14px; min-width: 0; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lede { color: var(--muted); }
+.status { font-family: var(--mono); font-size: 12.5px; color: var(--flag); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; display: grid; gap: 2px; }
+.tile .who { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.tile .num { font-family: var(--display); font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tile .sub { font-size: 12.5px; color: var(--muted); }
+.swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.s-ublox { background: var(--ublox); } .s-58503 { background: var(--hp58503); } .s-z3805 { background: var(--z3805); }
+.scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.mono { font-family: var(--mono); font-size: 12.5px; }
+.zero { color: var(--flag); font-weight: 500; }
+.sub-n { font-family: var(--body); font-size: 11.5px; color: var(--muted); }
+figure { margin: 0; display: grid; gap: 8px; }
+figcaption { font-size: 13px; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+svg text { fill: var(--muted); font-family: var(--mono); font-size: 11px; }
+ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; max-width: 70ch; }
+.note { border-left: 3px solid var(--rule); padding-left: 12px; color: var(--muted); font-size: 14px; }
+footer { font-size: 12.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<main>
+  <header style="display:grid; gap:10px">
+    <div class="eyebrow">Bench notes · smartclockmon</div>
+    <h1>Three receivers, one antenna</h1>
+    <p class="lede">An HP 58503A, an HP Z3805A and a u-blox NEO-M8T share one GPS antenna through a distribution splitter. Every minute the SmartClocks' satellite tables were paired with the u-blox's sky report, satellite by satellite, to see which signals each SmartClock can hold.</p>
+    <p class="status" style="color:var(--muted)">24 hours, 1440 paired minutes, 2026-10-03 00:02 to 2026-10-04 00:01 UTC: a full day of the ionosphere and a sidereal day of satellite geometry.</p>
+    <p class="status" style="color:var(--muted)">Elevation mask: 10° on both SmartClocks. Satellites below 10° are left out of every count, the u-blox's included.</p>
+  </header>
+
+  <section aria-labelledby="summary">
+    <h2 id="summary">Satellites tracked per minute</h2>
+    <div class="tiles">
+      <div class="tile"><div class="who"><span class="swatch s-ublox"></span>u-blox NEO-M8T</div><div class="num">8.6</div><div class="sub">GPS in use above 10° · min 6 · never 0</div></div>
+      <div class="tile"><div class="who"><span class="swatch s-58503"></span>HP 58503A</div><div class="num">6.6</div><div class="sub">min 4 · never 0</div></div>
+      <div class="tile"><div class="who"><span class="swatch s-z3805"></span>HP Z3805A</div><div class="num">2.9</div><div class="sub">min 0 · <span class="zero">0 in 22 of 1440 minutes</span></div></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="setup">
+    <h2 id="setup">The receivers</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Receiver</th><th>Serial</th><th>Firmware</th><th>GPS engine</th><th class="n">Channels</th><th>Feed</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="swatch s-58503" style="display:inline-block;margin-right:6px"></span>HP 58503A</td>
+            <td class="mono">3710A01056</td>
+            <td class="mono">3704-C</td>
+            <td>Motorola VP Oncore <span class="mono">B4121P1115</span>: 8-channel, enhanced RF filtering. Software 98-P36830P, version 8 rev 8, 6 Aug 1996.</td>
+            <td class="n">8<br><span class="sub-n">most seen: 8</span></td>
+            <td>Splitter only (unity gain)</td>
+          </tr>
+          <tr>
+            <td><span class="swatch s-z3805" style="display:inline-block;margin-right:6px"></span>HP Z3805A</td>
+            <td class="mono">3625A01487</td>
+            <td class="mono">3543B-A</td>
+            <td>Motorola VP Oncore <span class="mono">B1121P1114</span>: early 6-channel, no enhanced filtering. Software 98-P39972M, version 8 rev 4, 13 Jul 1995.</td>
+            <td class="n">6<br><span class="sub-n">most seen: 6</span></td>
+            <td>Splitter, then a 20 dB LNA (Raven LA-21-1575-100-T, under 3 dB noise figure)</td>
+          </tr>
+          <tr>
+            <td><span class="swatch s-ublox" style="display:inline-block;margin-right:6px"></span>u-blox NEO-M8T</td>
+            <td class="mono">on apu-0</td>
+            <td class="mono">TIM 1.10</td>
+            <td>Timing module, protocol 22.00, configured for GPS only. Read through gpsd 3.22.</td>
+            <td class="n">72<br><span class="sub-n">most used: 12</span></td>
+            <td>Splitter only (unity gain)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Engine identities are the Oncore's own <span class="mono">@@Cj</span> answers, logged by smartclockd. The model decode is Synergy Systems' VP Oncore Command Reference, page 2: B1 is the early 6-channel VP, B3 the first 8-channel, and B4 the B3 with enhanced RF filtering. The bench Z3801A (3542A01548) carries the same B1121P1114 engine as the Z3805A. The NEO-M8T's 72 channels are u-blox's figure for the M8 engine. "Most seen" is the largest number tracked in any one minute of these runs, so channel count is not what limits the Z3805A: it filled its six only at moments, and averaged 2.9.</p>
+  </section>
+
+  <section aria-labelledby="share">
+    <h2 id="share">What each SmartClock holds, by signal strength</h2>
+    <p>For every GPS satellite the u-blox was using, did the SmartClock track it in the same minute? Grouped by the u-blox's C/N for that satellite. The SmartClocks' own signal numbers are not used: neither scale is documented, and the two models report on different ranges.</p>
+    <figure>
+      <div class="legend">
+        <span><span class="swatch s-58503"></span>HP 58503A</span>
+        <span><span class="swatch s-z3805"></span>HP Z3805A</span>
+      </div>
+      <div class="scroll" style="padding:12px 8px 4px">
+        <svg id="chart" viewBox="0 0 640 300" role="img" aria-label="Share of u-blox satellites tracked by each SmartClock, by u-blox C/N band" style="width:100%;min-width:520px;height:auto;display:block"></svg>
+      </div>
+      <figcaption>Share of the u-blox's satellites also tracked, by the u-blox's C/N in dB-Hz. Each band's sample count is in the table below.</figcaption>
+    </figure>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>u-blox C/N, dB-Hz</th><th class="n">Satellite-minutes</th><th class="n">58503A</th><th class="n">Z3805A</th></tr></thead>
+        <tbody id="cn-rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="elev">
+    <h2 id="elev">By elevation</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Elevation</th><th class="n">Satellite-minutes</th><th class="n">58503A</th><th class="n">Z3805A</th></tr></thead>
+        <tbody id="el-rows"></tbody>
+      </table>
+    </div>
+    <p>From the 10° mask up. Between 10° and 15° the 58503A holds 12% and the Z3805A none. Elevation tracks signal strength, so this table mostly repeats the one above. The Z3805A's better showing high in the sky is because those satellites are the strongest, not because of the angle itself.</p>
+  </section>
+
+  <section aria-labelledby="reading">
+    <h2 id="reading">Reading it</h2>
+    <ul>
+      <li>The 58503A holds nearly every satellite from 39 dB-Hz up, 88% at 36 to 39, and half at 30 to 33.</li>
+      <li>The Z3805A holds nothing below 39 dB-Hz, 37% at 39 to 42, and 92% from 42 to 45. Its threshold sits at least 7 dB above the 58503A's.</li>
+      <li>It does that with 20 dB of low-noise gain ahead of it that the others lack. That stage masks the Z3805A's own noise figure and any loss ahead of its front end, so the C/N reaching its engine is at least what the u-blox reports, likely more. The 7 dB is a lower bound on its shortfall.</li>
+      <li>The amplifier's own effect has not been isolated. On 2026-09-23, before it was added, the Z3805A was already weak: 1 to 2 satellites on average in its locked hours, six only briefly, with the same average signal reading, 27.6, that it shows now. Its later recovery to 2 to 4 satellites came after a <span class="mono">master_reset</span>, a power cycle and the amplifier together.</li>
+      <li>A separate 12-hour run on 2026-09-30, Z3805A against the u-blox alone, gave the same picture: 2.7 satellites a minute against 9.0.</li>
+    </ul>
+    <p class="note">These are inferences from the counts, not measurements of the Z3805A's RF path. Moving its engine into the 58503A, or the 58503A's into it, would show whether the loss is in the engine or in the unit around it. The B1 engine's lack of the B4's enhanced filtering leaves out-of-band overload as a possibility that an L1 band-pass filter would test.</p>
+  </section>
+
+  <section aria-labelledby="method">
+    <h2 id="method">Method</h2>
+    <ul>
+      <li>Every 60 s, each SmartClock's status screen was read through smartclock-web, the same read its status page makes, and paired with the newest SKY report from gpsd on apu-0 (under a second old).</li>
+      <li>Both SmartClocks were logged over the same hours. A satellite counts as held when the SmartClock lists it as tracked in that minute's screen.</li>
+      <li>Only GPS satellites the u-blox marked as used are counted, so every satellite in the tables was one a healthy receiver could use.</li>
+      <li>Satellites below 10° are left out of every count, the u-blox's included. Both SmartClocks' elevation masks read 10° (<span class="mono">:GPS:SATellite:TRACking:EMANgle?</span>), so they are told to ignore anything lower.</li>
+    </ul>
+  </section>
+
+  <footer>Data from smartclockd and gpsd on the bench, 2026-09-30 and 2026-10-02. Generated with smartclockmon.</footer>
+</main>
+
+<script>
+const CN = [
+  ["< 30", 2230, 7, 0], ["30–33", 822, 50, 0], ["33–36", 922, 78, 0], ["36–39", 1737, 88, 0],
+  ["39–42", 3746, 98, 37], ["42–45", 2816, 100, 92], ["≥ 45", 152, 100, 95],
+];
+const EL = [
+  ["10–15°", 1201, 12, 0], ["15–30°", 3526, 49, 2], ["30–45°", 2883, 95, 28],
+  ["45–60°", 2368, 100, 66], ["60–75°", 1920, 100, 63], ["≥ 75°", 527, 100, 83],
+];
+const cell = (v) => `<td class="n${v === 0 ? " zero" : ""}">${v}%</td>`;
+const rows = (data) => data.map(([b, n, a, z]) => `<tr><td>${b}</td><td class="n">${n}</td>${cell(a)}${cell(z)}</tr>`).join("");
+document.getElementById("cn-rows").innerHTML = rows(CN);
+document.getElementById("el-rows").innerHTML = rows(EL);
+
+// Grouped bars: one pair per C/N band, drawn to a 0–100% scale.
+(function chart() {
+  const svg = document.getElementById("chart");
+  const W = 640, H = 300, L = 44, R = 12, T = 12, B = 40;
+  const pw = W - L - R, ph = H - T - B;
+  const y = (p) => T + ph - (p / 100) * ph;
+  const ns = "http://www.w3.org/2000/svg";
+  const add = (tag, attrs, text) => {
+    const el = document.createElementNS(ns, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    if (text != null) el.textContent = text;
+    svg.appendChild(el);
+    return el;
+  };
+  for (const p of [0, 25, 50, 75, 100]) {
+    add("line", { x1: L, x2: W - R, y1: y(p), y2: y(p), stroke: "var(--rule)", "stroke-width": 1 });
+    add("text", { x: L - 8, y: y(p) + 4, "text-anchor": "end" }, `${p}%`);
+  }
+  const slot = pw / CN.length, bw = Math.min(26, slot * 0.32);
+  CN.forEach(([band, , a, z], i) => {
+    const cx = L + slot * i + slot / 2;
+    add("rect", { x: cx - bw - 2, y: y(a), width: bw, height: y(0) - y(a), fill: "var(--hp58503)", rx: 2 });
+    add("rect", { x: cx + 2, y: y(z), width: bw, height: Math.max(0, y(0) - y(z)), fill: "var(--z3805)", rx: 2 });
+    if (z === 0) add("line", { x1: cx + 2, x2: cx + 2 + bw, y1: y(0) - 1, y2: y(0) - 1, stroke: "var(--z3805)", "stroke-width": 2 });
+    add("text", { x: cx, y: H - B + 18, "text-anchor": "middle" }, band);
+  });
+  add("text", { x: L + pw / 2, y: H - 6, "text-anchor": "middle" }, "u-blox C/N, dB-Hz");
+})();
+</script>
+</body>
+</html>
