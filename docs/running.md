@@ -212,7 +212,9 @@ either side of it; current facts head
 `diagnose` and sit under the web view's history.
 A fact keeps its history, so a replaced part's old value stays, and
 each one also leaves a note.  Rows are not edited through the daemon;
-fix a mistake with `sqlite3` on the log.
+fix a mistake with `sqlite3` on the log.  A daemon busy reading the
+receiver's log answers "queued": the note is written shortly, so do
+not send it again.
 
 ## More than one receiver
 

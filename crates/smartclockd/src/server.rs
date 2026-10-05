@@ -38,6 +38,7 @@ use smartclock::task::Cadence;
 use smartclock::task::Handle;
 
 use crate::inbox::Fact;
+use crate::inbox::Filed;
 use crate::inbox::LogInbox;
 use crate::inbox::Note;
 use smartclock::protocol::Message;
@@ -489,11 +490,12 @@ fn handle_request(request: Request, handle: &Handle, info: &Info) -> Message {
 }
 
 /// Write something for the attached receiver through the log thread,
-/// answering with the unit it was filed under.
+/// answering with the unit it was filed under and whether it is written
+/// yet or only queued.
 fn written(
     id: String,
     info: &Info,
-    write: impl FnOnce(String) -> std::result::Result<(), String>,
+    write: impl FnOnce(String) -> std::result::Result<Filed, String>,
 ) -> Message {
     if info.identity.is_empty() {
         return Message::err(
@@ -502,7 +504,13 @@ fn written(
         );
     }
     match write(info.identity.clone()) {
-        Ok(()) => Message::ok(id, serde_json::json!({ "receiver": info.identity })),
+        Ok(filed) => Message::ok(
+            id,
+            serde_json::json!({
+                "receiver": info.identity,
+                "written": filed == Filed::Written,
+            }),
+        ),
         Err(why) => Message::err(id, why),
     }
 }
@@ -1464,7 +1472,10 @@ mod note_tests {
             },
         );
         match reply {
-            Message::Reply { ok: Some(ok), .. } => assert_eq!(ok["receiver"], UNIT),
+            Message::Reply { ok: Some(ok), .. } => {
+                assert_eq!(ok["receiver"], UNIT);
+                assert_eq!(ok["written"], true);
+            }
             other => panic!("{other:?}"),
         }
     }

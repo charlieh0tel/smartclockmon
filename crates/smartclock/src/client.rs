@@ -257,9 +257,9 @@ impl Daemon {
             .unwrap_or_default())
     }
 
-    /// Write a note to the attached receiver's log, returning the unit
-    /// it was filed under.  Nothing is sent to the receiver.
-    pub fn note(&mut self, text: &str, at: Option<Timestamp>) -> Result<String> {
+    /// Write a note to the attached receiver's log.  Nothing is sent to
+    /// the receiver.
+    pub fn note(&mut self, text: &str, at: Option<Timestamp>) -> Result<Filed> {
         let value = self.ask(Op::Note {
             text: text.to_owned(),
             at,
@@ -267,9 +267,9 @@ impl Daemon {
         filed_under(&value)
     }
 
-    /// Record a fact about the attached receiver, returning the unit it
-    /// was filed under.  Nothing is sent to the receiver.
-    pub fn fact(&mut self, key: &str, value: &str, since: Option<Timestamp>) -> Result<String> {
+    /// Record a fact about the attached receiver.  Nothing is sent to
+    /// the receiver.
+    pub fn fact(&mut self, key: &str, value: &str, since: Option<Timestamp>) -> Result<Filed> {
         let value = self.ask(Op::Fact {
             key: key.to_owned(),
             value: value.to_owned(),
@@ -279,13 +279,29 @@ impl Daemon {
     }
 }
 
-/// The receiver a note or fact was filed under, from the daemon's reply.
-fn filed_under(reply: &serde_json::Value) -> Result<String> {
-    reply
+/// Where a note or fact went.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Filed {
+    /// The `*IDN?` of the receiver it was filed under.
+    pub receiver: String,
+    /// Whether it is in the log yet; if not, it is queued behind the
+    /// daemon's own work and will be written shortly.
+    pub written: bool,
+}
+
+/// Where a note or fact went, from the daemon's reply.
+fn filed_under(reply: &serde_json::Value) -> Result<Filed> {
+    let receiver = reply
         .get("receiver")
         .and_then(serde_json::Value::as_str)
-        .map(str::to_owned)
-        .ok_or_else(|| Error::Daemon("its reply named no receiver".to_owned()))
+        .ok_or_else(|| Error::Daemon("its reply named no receiver".to_owned()))?;
+    Ok(Filed {
+        receiver: receiver.to_owned(),
+        written: reply
+            .get("written")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true),
+    })
 }
 
 /// Where the daemons on a host are.

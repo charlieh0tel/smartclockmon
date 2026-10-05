@@ -987,28 +987,50 @@ impl Recorder {
     fn serve(&mut self, request: LogRequest) {
         match request {
             LogRequest::Audit(entry) => self.audit(&entry),
+            // Logged here as well as answered, since a client told its
+            // write was queued is no longer waiting to hear.
             LogRequest::Note(note, written) => {
-                let _ = written.send(self.write_note(&note));
+                let outcome = self.write_note(&note);
+                if let Err(why) = &outcome {
+                    eprintln!("smartclockd: a note was not written: {why}");
+                }
+                let _ = written.send(outcome);
             }
             LogRequest::Fact(fact, written) => {
-                let _ = written.send(self.write_fact(&fact));
+                let outcome = self.write_fact(&fact);
+                if let Err(why) = &outcome {
+                    eprintln!("smartclockd: a fact was not written: {why}");
+                }
+                let _ = written.send(outcome);
             }
         }
     }
 
     /// Write a note under the receiver attached when it was sent.
     fn write_note(&mut self, note: &Note) -> Result<(), String> {
-        self.note(&note.receiver);
-        let log = self.log.as_mut().ok_or("no log is open")?;
+        let log = self.log_for(&note.receiver)?;
         log.note(note.at, &note.text).map_err(|e| format!("{e:#}"))
     }
 
     /// Write a fact under the receiver attached when it was sent.
     fn write_fact(&mut self, fact: &Fact) -> Result<(), String> {
-        self.note(&fact.receiver);
-        let log = self.log.as_mut().ok_or("no log is open")?;
+        let log = self.log_for(&fact.receiver)?;
         log.fact(fact.since, &fact.key, &fact.value)
             .map_err(|e| format!("{e:#}"))
+    }
+
+    /// The log with `receiver` noted as its current unit, or why there
+    /// is none: a row written without a receiver is shown nowhere.
+    fn log_for(&mut self, receiver: &str) -> Result<&mut db::Log, String> {
+        self.note(receiver);
+        if self.noted.as_deref() != Some(receiver) {
+            return Err(format!("{receiver} could not be recorded in the log"));
+        }
+        let log = self.log.as_mut().ok_or("no log is open")?;
+        if log.current_receiver().is_none() {
+            return Err(format!("{receiver} could not be recorded in the log"));
+        }
+        Ok(log)
     }
 
     /// Write one audited command, under the receiver it was sent to

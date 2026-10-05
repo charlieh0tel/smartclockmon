@@ -56,8 +56,9 @@ pub enum Op {
     /// Report what the daemon is attached to.
     Info,
     /// Write a note to the attached receiver's log.  Nothing is sent to
-    /// the receiver.  Answers `{"receiver": ...}`, the unit it was
-    /// filed under.
+    /// the receiver.  Answers `{"receiver": ..., "written": ...}`: the
+    /// unit it was filed under, and whether it is in the log yet or
+    /// queued behind the daemon's own work, to be written shortly.
     Note {
         /// What it says.
         text: String,

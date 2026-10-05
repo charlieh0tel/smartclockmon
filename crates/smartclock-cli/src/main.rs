@@ -23,6 +23,7 @@ use jiff::Zoned;
 use signal_hook::consts::SIGINT;
 use smartclock::attach::answering;
 use smartclock::client::Daemon;
+use smartclock::client::Filed;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
 use smartclock::console;
@@ -917,13 +918,11 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
         }
         Command::Diagnose => diagnose_daemon(&mut daemon),
         Command::Note { text, at } => {
-            let receiver = daemon.note(&text.join(" "), *at)?;
-            println!("noted for {receiver}");
+            filed("noted", &daemon.note(&text.join(" "), *at)?);
             Ok(())
         }
         Command::Fact { key, value, since } => {
-            let receiver = daemon.fact(key, &value.join(" "), *since)?;
-            println!("recorded for {receiver}");
+            filed("recorded", &daemon.fact(key, &value.join(" "), *since)?);
             Ok(())
         }
         Command::Commands => {
@@ -944,6 +943,18 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
                  stop smartclockd for that port and use --device"
             )
         }
+    }
+}
+
+/// Say where a note or fact went.
+fn filed(done: &str, went: &Filed) {
+    if went.written {
+        println!("{done} for {}", went.receiver);
+    } else {
+        println!(
+            "queued for {}; the daemon is busy and writes it shortly",
+            went.receiver
+        );
     }
 }
 

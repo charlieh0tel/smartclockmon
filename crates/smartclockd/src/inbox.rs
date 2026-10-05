@@ -5,6 +5,7 @@
 //! log has one writer, the thread that owns it, and a client thread
 //! blocking on a database write would hold up its own reply.
 
+use std::sync::mpsc::RecvTimeoutError;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::channel;
 use std::time::Duration;
@@ -29,10 +30,9 @@ pub(crate) struct Entry {
     pub(crate) outcome: String,
 }
 
-/// What another thread asks the log thread, the log's one writer, to do.
 /// How long a client's note or fact waits for the log thread to say it
 /// was written.  Short of the client's own deadline, so the client
-/// hears why rather than timing out.
+/// hears an answer rather than timing out.
 const WRITTEN_WITHIN: Duration = Duration::from_secs(15);
 
 /// Free text for the log, as a client sent it.
@@ -61,6 +61,18 @@ pub(crate) struct Fact {
 
 /// Whether a write happened, and if not, why.
 type Written = Sender<Result<(), String>>;
+
+/// What became of a note or fact the log thread accepted.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Filed {
+    /// It is in the log.
+    Written,
+    /// The log thread was busy past [`WRITTEN_WITHIN`], in a journal
+    /// pass; it will be written, and a failure then is logged.  Said
+    /// rather than reported as a failure, since a client retrying a
+    /// write that was going to happen anyway would write it twice.
+    Queued,
+}
 
 /// What another thread asks the log thread, the log's one writer, to do.
 #[derive(Debug)]
@@ -98,26 +110,28 @@ impl LogInbox {
         }));
     }
 
-    /// Write a note, waiting until the log thread says it is written.
-    pub(crate) fn note(&self, note: Note) -> Result<(), String> {
+    /// Write a note, waiting up to [`WRITTEN_WITHIN`] to hear it was.
+    pub(crate) fn note(&self, note: Note) -> Result<Filed, String> {
         self.write(|written| LogRequest::Note(note, written))
     }
 
-    /// Write a fact, waiting until the log thread says it is written.
-    pub(crate) fn fact(&self, fact: Fact) -> Result<(), String> {
+    /// Write a fact, waiting up to [`WRITTEN_WITHIN`] to hear it was.
+    pub(crate) fn fact(&self, fact: Fact) -> Result<Filed, String> {
         self.write(|written| LogRequest::Fact(fact, written))
     }
 
-    fn write(&self, request: impl FnOnce(Written) -> LogRequest) -> Result<(), String> {
+    fn write(&self, request: impl FnOnce(Written) -> LogRequest) -> Result<Filed, String> {
         let (written, outcome) = channel();
         self.requests
             .send(request(written))
             .map_err(|_| "the log thread has stopped".to_owned())?;
-        outcome.recv_timeout(WRITTEN_WITHIN).unwrap_or_else(|_| {
-            Err(format!(
-                "the log thread did not confirm the write within {WRITTEN_WITHIN:?}; \
-                 it may still be written"
-            ))
-        })
+        match outcome.recv_timeout(WRITTEN_WITHIN) {
+            Ok(Ok(())) => Ok(Filed::Written),
+            Ok(Err(why)) => Err(why),
+            Err(RecvTimeoutError::Timeout) => Ok(Filed::Queued),
+            Err(RecvTimeoutError::Disconnected) => {
+                Err("the log thread stopped before writing it".to_owned())
+            }
+        }
     }
 }
