@@ -339,8 +339,9 @@ fn main() -> Result<()> {
     };
     // Long enough for the status screen at the rate found.
     let config = config.at_rate(settings.baud);
-    // Created before the port is opened, so an existing file stops the
-    // run before anything is sent.
+    // Created before the port is opened for the run, so an existing
+    // file stops it before the run sends anything.  The line-settings
+    // probe above has already spoken to the receiver, unrecorded.
     let capture = cli.capture.as_deref().map(transcript).transpose()?;
     let port = transport::open(&settings)
         .with_context(|| format!("opening {device} at {} baud", settings.baud))?;

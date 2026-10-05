@@ -734,11 +734,6 @@ impl<T: Transport> DeviceTask<T> {
         }
     }
 
-    /// Clear the line if the last exchange left the receiver talking.
-    ///
-    /// Anything that reads a reply has to do this first, a poll and a
-    /// served command alike, or it reads the previous exchange's late
-    /// answer as its own.
     /// After any failed exchange -- a poll, a command, a screen.  A
     /// failure that may have left the receiver's reply still travelling
     /// -- the link failing, a timeout, an error prompt nothing in the
@@ -753,6 +748,11 @@ impl<T: Transport> DeviceTask<T> {
         }
     }
 
+    /// Clear the line if the last exchange left the receiver talking.
+    ///
+    /// Anything that reads a reply has to do this first, a poll and a
+    /// served command alike, or it reads the previous exchange's late
+    /// answer as its own.
     fn ensure_synced(&mut self) -> Option<Stopped> {
         if !self.resync {
             return None;

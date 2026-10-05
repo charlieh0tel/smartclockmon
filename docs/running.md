@@ -66,7 +66,7 @@ Then install the new package and restart each instance.  The readers,
 
 It reads and, with one opt-in exception, changes nothing, apart from
 the garbled bytes a probe at the wrong line settings sends.  Note
-three things:
+these:
 
 It drains the receiver's error queue into the journal.  Reading an
 entry removes it, but the queue holds thirty and discards the newest
@@ -78,6 +78,11 @@ errors, and logs to the journal how many entries it read.
 
 It copies the receiver's diagnostic log out, entry by entry, and
 optionally clears it; see `SMARTCLOCKD_ADOPT_LOG` below.
+
+It reads the status screen every `SMARTCLOCKD_SKY` seconds, 300 by
+default, for the satellite table only the screen carries.  A read holds
+the link about 1.5 s, leaving a gap in the once-a-second readings; 0
+reads it only when a client asks.
 
 It does not read the event registers, so it leaves the front-panel
 Alarm LED and the BITE output alone, and reads one for a client only

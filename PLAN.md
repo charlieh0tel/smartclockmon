@@ -72,8 +72,8 @@ simulated.  Cross-revision flashing is untested on hardware; record
 settings before and after the first upgrade.
 
 After writing, the flasher reads the whole flash back through the debug
-console, compares it with the image, and returns to SCPI through the
-installer.  `read-memory` and `flash` share one reader and one way back
+console, compares it with the image, and returns to SCPI with the
+console's `halt`, or failing that through the installer.  `read-memory` and `flash` share one reader and one way back
 in `smartclock::console`.
 
 ### No client-side SCPI crate
@@ -461,7 +461,7 @@ read.
 | ----- | ----------------------------------------------------------- |
 | ~1 s  | `:SYNC:TINT?`, `:SYNC:TFOM?`, `:SYNC:FFOM?`, `:DIAG:ROSC:EFC:REL?`, `:STAT:OPER:HARD:COND?`, `:SYNC:STATE?`, `:PTIM:TIME?` |
 | ~10 s | satellite counts, oven temperature and current, the EFC DAC, `*STB?` and the operation and holdover condition registers, holdover duration and uncertainty |
-| ~60 s | position, date, diagnostic log count, learned oscillator tempco, the powerup condition register |
+| ~60 s | position, date, diagnostic log count, the oscillator-current constant (`TCOefficient`), the powerup condition register |
 |       | `:SYST:STAT?` (satellite table, health line) is on no tier; it is read on request by the status view. |
 |       | The receiver's UTC is on the fast tier, not with the date: a clock read once a minute is wrong for the other fifty-nine seconds. |
 | ~10 s | the error queue and any new diagnostic log entries, off the schedule; see "The receiver's own records" |
@@ -920,7 +920,7 @@ GPS or antenna fault.
 
 Phases 0 to 12 are done.  Suggest a commit at each phase boundary.
 
-### Next: notes and receiver facts
+### Notes and receiver facts
 
 Bench events and a unit's internals are invisible to the receiver and
 live only in `docs/hardware-investigations.md`, where they cannot be

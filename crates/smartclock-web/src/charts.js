@@ -143,12 +143,7 @@ function plotHeight(count) {
 // One tick label, at the precision its step implies.  Fixed places
 // rather than toLocaleString's default, or a step of 0.05 renders as
 // 35.9 and 36 and the axis looks unevenly spaced when it is not.
-//
-// Not `tick`: that name was already taken by the status-strip poller
-// above, and a second declaration of it silently replaced the first --
-// so boot called this with no arguments, threw on undefined, and left
-// the strip reading "connecting..." for ever while the charts drew
-// fine.
+// Not named `tick`, which common.js uses for the status strip's poller.
 function tickLabel(v, places) {
   return v.toLocaleString(undefined, {
     minimumFractionDigits: places,

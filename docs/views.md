@@ -5,9 +5,10 @@ What the monitor, the browser pages and the exporter show, and why.
 
 ## The monitor
 
-In the monitor, `g` cycles the views, `l` jumps to the journal, `w`
-cycles the graph span, `c` opens a command line, `q` quits, and Ctrl-C
-quits from anywhere, the command line included.  The journal is what
+In the monitor, `g` or Tab cycles the views, `l` jumps to the journal,
+`w` cycles the graph span, `r` the receiver when the log holds more
+than one, `c` or `:` opens a command line, `q` quits, and Ctrl-C quits
+from anywhere, the command line included.  The journal is what
 the receiver has recorded about itself -- its diagnostic log, its
 error queue and its alarm changes -- and the notes written about it
 (`docs/running.md`, "Notes and facts"); the browser view shows it too.
@@ -29,10 +30,11 @@ against the host clock.
 The status view, in the monitor and at `/status` in the browser,
 shows the receiver's `:SYSTem:STATus?` screen as sent, beside the
 satellites scraped from it, which the browser draws as a sky plot.
-The screen is read, through the socket op `status`, only while the
-view is open: it costs about 1.5 s of a 19200 link, four times a whole
-one-second poll, and no tier polls it.  The satellite counts are
-queried directly, on the one-second tier with everything else.
+The screen is read, through the socket op `status`, while the view is
+open, and by the daemon every `--sky` seconds (300 by default) to keep
+the satellite table in the log: a read costs about 1.5 s of a 19200
+link, four times a whole one-second poll, and no tier polls it.  The
+satellite counts are queried directly, on the medium tier.
 
 The monitor's dashboard shows what only the screen says -- the hold
 threshold, the time and its scale, the 1 PPS status, the survey, the

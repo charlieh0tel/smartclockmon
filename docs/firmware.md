@@ -1084,9 +1084,9 @@ procedure:
    `read-flash` and `read-eeprom` are `read-memory` with those two
    ranges fixed.
 
-3. Start the daemon again.  With `--stay-in-console`, or if neither
-   way out worked, first leave the console with `halt` by hand or
-   power cycle the unit.
+3. Start the daemon again.  With `--stay-in-console`, first leave the
+   console with `halt` by hand; if neither way out worked, power cycle
+   the unit.
 
 On 2026-09-28 the bench Z3801A (3542A01548, 3543-A) read 4 bytes this
 way and came back to SCPI on 3543-A, in PRIMARY, with an empty error
