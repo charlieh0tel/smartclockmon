@@ -14,18 +14,12 @@ use std::sync::Mutex;
 
 use smartclock::transport::Transport;
 
+use crate::receiver::PROMPT;
 use crate::receiver::Receiver;
 
 /// Longest command the simulator will accumulate before giving up on
 /// it.  Generous next to any real command.
 const MAX_PARTIAL: usize = 4096;
-
-/// The prompt, spaced as the receiver spaces it.
-///
-/// Note the space before the angle bracket.  The manuals print
-/// `scpi>`; the wire carries `scpi > `, and getting that wrong is what
-/// stopped the first attempt at talking to a real one.
-const PROMPT: &str = "scpi > ";
 
 /// A simulated receiver on the other end of a transport.
 #[derive(Debug, Clone)]
@@ -35,8 +29,6 @@ pub struct SimTransport {
     pending: Arc<Mutex<VecDeque<u8>>>,
     /// The command being typed, up to its terminator.
     partial: Arc<Mutex<String>>,
-    /// Whether the last command was refused, which changes the prompt.
-    failed: Arc<Mutex<Option<i32>>>,
 }
 
 impl Default for SimTransport {
@@ -52,7 +44,6 @@ impl SimTransport {
             receiver: Arc::new(Mutex::new(receiver)),
             pending: Arc::new(Mutex::new(VecDeque::new())),
             partial: Arc::new(Mutex::new(String::new())),
-            failed: Arc::new(Mutex::new(None)),
         };
         // A real receiver is already sitting at a prompt when something
         // connects to it.
@@ -83,15 +74,12 @@ impl SimTransport {
             self.emit(line);
             self.emit("\r\n");
         }
-        if answer.accepted {
-            *self.failed.lock().expect("failed mutex") = None;
-            self.emit(PROMPT);
-        } else {
-            // The receiver reports the code in the prompt and keeps the
-            // detail in its error queue until someone reads it.
-            *self.failed.lock().expect("failed mutex") = Some(-113);
-            self.emit("E-113 > ");
-        }
+        let prompt = self
+            .receiver
+            .lock()
+            .expect("receiver mutex")
+            .prompt(answer.accepted);
+        self.emit(&prompt);
     }
 }
 
@@ -119,7 +107,9 @@ impl Write for SimTransport {
         // discards the line rather than the simulator's memory.
         if partial.len() + buf.len() > MAX_PARTIAL {
             partial.clear();
-            self.emit("\r\nE-363 > ");
+            let prompt = self.receiver.lock().expect("receiver mutex").overrun();
+            self.emit("\r\n");
+            self.emit(&prompt);
             return Ok(buf.len());
         }
         partial.push_str(&String::from_utf8_lossy(buf));

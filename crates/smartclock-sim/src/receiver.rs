@@ -34,6 +34,13 @@ impl Answer {
     }
 }
 
+/// The prompt, spaced as the receiver spaces it.
+///
+/// Note the space before the angle bracket.  The manuals print
+/// `scpi>`; the wire carries `scpi > `, and getting that wrong is what
+/// stopped the first attempt at talking to a real one.
+pub(crate) const PROMPT: &str = "scpi > ";
+
 /// How many errors the queue holds: thirty, 097-59551-02 5-31.  Public
 /// so a test can state the bound it expects rather than repeating the
 /// number.
@@ -429,6 +436,23 @@ impl Receiver {
     /// collects the rest.
     pub fn queue_error(&mut self, code: i32, message: &str) {
         self.errors.push_back((code, message.to_owned()));
+    }
+
+    /// The prompt that ends an exchange.  The receiver reports the code
+    /// in the prompt and keeps the detail in its error queue until
+    /// someone reads it.
+    pub(crate) fn prompt(&self, accepted: bool) -> String {
+        if accepted {
+            PROMPT.to_owned()
+        } else {
+            "E-113 > ".to_owned()
+        }
+    }
+
+    /// The prompt after a line too long for the input buffer, which is
+    /// discarded.
+    pub(crate) fn overrun(&mut self) -> String {
+        "E-363 > ".to_owned()
     }
 
     /// The operation condition register this receiver would report.
