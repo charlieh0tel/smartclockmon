@@ -128,9 +128,13 @@ fn run(
         }
 
         // Wait on the keyboard in short slices rather than on the
-        // snapshots: waiting on the channel left a key unanswered until
-        // the next snapshot or tick, up to half a second.
-        while event::poll(INPUT_POLL)? {
+        // snapshots, which would leave a key unanswered until the next
+        // snapshot or tick.  One wait per frame, then only what is
+        // already queued: a key held down repeats faster than the wait
+        // times out, and waiting again would never reach the drawing.
+        let mut waiting = INPUT_POLL;
+        while event::poll(waiting)? {
+            waiting = Duration::ZERO;
             if let Event::Key(key) = event::read()?
                 && key.kind == KeyEventKind::Press
             {
