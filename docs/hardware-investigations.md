@@ -308,3 +308,23 @@ read faults that preserve the installer while failing primary checks.
 *Changes:* a verified switch map and, if supported by the board, a
 recovery procedure for a primary whose checksums pass but which cannot
 accept `:SYSTem:LANGuage "INSTALL"`.
+
+## 14. Leaving the console with `halt`
+
+*Open item:* whether `halt` returns the port from the pForth console to
+SCPI as the images say, and what each visit costs (`firmware.md`,
+"Leaving it").
+
+- With the daemon stopped, at the unit's own line settings, capture a
+  transcript of: `*IDN?`, `:SYSTem:LANGuage?` and `:SYSTem:ERRor?`
+  until empty; `:SYSTem:LANGuage "PFORTH"`; `mem_rep`; `halt`; then
+  `*IDN?`, `:SYSTem:LANGuage?` (expect `"PRIMARY"`), `:SYSTem:ERRor?`
+  and a few ordinary queries.
+- Repeat once and compare the two `mem_rep` reports for the leak per
+  visit.  No more than two visits per unit between power cycles.
+- If the port stays silent or at the console prompt, leave it through
+  the installer as `read-memory` does, or power cycle.
+
+*Changes:* `read-memory` and its kin leave the console with `halt`
+first on every image, keeping the installer route as the fallback, and
+firmware with no known installer exit is no longer refused.

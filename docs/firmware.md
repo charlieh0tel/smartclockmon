@@ -1014,10 +1014,43 @@ an even ROM address) is a stock kernel
 plus pSOS wrappers -- `spawn`, `delete`, `suspend`, `resume`,
 `priority`, `send_x`, `request_x`, `signal_v`, `wait_v`, `dev_init`,
 `dev_open`, `dev_close`, `dev_read`, `dev_write`, `dev_ctrl`, `!iodev`
--- and the diagnostic words.  It has no `bye`, `quit` or `exit`, and
-no word that starts the SCPI task again; `FUN_00039732`, which creates
-that task (named `sci`, entry `0x39706`, task id `0x103d5a`), is not in
-the table.
+-- and the diagnostic words.  It has no `bye`, `quit` or `exit`;
+the way back to SCPI is `halt` (see "Leaving it").
+
+### Leaving it
+
+`halt` is the console's own exit, and it is the same in every image
+(read from the images, October 2026; not yet tried on a unit).  It
+reads a hook cell and jumps through it, or executes `trap #14` when
+the cell is zero.  The interpreter's setup clears the cell and the
+console's start sets it at once, so in practice the hook runs.  The
+hook raises the console task's priority to 26, has the deferred-call
+routine run the SCPI task's creator at priority 25 -- the same creator
+the root task uses at boot, which looks the task up by name and
+creates and starts it -- clears the console's task id and deletes the
+console task.  The new SCPI task, below the console's 26, cannot run
+until the console is gone.
+
+| Image | `halt` | Hook cell | Hook (set at) | Creator |
+| ----- | ------ | --------- | ------------- | ------- |
+| Z3801A 3543 | `0x18f94` | `0x1009fe` | `0x12f50` (`0x12fc0`) | `0x28e92` |
+| Z3805A 3543B | `0x1928c` | `0x1009fe` | `0x12f50` (`0x12fc0`) | `0x29fce` |
+| 58503A 3633 | `0x19282` | `0x100bda` | `0x52584` (`0x1306a`) | `0x29450` |
+| 58503A 3704 | `0x193f0` | `0x100bde` | `0x13124` (`0x13194`) | `0x294f8` |
+| Z3816A 4001 | `0x29468` | `0x100c4e` | `0x2305a` (`0x230d0`) | `0x39732` |
+
+So `halt` returns the port to SCPI without restarting the processor,
+without the installer, without an EEPROM write and without the
+checksums the installer route costs, and needs no address.  Two things
+it does not do.  The console's 4 KB dictionary, allocated with pSOS
+call 8 (Z3801A `0x1aa40`), is never returned -- the only callers of
+call 9 are the SCPI task's own parser buffer and the C library's
+`free` -- so each visit to the console probably leaks 4 KB of the
+region the task stacks share.  And the console does not close device
+0 before deleting itself, where the SCPI task frees its buffer and
+closes its stream before handing over (`0x28fac` to `0x28fbc`).  How
+many visits a unit survives, and whether the second open of the port
+matters, are for the bench; `mem_rep` reports free memory.
 
 ### Reading memory through it
 
@@ -1355,9 +1388,11 @@ table.
   `curr= %d efc= %.1f, sec remaining= %d` and `tempco = %f` and
   storing nothing (`0x1bf0c`) -- `doven`, `dmes_curv`, `pll_debug`,
   `pr_pll`, `pll_restart`, `phase_off`, `eman` and `master_reset`; the
-  interpreter's banner `pForth $Revision` is at `0x18dbe`.  There is
-  no `PON` keyword, which agrees with owners' reports that
-  `:SYSTem:PON` came with later firmware.
+  interpreter's banner `pForth $Revision` is at `0x18dbe`.  It has
+  `:SYSTem:PON` (keyword `0x561df`, handler `0x3038e`, action
+  `0x45da2`, which zeroes `0x100000` to `0x100bc7` and executes `trap
+  #12`), as 3704 does (handler `0x3061a`, action `0x45e94`); only the
+  Z3801A and Z3805A images lack it.
 
 So revision 3633 applies its coefficient the way the Z3816A does, to
 the smoothed oscillator current, and reports the DAC word with the
@@ -1404,9 +1439,38 @@ The image has one way to restart the processor from software: `trap
 the GPT and QSM interrupt sources at `0xfff920` and `0xfffc1a` to
 `0xfffc1f`, clears SCCR1 so the SCI stops, and calls `FUN_0002dc72` --
 then executes the `RESET` instruction, reloads the VBR, and jumps
-through the ROM reset vector to the reset code at `0x2466e`.  RSR then
-shows SYS and nothing else, which is the reset-status value
-`FUN_00022c7c` asks for (see "τ and G").
+through the primary's own reset vector (`0x20004`) to its reset code
+at `0x2466e` -- not through the boot ROM's at address 4, so the boot
+code at `0x550`, and the flash checksums it runs, are skipped.  RSR
+then shows SYS and nothing else.
+
+Every primary's `trap #12` handler has that shape; the shutdown
+routine also stops the PIT (PICR to `0x0042`) and disables both DUART
+channels.  `trap #11` masks and shuts down the same way and then jumps
+through the boot ROM's vector 43:
+
+| Image | `trap #11` | `trap #12` | Shutdown | Primary reset code |
+| ----- | ---------- | ---------- | -------- | ------------------ |
+| Z3801A 3543 | `0x1467c` | `0x1468c` | `0x120aa` | `0x141d2` |
+| Z3805A 3543B | `0x14974` | `0x14984` | `0x120aa` | `0x144ca` |
+| 58503A 3633 | `0x14856` | `0x14866` | `0x12166` | `0x143bc` |
+| 58503A 3704 | `0x149ce` | `0x149de` | `0x121f0` | `0x14534` |
+| Z3816A 4001 | `0x24b18` | `0x24b28` | `0x22172` | `0x2466e` |
+
+The reset code clears RAM above a preserved region at `0x100000` and
+restores it -- the τ block, the loop block, the health records -- only
+when four things hold: the region's checksum is good, RSR shows
+neither an external nor a power-up reset (`RSR & 0xc0` is zero; a
+software, halt-monitor or loss-of-clock reset passes), the flag word at
+`0x100002` is 1, and, on the 58503A and Z3816A, a settings byte is
+clear (3633 `0x102270`, 3704 `0x102276`, Z3816A `0x10262c`).  With the
+checksum good and the flag 0 a second branch loads the ROM defaults;
+on the 58503A and Z3816A that branch also wants RSR to be exactly SYS,
+which `RESET` gives.  Anything else is a cold start, which also pulses
+PE6.  The checksum is an 8-bit sum stored as sum and complement, so a
+zeroed region fails it.  So `:SYSTem:PRESet`, which clears the flag,
+restarts into the defaults, and `:SYSTem:PON`, which zeroes the region,
+restarts cold.  No console word reaches `trap #12`.
 
 Two actions reach it, and the SCPI handlers that name them, through
 descriptor lists at `0x44c9a` to `0x44cb2` of six-byte entries (a word
@@ -1419,10 +1483,11 @@ and a function), are:
 
 The `:GPS:POSition` handler `FUN_0003c268` passes the list starting at
 `0x44c9a`, six bytes before `:SYSTem:PON`'s; what the parser does with
-a list and where it stops were not traced.  `PON` is a keyword only
-the Z3816A image has (`0x5a280`); the Z3801A's image has the same
-`:SYSTem:PRESet` action, `FUN_00045cca` (`0x2f66a` passes its list at
-`0x41392`), and no `PON`.  Owners report that `:SYSTem:PON` is accepted
+a list and where it stops were not traced.  `PON` is a keyword of the
+Z3816A image (`0x5a280`) and both 58503A images (see "The 58503A
+image"); the Z3801A's image has the same `:SYSTem:PRESet` action,
+`FUN_00045cca` (`0x2f66a` passes its list at `0x41392`), and no
+`PON`, nor has the Z3805A's.  Owners report that `:SYSTem:PON` is accepted
 by newer firmware and refused by older, which matches: on 2026-09-27
 the bench Z3801A (3543) and Z3805A (3543B) both refused it.
 
@@ -1464,6 +1529,44 @@ The monitoring and generic query paths never send `:SYSTem:PRESet`,
 
 `smartclock-cli flash` is the exception for entering the installer and
 programming flash; it is never called through the daemon.
+
+### The watchdog
+
+The software watchdog is on (SYPCR `0xcc`) and is serviced in one
+place after start-up: a routine of the `hmon` task, priority 200, the
+highest of the application's tasks (Z3801A `0x2323e`, Z3805A
+`0x2437a`, 3633 `0x2345a`, 3704 `0x2369e`, Z3816A `0x338a4`).  The PIT,
+1024 ticks a second, signals `hmon` every ten ticks, and every 112 of
+those, about 1.1 s, the routine checks heartbeat bytes the clock, GPS,
+loop, monitor and spool tasks set (Z3801A block `0x1009b0`).  All
+healthy, it resets a countdown to 8; otherwise it prints `watchdog:`
+and counts down, and it writes SWSR only while the count is above
+zero.  So the kicks stop about nine seconds after a task stops
+reporting, and the hardware resets the unit some seconds later (the
+timeout itself is from SYPCR's prescaler, not established here).  That
+reset goes through the boot code and its checksums, and with the
+region good and the flag set it is a warm start, which writes the
+pending exception, fatal message or `Watchdog timeout: clk ... gps ...
+mon ... pll ... spl ...` to the EEPROM log at `0x4001c0` (`0x23afc`);
+a `:SYSTem:PRESet` or `PON` restart clears those records unlogged.
+
+An exception no handler takes prints `<task>: <name>: PC = ..., SR =
+...` and `RESET to recover.` and spins with interrupts masked, which
+starves `hmon` and so ends in the watchdog.  The console installs its
+own handler (`0x18b6a`), which prints the exception and returns to the
+prompt.
+
+The console word `crash n` is the same code in every image: 4 writes
+to unmapped `0x700000`, 5 writes a long to an odd address, 6 divides
+by zero -- all three answered by the console's handler -- and 8 calls
+the fatal routine (Z3801A `0x1ee7e`) with `Force crash from pforth`,
+which records it, prints `FATAL ERROR:` and `RESET to recover.` and
+spins at interrupt mask 4.  None is a way back to SCPI.
+`master_reset` sends the GPS engine `Cf` in every image (see
+"Resetting the GPS engine from the console"), and `clear_nv`
+invalidates both EEPROM settings records, the first step of
+`:SYSTem:PRESet`, without restarting; the next start-up reloads and
+rewrites the defaults.
 
 ### The installer
 
@@ -1786,6 +1889,19 @@ with 0 or 1 is what owners describe.
 
 `hardware-investigations.md` lists what a bench would settle of the
 following, and how.
+
+- Whether `halt` returns a unit to SCPI as the images say, how much
+  memory each visit to the console leaks, and whether the port's
+  second open matters.
+- What PE6 drives, pulsed only on a cold start; what the settings byte
+  that blocks the warm restore on the 58503A and Z3816A is; what bit 1
+  of `0xfff925` does on 3704.
+- What `crash 7` does, and whether a task spinning at mask 4 after
+  `crash 8` is preempted or ends in the watchdog.
+- The watchdog's timeout, and whether a watchdog warm start has been
+  seen on a unit.
+- Whether `:DIAGnostic:SYSTem:PSTartup`, which makes the root task
+  start the console instead of SCPI, is stored in the EEPROM.
 
 - What τ-block bytes +3, +7 and +8 mean, and what the rest of the ROM
   defaults, `0x400de` to `0x40173`, hold.
