@@ -94,6 +94,21 @@ test("a unit is shown only what it measures, and follows a switch", async ({ pag
   await expect(page.locator('#columns input[data-col="temperature_c"]')).toHaveCount(1);
 });
 
+test("a note is marked on the charts and named when the cursor is on it", async ({ page }) => {
+  await open(page, twoUnits(), "/", B);
+  await expect(page.locator("#journal-tabs")).toContainText("notes (1)");
+  await page.waitForFunction(() => charts.length > 0 && notes.length > 0);
+  const { x, y } = await page.evaluate(() => {
+    const chart = charts[0];
+    const box = chart.over.getBoundingClientRect();
+    return { x: box.left + chart.valToPos(notes[0][0], "x"), y: box.top + box.height / 2 };
+  });
+  await page.mouse.move(x, y);
+  await expect(page.locator("#readout")).toContainText(`note of ${B}`);
+  await page.mouse.move(x + 40, y);
+  await expect(page.locator("#readout")).not.toContainText("note of");
+});
+
 test("the range and the receiver go along to the next page", async ({ page }) => {
   const fake = twoUnits();
   await open(page, fake, "/", B);

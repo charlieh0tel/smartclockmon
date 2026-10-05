@@ -72,6 +72,13 @@ export class Fake {
         return body;
       case "adev":
         return { ...body, present: u.present };
+      case "journal": {
+        // One note, midway through the recorded history, naming whose
+        // it is.
+        const at = RECORDED.history.at;
+        const mid = at[Math.floor(at.length / 2)];
+        return { ...body, notes: [{ at: new Date(mid * 1000).toISOString(), text: `note of ${u.serial}` }] };
+      }
       default:
         return body;
     }
