@@ -1217,3 +1217,109 @@ careless operator on a single-operator machine, not an attacker.
   part of the daemon written to stay portable.  The daemon says so in
   the journal.  A client half-closing its sending side releases its
   slot and stops the push thread, and is tested.
+
+## Backlog
+
+What a review of the whole codebase in October 2026 (two reviewers,
+each finding checked against the code) found and has not yet been
+done, in the order agreed.  Done items are in the history, not here.
+Kept here so that any machine with the repo has the list.
+
+Decided and not to be done: renaming exporter metrics or changing their
+labels (`oven_tempco` stays; a stopped daemon's `up 0` carries only its
+instance label).
+
+**Command-line tool.**
+
+- Leaving the console: try the console word `halt` first -- it
+  recreates the SCPI task and deletes the console's, the same on every
+  image (docs/firmware.md) -- then check `*IDN?` and
+  `:SYSTem:LANGuage?`, and only then fall back to the per-image
+  installer exit.  Firmware with no known installer exit is then a
+  warning, not a refusal.  Waits on the bench test of `halt`
+  (`docs/hardware-investigations.md`, 14): whether it returns to SCPI,
+  and how much memory each console visit leaks.
+- `sweep` checks its file for forbidden commands and then reads it
+  again to send; read once and send what was checked.
+- `--capture` behaves three ways: the console reads ignore it, other
+  commands truncate an existing file, `flash` refuses one.  One helper,
+  refusing an existing file.
+- `probe --dialect` defaults to the 58503A's on any unit; default from
+  `*IDN?`.
+- `read-* --compare` exits 0 when bytes differ, and a comparison file
+  longer than the read is reported identical.  Check the length first
+  and fail on a difference.
+- `flash` has no Ctrl-C handling: stop at a record boundary, print the
+  recovery command, and still return to SCPI after an interrupted
+  readback.
+- A console read that times out is retried without finding the prompt
+  again, so a late reply can be taken for the next address's bytes.
+  Resynchronize, or give up, before retrying.
+
+**Daemon and library, receiver identity.**  A swap is noticed only when
+the link breaks (see "Known defects"), and three things go wrong around
+one even then:
+
+- After a reconnect the first poll starts from the previous unit's last
+  snapshot, so its fields can be logged as the new unit's until each
+  tier has read.  Start each attachment from an empty snapshot.
+- A command queued while one unit was attached can run against the
+  next, audited under the first; a journal pass can run across the
+  change.  Bind requests to an attachment and check it before sending.
+- A failed poll republishes the previous snapshot under the same `at`,
+  so the log holds the row twice and history weights it double.
+- Clients are not told of a new attachment: the monitor keeps the old
+  unit's screen, and in per-receiver mode keeps reading the old unit's
+  log.  Push the attachment to subscribers.
+- `receiver.last_seen` is updated only on attach; it should follow the
+  last row logged, which is what every reader takes it to mean.
+
+**Daemon, other.**
+
+- `query()` treats an `E-nnn>` prompt as this command's failure, but the
+  prompt shows the error queue (097-59551-02 pp. 3-6, A-6): a valid
+  reply is dropped while an older error is queued, and draining a queue
+  of two or more loses entries.  Confirm on the bench, and make the
+  simulator's prompt reflect its queue first.
+- A subscriber dropped for falling behind keeps its socket open, and no
+  write has a timeout, so a client that stops reading holds a slot and
+  two threads for good.  The library now sets socket timeouts with
+  `socket2` under `cfg(unix)`; the same would close the "client that
+  never speaks" defect above.
+- Starting a second daemon on a live socket unlinks it; probe with a
+  connect first.  The accept loop spins on EMFILE; back off.
+- A log that fails to open is retried, and reported, on every snapshot.
+- A journal pass ignores its time budget except in two steps.
+- A screen request has no deadline, and one discarded with the queue is
+  dropped without an answer.
+- One failure path per request kind; a plain refusal from the receiver
+  needlessly resynchronizes the link.
+- The medium tier aborts when `holdover_duration` is refused, where
+  every other field is left absent.
+- The fixed five-second prompt timeout is too short for the status
+  screen below 4800 baud.
+
+**Web view.**  Host and Origin checks are open question 5.  The query
+string is parsed by hand in two places; move it into `smartclock-http`.
+`smartclock-http` uses `anyhow`, which AGENTS.md forbids in a library.
+
+**Simulator.**  Its prompt is always `E-113`; it should carry the real
+queue state, and a Z3801A with no echo should exist so both framings
+are tested.  Its binary takes arguments by position.
+
+**Smaller.**
+
+- The `oven_tempco` HELP text repeats a claim `docs/efc.md` retracted;
+  reword it, keeping the name.
+- Comments that describe something else: `JOURNAL_EVERY` says passes
+  read the event registers; `adev::at_with` says holes are not
+  subtracted; doc comments sit on the wrong items in `smartclockd/db.rs`
+  and `smartclock-web`.
+- The audit `label` column is always NULL.
+- Allan deviation confidence references cover one noise type; add white
+  and flicker phase and random walk, and the boundary cases.
+- Refactors: the rollover and date wording is written three times;
+  status register newtypes by macro; `Screen` fields as the existing
+  newtypes; the normal quantile code computes only plus or minus one;
+  `adev` internals made private; the daemon's test databases through
+  one fixture; `Info::generation` counts connections, not generations.
