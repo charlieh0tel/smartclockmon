@@ -1112,10 +1112,13 @@ with an unusable primary").  Nothing is erased or programmed.  The procedure:
 
 On 2026-09-28 the bench Z3801A (3542A01548, 3543-A) read 4 bytes this
 way and came back to SCPI on 3543-A, in PRIMARY, with an empty error
-queue, without a power cycle.  Each return restarts the primary, and
-the restart writes the EEPROM: between two `read-eeprom` runs that
-day, each returning this way, one 44-byte record was added at
-`0x1140`, after the last one there.
+queue, without a power cycle.  On 2026-10-04, after `read-memory`
+changed to leave with `halt`, `read-eeprom` on the bench Z3805A and
+58503A each came back through `halt`, in PRIMARY with an empty error
+queue, and the installer fallback was not used.  The installer route
+restarts the primary, and the restart writes the EEPROM: on
+2026-09-28, between two `read-eeprom` runs that returned that way, one
+44-byte record was added at `0x1140`, after the last one there.
 
 On the bench Z3801A (3542A01548, 3543-A), on 2026-09-26, the ROM came
 back in 689 seconds and is byte-identical to `z3801a-3543.bin`:
