@@ -11,7 +11,7 @@ use smartclock::snapshot::Tier;
 /// what it does not understand.  The readers accept any: a viewer
 /// upgraded before the daemon restarts, or pointed at an archived log,
 /// shows what is there.
-pub const VERSION: i64 = 9;
+pub const VERSION: i64 = 10;
 
 /// The table of facts about the log itself, the schema version first.
 ///
@@ -218,7 +218,6 @@ pub const TABLES: &str = r#"
         scpi    TEXT NOT NULL,
         class   TEXT,
         outcome TEXT,
-        label   TEXT,
         receiver_id INTEGER REFERENCES receiver(id)
     );
     CREATE INDEX IF NOT EXISTS audit_at ON audit(at);

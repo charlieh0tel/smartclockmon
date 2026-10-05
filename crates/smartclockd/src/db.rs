@@ -423,12 +423,11 @@ impl Log {
         scpi: &str,
         class: &str,
         outcome: &str,
-        label: Option<&str>,
     ) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO audit (at, scpi, class, outcome, label, receiver_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![stored(at), scpi, class, outcome, label, self.current,],
+            "INSERT INTO audit (at, scpi, class, outcome, receiver_id)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![stored(at), scpi, class, outcome, self.current,],
         )?;
         Ok(())
     }

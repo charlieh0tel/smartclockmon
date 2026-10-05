@@ -916,7 +916,7 @@ impl Recorder {
         let Some(log) = self.log.as_mut() else {
             return;
         };
-        if let Err(e) = log.audit(entry.at, &entry.scpi, &entry.class, &entry.outcome, None) {
+        if let Err(e) = log.audit(entry.at, &entry.scpi, &entry.class, &entry.outcome) {
             eprintln!("smartclockd: could not record a command: {e}");
         }
     }

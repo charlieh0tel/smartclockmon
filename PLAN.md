@@ -1251,6 +1251,3 @@ instance label).
 
 **Web view.**  Host and Origin checks are open question 5.
 
-**Smaller.**
-
-- The audit `label` column is always NULL.
