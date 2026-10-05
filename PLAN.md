@@ -1247,9 +1247,6 @@ Decided and not to be done: renaming exporter metrics or changing their
 labels (`oven_tempco` stays; a stopped daemon's `up 0` carries only its
 instance label).
 
-**Daemon, other.**
-
-
 **Web view.**  Host and Origin checks are open question 5.  The query
 string is parsed by hand in two places; move it into `smartclock-http`.
 `smartclock-http` uses `anyhow`, which AGENTS.md forbids in a library.
@@ -1272,4 +1269,4 @@ are tested.  Its binary takes arguments by position.
   status register newtypes by macro; `Screen` fields as the existing
   newtypes; the normal quantile code computes only plus or minus one;
   `adev` internals made private; the daemon's test databases through
-  one fixture; `Info::generation` counts connections, not generations.
+  one fixture.
