@@ -1,0 +1,379 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SmartClock compare</title>
+
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.min.css"
+      integrity="sha384-IfV0B7MIOYuO95kO9G5ySKPz/85zqFNOAs8iy4tkK5zd9izhJAB8b7lHrwYqqmYE"
+      crossorigin="anonymous">
+
+<link rel="stylesheet" href="/style.css">
+
+<div class="panel" id="status"><span class="muted">connecting...</span></div>
+
+<nav class="panel nav">
+  <a href="/">Live</a>
+  <a href="/status">Status</a>
+  <a href="/adev">Stability</a>
+  <a href="/compare" aria-current="page">Compare</a>
+</nav>
+
+<div class="panel" id="unit-bar" hidden>
+  <div class="controls">
+    <label for="unit">Receiver</label>
+    <select id="unit"></select>
+    <span class="grow"></span>
+    <span id="unit-seen" class="muted"></span>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="controls">
+    <span id="compared"></span>
+    <span class="grow"></span>
+    <span id="ranges"></span>
+  </div>
+  <div id="charts"></div>
+  <div id="note-tip"></div>
+  <div id="note"></div>
+</div>
+
+<div class="panel">
+  <div class="controls">
+    <h2>Stability of the 1 PPS against GPS: MDEV solid, ADEV dashed</h2>
+  </div>
+  <div id="pane"><div id="chart-deviation"></div></div>
+</div>
+
+<footer id="colophon"></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.iife.min.js"
+        integrity="sha384-Gx3t0zdBAuQOuvvmaLZj7HKEiSgWTAs+VdtNY7wt19QDPTDQjFIwAuXDj0zeN00c"
+        crossorigin="anonymous"></script>
+<script src="/common.js"></script>
+<script src="/charts.js"></script>
+<script>
+"use strict";
+
+// Every receiver the logs hold, over one range: their history overlaid
+// a chart per column, and their stability curves on one plot.  Each
+// receiver's own 1 PPS interval is against its own GPS solution, so
+// the lines show each unit's error, not one unit against another.
+
+const haveUplot = typeof uPlot !== "undefined";
+const view = new URLSearchParams(location.search);
+readRange(86400);
+
+// What is overlaid, in the order it is stacked.
+const COMPARED = ["time_interval_s", "efc_percent", "temperature_c", "tfom", "ffom"];
+
+// One color per receiver, by its serial's place among all the serials
+// listed: not by the server's order, which follows when each was last
+// seen and so changes under the reader.
+const PALETTE = ["#38bdf8", "#fbbf24", "#f472b6", "#a78bfa", "#4ade80", "#f87171"];
+const colorOf = (serial) => {
+  const order = receivers.map((r) => r.serial).sort();
+  return PALETTE[Math.max(0, order.indexOf(serial)) % PALETTE.length];
+};
+
+const SYNC = haveUplot ? uPlot.sync("compare") : null;
+// uPlot.join's mode that widens a null over the alignment points next
+// to it, so a gap stays a gap after joining.
+const NULL_EXPAND = 2;
+// How long one stability measurement may take, as on its own page.
+const MEASURE_TIMEOUT = 60000;
+// History moves slowly; the stability curve more slowly still.
+const COMPARE_EVERY = 60000;
+
+let charts = [];
+let deviationChart = null;
+// The receivers ticked, by serial.  Null until the first read decides:
+// every receiver with readings in the range.
+let ticked = view.has("receivers")
+  ? new Set(view.get("receivers").split(",").filter(Boolean))
+  : null;
+// Every ticked receiver's notes, as `drawNoteLines` takes them.
+let marks = [];
+
+function rememberTicked() {
+  remember({ receivers: [...ticked].join(",") });
+}
+
+// A checkbox per receiver, in its color.
+function pickers() {
+  $("compared").innerHTML = receivers
+    .map(
+      (r) =>
+        `<label><input type="checkbox" data-serial="${esc(r.serial)}"` +
+        `${ticked?.has(r.serial) ? " checked" : ""}> ` +
+        `<span style="color:${colorOf(r.serial)}">${esc(unitName(r.serial))}</span></label>`,
+    )
+    .join(" ");
+  for (const box of $("compared").querySelectorAll("input")) {
+    box.onchange = () => {
+      if (box.checked) ticked.add(box.dataset.serial);
+      else ticked.delete(box.dataset.serial);
+      rememberTicked();
+      renew();
+    };
+  }
+}
+
+function clearCharts(why) {
+  for (const c of charts) c.destroy();
+  charts = [];
+  deviationChart?.destroy();
+  deviationChart = null;
+  $("charts").innerHTML = "";
+  $("chart-deviation").innerHTML = "";
+  noteTip(null, null);
+  $("note").textContent = why;
+}
+
+// One receiver's history over the range, or nothing if it has none.
+async function historyOf(serial, signal) {
+  const bounds = rangeBounds();
+  const q = new URLSearchParams({
+    receiver: serial,
+    columns: COMPARED.join(","),
+    points: pointsFor(bounds.seconds),
+  });
+  if (bounds.from) q.set("from", Math.round(bounds.from));
+  if (bounds.to) q.set("to", Math.round(bounds.to));
+  let got = await ask("/api/history?" + q, signal);
+  // "all" is only knowable once asked, as on the live page.
+  if (range.last === "all" && got.first && got.last > got.first) {
+    q.set("from", Math.round(got.first));
+    q.set("to", Math.round(got.last));
+    q.set("points", pointsFor(got.last - got.first));
+    got = await ask("/api/history?" + q, signal);
+  }
+  return got;
+}
+
+async function deviationOf(serial, signal) {
+  const { from, to } = rangeBounds();
+  const q = new URLSearchParams({
+    receiver: serial,
+    from: String(Math.floor(from)),
+    to: String(Math.ceil(to ?? 2000000000)),
+  });
+  return ask("/api/adev?" + q, signal, MEASURE_TIMEOUT);
+}
+
+async function notesOf(serial, signal) {
+  const journal = await ask("/api/journal?" + new URLSearchParams({ receiver: serial }), signal);
+  return (journal.notes ?? []).map((n) => ({
+    at: Date.parse(n.at) / 1000,
+    text: `${unitName(serial)}: ${n.text}`,
+    colour: colorOf(serial),
+  }));
+}
+
+function drawHistory(shown, got) {
+  // One table per receiver, joined on time: their buckets need not
+  // line up.  A gap one receiver marks with a null is widened over the
+  // other receivers' times inside it, or the line would be drawn
+  // straight across the gap.
+  const tables = shown.map((serial) => [
+      got[serial].at,
+      ...COMPARED.map((col) => {
+        const plot = got[serial].plots.find((p) => p.column === col);
+        return plot ? scaled(plot.mean, col) : got[serial].at.map(() => null);
+      }),
+  ]);
+  const joined = uPlot.join(
+    tables,
+    tables.map((table) => table.map(() => NULL_EXPAND)),
+  );
+  const height = plotHeight(COMPARED.length);
+  COMPARED.forEach((col, n) => {
+    const columns = shown.map((_, i) => joined[1 + i * COMPARED.length + n]);
+    const values = columns.flat().filter((v) => v != null && isFinite(v));
+    const fitted = yAxis(col, values, height);
+    const host = document.createElement("div");
+    $("charts").appendChild(host);
+    const chart = new uPlot(
+      {
+        width: $("charts").clientWidth || 800,
+        height,
+        title: label(col),
+        series: [
+          {},
+          ...shown.map((serial) => ({
+            label: unitName(serial),
+            stroke: colorOf(serial),
+            width: 1.5,
+            points: { show: false },
+          })),
+        ],
+        axes: [
+          {
+            stroke: "#8b929c",
+            grid: { stroke: "#2b3038" },
+            ticks: { stroke: "#2b3038" },
+            show: n === COMPARED.length - 1,
+          },
+          {
+            stroke: "#8b929c",
+            grid: { stroke: "#2b3038" },
+            ticks: { stroke: "#2b3038" },
+            ...fitted.axis,
+          },
+        ],
+        scales: {
+          x: { time: true },
+          ...(fitted.range ? { y: { range: fitted.range } } : {}),
+        },
+        legend: { show: true, live: true },
+        cursor: { drag: { x: true, y: false }, sync: { key: SYNC.key, setSeries: false } },
+        hooks: {
+          draw: [(u) => drawNoteLines(u, marks)],
+          setCursor: [
+            () => {
+              const under = charts.find((c) => c.over.matches(":hover"));
+              noteTip(under, under ? noteAt(under, marks) : null);
+            },
+          ],
+          setSelect: [
+            (u) => {
+              if (u.select.width <= 0) return;
+              setAbsolute(
+                u.posToVal(u.select.left, "x"),
+                u.posToVal(u.select.left + u.select.width, "x"),
+              );
+              buttons();
+              renew();
+            },
+          ],
+        },
+      },
+      [joined[0], ...columns],
+      host,
+    );
+    // Double click: back to a moving window of the same length.
+    chart.over.addEventListener("dblclick", () => {
+      const { seconds } = rangeBounds();
+      range = { last: Math.max(60, Math.round(seconds || 86400)), from: null, to: null };
+      rememberRange();
+      buttons();
+      renew();
+    });
+    charts.push(chart);
+  });
+}
+
+function drawDeviation(shown, curves) {
+  const drawn = shown.filter((serial) => curves[serial]?.points?.length);
+  if (!drawn.length) {
+    $("chart-deviation").innerHTML = `<p class="muted pad">nothing to plot in this range</p>`;
+    return;
+  }
+  const joined = uPlot.join(
+    drawn.map((serial) => {
+      const points = curves[serial].points;
+      return [
+        points.map((p) => p.tau),
+        points.map((p) => (p.modified ? p.modified.deviation : null)),
+        points.map((p) => p.deviation),
+      ];
+    }),
+  );
+  const wide = Math.max(360, $("pane").clientWidth || 800);
+  deviationChart = new uPlot(
+    {
+      width: wide,
+      height: Math.round(Math.max(300, Math.min(560, wide / 2.5))),
+      scales: { x: TAU_SCALE, y: sigmaScale({}) },
+      axes: [tauAxis(), sigmaAxis("deviation σy")],
+      series: [
+        { label: "τ", value: (_, v) => seconds(v) },
+        ...drawn.flatMap((serial) => [
+          {
+            label: `${unitName(serial)} MDEV`,
+            stroke: colorOf(serial),
+            width: 1.5,
+            points: { show: true, size: 5 },
+            value: (_, v) => decade(v),
+          },
+          {
+            label: `${unitName(serial)} ADEV`,
+            stroke: colorOf(serial),
+            width: 1,
+            dash: [6, 4],
+            points: { show: false },
+            value: (_, v) => decade(v),
+          },
+        ]),
+      ],
+      legend: { show: true, live: true },
+    },
+    joined,
+    $("chart-deviation"),
+  );
+  deviationChart.over.addEventListener("dblclick", () => {
+    deviationChart.setScale("x", { min: null, max: null });
+    deviationChart.setScale("y", { min: null, max: null });
+  });
+}
+
+// One receiver's answer, or `instead` if it has none to give: one
+// unit's log failing to read leaves the others on the page.
+async function quietly(answer, instead) {
+  try {
+    return await answer;
+  } catch (e) {
+    if (e instanceof Superseded) throw e;
+    return instead;
+  }
+}
+
+async function load(signal) {
+  if (!haveUplot) {
+    clearCharts(
+      "The chart library did not load. It comes from a CDN, so this page needs internet access.",
+    );
+    return;
+  }
+  const serials = receivers.map((r) => r.serial);
+  const got = Object.fromEntries(
+    await Promise.all(serials.map(async (s) => [s, await quietly(historyOf(s, signal), { at: [] })])),
+  );
+  if (ticked === null) {
+    ticked = new Set(serials.filter((s) => got[s].at?.length));
+    rememberTicked();
+  }
+  pickers();
+  const shown = serials.filter((s) => ticked.has(s) && got[s].at?.length);
+  const quiet = serials.filter((s) => ticked.has(s) && !got[s].at?.length);
+  clearCharts(
+    !shown.length
+      ? "no ticked receiver has readings in this range"
+      : quiet.length
+        ? `no readings in this range from ${quiet.map(unitName).join(", ")}`
+        : "",
+  );
+  if (!shown.length) return;
+  marks = (await Promise.all(shown.map((s) => quietly(notesOf(s, signal), [])))).flat();
+  drawHistory(shown, got);
+  const curves = Object.fromEntries(
+    await Promise.all(shown.map(async (s) => [s, await quietly(deviationOf(s, signal), null)])),
+  );
+  drawDeviation(shown, curves);
+}
+
+function buttons() {
+  rangeControl($("ranges"), renew);
+}
+
+buttons();
+addEventListener("resize", () => renew());
+content({
+  daemon: false,
+  every: COMPARE_EVERY,
+  auto: () => range.last !== null,
+  clear: clearCharts,
+  load,
+});
+</script>

@@ -123,6 +123,17 @@ test("a note clicked in the journal shows an hour either side of it", async ({ p
   expect(new URL(page.url()).searchParams.get("to")).toBe(String(Math.round(at + 3600)));
 });
 
+test("the compare page overlays every receiver with readings, and drops one unticked", async ({ page }) => {
+  await open(page, twoUnits(), "/compare");
+  await page.waitForFunction(() => charts.length === 5 && deviationChart !== null);
+  expect(await page.evaluate(() => charts[0].series.length)).toBe(3);
+  await expect(page.locator(`#compared input[data-serial="${A}"]`)).toBeChecked();
+  await expect(page.locator(`#compared input[data-serial="${B}"]`)).toBeChecked();
+  await page.locator(`#compared input[data-serial="${B}"]`).uncheck();
+  await expect.poll(() => new URL(page.url()).searchParams.get("receivers")).toBe(A);
+  await page.waitForFunction(() => charts.length === 5 && charts[0].series.length === 2);
+});
+
 test("the range and the receiver go along to the next page", async ({ page }) => {
   const fake = twoUnits();
   await open(page, fake, "/", B);

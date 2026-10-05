@@ -99,7 +99,16 @@ the page needs internet though the daemon does not.  If the library
 cannot be fetched, the page says so instead of showing an empty
 frame.
 
-Every browser page -- live, status and stability -- shows one
+`/compare` overlays every receiver the logs hold over one range: 1 PPS
+TI, EFC, temperature, TFOM and FFOM a chart each with a line per
+receiver, and their MDEV (solid) and ADEV (dashed) curves on one plot.
+A checkbox per receiver chooses which are drawn, ticked at first for
+every one with readings in the range, and each receiver keeps one
+color.  Each 1 PPS TI is against that receiver's own GPS solution, so
+the lines compare errors, not one unit against another.  Notes show as
+on the live page, in their receiver's color.
+
+The live, status and stability pages show one
 receiver at a time, chosen by a selector that appears once there is
 more than one and follows receivers and daemons as they come and go.
 The address carries the choice as `?receiver=<id>`, so it survives a

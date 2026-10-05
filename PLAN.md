@@ -951,13 +951,13 @@ Later: adding, editing and deleting notes from the web view, through
 the daemon socket.  Needs POST bodies in `smartclock-http`, and notes
 with ids rather than append-only.
 
-### Next: comparing receivers
+### Comparing receivers
 
-When the host logs more than one receiver, a page of its own shows
-them over the same range: 1 PPS TI, EFC, temperature, TFOM and FFOM
-overlaid, and ADEV and MDEV curves on one plot.  The live, status and
-stability pages stay one receiver each.  Notes and facts mark what
-differs between the units.
+`/compare` shows every receiver over the same range: 1 PPS TI, EFC,
+temperature, TFOM and FFOM overlaid, and ADEV and MDEV curves on one
+plot, from the existing `/api/history`, `/api/adev` and
+`/api/journal`, asked once per receiver and joined in the browser.
+The live, status and stability pages stay one receiver each.
 
 ## Open questions
 

@@ -56,6 +56,10 @@ const STATUS_PAGE: &str = include_str!("status.html");
 /// history page's buckets nor its cursor.
 const DEVIATION: &str = include_str!("adev.html");
 
+/// Every receiver the logs hold, overlaid over one range: history a
+/// chart per column, and their stability curves on one plot.
+const COMPARE: &str = include_str!("compare.html");
+
 /// Shared by every page.
 const STYLE: &str = include_str!("style.css");
 
@@ -124,6 +128,7 @@ fn main() -> Result<()> {
             "/" => Response::ok("text/html; charset=utf-8", PAGE.to_owned()),
             "/status" => Response::ok("text/html; charset=utf-8", STATUS_PAGE.to_owned()),
             "/adev" => Response::ok("text/html; charset=utf-8", DEVIATION.to_owned()),
+            "/compare" => Response::ok("text/html; charset=utf-8", COMPARE.to_owned()),
             "/style.css" => Response::ok("text/css; charset=utf-8", STYLE.to_owned()),
             "/common.js" => Response::ok("text/javascript; charset=utf-8", COMMON.to_owned()),
             "/charts.js" => Response::ok("text/javascript; charset=utf-8", CHARTS.to_owned()),
