@@ -123,6 +123,20 @@ test("a note clicked in the journal shows an hour either side of it", async ({ p
   expect(new URL(page.url()).searchParams.get("to")).toBe(String(Math.round(at + 3600)));
 });
 
+test("the compare page reads every receiver at one instant", async ({ page }) => {
+  // Bucket times that differ between receivers left the legend blank
+  // for every one but the receiver whose point was under the cursor.
+  const fake = twoUnits();
+  fake.unit(B).skew = 7;
+  await open(page, fake, "/compare");
+  await page.waitForFunction(() => charts.length === 5);
+  const box = await page.locator("#charts .u-over").first().boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const values = page.locator("#charts .uplot").first().locator(".u-legend .u-value");
+  await expect(values.nth(1)).toHaveText(/\d/);
+  await expect(values.nth(2)).toHaveText(/\d/);
+});
+
 test("the compare page overlays every receiver with readings, and drops one unticked", async ({ page }) => {
   await open(page, twoUnits(), "/compare");
   await page.waitForFunction(() => charts.length === 5 && deviationChart !== null);

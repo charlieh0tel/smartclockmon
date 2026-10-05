@@ -106,7 +106,11 @@ A checkbox per receiver chooses which are drawn, ticked at first for
 every one with readings in the range, and each receiver keeps one
 color.  Each 1 PPS TI is against that receiver's own GPS solution, so
 the lines compare errors, not one unit against another.  Notes show as
-on the live page, in their receiver's color.
+on the live page, in their receiver's color.  Every receiver is asked
+for the same window, so their points share one time grid; a receiver
+that cannot be read is named as such, and a stability curve from a
+range longer than one measurement reads says it covers the newest
+part.
 
 The live, status and stability pages show one
 receiver at a time, chosen by a selector that appears once there is

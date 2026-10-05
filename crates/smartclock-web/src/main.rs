@@ -629,9 +629,14 @@ fn series(logs: &Logs, query: &str) -> Result<serde_json::Value> {
 
 #[cfg(test)]
 mod tests {
+    use super::CHARTS;
+    use super::COMMON;
+    use super::COMPARE;
     use super::Cache;
+    use super::DEVIATION;
     use super::Logs;
     use super::PAGE;
+    use super::STATUS_PAGE;
     use std::path::Path;
     use std::sync::Arc;
     use std::sync::atomic::AtomicUsize;
@@ -732,47 +737,63 @@ mod tests {
         assert_eq!(listed, vec![("X", "a.sqlite"), ("Y", "b.sqlite")]);
     }
 
-    /// No two top-level functions in the page share a name.
+    /// No two top-level names in a page and the scripts it loads clash.
     ///
-    /// JavaScript lets a second `function f()` replace the first
-    /// without a word, and the page has no linter to say otherwise: it
-    /// is a string in this binary.  That cost an evening once.  A tick
-    /// formatter called `tick` silently replaced the status strip's
-    /// poller, also called `tick`, so boot invoked the formatter with
-    /// no arguments, threw on undefined, and left the strip reading
-    /// "connecting..." while every chart drew correctly -- a failure
-    /// that looked like a daemon problem and was not.
+    /// A page's scripts share one global scope, and JavaScript lets a
+    /// second `function f()` replace the first without a word; a second
+    /// `let` or `const` throws, but only in a browser.  Nothing else
+    /// checks: the pages are strings in this binary, with no linter.
     #[test]
-    fn the_page_declares_each_function_once() {
-        let mut seen: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
-        for line in PAGE.lines() {
-            // Top level only: a nested function is scoped and may
-            // legitimately reuse a name.
-            let Some(rest) = line
-                .strip_prefix("function ")
-                .or_else(|| line.strip_prefix("async function "))
-            else {
-                continue;
-            };
-            let Some(name) = rest.split('(').next() else {
-                continue;
-            };
-            *seen.entry(name.trim()).or_default() += 1;
+    fn no_page_declares_a_name_twice() {
+        /// The top-level names `script` declares: function, class, let
+        /// and const, at the start of a line.
+        fn declared(script: &str) -> Vec<&str> {
+            script
+                .lines()
+                .filter_map(|line| {
+                    ["function ", "async function ", "class ", "let ", "const "]
+                        .iter()
+                        .find_map(|keyword| line.strip_prefix(keyword))
+                })
+                .filter_map(|rest| {
+                    let name = rest
+                        .split(|c: char| !(c.is_alphanumeric() || c == '_' || c == '$'))
+                        .next()?;
+                    (!name.is_empty()).then_some(name)
+                })
+                .collect()
         }
-        let repeated: Vec<&str> = seen
-            .iter()
-            .filter(|(_, n)| **n > 1)
-            .map(|(name, _)| *name)
-            .collect();
-        assert!(
-            repeated.is_empty(),
-            "declared more than once in index.html: {repeated:?}"
-        );
-        // And the guard is worth nothing if the scan found nothing.
-        assert!(
-            seen.len() > 10,
-            "only found {} functions to check",
-            seen.len()
-        );
+        for (name, page) in [
+            ("index.html", PAGE),
+            ("status.html", STATUS_PAGE),
+            ("adev.html", DEVIATION),
+            ("compare.html", COMPARE),
+        ] {
+            let mut scripts = vec![COMMON, page];
+            if page.contains("/charts.js") {
+                scripts.push(CHARTS);
+            }
+            let mut seen: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+            for script in scripts {
+                for declared in declared(script) {
+                    *seen.entry(declared).or_default() += 1;
+                }
+            }
+            let repeated: Vec<&str> = seen
+                .iter()
+                .filter(|(_, n)| **n > 1)
+                .map(|(name, _)| *name)
+                .collect();
+            assert!(
+                repeated.is_empty(),
+                "declared more than once with {name}: {repeated:?}"
+            );
+            // And the guard is worth nothing if the scan found nothing.
+            assert!(
+                seen.len() > 20,
+                "only found {} names with {name}",
+                seen.len()
+            );
+        }
     }
 }

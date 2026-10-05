@@ -32,8 +32,10 @@ const FROM_DAEMON = new Set(["snapshot", "info", "status"]);
 //   delay    milliseconds to hold each endpoint's answer, by name
 //   columns  what it measures, as the server lists it: every column
 //            the history serves, unless a test says otherwise
+//   skew     seconds added to its history's times, as two receivers'
+//            bucket times differ by their readings'
 export function receiver(serial, mode, present, columns = RECORDED.history.plottable) {
-  return { serial, up: true, mode, present, delay: {}, columns };
+  return { serial, up: true, mode, present, delay: {}, columns, skew: 0 };
 }
 
 // The state a test drives.  `units` is the list the server reports.
@@ -72,6 +74,8 @@ export class Fake {
         return body;
       case "adev":
         return { ...body, present: u.present };
+      case "history":
+        return { ...body, at: body.at.map((t) => t + u.skew) };
       case "journal": {
         // One note, midway through the recorded history, naming whose
         // it is.
