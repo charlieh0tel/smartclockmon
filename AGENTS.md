@@ -129,3 +129,12 @@ here, where they go stale unnoticed.
 - Do not use `unsafe` without asking.
 - When adding dependencies, use `cargo add` to ensure we install the
   latest version of dependencies.
+
+## Working style
+
+- **Adversarial review**: when a new idea/direction lands, run an
+  adversarial review pass on it (what breaks, what it costs, what it
+  forecloses) before/while implementing, and say so plainly.
+- **Refactor first**: when working on anything significant, make a
+  refactor pass first and commit that first.  If in doubt if a
+  refactor is required, ask.
