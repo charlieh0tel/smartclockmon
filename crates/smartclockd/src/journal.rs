@@ -94,7 +94,10 @@ const TIMEOUT: Duration = Duration::from_secs(5);
 /// timeouts -- nearly seven minutes -- in one pass, during which this
 /// thread writes no snapshots and no audit rows, and every row behind
 /// it is stamped with the time it was finally written rather than the
-/// time it happened.  Nothing here is worth that.
+/// time it happened.  Nothing here is worth that.  Every step checks it
+/// before each request, so a pass overruns it by one [`TIMEOUT`] at
+/// most.  The engine's identity, one request, is asked first, while the
+/// budget is whole.
 const PASS_BUDGET: Duration = Duration::from_secs(20);
 
 /// How many error queue entries one pass will take.
@@ -258,7 +261,7 @@ impl Journal {
             }
         }
         if !self.filters_read {
-            match self.read_filters(handle, dialect, log) {
+            match self.read_filters(handle, dialect, log, deadline) {
                 Ok(complete) => self.filters_read = complete,
                 Err(e) => eprintln!("smartclockd: could not read the transition filters: {e:#}"),
             }
@@ -280,9 +283,19 @@ impl Journal {
     /// refused them is asked again on the next pass rather than being
     /// recorded as having none.  A NULL here would read as "looked and
     /// found nothing", which is a different and wronger claim.
-    fn read_filters(&mut self, handle: &Handle, dialect: Dialect, log: &mut Log) -> Result<bool> {
+    fn read_filters(
+        &mut self,
+        handle: &Handle,
+        dialect: Dialect,
+        log: &mut Log,
+        deadline: Instant,
+    ) -> Result<bool> {
         let mut complete = true;
         for (positive, negative, register) in FILTER_REGISTERS {
+            // Out of time: the rest are read on a later pass.
+            if Instant::now() >= deadline {
+                return Ok(false);
+            }
             let read = |id| -> Option<i64> {
                 ask(handle, dialect, id, None)
                     .ok()
@@ -1057,5 +1070,33 @@ mod tests {
             name.push(suffix);
             let _ = std::fs::remove_file(name);
         }
+    }
+
+    #[test]
+    fn a_pass_out_of_time_reads_no_filters() {
+        let path =
+            std::env::temp_dir().join(format!("smartclockd-budget-{}.db", std::process::id()));
+        let wipe = || {
+            for suffix in ["", "-wal", "-shm"] {
+                let mut name = path.clone().into_os_string();
+                name.push(suffix);
+                let _ = std::fs::remove_file(name);
+            }
+        };
+        wipe();
+        let mut log = Log::open(&path).expect("open the database");
+        // Nothing serves this queue: a request would wait its timeout.
+        let (requests, _queue) = std::sync::mpsc::channel();
+        let handle = Handle::new(requests, task::Shared::new());
+        let started = std::time::Instant::now();
+        let complete = Journal::default()
+            .read_filters(&handle, Dialect::Hp58503, &mut log, started)
+            .expect("no error, only an incomplete read");
+        assert!(!complete);
+        assert!(
+            started.elapsed() < super::TIMEOUT,
+            "asked the receiver with no time left"
+        );
+        wipe();
     }
 }

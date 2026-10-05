@@ -1249,7 +1249,6 @@ instance label).
 
 **Daemon, other.**
 
-- A journal pass ignores its time budget except in two steps.
 - A screen request has no deadline, and one discarded with the queue is
   dropped without an answer.
 - One failure path per request kind; a plain refusal from the receiver
