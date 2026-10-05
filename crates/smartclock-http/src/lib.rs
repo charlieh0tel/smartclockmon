@@ -101,6 +101,70 @@ impl Response {
     }
 }
 
+/// The `key=value` pairs of a query string, in order, each value
+/// percent-decoded.  A pair with no `=` is skipped.
+pub fn pairs(query: &str) -> impl Iterator<Item = (&str, String)> {
+    query
+        .split('&')
+        .filter_map(|pair| pair.split_once('='))
+        .map(|(key, value)| (key, decode(value)))
+}
+
+/// The decoded value of the first `key=` in a query string.
+pub fn value(query: &str, key: &str) -> Option<String> {
+    pairs(query)
+        .find(|(k, _)| *k == key)
+        .map(|(_, value)| value)
+}
+
+/// Percent-decode one query-string value.
+///
+/// The parser here splits the raw target on `&` and `=` and did no
+/// decoding at all, which was invisible while the only parameter that
+/// mattered was a single column name with nothing to encode.  A list
+/// broke it immediately: `URLSearchParams` writes the separator as
+/// `%2C`, so the server was handed one column called
+/// `efc_percent%2Ctemperature_c` and said, correctly, that it does not
+/// serve it.
+///
+/// Bytes rather than chars, because a percent escape encodes a byte and
+/// a multi-byte character arrives as several of them.  Anything that
+/// is not a well-formed escape is kept as written: a stray `%` in a
+/// value is not worth refusing a request over.
+fn decode(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'+' => {
+                // A literal plus is `%2B`; a bare one is a space in
+                // form encoding, and a space is not a column name.
+                out.push(b' ');
+                i += 1;
+            }
+            b'%' if i + 2 < bytes.len() => {
+                let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok();
+                match hex.and_then(|h| u8::from_str_radix(h, 16).ok()) {
+                    Some(byte) => {
+                        out.push(byte);
+                        i += 3;
+                    }
+                    None => {
+                        out.push(bytes[i]);
+                        i += 1;
+                    }
+                }
+            }
+            byte => {
+                out.push(byte);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 /// One connected client, counted for as long as this is held.
 ///
 /// A guard rather than a decrement at the end of the thread, so a
@@ -249,6 +313,55 @@ fn write_response(mut stream: &TcpStream, response: &Response) -> std::io::Resul
 
 #[cfg(test)]
 mod tests {
+    use super::decode;
+    use super::pairs;
+    use super::value;
+
+    /// What a browser actually sends for a list.
+    ///
+    /// `URLSearchParams` encodes the separator, so the server saw one
+    /// column named `efc_percent%2Ctemperature_c` and refused it.  The
+    /// single-column parameter this replaced had nothing to encode,
+    /// which is why the missing decode went unnoticed.
+    #[test]
+    fn a_percent_encoded_list_decodes() {
+        assert_eq!(
+            decode("efc_percent%2Ctemperature_c"),
+            "efc_percent,temperature_c"
+        );
+    }
+
+    #[test]
+    fn a_plus_is_a_space_and_a_percent_2b_is_a_plus() {
+        assert_eq!(decode("one+two"), "one two");
+        assert_eq!(decode("one%2Btwo"), "one+two");
+    }
+
+    /// A malformed escape is kept rather than refused.  A stray percent
+    /// in a value is not worth failing a request over, and the column
+    /// check downstream rejects anything that is not a real column
+    /// anyway.
+    #[test]
+    fn a_broken_escape_survives() {
+        assert_eq!(decode("100%"), "100%");
+        assert_eq!(decode("%zz"), "%zz");
+        assert_eq!(decode("%2"), "%2");
+    }
+
+    #[test]
+    fn multibyte_characters_survive_the_round_trip() {
+        assert_eq!(decode("%C2%B5s"), "\u{b5}s");
+    }
+
+    #[test]
+    fn pairs_are_split_and_decoded_and_the_first_value_wins() {
+        let query = "receiver=3625A01487&columns=a%2Cb&bare&receiver=other";
+        assert_eq!(value(query, "receiver").as_deref(), Some("3625A01487"));
+        assert_eq!(value(query, "columns").as_deref(), Some("a,b"));
+        assert_eq!(value(query, "missing"), None);
+        assert_eq!(pairs(query).count(), 3);
+    }
+
     use super::Response;
     use super::handle_within;
     use std::io::Write as _;

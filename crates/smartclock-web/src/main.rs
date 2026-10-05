@@ -142,54 +142,6 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-/// Percent-decode one query-string value.
-///
-/// The parser here splits the raw target on `&` and `=` and did no
-/// decoding at all, which was invisible while the only parameter that
-/// mattered was a single column name with nothing to encode.  A list
-/// broke it immediately: `URLSearchParams` writes the separator as
-/// `%2C`, so the server was handed one column called
-/// `efc_percent%2Ctemperature_c` and said, correctly, that it does not
-/// serve it.
-///
-/// Bytes rather than chars, because a percent escape encodes a byte and
-/// a multi-byte character arrives as several of them.  Anything that
-/// is not a well-formed escape is kept as written: a stray `%` in a
-/// value is not worth refusing a request over.
-fn decode(value: &str) -> String {
-    let bytes = value.as_bytes();
-    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'+' => {
-                // A literal plus is `%2B`; a bare one is a space in
-                // form encoding, and a space is not a column name.
-                out.push(b' ');
-                i += 1;
-            }
-            b'%' if i + 2 < bytes.len() => {
-                let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok();
-                match hex.and_then(|h| u8::from_str_radix(h, 16).ok()) {
-                    Some(byte) => {
-                        out.push(byte);
-                        i += 3;
-                    }
-                    None => {
-                        out.push(bytes[i]);
-                        i += 1;
-                    }
-                }
-            }
-            byte => {
-                out.push(byte);
-                i += 1;
-            }
-        }
-    }
-    String::from_utf8_lossy(&out).into_owned()
-}
-
 /// Read one status screen through the daemon.
 ///
 /// Never cached: the point of the call is that it is fresh, and the
@@ -367,11 +319,7 @@ fn live(daemons: &Daemons, cache: &Cache) -> Vec<Live> {
 /// and the page is told so.  Without one, the only daemon, or the
 /// first by instance name.
 fn choose(daemons: &Daemons, cache: &Cache, query: &str) -> Result<PathBuf> {
-    let asked = query.split('&').find_map(|pair| {
-        pair.split_once('=')
-            .filter(|(key, _)| *key == "receiver")
-            .map(|(_, value)| decode(value))
-    });
+    let asked = smartclock_http::value(query, "receiver");
     match asked {
         Some(serial) => live(daemons, cache)
             .into_iter()
@@ -412,10 +360,7 @@ fn journal(logs: &Logs, query: &str) -> Result<serde_json::Value> {
 /// exists to perform.
 fn deviation(logs: &Logs, query: &str) -> Result<serde_json::Value> {
     let (mut from, mut to) = (None, None);
-    for pair in query.split('&') {
-        let Some((key, value)) = pair.split_once('=') else {
-            continue;
-        };
+    for (key, value) in smartclock_http::pairs(query) {
         match key {
             "from" => from = value.parse::<i64>().ok(),
             "to" => to = value.parse::<i64>().ok(),
@@ -513,11 +458,7 @@ impl Logs {
     /// than quietly serving a different unit's history under its name.
     /// `None` when no log names a receiver.
     fn choose(&self, query: &str) -> Result<Option<(Log, i64)>> {
-        let asked = query.split('&').find_map(|pair| {
-            pair.split_once('=')
-                .filter(|(key, _)| *key == "receiver")
-                .map(|(_, value)| decode(value))
-        });
+        let asked = smartclock_http::value(query, "receiver");
         let found = self.receivers()?;
         let chosen = match &asked {
             None => found.first(),
@@ -613,15 +554,12 @@ const DEFAULT_WINDOW: i64 = 3600;
 fn series(logs: &Logs, query: &str) -> Result<serde_json::Value> {
     let mut columns: Vec<String> = Vec::new();
     let (mut from, mut to, mut points) = (None, None, 1500usize);
-    for pair in query.split('&') {
-        let Some((key, value)) = pair.split_once('=') else {
-            continue;
-        };
+    for (key, value) in smartclock_http::pairs(query) {
         match key {
             // Split after decoding, not before: a `+` is a space by
             // the time it gets here, and `%2C` is a comma.
             "columns" | "column" => columns.extend(
-                decode(value)
+                value
                     .split([',', ' '])
                     .map(str::trim)
                     .filter(|c| !c.is_empty())
@@ -674,7 +612,6 @@ mod tests {
     use super::Cache;
     use super::Logs;
     use super::PAGE;
-    use super::decode;
     use std::path::Path;
     use std::sync::Arc;
     use std::sync::atomic::AtomicUsize;
@@ -817,41 +754,5 @@ mod tests {
             "only found {} functions to check",
             seen.len()
         );
-    }
-
-    /// What a browser actually sends for a list.
-    ///
-    /// `URLSearchParams` encodes the separator, so the server saw one
-    /// column named `efc_percent%2Ctemperature_c` and refused it.  The
-    /// single-column parameter this replaced had nothing to encode,
-    /// which is why the missing decode went unnoticed.
-    #[test]
-    fn a_percent_encoded_list_decodes() {
-        assert_eq!(
-            decode("efc_percent%2Ctemperature_c"),
-            "efc_percent,temperature_c"
-        );
-    }
-
-    #[test]
-    fn a_plus_is_a_space_and_a_percent_2b_is_a_plus() {
-        assert_eq!(decode("one+two"), "one two");
-        assert_eq!(decode("one%2Btwo"), "one+two");
-    }
-
-    /// A malformed escape is kept rather than refused.  A stray percent
-    /// in a value is not worth failing a request over, and the column
-    /// check downstream rejects anything that is not a real column
-    /// anyway.
-    #[test]
-    fn a_broken_escape_survives() {
-        assert_eq!(decode("100%"), "100%");
-        assert_eq!(decode("%zz"), "%zz");
-        assert_eq!(decode("%2"), "%2");
-    }
-
-    #[test]
-    fn multibyte_characters_survive_the_round_trip() {
-        assert_eq!(decode("%C2%B5s"), "\u{b5}s");
     }
 }

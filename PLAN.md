@@ -1247,8 +1247,7 @@ Decided and not to be done: renaming exporter metrics or changing their
 labels (`oven_tempco` stays; a stopped daemon's `up 0` carries only its
 instance label).
 
-**Web view.**  Host and Origin checks are open question 5.  The query
-string is parsed by hand in two places; move it into `smartclock-http`.
+**Web view.**  Host and Origin checks are open question 5.
 
 **Simulator.**  A Z3801A with no echo should exist so both framings
 are tested.  Its binary takes arguments by position.
