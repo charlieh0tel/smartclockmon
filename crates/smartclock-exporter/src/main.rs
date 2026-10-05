@@ -87,7 +87,8 @@ fn main() -> Result<()> {
             "smartclock-exporter\n\nMetrics are at /metrics.\n".to_owned(),
         ),
         _ => Response::not_found(),
-    })
+    })?;
+    Ok(())
 }
 
 /// How long one daemon may take to answer a scrape.

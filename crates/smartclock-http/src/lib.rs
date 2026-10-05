@@ -24,9 +24,6 @@ use std::thread;
 use std::time::Duration;
 use std::time::Instant;
 
-use anyhow::Context as _;
-use anyhow::Result;
-
 /// The longest request line served.
 ///
 /// A request line is a method, a path and a version.  Without a cap,
@@ -56,6 +53,21 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(30);
 /// clients are told the server is busy instead of the machine being
 /// taken down.
 const MAX_INFLIGHT: usize = 32;
+
+/// Why the server could not start.
+#[derive(Debug, thiserror::Error)]
+pub enum ServeError {
+    /// The address could not be bound: taken, not this host's, or not
+    /// permitted.
+    #[error("binding {listen}: {source}")]
+    Bind {
+        /// The address asked for.
+        listen: String,
+        /// What the bind said.
+        #[source]
+        source: std::io::Error,
+    },
+}
 
 /// What the caller wants sent back.
 #[derive(Debug)]
@@ -107,11 +119,14 @@ impl Drop for Slot {
 /// returns what to send.  It runs on its own thread per request, so it
 /// may block; the timeouts above bound how long a client can make it
 /// wait, not how long it may take.
-pub fn serve<F>(listen: &str, answer: F) -> Result<()>
+pub fn serve<F>(listen: &str, answer: F) -> Result<(), ServeError>
 where
     F: Fn(&str) -> Response + Send + Sync + 'static,
 {
-    let listener = TcpListener::bind(listen).with_context(|| format!("binding {listen}"))?;
+    let listener = TcpListener::bind(listen).map_err(|source| ServeError::Bind {
+        listen: listen.to_owned(),
+        source,
+    })?;
     let answer = Arc::new(answer);
     let inflight = Arc::new(AtomicUsize::new(0));
 

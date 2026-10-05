@@ -1761,7 +1761,7 @@ dependencies = [
 name = "smartclock-http"
 version = "1.0.3"
 dependencies = [
- "anyhow",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

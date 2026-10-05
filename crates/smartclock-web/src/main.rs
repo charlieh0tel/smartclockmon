@@ -138,7 +138,8 @@ fn main() -> Result<()> {
             "/api/adev" => json(deviation(&logs, query)),
             _ => Response::not_found(),
         }
-    })
+    })?;
+    Ok(())
 }
 
 /// Percent-decode one query-string value.

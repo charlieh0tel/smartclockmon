@@ -1249,7 +1249,6 @@ instance label).
 
 **Web view.**  Host and Origin checks are open question 5.  The query
 string is parsed by hand in two places; move it into `smartclock-http`.
-`smartclock-http` uses `anyhow`, which AGENTS.md forbids in a library.
 
 **Simulator.**  A Z3801A with no echo should exist so both framings
 are tested.  Its binary takes arguments by position.
