@@ -181,7 +181,12 @@ not change the wire format.
   `RuntimeDirectory` owns its lifetime and file permissions gate
   access.
 - **SQLite file, opened read-only**, for history.  `journal_mode=WAL`
-  lets readers run beside the daemon's single writer.
+  lets readers run beside the daemon's single writer.  A read-only
+  reader needs `-shm` and cannot create it in `/var/lib/smartclockd`,
+  so the daemon sets persistent WAL and closing a log leaves `-wal` and
+  `-shm` in place.  rusqlite has no safe call for it; the workspace
+  denies `unsafe_code` rather than forbidding it, and this one call
+  carries the `expect`.
 
 The socket keeps the TUI's live pane off SQLite at 1 Hz and makes
 reconnection after a daemon restart trivial.  Protocol and schema each

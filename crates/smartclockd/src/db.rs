@@ -10,6 +10,7 @@
 
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::ffi::c_int;
 use std::path::Path;
 use std::time::Duration;
 
@@ -17,6 +18,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use rusqlite::Connection;
 use rusqlite::OptionalExtension as _;
+use rusqlite::ffi;
 use rusqlite::params;
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Snapshot;
@@ -81,6 +83,36 @@ pub(crate) fn file_name(identity: &str, device: &str) -> String {
     }
 }
 
+/// Keep the `-wal` and `-shm` files when the log is closed.
+///
+/// A reader opening a WAL log read-only needs `-shm` to exist and cannot
+/// create it in a directory it may not write, which is how the viewers
+/// see `/var/lib/smartclockd`.  By default the last connection to close
+/// deletes both, leaving a log no daemon holds open unreadable to them.
+fn persist_wal(conn: &Connection) -> Result<()> {
+    let mut on: c_int = 1;
+    #[expect(
+        unsafe_code,
+        reason = "rusqlite has no safe call for SQLITE_FCNTL_PERSIST_WAL"
+    )]
+    // SAFETY: the handle is valid while `conn` is borrowed, the schema
+    // name is a NUL-terminated literal, and PERSIST_WAL reads and writes
+    // one int through the pointer, which outlives the call.
+    let code = unsafe {
+        ffi::sqlite3_file_control(
+            conn.handle(),
+            c"main".as_ptr(),
+            ffi::SQLITE_FCNTL_PERSIST_WAL,
+            (&raw mut on).cast(),
+        )
+    };
+    anyhow::ensure!(
+        code == ffi::SQLITE_OK,
+        "keeping the log's WAL files failed with SQLite code {code}"
+    );
+    Ok(())
+}
+
 impl Log {
     /// Open or create the log.
     pub(crate) fn open(path: &Path) -> Result<Self> {
@@ -90,6 +122,7 @@ impl Log {
         // NORMAL rather than FULL: a snapshot lost to a power cut costs
         // one poll interval, which is not worth an fsync per row.
         conn.pragma_update(None, "journal_mode", "WAL")?;
+        persist_wal(&conn)?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.busy_timeout(BUSY_TIMEOUT)?;
         let mut log = Self {
@@ -848,6 +881,22 @@ mod tests {
     use smartclock::snapshot::Snapshot;
     use smartclock_log::schema::VERSION;
     use smartclock_log::schema::stored;
+
+    #[test]
+    fn a_closed_log_keeps_the_files_a_read_only_reader_needs() {
+        let scratch = Scratch::new("persist");
+        let log = Log::open(scratch.path()).expect("open");
+        drop(log);
+        for suffix in ["-wal", "-shm"] {
+            let mut name = scratch.path().as_os_str().to_owned();
+            name.push(suffix);
+            assert!(
+                std::path::Path::new(&name).exists(),
+                "{} is gone",
+                name.display()
+            );
+        }
+    }
 
     #[test]
     fn a_receiver_is_filed_by_model_and_serial_and_an_unparsed_one_by_device() {

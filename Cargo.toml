@@ -32,7 +32,7 @@ strip = "symbols"
 [workspace.lints.rust]
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"
-unsafe_code = "forbid"
+unsafe_code = "deny"
 
 [workspace.lints.clippy]
 doc_markdown = "warn"
