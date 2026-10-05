@@ -1233,9 +1233,6 @@ instance label).
 the link breaks (see "Known defects"), and three things go wrong around
 one even then:
 
-- After a reconnect the first poll starts from the previous unit's last
-  snapshot, so its fields can be logged as the new unit's until each
-  tier has read.  Start each attachment from an empty snapshot.
 - A command queued while one unit was attached can run against the
   next, audited under the first; a journal pass can run across the
   change.  Bind requests to an attachment and check it before sending.

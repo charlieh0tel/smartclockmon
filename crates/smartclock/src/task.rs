@@ -149,9 +149,10 @@ pub enum Request {
 
 /// State that outlives any one connection to the receiver.
 ///
-/// Subscribers and the last known snapshot survive a reconnect, so a
-/// client watching the daemon does not have to re-attach when the link
-/// drops and comes back.
+/// Subscribers survive a reconnect, so a client watching the daemon
+/// does not have to re-attach when the link drops and comes back.  The
+/// last snapshot survives the outage, marked disconnected, and is
+/// forgotten when the next attachment starts.
 #[derive(Debug, Clone, Default)]
 pub struct Shared {
     latest: Arc<Mutex<Option<Snapshot>>>,
@@ -275,6 +276,11 @@ impl Shared {
 
     /// Mark the last snapshot as no longer describing the receiver.
     ///
+    /// Drop the latest snapshot, so nothing more starts from it.
+    fn forget_latest(&self) {
+        *self.latest.lock().expect("snapshot mutex") = None;
+    }
+
     /// Called when the link drops.  The values stay so a client can
     /// still show what was last true, but nothing may present them as
     /// current.
@@ -539,12 +545,19 @@ pub fn spawn<T: Transport + Send + 'static>(
 
 impl<T: Transport> DeviceTask<T> {
     /// Build a task over state that may outlive it.
+    ///
+    /// A task is one attachment, so the shared state's latest snapshot
+    /// -- the previous attachment's, possibly another unit's -- is
+    /// forgotten: every poll starts from the latest, and the first
+    /// would otherwise log that unit's fields as this one's until each
+    /// tier had read its own.
     pub fn new(
         device: Device<T>,
         cadence: Cadence,
         shared: Shared,
         requests: Receiver<Request>,
     ) -> Self {
+        shared.forget_latest();
         let now = Instant::now();
         Self {
             device,

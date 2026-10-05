@@ -12,7 +12,9 @@ use std::sync::mpsc::channel;
 use std::sync::mpsc::sync_channel;
 use std::time::Instant;
 
+use jiff::Timestamp;
 use smartclock::snapshot::Freshness;
+use smartclock::snapshot::Snapshot;
 use smartclock::snapshot::Tier;
 use smartclock::task;
 use smartclock::task::Cadence;
@@ -70,6 +72,19 @@ fn the_task_publishes_snapshots_to_subscribers() {
     drop(updates);
     drop(handle);
     joiner.join().expect("the device thread");
+}
+
+#[test]
+fn a_new_attachment_starts_from_nothing() {
+    // The previous attachment's last snapshot, perhaps another unit's,
+    // must not be what the new one's first poll starts from.
+    let shared = Shared::new();
+    let mut earlier = Snapshot::new(Timestamp::now());
+    earlier.receiver = Some("HEWLETT-PACKARD,Z3805A,0000A00000,3543B-A".to_owned());
+    shared.publish(earlier);
+    let (_requests_tx, requests_rx) = channel();
+    let _task = DeviceTask::new(device(), Cadence::default(), shared.clone(), requests_rx);
+    assert!(shared.latest().is_none());
 }
 
 #[test]
