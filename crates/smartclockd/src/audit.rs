@@ -26,27 +26,34 @@ pub(crate) struct Entry {
     pub(crate) outcome: String,
 }
 
+/// What another thread asks the log thread, the log's one writer, to do.
+#[derive(Debug)]
+pub(crate) enum LogRequest {
+    /// Record a command.
+    Audit(Entry),
+}
+
 /// A handle for recording commands.
 #[derive(Debug, Clone)]
 pub(crate) struct Audit {
-    entries: Sender<Entry>,
+    entries: Sender<LogRequest>,
 }
 
 impl Audit {
     /// Record into `sink`.
-    pub(crate) fn new(sink: Sender<Entry>) -> Self {
+    pub(crate) fn new(sink: Sender<LogRequest>) -> Self {
         Self { entries: sink }
     }
 
     /// Note a command.  Failing to record must not fail the command:
     /// the audit trail is a record of what happened, not a gate on it.
     pub(crate) fn record(&self, scpi: &str, class: Class, outcome: &str, receiver: &str) {
-        let _ = self.entries.send(Entry {
+        let _ = self.entries.send(LogRequest::Audit(Entry {
             at: jiff::Timestamp::now(),
             receiver: receiver.to_owned(),
             scpi: scpi.to_owned(),
             class: format!("{class:?}").to_lowercase(),
             outcome: outcome.to_owned(),
-        });
+        }));
     }
 }

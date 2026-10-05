@@ -15,6 +15,7 @@ mod server;
 
 use crate::audit::Audit;
 use crate::audit::Entry;
+use crate::audit::LogRequest;
 use crate::journal::Journal;
 use crate::journal::LOST_TO_OVERFLOW;
 use crate::server::Policy;
@@ -271,7 +272,7 @@ fn main() -> Result<()> {
         }
     };
 
-    let (audit_tx, audit_rx) = channel::<Entry>();
+    let (inbox_tx, inbox) = channel::<LogRequest>();
 
     let shared = Shared::new();
     let (requests_tx, requests_rx) = channel();
@@ -297,7 +298,7 @@ fn main() -> Result<()> {
         dialect: Dialect::Hp58503,
         database: database.clone(),
         policy,
-        audit: Audit::new(audit_tx),
+        audit: Audit::new(inbox_tx),
         cadence: cadence.clone(),
     }));
 
@@ -328,75 +329,16 @@ fn main() -> Result<()> {
     let log_thread = thread::Builder::new()
         .name("smartclockd-log".to_owned())
         .spawn(move || {
-            let mut journal = Journal::default();
-            if adopt_log {
-                journal = journal.clearing_when_full();
-            }
-            let mut recorder = Recorder::new(place, log_cadence);
-            // Soon after startup rather than immediately: the first
-            // pass wants a receiver that has answered, and the errors
-            // worth catching are the ones raised as it comes up.
-            let mut next_journal = Instant::now() + FIRST_JOURNAL;
-            // Commands are recorded on the same thread as snapshots so
-            // one connection stays one writer.  Waiting on whichever
-            // arrives first, rather than draining commands only when a
-            // snapshot happens to publish: an audit entry should not
-            // sit until the next poll, and the queue should not be lost
-            // when the snapshots stop.
-            loop {
-                while let Ok(entry) = audit_rx.try_recv() {
-                    recorder.audit(&entry);
-                }
-                if Instant::now() >= next_journal {
-                    // Only while a receiver is answering.  Every one of
-                    // these queries would otherwise wait out its
-                    // timeout, and the audit entries behind them would
-                    // wait with it.
-                    let attached = journal_handle
-                        .latest()
-                        .is_some_and(|s| s.freshness != Freshness::Disconnected);
-                    let attachment = journal_handle.attachment();
-                    let (identity, dialect) = {
-                        let current = server::lock_or_poisoned(&journal_info);
-                        (current.identity.clone(), current.dialect)
-                    };
-                    // The journal's rows are read from the receiver
-                    // attached now, so they are filed under it, not
-                    // under whichever unit the last snapshot came from.
-                    recorder.note(&identity);
-                    let settled = recorder.noted.as_ref() == Some(&identity);
-                    if let (true, true, Some(log)) = (attached, settled, recorder.log_mut())
-                        && let Some(receiver) = log.current_receiver()
-                    {
-                        record_strays(&journal_handle, &identity, log);
-                        journal.pass(&journal_handle, dialect, receiver, attachment, log);
-                    }
-                    // From the end of the pass, not its start.  A pass
-                    // can run longer than the interval, and timed from
-                    // its start the next would already be due.
-                    next_journal = Instant::now() + JOURNAL_EVERY;
-                }
-                // Finished, or every publisher has gone.  Write what is
-                // left and stop: an audit entry for a command that ran
-                // is the one record of it.
-                let snapshots = if log_finished.load(Ordering::SeqCst) {
-                    None
-                } else {
-                    queued(&writes, AUDIT_POLL)
-                };
-                let Some(snapshots) = snapshots else {
-                    for snapshot in writes.try_iter() {
-                        recorder.write(&snapshot);
-                    }
-                    while let Ok(entry) = audit_rx.try_recv() {
-                        recorder.audit(&entry);
-                    }
-                    return;
-                };
-                for snapshot in snapshots {
-                    recorder.write(&snapshot);
-                }
-            }
+            record(LogThread {
+                place,
+                cadence: log_cadence,
+                adopt_log,
+                writes,
+                inbox,
+                journal_handle,
+                journal_info,
+                finished: log_finished,
+            });
         })
         .context("spawning the log thread")?;
 
@@ -493,6 +435,107 @@ fn pause(delay: Duration, stopping: &AtomicBool) {
             return;
         }
         thread::sleep(left.min(STOP_POLL));
+    }
+}
+
+/// What the log thread owns: the log's one writer.
+struct LogThread {
+    /// Where the log is, or how to find one per receiver.
+    place: Place,
+    cadence: Cadence,
+    /// Whether the receiver's diagnostic log may be erased once held.
+    adopt_log: bool,
+    /// Every snapshot, lossless.
+    writes: Receiver<Snapshot>,
+    /// What other threads ask to have written.
+    inbox: Receiver<LogRequest>,
+    /// How the journal reaches the receiver: the request queue.
+    journal_handle: Handle,
+    journal_info: server::SharedInfo,
+    /// Set once the device task has stopped, so nothing more arrives.
+    finished: Arc<AtomicBool>,
+}
+
+/// Write the log until the device task has stopped.
+fn record(log_thread: LogThread) {
+    let LogThread {
+        place,
+        cadence: log_cadence,
+        adopt_log,
+        writes,
+        inbox,
+        journal_handle,
+        journal_info,
+        finished: log_finished,
+    } = log_thread;
+    let mut journal = Journal::default();
+    if adopt_log {
+        journal = journal.clearing_when_full();
+    }
+    let mut recorder = Recorder::new(place, log_cadence);
+    // Soon after startup rather than immediately: the first
+    // pass wants a receiver that has answered, and the errors
+    // worth catching are the ones raised as it comes up.
+    let mut next_journal = Instant::now() + FIRST_JOURNAL;
+    // Commands are recorded on the same thread as snapshots so
+    // one connection stays one writer.  Waiting on whichever
+    // arrives first, rather than draining commands only when a
+    // snapshot happens to publish: an audit entry should not
+    // sit until the next poll, and the queue should not be lost
+    // when the snapshots stop.
+    loop {
+        while let Ok(request) = inbox.try_recv() {
+            recorder.serve(request);
+        }
+        if Instant::now() >= next_journal {
+            // Only while a receiver is answering.  Every one of
+            // these queries would otherwise wait out its
+            // timeout, and the audit entries behind them would
+            // wait with it.
+            let attached = journal_handle
+                .latest()
+                .is_some_and(|s| s.freshness != Freshness::Disconnected);
+            let attachment = journal_handle.attachment();
+            let (identity, dialect) = {
+                let current = server::lock_or_poisoned(&journal_info);
+                (current.identity.clone(), current.dialect)
+            };
+            // The journal's rows are read from the receiver
+            // attached now, so they are filed under it, not
+            // under whichever unit the last snapshot came from.
+            recorder.note(&identity);
+            let settled = recorder.noted.as_ref() == Some(&identity);
+            if let (true, true, Some(log)) = (attached, settled, recorder.log_mut())
+                && let Some(receiver) = log.current_receiver()
+            {
+                record_strays(&journal_handle, &identity, log);
+                journal.pass(&journal_handle, dialect, receiver, attachment, log);
+            }
+            // From the end of the pass, not its start.  A pass
+            // can run longer than the interval, and timed from
+            // its start the next would already be due.
+            next_journal = Instant::now() + JOURNAL_EVERY;
+        }
+        // Finished, or every publisher has gone.  Write what is
+        // left and stop: an audit entry for a command that ran
+        // is the one record of it.
+        let snapshots = if log_finished.load(Ordering::SeqCst) {
+            None
+        } else {
+            queued(&writes, AUDIT_POLL)
+        };
+        let Some(snapshots) = snapshots else {
+            for snapshot in writes.try_iter() {
+                recorder.write(&snapshot);
+            }
+            while let Ok(request) = inbox.try_recv() {
+                recorder.serve(request);
+            }
+            return;
+        };
+        for snapshot in snapshots {
+            recorder.write(&snapshot);
+        }
     }
 }
 
@@ -919,6 +962,13 @@ impl Recorder {
                 self.alarm_seeded = false;
             }
             Err(e) => eprintln!("smartclockd: could not note the receiver: {e}"),
+        }
+    }
+
+    /// Do what another thread asked.
+    fn serve(&mut self, request: LogRequest) {
+        match request {
+            LogRequest::Audit(entry) => self.audit(&entry),
         }
     }
 
