@@ -345,7 +345,10 @@ attachment is answered `Reattached` and not sent, since it was meant
 and audited for the unit attached then.  Every reading carries its
 attachment, and the monitor, whose socket outlives the daemon's
 reconnects, ends its session on a change and asks for the log path,
-policy and cadence again, as it does after a daemon restart.
+policy and cadence again, as it does after a daemon restart.  A failed
+poll republishes the last snapshot, unchanged, so clients see its
+values go stale; the log writes a moment once, so the outage is a gap
+in the history rather than repeated rows.
 
 Use a `/dev/serial/by-id/...` path, not `/dev/ttyUSB0`, which is not
 stable across re-enumeration.  The device path has no default and the
@@ -1237,13 +1240,6 @@ Kept here so that any machine with the repo has the list.
 Decided and not to be done: renaming exporter metrics or changing their
 labels (`oven_tempco` stays; a stopped daemon's `up 0` carries only its
 instance label).
-
-**Daemon and library, receiver identity.**  A swap is noticed only when
-the link breaks (see "Known defects"), and one thing goes wrong around
-one even then:
-
-- A failed poll republishes the previous snapshot under the same `at`,
-  so the log holds the row twice and history weights it double.
 
 **Daemon, other.**
 

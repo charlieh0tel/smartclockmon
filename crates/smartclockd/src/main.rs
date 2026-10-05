@@ -746,6 +746,11 @@ struct Recorder {
     /// A row per poll would be the snapshot table again; a row per
     /// change is the history worth reading.
     last_alarm: Option<smartclock::types::AlarmCondition>,
+    /// When the last snapshot written was taken.  A failed poll
+    /// republishes the snapshot before it, unchanged, so that clients
+    /// see its values go stale; written again, it would be a second
+    /// row for the same moment, counted twice by every reader.
+    last_at: Option<jiff::Timestamp>,
     /// Whether `last_alarm` has been read from the database for the
     /// noted receiver.
     ///
@@ -770,6 +775,7 @@ impl Recorder {
             cadence,
             noted: None,
             last_alarm: None,
+            last_at: None,
             alarm_seeded: false,
         };
         if let Some(log) = log {
@@ -788,6 +794,7 @@ impl Recorder {
             cadence: Cadence::default(),
             noted: None,
             last_alarm: None,
+            last_at: None,
             alarm_seeded: false,
         };
         recorder.adopt(log);
@@ -895,6 +902,9 @@ impl Recorder {
         if snapshot.freshness == Freshness::Disconnected {
             return;
         }
+        if self.last_at == Some(snapshot.at) {
+            return;
+        }
         // By the snapshot's own receiver, not the one attached now: a
         // snapshot can wait in the queue across a swap.
         if let Some(identity) = &snapshot.receiver {
@@ -920,8 +930,9 @@ impl Recorder {
                 self.last_alarm = snapshot.alarm;
             }
         }
-        if let Err(e) = log.record(snapshot) {
-            eprintln!("smartclockd: could not record a snapshot: {e}");
+        match log.record(snapshot) {
+            Ok(_) => self.last_at = Some(snapshot.at),
+            Err(e) => eprintln!("smartclockd: could not record a snapshot: {e}"),
         }
     }
 }
@@ -1068,6 +1079,7 @@ mod tests {
             cadence: Cadence::default(),
             noted: None,
             last_alarm: None,
+            last_at: None,
             alarm_seeded: false,
         };
         let snapshot = |identity: &str| {
@@ -1089,7 +1101,11 @@ mod tests {
             Some(dir.join("Z3805A-3625A01487.sqlite").as_path())
         );
         recorder.write(&snapshot("HEWLETT-PACKARD,58503A,3710A01056,3704-C"));
-        recorder.write(&snapshot("HEWLETT-PACKARD,58503A,3710A01056,3704-C"));
+        let again = snapshot("HEWLETT-PACKARD,58503A,3710A01056,3704-C");
+        recorder.write(&again);
+        // A failed poll republishes the last snapshot as it was: the
+        // same moment is not written twice.
+        recorder.write(&again);
         // Each file holds only its own unit's rows, and knows one unit.
         for (name, rows) in [
             ("58503A-3710A01056.sqlite", 3),
