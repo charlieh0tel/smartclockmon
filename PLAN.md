@@ -1249,7 +1249,6 @@ instance label).
 
 **Daemon, other.**
 
-- A log that fails to open is retried, and reported, on every snapshot.
 - A journal pass ignores its time budget except in two steps.
 - A screen request has no deadline, and one discarded with the queue is
   dropped without an answer.

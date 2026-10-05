@@ -748,6 +748,10 @@ struct Recorder {
     /// A row per poll would be the snapshot table again; a row per
     /// change is the history worth reading.
     last_alarm: Option<smartclock::types::AlarmCondition>,
+    /// A log that would not open, and when it was last tried.  Retried
+    /// no more often than [`LOG_RETRY`], and reported once rather than
+    /// with every snapshot.
+    failed_open: Option<(PathBuf, Instant)>,
     /// When the last snapshot written was taken.  A failed poll
     /// republishes the snapshot before it, unchanged, so that clients
     /// see its values go stale; written again, it would be a second
@@ -778,6 +782,7 @@ impl Recorder {
             noted: None,
             last_alarm: None,
             last_at: None,
+            failed_open: None,
             alarm_seeded: false,
         };
         if let Some(log) = log {
@@ -797,6 +802,7 @@ impl Recorder {
             noted: None,
             last_alarm: None,
             last_at: None,
+            failed_open: None,
             alarm_seeded: false,
         };
         recorder.adopt(log);
@@ -833,19 +839,38 @@ impl Recorder {
         if self.opened.as_ref() == Some(&path) {
             return;
         }
+        let retrying = match &self.failed_open {
+            Some((failed, at)) if *failed == path => {
+                if at.elapsed() < LOG_RETRY {
+                    return;
+                }
+                true
+            }
+            _ => false,
+        };
         match db::Log::open(&path) {
             Ok(log) => {
+                if retrying {
+                    eprintln!("smartclockd: {} opened; logging {identity}", path.display());
+                }
                 if let Err(e) = describe(&log, &path) {
                     eprintln!("smartclockd: could not read {}: {e:#}", path.display());
                 }
                 self.adopt(log);
                 self.opened = Some(path);
+                self.failed_open = None;
             }
             Err(e) => {
-                eprintln!("smartclockd: {e:#}; not logging {identity}");
+                if !retrying {
+                    eprintln!(
+                        "smartclockd: {e:#}; not logging {identity}, trying again every {} s",
+                        LOG_RETRY.as_secs()
+                    );
+                }
                 self.log = None;
                 self.opened = None;
                 self.noted = None;
+                self.failed_open = Some((path, Instant::now()));
             }
         }
     }
@@ -951,6 +976,11 @@ fn set_socket_mode(socket: &Path) -> Result<()> {
 fn set_socket_mode(_socket: &Path) -> Result<()> {
     Ok(())
 }
+
+/// How often a log that would not open is tried again.  A failure that
+/// lasts -- a permission, a full disk, a newer schema -- would otherwise
+/// be retried and reported with every snapshot, once a second.
+const LOG_RETRY: Duration = Duration::from_secs(60);
 
 /// The longest cadence worth accepting.
 ///
@@ -1094,6 +1124,7 @@ mod tests {
             noted: None,
             last_alarm: None,
             last_at: None,
+            failed_open: None,
             alarm_seeded: false,
         };
         let snapshot = |identity: &str| {
@@ -1314,5 +1345,36 @@ mod tests {
         let refused = start_server(listening(info())).expect_err("the socket is live");
         assert!(format!("{refused}").contains("another daemon"), "{refused}");
         let _ = std::fs::remove_file(&socket);
+    }
+
+    #[test]
+    fn a_log_that_will_not_open_is_not_retried_with_every_snapshot() {
+        // A directory that is a file: nothing can be created inside it.
+        let dir =
+            std::env::temp_dir().join(format!("smartclockd-unopenable-{}", std::process::id()));
+        std::fs::write(&dir, b"").expect("a file in the way");
+        let mut recorder = Recorder::new(
+            Place::PerReceiver {
+                dir: dir.clone(),
+                device: "/dev/ttyUSB0".to_owned(),
+            },
+            Cadence::default(),
+        );
+        let snapshot = || {
+            let mut snapshot = Snapshot::new(jiff::Timestamp::now());
+            snapshot.receiver = Some("HEWLETT-PACKARD,58503A,3710A01056,3704-C".to_owned());
+            snapshot.freshness = Freshness::Live;
+            snapshot
+        };
+        recorder.write(&snapshot());
+        let first = recorder.failed_open.as_ref().map(|(_, at)| *at);
+        assert!(first.is_some(), "the failure was not remembered");
+        recorder.write(&snapshot());
+        assert_eq!(
+            recorder.failed_open.as_ref().map(|(_, at)| *at),
+            first,
+            "tried again within the retry interval"
+        );
+        let _ = std::fs::remove_file(&dir);
     }
 }
