@@ -1249,8 +1249,6 @@ instance label).
 
 **Web view.**  Host and Origin checks are open question 5.
 
-**Simulator.**  Its binary takes arguments by position.
-
 **Smaller.**
 
 - The `oven_tempco` HELP text repeats a claim `docs/efc.md` retracted;

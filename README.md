@@ -55,7 +55,7 @@ why.
 With no receiver to hand, the simulator answers in its place, and
 every tool takes `tcp://host:port` wherever it takes a device path:
 
-    smartclock-sim 127.0.0.1:5025
+    smartclock-sim 127.0.0.1:5025            # --model z3801a --no-echo for the Z3801A's framing
     smartclockd     --device tcp://127.0.0.1:5025 ...
     smartclock-cli  --device tcp://127.0.0.1:5025 diagnose
 

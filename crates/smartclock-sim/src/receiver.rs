@@ -274,10 +274,15 @@ impl Receiver {
     /// A Z3801A: its identity and its command tree.  Pair it with a
     /// transport whose echo is off for the bench unit's framing.
     pub fn z3801a() -> Self {
+        Self::default().as_z3801a()
+    }
+
+    /// This receiver, faulty or not, as a Z3801A.
+    pub fn as_z3801a(self) -> Self {
         Self {
             identity: "HEWLETT-PACKARD,Z3801A,0000A00000,3543-A".to_owned(),
             dialect: Dialect::Z3801,
-            ..Self::default()
+            ..self
         }
         .settle()
     }

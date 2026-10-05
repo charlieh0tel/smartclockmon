@@ -1779,6 +1779,7 @@ dependencies = [
 name = "smartclock-sim"
 version = "1.0.3"
 dependencies = [
+ "clap",
  "jiff",
  "smartclock",
  "thiserror 2.0.21",
