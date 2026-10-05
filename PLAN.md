@@ -1254,4 +1254,3 @@ instance label).
 **Smaller.**
 
 - The audit `label` column is always NULL.
-- Refactor: `Screen` fields as the existing newtypes.

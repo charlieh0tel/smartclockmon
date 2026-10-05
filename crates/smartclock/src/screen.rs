@@ -14,9 +14,11 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::types::Degrees;
+use crate::types::Ffom;
 use crate::types::Prn;
 use crate::types::SatelliteInfo;
 use crate::types::SignalStrength;
+use crate::types::Tfom;
 
 /// What the scraper could recover from a screen.
 ///
@@ -30,9 +32,9 @@ pub struct Screen {
     /// The mode marked with `>>`.
     pub mode: Option<String>,
     /// Time figure of merit.
-    pub tfom: Option<u8>,
+    pub tfom: Option<Tfom>,
     /// Frequency figure of merit.
-    pub ffom: Option<u8>,
+    pub ffom: Option<Ffom>,
     /// The bracketed text on the ACQUISITION line.
     pub acquisition: Option<String>,
     /// Satellites being tracked.
@@ -57,7 +59,7 @@ pub struct Screen {
     /// Each `Label: value` pair from the health line, in order.
     pub health_items: Vec<(String, String)>,
     /// Elevation mask in degrees.
-    pub elevation_mask: Option<i16>,
+    pub elevation_mask: Option<Degrees>,
     /// Antenna delay in nanoseconds.
     pub antenna_delay_ns: Option<i64>,
     /// The position MODE field, such as `Hold`, `Navigation` or
@@ -118,13 +120,13 @@ pub fn parse(screen: &str) -> Screen {
         }
         out.tfom = out
             .tfom
-            .or_else(|| after_label(line, "TFOM").and_then(|v| v.parse().ok()));
+            .or_else(|| after_label(line, "TFOM").and_then(|v| v.parse().ok().and_then(Tfom::new)));
         out.ffom = out
             .ffom
-            .or_else(|| after_label(line, "FFOM").and_then(|v| v.parse().ok()));
-        out.elevation_mask = out
-            .elevation_mask
-            .or_else(|| after_label(line, "ELEV MASK").and_then(|v| v.parse().ok()));
+            .or_else(|| after_label(line, "FFOM").and_then(|v| v.parse().ok().and_then(Ffom::new)));
+        out.elevation_mask = out.elevation_mask.or_else(|| {
+            after_label(line, "ELEV MASK").and_then(|v| v.parse().ok().map(Degrees::new))
+        });
         out.antenna_delay_ns = out
             .antenna_delay_ns
             .or_else(|| after_label(line, "ANT DLY").and_then(|v| v.parse().ok()));

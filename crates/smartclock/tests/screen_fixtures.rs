@@ -45,12 +45,12 @@ fn the_live_screen_reads_correctly() {
         s.mode.as_deref(),
         Some("Locked to GPS: stabilizing frequency")
     );
-    assert_eq!(s.tfom, Some(3));
-    assert_eq!(s.ffom, Some(1));
+    assert_eq!(s.tfom.map(|v| v.get()), Some(3));
+    assert_eq!(s.ffom.map(|v| v.get()), Some(1));
     assert_eq!(s.acquisition.as_deref(), Some("GPS 1PPS Valid"));
     assert_eq!(s.tracking, Some(6));
     assert_eq!(s.not_tracking, Some(3));
-    assert_eq!(s.elevation_mask, Some(10));
+    assert_eq!(s.elevation_mask.map(|v| v.get()), Some(10));
     assert_eq!(s.antenna_delay_ns, Some(0));
     assert_eq!(s.health.as_deref(), Some("OK"));
     assert_eq!(s.position_mode.as_deref(), Some("Hold"));
@@ -132,8 +132,8 @@ fn the_manual_layout_reads_too() {
     // column and space padding rather than SS and underscores.
     let s = screen::parse(&fixture("58503a-03.txt"));
     assert_eq!(s.mode.as_deref(), Some("Holdover: GPS 1PPS invalid"));
-    assert_eq!(s.tfom, Some(3));
-    assert_eq!(s.ffom, Some(2));
+    assert_eq!(s.tfom.map(|v| v.get()), Some(3));
+    assert_eq!(s.ffom.map(|v| v.get()), Some(2));
     assert_eq!(s.acquisition.as_deref(), Some("GPS 1PPS Invalid"));
     assert_eq!(s.tracking, Some(0));
     assert_eq!(s.not_tracking, Some(7));
