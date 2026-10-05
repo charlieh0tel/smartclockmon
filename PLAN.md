@@ -1231,9 +1231,6 @@ instance label).
 
 **Command-line tool.**
 
-- `--capture` behaves three ways: the console reads ignore it, other
-  commands truncate an existing file, `flash` refuses one.  One helper,
-  refusing an existing file.
 - `probe --dialect` defaults to the 58503A's on any unit; default from
   `*IDN?`.
 - `read-* --compare` exits 0 when bytes differ, and a comparison file

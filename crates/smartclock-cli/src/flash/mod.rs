@@ -279,17 +279,7 @@ pub(crate) fn run(
     };
     // Create the transcript before opening the hardware; an existing file
     // or unwritable destination must never fail after erase.
-    let capture = capture
-        .map(|path| {
-            let file = std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(path)
-                .with_context(|| format!("creating {}", path.display()))?;
-            eprintln!("Recording the exchange to {}.", path.display());
-            Ok::<_, anyhow::Error>(file)
-        })
-        .transpose()?;
+    let capture = capture.map(crate::transcript).transpose()?;
     eprintln!("Opening only {path}; its daemon must be stopped.");
     let config = Config {
         timeout: COMMAND_TIMEOUT,

@@ -73,7 +73,8 @@ struct Cli {
     #[arg(long, conflicts_with_all = ["device", "capture"], global = true)]
     socket: Option<PathBuf>,
 
-    /// Record the whole exchange to this JSONL transcript.
+    /// Record the whole exchange to this JSONL transcript, a new file:
+    /// an existing one is refused, not overwritten.
     #[arg(long, global = true)]
     capture: Option<PathBuf>,
 
@@ -293,8 +294,18 @@ fn main() -> Result<()> {
         }
         found
     };
-    let mut port = transport::open(&settings)
+    // Created before the port is opened, so an existing file stops the
+    // run before anything is sent.
+    let capture = cli.capture.as_deref().map(transcript).transpose()?;
+    let port = transport::open(&settings)
         .with_context(|| format!("opening {device} at {} baud", settings.baud))?;
+    // Capture wraps the port, so a recording covers the sync exchange
+    // and the console reads too, not just the commands a subcommand
+    // issues.
+    let mut port: Box<dyn Transport + Send> = match capture {
+        Some(file) => Box::new(TeeTransport::new(port, file)),
+        None => port,
+    };
 
     // The console has its own prompt, so this skips the SCPI session.
     if let Some((from, length, to)) = console_read(&cli.command) {
@@ -347,19 +358,20 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Capture wraps the port, so a recording covers the sync exchange
-    // too, not just the commands the subcommand issues.
-    match &cli.capture {
-        Some(path) => {
-            let sink = File::create(path)
-                .with_context(|| format!("creating transcript {}", path.display()))?;
-            let session = Session::new(TeeTransport::new(port, sink), config);
-            let result = run(session, &cli.command, &checked);
-            eprintln!("transcript written to {}", path.display());
-            result
-        }
-        None => run(Session::new(port, config), &cli.command, &checked),
-    }
+    run(Session::new(port, config), &cli.command, &checked)
+}
+
+/// A new transcript file at `path`.  An existing file is refused rather
+/// than overwritten: a transcript is evidence, and the one written last
+/// is not always the one that mattered.
+fn transcript(path: &Path) -> Result<File> {
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .with_context(|| format!("creating transcript {}", path.display()))?;
+    eprintln!("Recording the exchange to {}.", path.display());
+    Ok(file)
 }
 
 /// Carry out `command`, sending `checked` where it is one that sends
@@ -1008,7 +1020,20 @@ fn diagnose_daemon(daemon: &mut Daemon) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::seconds;
+    use super::transcript;
     use std::time::Duration;
+
+    #[test]
+    fn a_transcript_is_a_new_file() {
+        let path = std::env::temp_dir().join(format!(
+            "smartclock-cli-transcript-{}.jsonl",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        transcript(&path).expect("a new file is created");
+        assert!(transcript(&path).is_err(), "an existing file was reopened");
+        std::fs::remove_file(&path).expect("removing the test file");
+    }
 
     #[test]
     fn a_timeout_is_a_positive_finite_number_of_seconds() {

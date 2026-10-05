@@ -1768,8 +1768,9 @@ or probe other ports.  It finds the port's line settings as the other
 commands do (`smartclock::attach`): the given `--baud` and `--framing`
 first, then the others these receivers use, reading the probe's errors
 off the queue before its checks.  `--device` also takes
-`tcp://host:port`.  `--capture` records the exchange to a new file;
-an existing transcript is never overwritten.  Replace the placeholders
+`tcp://host:port`.  `--capture` records the exchange to a new file,
+as it does for every command; an existing transcript is refused, not
+overwritten.  Replace the placeholders
 below with the image path, device and receiver serial.
 
 Inspect the file without opening hardware:
