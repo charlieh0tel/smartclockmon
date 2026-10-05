@@ -1249,8 +1249,6 @@ instance label).
 
 **Daemon, other.**
 
-- A screen request has no deadline, and one discarded with the queue is
-  dropped without an answer.
 - One failure path per request kind; a plain refusal from the receiver
   needlessly resynchronizes the link.
 - The medium tier aborts when `holdover_duration` is refused, where

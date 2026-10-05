@@ -146,6 +146,9 @@ pub enum Request {
     /// still answers alone.  A client showing the status view asks for
     /// one while it is being looked at, and pays for it itself.
     Screen {
+        /// When the caller stops waiting.  Past it the screen is not
+        /// read: 1.5 s of link for an answer nobody will take.
+        deadline: Instant,
         /// Where to send the screen, or why there is none.
         answer: SyncSender<Result<Screen>>,
     },
@@ -374,7 +377,10 @@ impl Handle {
     pub fn status(&self) -> Result<Screen> {
         let (tx, rx) = sync_channel(1);
         self.requests
-            .send(Request::Screen { answer: tx })
+            .send(Request::Screen {
+                deadline: Instant::now() + REQUEST_TIMEOUT,
+                answer: tx,
+            })
             .map_err(|_| Error::TaskStopped("nothing is serving its request queue"))?;
         match rx.recv_timeout(REQUEST_TIMEOUT) {
             Ok(outcome) => outcome,
@@ -465,8 +471,14 @@ fn next_tier(due: &[Instant; 3], last_run: &[Instant; 3]) -> (Tier, Instant) {
 pub fn discard_queued(requests: &Receiver<Request>, why: &'static str) -> usize {
     let mut discarded = 0;
     while let Ok(request) = requests.try_recv() {
-        if let Request::Command { answer, .. } = request {
-            let _ = answer.send(Err(Error::TaskStopped(why)));
+        match request {
+            Request::Command { answer, .. } => {
+                let _ = answer.send(Err(Error::TaskStopped(why)));
+            }
+            Request::Screen { answer, .. } => {
+                let _ = answer.send(Err(Error::TaskStopped(why)));
+            }
+            Request::Refresh | Request::Stop => {}
         }
         discarded += 1;
     }
@@ -885,7 +897,14 @@ impl<T: Transport> DeviceTask<T> {
                 }
                 None
             }
-            Request::Screen { answer } => {
+            Request::Screen { deadline, answer } => {
+                if Instant::now() >= deadline {
+                    let _ = answer.send(Err(Error::Timeout {
+                        waited: Duration::ZERO,
+                        seen: "the caller stopped waiting before the screen was read".to_owned(),
+                    }));
+                    return None;
+                }
                 if let Some(stopped) = self.ensure_synced() {
                     let _ = answer.send(Err(Error::TaskStopped(
                         "the link failed while resynchronising",
@@ -1014,9 +1033,19 @@ mod tests {
         tx.send(first).expect("queue the first");
         tx.send(second).expect("queue the second");
         tx.send(Request::Refresh).expect("queue a refresh");
+        let (screen_tx, screen_answer) = sync_channel(1);
+        tx.send(Request::Screen {
+            deadline: Instant::now() + Duration::from_secs(60),
+            answer: screen_tx,
+        })
+        .expect("queue a screen");
 
         let discarded = discard_queued(&rx, "the link went down");
-        assert_eq!(discarded, 3, "everything queued should be taken");
+        assert_eq!(discarded, 4, "everything queued should be taken");
+        match screen_answer.try_recv() {
+            Ok(Err(Error::TaskStopped(why))) => assert_eq!(why, "the link went down"),
+            other => panic!("expected the screen request answered, got {other:?}"),
+        }
 
         for answer in [first_answer, second_answer] {
             match answer.try_recv() {
