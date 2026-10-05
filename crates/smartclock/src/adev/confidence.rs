@@ -34,11 +34,12 @@ pub struct Bounds {
     pub edf: f64,
 }
 
-/// The confidence level of every interval: one sigma, 68.27 %.
+/// The confidence level of every interval, in standard normal
+/// deviations either side: one sigma, 68.27 %.
 ///
 /// The convention on stability plots, and the one SP 1065 section
 /// 5.3.2 says most show.
-pub const CONFIDENCE: f64 = 0.682_689_492_137_085_9;
+const SIGMAS: f64 = 1.0;
 
 /// The fewest tau-sampled readings the lag 1 method is applied to.
 ///
@@ -328,89 +329,29 @@ fn binomial(n: usize, k: usize) -> f64 {
     (1..=k).fold(1.0, |acc, i| acc * (n - k + i) as f64 / i as f64)
 }
 
-/// The chi-squared quantile at probability `p` for `edf` degrees of
-/// freedom, by Wilson and Hilferty: the cube root of chi-squared over
-/// its degrees of freedom is close to normal with mean `1 - 2/(9 edf)`
-/// and variance `2/(9 edf)`.
-fn chi_squared_quantile(p: f64, edf: f64) -> f64 {
-    let z = normal_quantile(p);
+/// The chi-squared quantile `z` standard normal deviations from the
+/// median for `edf` degrees of freedom, by Wilson and Hilferty: the
+/// cube root of chi-squared over its degrees of freedom is close to
+/// normal with mean `1 - 2/(9 edf)` and variance `2/(9 edf)`.
+fn chi_squared_quantile(z: f64, edf: f64) -> f64 {
     let spread = (2.0 / (9.0 * edf)).sqrt();
     edf * (1.0 - 2.0 / (9.0 * edf) + z * spread).powi(3)
 }
 
-/// The standard normal quantile, by bisection on the complementary
-/// error function: a dozen lines that need no table and are exact to
-/// the precision of `erfc`.
-fn normal_quantile(p: f64) -> f64 {
-    let cdf = |z: f64| 0.5 * erfc(-z / 2f64.sqrt());
-    let (mut low, mut high) = (-10.0, 10.0);
-    for _ in 0..200 {
-        let mid = (low + high) / 2.0;
-        if cdf(mid) < p {
-            low = mid;
-        } else {
-            high = mid;
-        }
-    }
-    (low + high) / 2.0
-}
-
-/// The complementary error function, by the continued fraction for
-/// large arguments and the series for small, both to double precision.
-fn erfc(x: f64) -> f64 {
-    if x < 0.0 {
-        return 2.0 - erfc(-x);
-    }
-    if x < 2.0 {
-        // erf(x) = 2/sqrt(pi) sum (-1)^n x^(2n+1) / (n! (2n+1))
-        let mut term = x;
-        let mut sum = x;
-        let mut n = 0.0;
-        while term.abs() > 1e-17 * sum.abs() {
-            n += 1.0;
-            term *= -x * x / n;
-            sum += term / (2.0 * n + 1.0);
-        }
-        return 1.0 - 2.0 / std::f64::consts::PI.sqrt() * sum;
-    }
-    // Lentz's method on the continued fraction
-    // erfc(x) = exp(-x^2)/sqrt(pi) * 1/(x + 1/2/(x + 1/(x + 3/2/(x + ...))))
-    let tiny = 1e-300;
-    let mut f = x;
-    let mut c = x;
-    let mut d = 0.0;
-    for k in 1..200 {
-        let a = k as f64 / 2.0;
-        d = x + a * d;
-        d = if d == 0.0 { tiny } else { 1.0 / d };
-        c = x + a / c;
-        if c == 0.0 {
-            c = tiny;
-        }
-        let delta = c * d;
-        f *= delta;
-        if (delta - 1.0).abs() < 1e-16 {
-            break;
-        }
-    }
-    (-x * x).exp() / (std::f64::consts::PI.sqrt() * f)
-}
-
 /// The interval on a deviation `s` with `edf` degrees of freedom, at
-/// [`CONFIDENCE`]: SP 1065 equation 45.
+/// [`SIGMAS`]: SP 1065 equation 45.
 pub(super) fn bounds(deviation: f64, edf: f64) -> Bounds {
-    let p = (1.0 - CONFIDENCE) / 2.0;
     let variance = deviation * deviation;
     Bounds {
-        lower: (variance * edf / chi_squared_quantile(1.0 - p, edf)).sqrt(),
-        upper: (variance * edf / chi_squared_quantile(p, edf)).sqrt(),
+        lower: (variance * edf / chi_squared_quantile(SIGMAS, edf)).sqrt(),
+        upper: (variance * edf / chi_squared_quantile(-SIGMAS, edf)).sqrt(),
         edf,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::CONFIDENCE;
+    use super::SIGMAS;
     use super::chi_squared_quantile;
     use super::edf;
     use super::noise_type;
@@ -430,11 +371,10 @@ mod tests {
 
     #[test]
     fn the_wilson_hilferty_quantile_is_within_half_a_percent_of_scipy_in_the_deviation() {
-        let p = (1.0 - CONFIDENCE) / 2.0;
         for (edf, lower, upper) in SCIPY {
             for (want, got) in [
-                (lower, chi_squared_quantile(p, edf)),
-                (upper, chi_squared_quantile(1.0 - p, edf)),
+                (lower, chi_squared_quantile(-SIGMAS, edf)),
+                (upper, chi_squared_quantile(SIGMAS, edf)),
             ] {
                 // The bound on a deviation goes as the square root of
                 // the quantile, so that is the error that matters.
