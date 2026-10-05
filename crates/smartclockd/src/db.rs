@@ -619,8 +619,10 @@ impl Log {
                  -- Firmware is as last seen, so an upgrade is recorded
                  -- rather than leaving the row describing a build that
                  -- is no longer on the unit.
-                 firmware = excluded.firmware,
-                 last_seen = excluded.last_seen",
+                 -- last_seen is left to the measurements that set it:
+                 -- noting a unit for a note, a fact or an audit row is
+                 -- not seeing it.
+                 firmware = excluded.firmware",
             params![
                 serial,
                 field(|id| &id.manufacturer),
@@ -957,6 +959,11 @@ mod tests {
         let mut down = Snapshot::new(at("2030-01-01T00:01:00Z"));
         down.freshness = Freshness::Disconnected;
         log.record(&down).expect("record a disconnection");
+        assert_eq!(last_seen(&log), stored(measured.at));
+        // Noting the unit again, as a note or an audit row does, is not
+        // seeing it.
+        log.note_receiver("HEWLETT-PACKARD,58503A,3710A01056,3704-C")
+            .expect("note the receiver again");
         assert_eq!(last_seen(&log), stored(measured.at));
     }
 
