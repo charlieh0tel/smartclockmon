@@ -293,9 +293,9 @@ impl Receiver {
     /// Everything derived from GPS is refused with -230.  A poll must
     /// come back with the rest of the tier regardless: on a real
     /// Z3805A a bare `?` on the date meant the slow tier never
-    /// completed once, so the log count, the oscillator tempco and the
-    /// powerup register -- which sit after it -- reported themselves
-    /// missing when they had never been asked.
+    /// completed once, so the log count, the oven-current coefficient
+    /// and the powerup register -- which sit after it -- reported
+    /// themselves missing when they had never been asked.
     pub fn cold() -> Self {
         Self {
             no_fix: true,

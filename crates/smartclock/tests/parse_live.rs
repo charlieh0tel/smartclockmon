@@ -18,11 +18,9 @@ fn integers_keep_their_leading_plus() {
 }
 
 #[test]
-fn the_learned_tempco_is_a_plain_real() {
-    // Read from the receiver in September 2026 and identical to the
-    // reading the phase 7 sweep took, which is the first evidence that
-    // this may be a stored calibration rather than a value the receiver
-    // keeps revising.
+fn the_oven_current_coefficient_is_a_plain_real() {
+    // `:DIAGnostic:ROSCillator:TCOefficient?` on the bench 58503A, a
+    // constant held in EEPROM (`docs/efc.md`, "The reported tempco").
     assert!((parse::real("-3.36500E+001").expect("real") + 33.65).abs() < 1e-9);
 }
 
