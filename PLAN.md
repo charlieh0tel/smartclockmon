@@ -186,7 +186,9 @@ not change the wire format.
   so the daemon sets persistent WAL and closing a log leaves `-wal` and
   `-shm` in place.  rusqlite has no safe call for it; the workspace
   denies `unsafe_code` rather than forbidding it, and this one call
-  carries the `expect`.
+  carries the `expect`.  A log closed by anything else, such as a hand
+  `sqlite3` session, loses `-shm`; the readers then open it immutable,
+  which is safe because no writer holds it.
 
 The socket keeps the TUI's live pane off SQLite at 1 Hz and makes
 reconnection after a daemon restart trivial.  Protocol and schema each

@@ -566,3 +566,43 @@ fn a_log_from_before_the_journal_tables_reads_as_empty() {
     assert!(receivers.is_empty());
     assert!(journal.entries.is_empty() && journal.events.is_empty() && journal.errors.is_empty());
 }
+
+#[test]
+#[cfg(unix)]
+fn a_closed_wal_log_in_a_directory_the_reader_cannot_write_is_still_read() {
+    use std::os::unix::fs::PermissionsExt as _;
+    // A directory of its own, so it can be made read-only.
+    let dir = std::env::temp_dir().join(format!("smartclock-log-sealed-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir(&dir).expect("a directory");
+    let path = dir.join("log.sqlite");
+    {
+        let conn = Connection::open(&path).expect("create the log");
+        conn.pragma_update(None, "journal_mode", "WAL")
+            .expect("WAL");
+        conn.execute_batch(META).expect("meta");
+        conn.execute_batch(TABLES).expect("the tables");
+        conn.execute_batch(
+            "INSERT INTO receiver (id, serial, manufacturer, model, firmware, first_seen, last_seen)
+             VALUES (1,'AAA','HEWLETT-PACKARD','58503A','3704-C',
+                     '2026-09-01T00:00:00.000000000Z','2026-09-01T00:00:00.000000000Z');",
+        )
+        .expect("a receiver");
+    }
+    // The last connection to close took -shm with it.
+    let mut shm = path.clone().into_os_string();
+    shm.push("-shm");
+    assert!(!std::path::Path::new(&shm).exists());
+    let mode = |m| std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(m));
+    mode(0o555).expect("seal the directory");
+    let read = Log::open(&path).and_then(|log| log.receivers());
+    mode(0o755).expect("unseal the directory");
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(
+        read.expect("read the receivers")
+            .iter()
+            .map(|r| r.serial.as_str())
+            .collect::<Vec<_>>(),
+        vec!["AAA"]
+    );
+}

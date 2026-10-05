@@ -266,6 +266,21 @@ pub struct Fact {
     pub value: String,
 }
 
+/// `path` as an SQLite URI that opens it immutable.  `?`, `#` and `%`
+/// would be read as URI syntax, so they are escaped.
+fn immutable_uri(path: &str) -> String {
+    let escaped: String = path
+        .chars()
+        .map(|c| match c {
+            '?' => "%3F".to_owned(),
+            '#' => "%23".to_owned(),
+            '%' => "%25".to_owned(),
+            other => other.to_string(),
+        })
+        .collect();
+    format!("file:{escaped}?immutable=1")
+}
+
 /// Whether a failure is a table this log predates.
 fn missing_table(e: &rusqlite::Error) -> bool {
     matches!(e, rusqlite::Error::SqliteFailure(_, Some(why)) if why.contains("no such table"))
@@ -273,16 +288,39 @@ fn missing_table(e: &rusqlite::Error) -> bool {
 
 impl Log {
     /// Open the log without taking a write lock on it.
+    ///
+    /// A WAL log whose `-shm` is gone, in a directory this reader may not
+    /// write, cannot be read normally: SQLite would have to create the
+    /// file.  Such a log has no writer -- a daemon holding it keeps
+    /// `-shm` -- so it is opened immutable instead, which reads the file
+    /// as it stands.
     pub fn open(path: &Path) -> Result<Self> {
-        let conn = Connection::open_with_flags(
-            path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
-        )
-        .map_err(|source| Error::Open {
-            path: path.to_path_buf(),
-            source,
-        })?;
-        Ok(Self { conn })
+        let opened = |target: &Path| {
+            Connection::open_with_flags(
+                target,
+                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
+            )
+            .map_err(|source| Error::Open {
+                path: path.to_path_buf(),
+                source,
+            })
+        };
+        let conn = opened(path)?;
+        let unreadable = matches!(
+            conn.query_row("SELECT count(*) FROM sqlite_master", [], |_| Ok(())),
+            Err(rusqlite::Error::SqliteFailure(e, _))
+                if e.code == rusqlite::ErrorCode::ReadOnly
+                    || e.code == rusqlite::ErrorCode::CannotOpen
+        );
+        match path.to_str() {
+            Some(name) if unreadable => {
+                drop(conn);
+                Ok(Self {
+                    conn: opened(Path::new(&immutable_uri(name)))?,
+                })
+            }
+            _ => Ok(Self { conn }),
+        }
     }
 
     /// Every receiver this log holds, most recently seen first.
