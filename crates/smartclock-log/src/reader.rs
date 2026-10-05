@@ -673,6 +673,33 @@ impl Log {
         })
     }
 
+    /// The receiver's notes from `from` up to and including `to`, unix
+    /// seconds, oldest first: the ones a chart of that range marks,
+    /// however many newer ones the journal shows instead.  At most
+    /// [`MAX_JOURNAL`]; empty on a log older than notes.
+    pub fn notes(&self, receiver: i64, from: i64, to: i64) -> Result<Vec<Note>> {
+        let sql = format!(
+            "SELECT at, text FROM note
+             WHERE receiver_id = ?1 AND at >= {} AND at < {}
+             ORDER BY at, id LIMIT ?4",
+            text_bound("?2"),
+            text_bound("?3 + 1"),
+        );
+        let mut statement = match self.conn.prepare(&sql) {
+            Ok(statement) => statement,
+            Err(e) if missing_table(&e) => return Ok(Vec::new()),
+            Err(e) => return Err(e.into()),
+        };
+        Ok(statement
+            .query_map((receiver, from, to, MAX_JOURNAL as i64), |row| {
+                Ok(Note {
+                    at: row.get(0)?,
+                    text: row.get(1)?,
+                })
+            })?
+            .collect::<std::result::Result<_, _>>()?)
+    }
+
     /// The current value of each fact about the receiver, by key: the
     /// one with the latest `since`, an older value having been
     /// replaced.

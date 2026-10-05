@@ -32,10 +32,24 @@ const FROM_DAEMON = new Set(["snapshot", "info", "status"]);
 //   delay    milliseconds to hold each endpoint's answer, by name
 //   columns  what it measures, as the server lists it: every column
 //            the history serves, unless a test says otherwise
-//   skew     seconds added to its history's times, as two receivers'
-//            bucket times differ by their readings'
+//   skew     seconds its history's times move, each kept inside its
+//            bucket as the server's mean times are
 export function receiver(serial, mode, present, columns = RECORDED.history.plottable) {
   return { serial, up: true, mode, present, delay: {}, columns, skew: 0 };
+}
+
+// `at` moved by `skew` seconds, wrapping inside the bucket each time
+// falls in for the window `query` asks for, since the server's mean
+// time for a bucket never leaves it.
+function skewed(at, skew, query) {
+  const from = Number(query.get("from")), to = Number(query.get("to"));
+  const points = Number(query.get("points"));
+  if (!skew || !(to > from) || !points) return at;
+  const width = (to - from + 1) / points;
+  return at.map((t) => {
+    const start = from + Math.floor((t - from) / width) * width;
+    return start + ((t - start + skew) % width);
+  });
 }
 
 // The state a test drives.  `units` is the list the server reports.
@@ -50,7 +64,7 @@ export class Fake {
     return this.units.find((u) => u.serial === serial) ?? this.units[0];
   }
 
-  answer(endpoint, u) {
+  answer(endpoint, u, query = new URLSearchParams()) {
     if (FROM_DAEMON.has(endpoint) && !u.up) {
       return { error: `no daemon is attached to receiver ${u.serial}` };
     }
@@ -75,7 +89,9 @@ export class Fake {
       case "adev":
         return { ...body, present: u.present };
       case "history":
-        return { ...body, at: body.at.map((t) => t + u.skew) };
+        return { ...body, at: skewed(body.at, u.skew, query) };
+      case "notes":
+        return this.answer("journal", u).notes;
       case "journal": {
         // One note, midway through the recorded history, naming whose
         // it is.
@@ -101,7 +117,7 @@ export class Fake {
       if (wait) await new Promise((r) => setTimeout(r, wait));
       // The page may have gone on without this answer.
       await route
-        .fulfill({ contentType: "application/json", body: JSON.stringify(this.answer(endpoint, u)) })
+        .fulfill({ contentType: "application/json", body: JSON.stringify(this.answer(endpoint, u, url.searchParams)) })
         .catch(() => {});
     });
   }

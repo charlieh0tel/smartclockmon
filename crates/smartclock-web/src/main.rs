@@ -143,6 +143,7 @@ fn main() -> Result<()> {
             "/api/history" => json(series(&logs, query)),
             "/api/journal" => json(journal(&logs, query)),
             "/api/facts" => json(facts(&logs, query)),
+            "/api/notes" => json(notes(&logs, query)),
             "/api/receivers" => json(receivers(&logs, &daemons, &cache)),
             "/api/adev" => json(deviation(&logs, query)),
             _ => Response::not_found(),
@@ -361,6 +362,24 @@ fn journal(logs: &Logs, query: &str) -> Result<serde_json::Value> {
     };
     Ok(serde_json::to_value(journal)?)
 }
+
+/// The receiver's notes over `from` to `to`, unix seconds, for the
+/// charts to mark; the whole log when either is left out.
+fn notes(logs: &Logs, query: &str) -> Result<serde_json::Value> {
+    let bound = |key| smartclock_http::value(query, key).and_then(|v| v.parse::<i64>().ok());
+    let notes = match logs.choose(query)? {
+        Some((log, receiver)) => log.notes(
+            receiver,
+            bound("from").unwrap_or(0),
+            bound("to").unwrap_or(NO_LATER_THAN),
+        )?,
+        None => Vec::new(),
+    };
+    Ok(serde_json::to_value(notes)?)
+}
+
+/// An upper bound past any time a log holds: 2100-01-01, unix seconds.
+const NO_LATER_THAN: i64 = 4_102_444_800;
 
 /// The current value of each fact a person recorded about the receiver.
 fn facts(logs: &Logs, query: &str) -> Result<serde_json::Value> {

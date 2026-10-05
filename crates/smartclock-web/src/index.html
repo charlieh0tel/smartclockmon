@@ -543,7 +543,14 @@ function showStream(journal) {
 async function loadJournal(signal) {
   const journal = await ask("/api/journal?" + withUnit(new URLSearchParams()), signal);
   drawJournal(journal);
-  notes = (journal.notes ?? []).map((n) => ({ at: Date.parse(n.at) / 1000, text: n.text, colour: NOTE }));
+  // The charts' range, not the journal's newest few: a note older
+  // than those still belongs on a chart that reaches back to it.
+  const q = withUnit(new URLSearchParams());
+  const { from, to } = rangeBounds();
+  if (from) q.set("from", Math.floor(from));
+  if (to) q.set("to", Math.ceil(to));
+  const ranged = await ask("/api/notes?" + q, signal);
+  notes = ranged.map((n) => ({ at: Date.parse(n.at) / 1000, text: n.text, colour: NOTE }));
   for (const c of charts) c.redraw(false);
 }
 

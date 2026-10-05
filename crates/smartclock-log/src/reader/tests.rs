@@ -507,6 +507,37 @@ fn notes_come_newest_first_and_a_fact_shows_its_latest_value() {
 }
 
 #[test]
+fn notes_are_read_by_range_however_old() {
+    let scratch = two_units("ranged-notes");
+    let conn = scratch.connect();
+    // More newer notes than the journal shows, after the one asked for.
+    conn.execute(
+        "INSERT INTO note (at, text, receiver_id) VALUES ('2026-01-01T00:00:00.000000000Z', 'old', 1)",
+        [],
+    )
+    .expect("the old note");
+    for n in 0..600 {
+        conn.execute(
+            "INSERT INTO note (at, text, receiver_id) VALUES (?1, 'newer', 1)",
+            [at(1_790_000_000 + n)],
+        )
+        .expect("a newer note");
+    }
+    let log = Log::open(scratch.path()).expect("open");
+    let jan = 1_767_225_600; // 2026-01-01T00:00:00Z
+    let old = log.notes(1, jan - 60, jan + 60).expect("the notes");
+    assert_eq!(
+        old.iter().map(|n| n.text.as_str()).collect::<Vec<_>>(),
+        vec!["old"]
+    );
+    assert!(
+        log.notes(2, jan - 60, jan + 60)
+            .expect("B's notes")
+            .is_empty()
+    );
+}
+
+#[test]
 fn a_log_older_than_notes_has_none() {
     let scratch = two_units("old-notes");
     scratch
@@ -516,6 +547,11 @@ fn a_log_older_than_notes_has_none() {
     let log = Log::open(scratch.path()).expect("open");
     assert!(log.journal(1, 50).expect("journal").notes.is_empty());
     assert!(log.facts(1).expect("facts").is_empty());
+    assert!(
+        log.notes(1, 0, i64::MAX / 2)
+            .expect("ranged notes")
+            .is_empty()
+    );
 }
 
 #[test]

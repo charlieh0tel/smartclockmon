@@ -130,11 +130,38 @@ test("the compare page reads every receiver at one instant", async ({ page }) =>
   fake.unit(B).skew = 7;
   await open(page, fake, "/compare");
   await page.waitForFunction(() => charts.length === 5);
-  const box = await page.locator("#charts .u-over").first().boundingBox();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  const values = page.locator("#charts .uplot").first().locator(".u-legend .u-value");
-  await expect(values.nth(1)).toHaveText(/\d/);
-  await expect(values.nth(2)).toHaveText(/\d/);
+  // Hovered afresh on each look: the page may draw its charts again
+  // after the first read, and a new chart sees the cursor only when it
+  // moves.
+  const legend = async () => {
+    const box = await page.locator("#charts .u-over").first().boundingBox();
+    await page.mouse.move(box.x + box.width / 2 + 1, box.y + box.height / 2);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    const values = page.locator("#charts .uplot").first().locator(".u-legend .u-value");
+    return [await values.nth(1).textContent(), await values.nth(2).textContent()];
+  };
+  await expect.poll(async () => (await legend()).every((v) => /\d/.test(v))).toBe(true);
+});
+
+test("the compare page offers a receiver that appears, and keeps its charts when a daemon goes", async ({ page }) => {
+  const fake = new Fake([receiver(A, MODE[A], 111)]);
+  await open(page, fake, "/compare");
+  await page.waitForFunction(() => charts.length === 5);
+  fake.units.push(receiver(B, MODE[B], 222));
+  await expect(page.locator(`#compared input[data-serial="${B}"]`)).toBeVisible({ timeout: 12000 });
+  await expect(page.locator(`#compared input[data-serial="${B}"]`)).not.toBeChecked();
+  // Drawn from the logs, which a daemon going does not take away.
+  fake.unit(A).up = false;
+  await page.waitForTimeout(2500);
+  expect(await page.evaluate(() => charts.length)).toBe(5);
+});
+
+test("the compare page marks each receiver's notes over its whole range", async ({ page }) => {
+  await open(page, twoUnits(), "/compare");
+  await page.waitForFunction(() => charts.length === 5 && marks.length === 2);
+  const texts = await page.evaluate(() => marks.map((m) => m.text));
+  expect(texts.map((t) => (t.includes(`note of ${A}`) ? A : t.includes(`note of ${B}`) ? B : t)).sort())
+    .toEqual([A, B]);
 });
 
 test("the compare page overlays every receiver with readings, and drops one unticked", async ({ page }) => {
