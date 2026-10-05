@@ -1229,12 +1229,6 @@ Decided and not to be done: renaming exporter metrics or changing their
 labels (`oven_tempco` stays; a stopped daemon's `up 0` carries only its
 instance label).
 
-**Command-line tool.**
-
-- A console read that times out is retried without finding the prompt
-  again, so a late reply can be taken for the next address's bytes.
-  Resynchronize, or give up, before retrying.
-
 **Daemon and library, receiver identity.**  A swap is noticed only when
 the link breaks (see "Known defects"), and three things go wrong around
 one even then:

@@ -53,6 +53,10 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(3);
 /// The command that turns the SCPI port into the console.
 const ENTER: &str = ":SYSTem:LANGuage \"PFORTH\"";
 
+/// How long the line must be silent before a resync calls it drained:
+/// longer than the gaps inside one reply, short next to a retry.
+const QUIET: Duration = Duration::from_millis(300);
+
 /// How many times a request is tried before the read gives up.
 const ATTEMPTS: usize = 4;
 
@@ -292,6 +296,36 @@ impl<T: Read + Write> Console<T> {
         })
     }
 
+    /// Read and discard until the line has been quiet for [`QUIET`],
+    /// giving up after [`REQUEST_TIMEOUT`].
+    fn drain(&mut self) -> Result<()> {
+        let deadline = Instant::now() + REQUEST_TIMEOUT;
+        let mut last_byte = Instant::now();
+        let mut chunk = [0u8; 1024];
+        while last_byte.elapsed() < QUIET {
+            if Instant::now() > deadline {
+                return Err(ConsoleError::NoPrompt {
+                    line: String::new(),
+                    waited: REQUEST_TIMEOUT,
+                    seen: "the receiver kept sending".to_owned(),
+                });
+            }
+            if self.port.read(&mut chunk)? > 0 {
+                last_byte = Instant::now();
+            }
+        }
+        Ok(())
+    }
+
+    /// Bring the console back to a prompt that answers the next line:
+    /// drain what is still arriving, ask for a fresh prompt, and drain
+    /// again in case the prompt matched was an older one.
+    fn resync(&mut self) -> Result<()> {
+        self.drain()?;
+        self.send_within("", PROBE_TIMEOUT)?;
+        self.drain()
+    }
+
     /// The long word at `address`, read in `hex`.
     fn long(&mut self, address: u32) -> Result<u32> {
         let request = format!("{address:X} @ u.");
@@ -401,6 +435,12 @@ pub fn read_memory<T: Read + Write>(
                     });
                 }
                 Err(e) => last = Some(e),
+            }
+            // A failed attempt can leave a late reply and its prompt on
+            // the way, to be read as the next attempt's words.
+            if let Err(e) = console.resync() {
+                last = Some(e);
+                break;
             }
         }
         let Some(words) = got else {
@@ -782,5 +822,23 @@ mod tests {
         assert!(matches!(error, ConsoleError::Stopped(0)), "{error}");
         assert!(!console.sent.iter().any(|line| line.ends_with("rd")
             && line != ": rd ( addr n -- ) over + swap do i @ u. 4 +loop ;"));
+    }
+
+    #[test]
+    fn a_failed_chunk_is_retried_only_after_a_fresh_prompt() {
+        // The fake answers `rd` with no words, so every attempt fails.
+        let mut console = Fake::new(&[]);
+        let stop = AtomicBool::new(false);
+        let error = read_memory(&mut console, 0, 8, &mut Vec::new(), None, |_| {}, &stop)
+            .expect_err("no words");
+        assert!(matches!(error, ConsoleError::GaveUp { .. }), "{error}");
+        let after_first: Vec<&str> = console
+            .sent
+            .iter()
+            .map(String::as_str)
+            .skip_while(|line| *line != "0 8 rd")
+            .collect();
+        assert_eq!(after_first.get(1), Some(&""), "{after_first:?}");
+        assert_eq!(after_first.get(2), Some(&"0 8 rd"), "{after_first:?}");
     }
 }
