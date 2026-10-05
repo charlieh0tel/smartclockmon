@@ -195,6 +195,20 @@ two units keeps their rows apart.
 A log grows without bound, a few MB a day.  Nothing rotates it, so
 last year's holdover events stay in the record.
 
+## Notes and facts
+
+What the receiver cannot report -- a new amplifier, a moved antenna,
+the oscillator's serial -- goes into its log through the daemon:
+
+    smartclock-cli --socket /run/smartclockd/ttyUSB0/socket note added a 20 dB LNA
+    smartclock-cli --socket ... note --at 2026-09-25T14:00:00-07:00 ran master_reset
+    smartclock-cli --socket ... fact ocxo.model 10811-60159
+
+Both are filed under the receiver attached now; nothing is sent to it.
+A fact keeps its history, so a replaced part's old value stays, and
+each one also leaves a note.  Rows are not edited through the daemon;
+fix a mistake with `sqlite3` on the log.
+
 ## More than one receiver
 
 A second port is a second instance:

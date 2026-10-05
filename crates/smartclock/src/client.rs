@@ -19,6 +19,7 @@ use interprocess::local_socket::GenericFilePath;
 use interprocess::local_socket::Stream;
 use interprocess::local_socket::ToFsName as _;
 use interprocess::local_socket::traits::Stream as _;
+use jiff::Timestamp;
 
 use crate::error::Error;
 use crate::error::Result;
@@ -255,6 +256,36 @@ impl Daemon {
             .and_then(|l| serde_json::from_value::<Vec<String>>(l.clone()).ok())
             .unwrap_or_default())
     }
+
+    /// Write a note to the attached receiver's log, returning the unit
+    /// it was filed under.  Nothing is sent to the receiver.
+    pub fn note(&mut self, text: &str, at: Option<Timestamp>) -> Result<String> {
+        let value = self.ask(Op::Note {
+            text: text.to_owned(),
+            at,
+        })?;
+        filed_under(&value)
+    }
+
+    /// Record a fact about the attached receiver, returning the unit it
+    /// was filed under.  Nothing is sent to the receiver.
+    pub fn fact(&mut self, key: &str, value: &str, since: Option<Timestamp>) -> Result<String> {
+        let value = self.ask(Op::Fact {
+            key: key.to_owned(),
+            value: value.to_owned(),
+            since,
+        })?;
+        filed_under(&value)
+    }
+}
+
+/// The receiver a note or fact was filed under, from the daemon's reply.
+fn filed_under(reply: &serde_json::Value) -> Result<String> {
+    reply
+        .get("receiver")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| Error::Daemon("its reply named no receiver".to_owned()))
 }
 
 /// Where the daemons on a host are.

@@ -28,6 +28,7 @@ use interprocess::local_socket::ListenerOptions;
 use interprocess::local_socket::Name;
 use interprocess::local_socket::Stream;
 use interprocess::local_socket::prelude::*;
+use jiff::Timestamp;
 use smartclock::client;
 use smartclock::command::Argument;
 use smartclock::command::Class;
@@ -36,7 +37,9 @@ use smartclock::command::Spec;
 use smartclock::task::Cadence;
 use smartclock::task::Handle;
 
+use crate::inbox::Fact;
 use crate::inbox::LogInbox;
+use crate::inbox::Note;
 use smartclock::protocol::Message;
 use smartclock::protocol::Op;
 use smartclock::protocol::Request;
@@ -452,6 +455,55 @@ fn handle_request(request: Request, handle: &Handle, info: &Info) -> Message {
             Err(e) => Message::err(id, e),
         },
         Op::Query { scpi } => send(id, &scpi, handle, info),
+        Op::Note { text, at } => {
+            let text = text.trim();
+            if text.is_empty() {
+                return Message::err(id, "a note needs some text");
+            }
+            written(id, info, |receiver| {
+                info.inbox.note(Note {
+                    at: at.unwrap_or_else(Timestamp::now),
+                    receiver,
+                    text: text.to_owned(),
+                })
+            })
+        }
+        Op::Fact { key, value, since } => {
+            let (key, value) = (key.trim(), value.trim());
+            if key.is_empty() || key.contains(char::is_whitespace) {
+                return Message::err(id, "a fact's key is one word, such as ocxo.serial");
+            }
+            if value.is_empty() {
+                return Message::err(id, "a fact needs a value");
+            }
+            written(id, info, |receiver| {
+                info.inbox.fact(Fact {
+                    since: since.unwrap_or_else(Timestamp::now),
+                    receiver,
+                    key: key.to_owned(),
+                    value: value.to_owned(),
+                })
+            })
+        }
+    }
+}
+
+/// Write something for the attached receiver through the log thread,
+/// answering with the unit it was filed under.
+fn written(
+    id: String,
+    info: &Info,
+    write: impl FnOnce(String) -> std::result::Result<(), String>,
+) -> Message {
+    if info.identity.is_empty() {
+        return Message::err(
+            id,
+            "no receiver has answered yet, so there is no log to write",
+        );
+    }
+    match write(info.identity.clone()) {
+        Ok(()) => Message::ok(id, serde_json::json!({ "receiver": info.identity })),
+        Err(why) => Message::err(id, why),
     }
 }
 
@@ -1340,5 +1392,96 @@ mod socket_tests {
             reply.contains("takes no argument"),
             "expected an argument refusal, got {reply}"
         );
+    }
+}
+
+#[cfg(test)]
+mod note_tests {
+    use super::Info;
+    use super::Policy;
+    use super::handle_request;
+    use crate::inbox::LogInbox;
+    use crate::inbox::LogRequest;
+
+    use std::sync::mpsc::channel;
+    use std::thread;
+
+    use smartclock::command::Dialect;
+    use smartclock::protocol::Message;
+    use smartclock::protocol::Op;
+    use smartclock::protocol::Request;
+    use smartclock::protocol::VERSION;
+    use smartclock::task::Handle;
+    use smartclock::task::Shared;
+
+    /// Ask `op` of a daemon attached to `identity`, with a log thread
+    /// that writes everything it is sent.
+    fn ask(identity: &str, op: Op) -> Message {
+        let (inbox_tx, inbox) = channel();
+        thread::spawn(move || {
+            for request in inbox {
+                match request {
+                    LogRequest::Note(_, written) | LogRequest::Fact(_, written) => {
+                        let _ = written.send(Ok(()));
+                    }
+                    LogRequest::Audit(_) => {}
+                }
+            }
+        });
+        let (requests, _unused) = channel();
+        let info = Info {
+            identity: identity.to_owned(),
+            dialect: Dialect::Hp58503,
+            database: "/nowhere".to_owned(),
+            policy: Policy::default(),
+            inbox: LogInbox::new(inbox_tx),
+            cadence: smartclock::task::Cadence::default(),
+        };
+        let request = Request {
+            v: VERSION,
+            id: "1".to_owned(),
+            op,
+        };
+        handle_request(request, &Handle::new(requests, Shared::new()), &info)
+    }
+
+    fn error(message: Message) -> Option<String> {
+        match message {
+            Message::Reply { err, .. } => err,
+            Message::Event { .. } => panic!("an event, not a reply"),
+        }
+    }
+
+    const UNIT: &str = "HEWLETT-PACKARD,58503A,3710A01056,3704-C";
+
+    #[test]
+    fn a_note_is_filed_under_the_attached_unit() {
+        let reply = ask(
+            UNIT,
+            Op::Note {
+                text: "added a 20 dB LNA".to_owned(),
+                at: None,
+            },
+        );
+        match reply {
+            Message::Reply { ok: Some(ok), .. } => assert_eq!(ok["receiver"], UNIT),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_note_without_a_receiver_or_text_and_a_fact_with_a_spaced_key_are_refused() {
+        let note = |text: &str| Op::Note {
+            text: text.to_owned(),
+            at: None,
+        };
+        assert!(error(ask("", note("before any receiver"))).is_some());
+        assert!(error(ask(UNIT, note("   "))).is_some());
+        let fact = Op::Fact {
+            key: "ocxo serial".to_owned(),
+            value: "1234".to_owned(),
+            since: None,
+        };
+        assert!(error(ask(UNIT, fact)).is_some());
     }
 }

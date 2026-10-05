@@ -11,7 +11,7 @@ use smartclock::snapshot::Tier;
 /// what it does not understand.  The readers accept any: a viewer
 /// upgraded before the daemon restarts, or pointed at an archived log,
 /// shows what is there.
-pub const VERSION: i64 = 10;
+pub const VERSION: i64 = 11;
 
 /// The table of facts about the log itself, the schema version first.
 ///
@@ -221,6 +221,29 @@ pub const TABLES: &str = r#"
         receiver_id INTEGER REFERENCES receiver(id)
     );
     CREATE INDEX IF NOT EXISTS audit_at ON audit(at);
+
+    -- Free text about the receiver or the bench, written by a person
+    -- through the daemon and never sent to the receiver.
+    CREATE TABLE IF NOT EXISTS note (
+        id      INTEGER PRIMARY KEY,
+        -- When it happened, which may be before it was written.
+        at      TEXT NOT NULL,
+        text    TEXT NOT NULL,
+        receiver_id INTEGER REFERENCES receiver(id)
+    );
+    CREATE INDEX IF NOT EXISTS note_at ON note(at);
+
+    -- What a person says the unit is made of, such as ocxo.serial.
+    -- One row per value, so a replaced part keeps its old value: the
+    -- current value of a key is its row with the latest since.
+    CREATE TABLE IF NOT EXISTS fact (
+        id      INTEGER PRIMARY KEY,
+        -- When the value became true.
+        since   TEXT NOT NULL,
+        key     TEXT NOT NULL,
+        value   TEXT NOT NULL,
+        receiver_id INTEGER REFERENCES receiver(id)
+    );
 "#;
 
 /// A timestamp as the log stores it: RFC 3339 in UTC, always with nine

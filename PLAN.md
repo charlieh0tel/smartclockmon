@@ -929,8 +929,12 @@ written through the daemon and never sent to the receiver:
   setting one also leaves a note.  Current facts head `diagnose` and
   the web receiver info, beside what the unit reports itself.
 
-Once built, the events in `hardware-investigations.md` are entered as
-notes at their recorded times.
+Built: the `note` and `fact` tables (schema 11), the socket requests
+and the CLI commands.  To do: showing them, chart markers, and entering
+the events in `hardware-investigations.md` at their recorded times.  A
+note is filed under the receiver attached when it is written, even
+when `--at` backdates it past a swap.  A bench-wide note is written to
+each daemon in turn.
 
 Later: adding, editing and deleting notes from the web view, through
 the daemon socket.  Needs POST bodies in `smartclock-http`, and notes

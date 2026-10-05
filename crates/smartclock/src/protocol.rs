@@ -55,6 +55,28 @@ pub enum Op {
     Status,
     /// Report what the daemon is attached to.
     Info,
+    /// Write a note to the attached receiver's log.  Nothing is sent to
+    /// the receiver.  Answers `{"receiver": ...}`, the unit it was
+    /// filed under.
+    Note {
+        /// What it says.
+        text: String,
+        /// When it happened; now if absent.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        at: Option<jiff::Timestamp>,
+    },
+    /// Record a fact about the attached receiver, such as
+    /// `ocxo.serial`, and a note saying so.  Nothing is sent to the
+    /// receiver.  Answers as [`Op::Note`] does.
+    Fact {
+        /// What it is about.
+        key: String,
+        /// Its value.
+        value: String,
+        /// When it became true; now if absent.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        since: Option<jiff::Timestamp>,
+    },
 }
 
 /// A message from the daemon.

@@ -432,6 +432,56 @@ impl Log {
         Ok(())
     }
 
+    /// Write a person's note, under the receiver noted now.
+    pub(crate) fn note(&mut self, at: jiff::Timestamp, text: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO note (at, text, receiver_id) VALUES (?1, ?2, ?3)",
+            params![stored(at), text, self.current],
+        )?;
+        Ok(())
+    }
+
+    /// Write a fact about the receiver noted now, and a note saying so
+    /// at the same time, together or not at all.
+    pub(crate) fn fact(&mut self, since: jiff::Timestamp, key: &str, value: &str) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        tx.execute(
+            "INSERT INTO fact (since, key, value, receiver_id) VALUES (?1, ?2, ?3, ?4)",
+            params![stored(since), key, value, self.current],
+        )?;
+        tx.execute(
+            "INSERT INTO note (at, text, receiver_id) VALUES (?1, ?2, ?3)",
+            params![stored(since), format!("{key} = {value}"), self.current],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Each note's text and the serial it is filed under.
+    #[cfg(test)]
+    pub(crate) fn note_rows(&self) -> Result<Vec<(String, Option<String>)>> {
+        let mut statement = self.conn.prepare(
+            "SELECT note.text, receiver.serial FROM note
+             LEFT JOIN receiver ON receiver.id = note.receiver_id ORDER BY note.id",
+        )?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(rows)
+    }
+
+    /// Each fact's key and value.
+    #[cfg(test)]
+    pub(crate) fn fact_rows(&self) -> Result<Vec<(String, String)>> {
+        let mut statement = self
+            .conn
+            .prepare("SELECT key, value FROM fact ORDER BY id")?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(rows)
+    }
+
     /// Each audit row's time and the serial it is filed under.
     #[cfg(test)]
     pub(crate) fn audit_rows(&self) -> Result<Vec<(String, Option<String>)>> {

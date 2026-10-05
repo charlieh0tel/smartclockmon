@@ -17,6 +17,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use clap::Parser;
 use clap::Subcommand;
+use jiff::Timestamp;
 use jiff::Zoned;
 #[cfg(unix)]
 use signal_hook::consts::SIGINT;
@@ -159,6 +160,30 @@ enum Command {
         #[command(flatten)]
         to: ReadTo,
     },
+    /// Write a note to the log of the daemon's receiver, such as "added
+    /// a 20 dB LNA".  Needs `--socket`; nothing is sent to the receiver.
+    Note {
+        /// What it says; the words are joined with spaces.
+        #[arg(required = true)]
+        text: Vec<String>,
+        /// When it happened, as RFC 3339 with an offset; now by default.
+        #[arg(long)]
+        at: Option<Timestamp>,
+    },
+    /// Record a fact about the daemon's receiver, such as `ocxo.serial
+    /// 1234`, and a note saying so.  Needs `--socket`; nothing is sent
+    /// to the receiver.
+    Fact {
+        /// What it is about, one word, such as `ocxo.serial`.
+        key: String,
+        /// Its value; the words are joined with spaces.
+        #[arg(required = true)]
+        value: Vec<String>,
+        /// When it became true, as RFC 3339 with an offset; now by
+        /// default.
+        #[arg(long)]
+        since: Option<Timestamp>,
+    },
 }
 
 /// Where a console read goes and what happens after it, shared by the
@@ -252,6 +277,9 @@ fn main() -> Result<()> {
 
     if let Some(socket) = cli.socket.clone() {
         return through_daemon(&socket, &cli.command);
+    }
+    if matches!(cli.command, Command::Note { .. } | Command::Fact { .. }) {
+        anyhow::bail!("notes and facts are written to the log by the daemon; give --socket");
     }
     // Before the port is opened, so a refused list sends nothing at
     // all rather than the commands ahead of the refused one.  What is
@@ -469,6 +497,9 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command, checked: &[Stri
         | Command::ReadFlash { .. }
         | Command::ReadEeprom { .. }
         | Command::Flash(_) => unreachable!("handled before the session is opened"),
+        Command::Note { .. } | Command::Fact { .. } => {
+            unreachable!("refused without --socket, before the port is opened")
+        }
         // Handled before the port is opened.
         Command::Commands => Ok(()),
     };
@@ -496,7 +527,9 @@ fn typed(command: &Command) -> Result<Vec<String>> {
         | Command::ReadMemory { .. }
         | Command::ReadFlash { .. }
         | Command::ReadEeprom { .. }
-        | Command::Flash(_) => Vec::new(),
+        | Command::Flash(_)
+        | Command::Note { .. }
+        | Command::Fact { .. } => Vec::new(),
     })
 }
 
@@ -881,6 +914,16 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
             Ok(())
         }
         Command::Diagnose => diagnose_daemon(&mut daemon),
+        Command::Note { text, at } => {
+            let receiver = daemon.note(&text.join(" "), *at)?;
+            println!("noted for {receiver}");
+            Ok(())
+        }
+        Command::Fact { key, value, since } => {
+            let receiver = daemon.fact(key, &value.join(" "), *since)?;
+            println!("recorded for {receiver}");
+            Ok(())
+        }
         Command::Commands => {
             print!("{}", smartclock::matrix::markdown());
             Ok(())

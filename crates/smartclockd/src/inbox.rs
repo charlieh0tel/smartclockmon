@@ -1,11 +1,13 @@
 //! What other threads ask the log thread to write: commands that were
-//! not scheduled polls.
+//! not scheduled polls, and notes and facts from a person.
 //!
 //! Writing goes through a channel rather than a shared connection: the
 //! log has one writer, the thread that owns it, and a client thread
 //! blocking on a database write would hold up its own reply.
 
 use std::sync::mpsc::Sender;
+use std::sync::mpsc::channel;
+use std::time::Duration;
 
 use smartclock::command::Class;
 
@@ -28,10 +30,48 @@ pub(crate) struct Entry {
 }
 
 /// What another thread asks the log thread, the log's one writer, to do.
+/// How long a client's note or fact waits for the log thread to say it
+/// was written.  Short of the client's own deadline, so the client
+/// hears why rather than timing out.
+const WRITTEN_WITHIN: Duration = Duration::from_secs(15);
+
+/// Free text for the log, as a client sent it.
+#[derive(Debug)]
+pub(crate) struct Note {
+    /// When it happened.
+    pub(crate) at: jiff::Timestamp,
+    /// The `*IDN?` of the receiver attached when it was sent.
+    pub(crate) receiver: String,
+    /// What it says.
+    pub(crate) text: String,
+}
+
+/// A fact about the unit, as a client sent it.
+#[derive(Debug)]
+pub(crate) struct Fact {
+    /// When the value became true.
+    pub(crate) since: jiff::Timestamp,
+    /// The `*IDN?` of the receiver attached when it was sent.
+    pub(crate) receiver: String,
+    /// What it is about, such as `ocxo.serial`.
+    pub(crate) key: String,
+    /// Its value.
+    pub(crate) value: String,
+}
+
+/// Whether a write happened, and if not, why.
+type Written = Sender<Result<(), String>>;
+
+/// What another thread asks the log thread, the log's one writer, to do.
 #[derive(Debug)]
 pub(crate) enum LogRequest {
     /// Record a command.
     Audit(Entry),
+    /// Write a note and say whether it was written.
+    Note(Note, Written),
+    /// Write a fact, and a note saying so, and say whether they were
+    /// written.
+    Fact(Fact, Written),
 }
 
 /// A handle on the log thread's inbox.
@@ -56,5 +96,28 @@ impl LogInbox {
             class: format!("{class:?}").to_lowercase(),
             outcome: outcome.to_owned(),
         }));
+    }
+
+    /// Write a note, waiting until the log thread says it is written.
+    pub(crate) fn note(&self, note: Note) -> Result<(), String> {
+        self.write(|written| LogRequest::Note(note, written))
+    }
+
+    /// Write a fact, waiting until the log thread says it is written.
+    pub(crate) fn fact(&self, fact: Fact) -> Result<(), String> {
+        self.write(|written| LogRequest::Fact(fact, written))
+    }
+
+    fn write(&self, request: impl FnOnce(Written) -> LogRequest) -> Result<(), String> {
+        let (written, outcome) = channel();
+        self.requests
+            .send(request(written))
+            .map_err(|_| "the log thread has stopped".to_owned())?;
+        outcome.recv_timeout(WRITTEN_WITHIN).unwrap_or_else(|_| {
+            Err(format!(
+                "the log thread did not confirm the write within {WRITTEN_WITHIN:?}; \
+                 it may still be written"
+            ))
+        })
     }
 }

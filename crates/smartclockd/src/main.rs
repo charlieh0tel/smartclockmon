@@ -14,8 +14,10 @@ mod scratch;
 mod server;
 
 use crate::inbox::Entry;
+use crate::inbox::Fact;
 use crate::inbox::LogInbox;
 use crate::inbox::LogRequest;
+use crate::inbox::Note;
 use crate::journal::Journal;
 use crate::journal::LOST_TO_OVERFLOW;
 use crate::server::Policy;
@@ -969,7 +971,28 @@ impl Recorder {
     fn serve(&mut self, request: LogRequest) {
         match request {
             LogRequest::Audit(entry) => self.audit(&entry),
+            LogRequest::Note(note, written) => {
+                let _ = written.send(self.write_note(&note));
+            }
+            LogRequest::Fact(fact, written) => {
+                let _ = written.send(self.write_fact(&fact));
+            }
         }
+    }
+
+    /// Write a note under the receiver attached when it was sent.
+    fn write_note(&mut self, note: &Note) -> Result<(), String> {
+        self.note(&note.receiver);
+        let log = self.log.as_mut().ok_or("no log is open")?;
+        log.note(note.at, &note.text).map_err(|e| format!("{e:#}"))
+    }
+
+    /// Write a fact under the receiver attached when it was sent.
+    fn write_fact(&mut self, fact: &Fact) -> Result<(), String> {
+        self.note(&fact.receiver);
+        let log = self.log.as_mut().ok_or("no log is open")?;
+        log.fact(fact.since, &fact.key, &fact.value)
+            .map_err(|e| format!("{e:#}"))
     }
 
     /// Write one audited command, under the receiver it was sent to
@@ -1138,7 +1161,10 @@ fn start_server(listening: Listening<'_>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::Entry;
+    use super::Fact;
     use super::Listening;
+    use super::LogRequest;
+    use super::Note;
     use super::Place;
     use super::Recorder;
     use super::db;
@@ -1317,6 +1343,47 @@ mod tests {
                 "2026-09-23T12:00:00.000000000Z".to_owned(),
                 Some("A".to_owned())
             )]
+        );
+    }
+
+    #[test]
+    fn a_note_and_a_fact_are_written_under_the_unit_attached_when_sent() {
+        let scratch = Scratch::new("notes");
+        let mut recorder =
+            Recorder::fixed(db::Log::open(scratch.path()).expect("open the database"));
+        recorder.note("HEWLETT-PACKARD,58503A,B,3704-C");
+        let at: jiff::Timestamp = "2026-09-25T14:00:00Z".parse().expect("a time");
+        let (written, outcome) = channel();
+        recorder.serve(LogRequest::Note(
+            Note {
+                at,
+                receiver: "HEWLETT-PACKARD,58503A,A,3704-C".to_owned(),
+                text: "added a 20 dB LNA".to_owned(),
+            },
+            written.clone(),
+        ));
+        recorder.serve(LogRequest::Fact(
+            Fact {
+                since: at,
+                receiver: "HEWLETT-PACKARD,58503A,A,3704-C".to_owned(),
+                key: "ocxo.model".to_owned(),
+                value: "10811-60159".to_owned(),
+            },
+            written,
+        ));
+        assert_eq!(outcome.try_iter().collect::<Vec<_>>(), vec![Ok(()), Ok(())]);
+        let log = recorder.log.as_ref().expect("a log");
+        let a = Some("A".to_owned());
+        assert_eq!(
+            log.note_rows().expect("read"),
+            vec![
+                ("added a 20 dB LNA".to_owned(), a.clone()),
+                ("ocxo.model = 10811-60159".to_owned(), a),
+            ]
+        );
+        assert_eq!(
+            log.fact_rows().expect("read"),
+            vec![("ocxo.model".to_owned(), "10811-60159".to_owned())]
         );
     }
 
