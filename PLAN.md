@@ -1231,9 +1231,6 @@ instance label).
 
 **Command-line tool.**
 
-- `flash` has no Ctrl-C handling: stop at a record boundary, print the
-  recovery command, and still return to SCPI after an interrupted
-  readback.
 - A console read that times out is retried without finding the prompt
   again, so a late reply can be taken for the next address's bytes.
   Resynchronize, or give up, before retrying.

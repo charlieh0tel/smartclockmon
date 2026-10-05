@@ -7,6 +7,10 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::OnceLock;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use anyhow::Context as _;
@@ -14,6 +18,8 @@ use anyhow::Result;
 use clap::Parser;
 use clap::Subcommand;
 use jiff::Zoned;
+#[cfg(unix)]
+use signal_hook::consts::SIGINT;
 use smartclock::attach::answering;
 use smartclock::client::Daemon;
 use smartclock::command::Class;
@@ -341,6 +347,7 @@ fn main() -> Result<()> {
                 &mut file,
                 expected.as_deref(),
                 report,
+                &*stop_on_interrupt()?,
             )?
         } else {
             let (summary, identity) = console::read_and_return(
@@ -350,6 +357,7 @@ fn main() -> Result<()> {
                 &mut file,
                 expected.as_deref(),
                 report,
+                &*stop_on_interrupt()?,
                 config,
             )?;
             eprintln!("back at SCPI: {identity}");
@@ -376,6 +384,40 @@ fn main() -> Result<()> {
     }
 
     run(Session::new(port, config), &cli.command, &checked)
+}
+
+/// The exit status after a second Ctrl-C: 128 plus SIGINT's number.
+const EXIT_INTERRUPTED: i32 = 130;
+
+/// Set by Ctrl-C during a flash or a console read.
+static STOP: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+
+/// Whether Ctrl-C has asked the work to stop.
+fn stopping() -> bool {
+    STOP.get().is_some_and(|stop| stop.load(Ordering::Relaxed))
+}
+
+/// Make Ctrl-C ask the work to stop at its next record or chunk, so the
+/// port is left somewhere it can be recovered from, and a second
+/// Ctrl-C exit at once.  For the commands that check the flag; the rest
+/// keep Ctrl-C's default.
+fn stop_on_interrupt() -> Result<Arc<AtomicBool>> {
+    if let Some(stop) = STOP.get() {
+        return Ok(Arc::clone(stop));
+    }
+    let stop = Arc::new(AtomicBool::new(false));
+    #[cfg(unix)]
+    {
+        // Registered first, so it sees the flag as the previous Ctrl-C
+        // left it: set means this is the second.
+        signal_hook::flag::register_conditional_shutdown(
+            SIGINT,
+            EXIT_INTERRUPTED,
+            Arc::clone(&stop),
+        )?;
+        signal_hook::flag::register(SIGINT, Arc::clone(&stop))?;
+    }
+    Ok(Arc::clone(STOP.get_or_init(|| stop)))
 }
 
 /// A new transcript file at `path`.  An existing file is refused rather

@@ -26,6 +26,8 @@
 use std::fmt;
 use std::io::Read;
 use std::io::Write;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -116,6 +118,10 @@ pub enum ConsoleError {
         /// Why the last attempt failed.
         last: Box<ConsoleError>,
     },
+
+    /// Stopped on request, between chunks.
+    #[error("stopped on request at {0:#x}")]
+    Stopped(u32),
 
     /// The range is not whole long words, or runs off the address space.
     #[error("{0}")]
@@ -340,7 +346,8 @@ pub struct Summary {
 
 /// Read `length` bytes from `from` into `out`, checking each chunk
 /// against `compare` when given, which holds the bytes expected at
-/// `from` onwards.  The port is left at the console.
+/// `from` onwards.  Setting `stop` ends the read before its next chunk.
+/// The port is left at the console.
 pub fn read_memory<T: Read + Write>(
     port: T,
     from: u32,
@@ -348,6 +355,7 @@ pub fn read_memory<T: Read + Write>(
     out: &mut impl Write,
     compare: Option<&[u8]>,
     mut progress: impl FnMut(Progress),
+    stop: &AtomicBool,
 ) -> Result<Summary> {
     if !(from.is_multiple_of(4) && length.is_multiple_of(4)) {
         return Err(ConsoleError::Range(
@@ -368,6 +376,9 @@ pub fn read_memory<T: Read + Write>(
     let mut differing = Vec::new();
     let mut address = from;
     while address < end {
+        if stop.load(Ordering::Relaxed) {
+            return Err(ConsoleError::Stopped(address));
+        }
         let size = CHUNK.min(end - address);
         let wanted = (size / 4) as usize;
         let request = format!("{address:X} {size:X} rd");
@@ -534,6 +545,10 @@ pub fn back_to_scpi<T: Transport>(port: T, config: Config) -> Result<String> {
 /// [`read_memory`], then [`back_to_scpi`] whether or not the read
 /// succeeded, since a read that fails part way leaves the port at the
 /// console too.  Returns the summary and the primary's `*IDN?` answer.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "read_memory's arguments and the way back's config, passed straight through"
+)]
 pub fn read_and_return<T: Transport>(
     mut port: T,
     from: u32,
@@ -541,9 +556,10 @@ pub fn read_and_return<T: Transport>(
     out: &mut impl Write,
     compare: Option<&[u8]>,
     progress: impl FnMut(Progress),
+    stop: &AtomicBool,
     config: Config,
 ) -> Result<(Summary, String)> {
-    let read = read_memory(&mut port, from, length, out, compare, progress);
+    let read = read_memory(&mut port, from, length, out, compare, progress, stop);
     match (read, back_to_scpi(port, config)) {
         (Ok(summary), Ok(identity)) => Ok((summary, identity)),
         (Ok(_), Err(back)) => Err(back),
@@ -563,6 +579,7 @@ mod tests {
     use std::collections::HashMap;
     use std::io::Read;
     use std::io::Write;
+    use std::sync::atomic::AtomicBool;
     use std::time::Duration;
 
     use super::ConsoleError;
@@ -571,6 +588,7 @@ mod tests {
     use super::back_to_scpi;
     use super::enter_installer;
     use super::exit_for;
+    use super::read_memory;
     use super::words;
     use crate::session::Config;
     use crate::transport::Transport;
@@ -753,5 +771,16 @@ mod tests {
         let error = back_to_scpi(&mut console, quick()).expect_err("no way out");
         assert!(matches!(error, ConsoleError::NoWayOut { .. }), "{error}");
         assert!(console.sent.iter().any(|line| line == "halt"));
+    }
+
+    #[test]
+    fn a_read_stops_on_request_before_its_next_chunk() {
+        let mut console = Fake::new(&[]);
+        let stop = AtomicBool::new(true);
+        let error = read_memory(&mut console, 0, 8, &mut Vec::new(), None, |_| {}, &stop)
+            .expect_err("stopped");
+        assert!(matches!(error, ConsoleError::Stopped(0)), "{error}");
+        assert!(!console.sent.iter().any(|line| line.ends_with("rd")
+            && line != ": rd ( addr n -- ) over + swap do i @ u. 4 +loop ;"));
     }
 }

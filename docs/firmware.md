@@ -1857,10 +1857,13 @@ has no console, so the readback is not among them.
 
 An error stops the transfer without automatic write retries or reboot.
 Keep the daemon stopped and rerun the same command with a new transcript
-path to restart from erase in the surviving installer.  Recovery after
-Ctrl-C mid-record has not been tested: it may leave a partial command
-in the installer's input, and whether `sync()` clears it is unverified.
-There is no settings restoration in the tool.
+path to restart from erase in the surviving installer.  Ctrl-C during a
+write stops before the next record, never inside one, and prints that
+command, with the transcript renamed; before the erase it stops with
+nothing written.  During the readback it stops before the next
+kilobyte and still returns the port to SCPI.  A second Ctrl-C exits at
+once.  `read-memory` and its kin stop the same way.  There is no
+settings restoration in the tool.
 
 Cross-revision flashing is allowed between catalog images of the same
 model and layout, but has not been tried on hardware.  Simulator tests

@@ -229,8 +229,36 @@ fn flash(
     Ok(())
 }
 
+/// This command line again, for a message that says how to finish what
+/// was stopped.  A `--capture` file must be new, so it is named again
+/// with a suffix.
+fn rerun(args: impl Iterator<Item = String>) -> String {
+    let mut capture_next = false;
+    args.map(|arg| {
+        let arg = if capture_next {
+            format!("{arg}.rerun")
+        } else if let Some(path) = arg.strip_prefix("--capture=") {
+            format!("--capture={path}.rerun")
+        } else {
+            arg
+        };
+        capture_next = arg == "--capture";
+        if arg.contains(char::is_whitespace) {
+            format!("{arg:?}")
+        } else {
+            arg
+        }
+    })
+    .collect::<Vec<_>>()
+    .join(" ")
+}
+
 fn program(link: &mut impl Link, firmware: &Firmware) -> Result<()> {
     let start = firmware.profile.layout.primary_start();
+    ensure!(
+        !crate::stopping(),
+        "stopped on request before erasing; nothing was written"
+    );
     eprintln!("Erasing {start:#07x}..0x7ffff; preserving boot flash and EEPROM.");
     link.command(":DIAGnostic:ERASe")?;
     ensure!(
@@ -239,6 +267,13 @@ fn program(link: &mut impl Link, firmware: &Firmware) -> Result<()> {
     );
     no_error(link)?;
     for (address, record) in firmware.records() {
+        ensure!(
+            !crate::stopping(),
+            "stopped on request at {address:#07x}: the unit is in the installer with part of \
+             the image, and stays there through a power cycle.  To finish, keep the daemon \
+             stopped and run again: {}",
+            rerun(std::env::args())
+        );
         link.command(&format!(":DIAGnostic:DOWNload \"{record}\""))
             .with_context(|| format!("programming record at {address:#07x}"))?;
         // A prompt acknowledges each record. Error queue checks also catch
@@ -280,6 +315,11 @@ pub(crate) fn run(
     // Create the transcript before opening the hardware; an existing file
     // or unwritable destination must never fail after erase.
     let capture = capture.map(crate::transcript).transpose()?;
+    // A write stops at a record boundary on Ctrl-C, not in the middle
+    // of one, and says how to finish.
+    if args.write {
+        crate::stop_on_interrupt()?;
+    }
     eprintln!("Opening only {path}; its daemon must be stopped.");
     let config = Config {
         timeout: COMMAND_TIMEOUT,
@@ -346,6 +386,7 @@ fn readback(port: Box<dyn Transport>, firmware: &Firmware, config: Config) -> Re
                 eprintln!("Read back {done:#07x} in {} s", elapsed.as_secs());
             }
         },
+        &*crate::stop_on_interrupt()?,
         config,
     )
     .context("readback did not complete; the flash was already verified to boot")?;

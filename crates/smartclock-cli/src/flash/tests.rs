@@ -24,6 +24,7 @@ use super::firmware::RECORD_SIZE;
 use super::firmware::srecord;
 use super::flash;
 use super::open;
+use super::rerun;
 
 const PRIMARY_START: usize = Layout::AmdLanes.primary_start();
 
@@ -543,4 +544,22 @@ fn a_receiver_on_the_network_is_opened_checked_and_recorded() {
     let installer = receiver.installer.as_ref().unwrap();
     assert!(!installer.active);
     assert_eq!(installer.flash, DUMP);
+}
+
+#[test]
+fn a_stopped_write_names_a_new_transcript_for_the_rerun() {
+    let args = |line: &str| {
+        line.split(' ')
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+            .into_iter()
+    };
+    assert_eq!(
+        rerun(args("smartclock-cli --capture t.jsonl flash z.bin --write")),
+        "smartclock-cli --capture t.jsonl.rerun flash z.bin --write"
+    );
+    assert_eq!(
+        rerun(args("smartclock-cli --capture=t.jsonl flash z.bin")),
+        "smartclock-cli --capture=t.jsonl.rerun flash z.bin"
+    );
 }

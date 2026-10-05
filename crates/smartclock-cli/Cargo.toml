@@ -23,3 +23,6 @@ thiserror = "2.0.21"
 
 [dev-dependencies]
 smartclock-sim = { path = "../smartclock-sim" }
+
+[target."cfg(unix)".dependencies]
+signal-hook = "0.4.5"
