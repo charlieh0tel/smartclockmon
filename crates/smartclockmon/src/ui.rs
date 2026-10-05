@@ -1041,12 +1041,7 @@ fn time_and_place(frame: &mut Frame, area: Rect, app: &App) {
                 // its tail exactly where the provenance is.
                 lines.push(field(
                     "reported",
-                    format!(
-                        "{}  (+{} GPS epoch{})",
-                        date.raw(),
-                        slip.epochs,
-                        if slip.epochs == 1 { "" } else { "s" }
-                    ),
+                    format!("{}  (+{slip})", date.raw()),
                     Style::new().fg(Color::DarkGray),
                 ));
             }

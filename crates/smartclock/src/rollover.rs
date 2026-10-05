@@ -17,6 +17,8 @@
 //! would hide a real property of the hardware, and the raw value is what
 //! a reader comparing against the front panel will see.
 
+use std::fmt;
+
 use jiff::civil::Date;
 use serde::Deserialize;
 use serde::Serialize;
@@ -39,6 +41,14 @@ impl Rollover {
     /// Whole days the receiver is behind.
     pub fn days(self) -> i64 {
         i64::from(self.epochs) * i64::from(EPOCH_DAYS)
+    }
+}
+
+/// "1 GPS epoch", "2 GPS epochs".
+impl fmt::Display for Rollover {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let plural = if self.epochs == 1 { "" } else { "s" };
+        write!(f, "{} GPS epoch{plural}", self.epochs)
     }
 }
 
@@ -118,6 +128,7 @@ impl ReceiverDate {
 mod tests {
     use super::EPOCH_DAYS;
     use super::ReceiverDate;
+    use super::Rollover;
     use jiff::civil::date;
 
     #[test]
@@ -158,6 +169,12 @@ mod tests {
         let seen = ReceiverDate::checked(raw, date(2026, 9, 20));
         assert_eq!(seen.rollover().expect("a rollover").epochs, 2);
         assert_eq!(seen.corrected(), date(2026, 9, 20));
+    }
+
+    #[test]
+    fn a_slip_is_named_in_epochs() {
+        assert_eq!(Rollover { epochs: 1 }.to_string(), "1 GPS epoch");
+        assert_eq!(Rollover { epochs: 2 }.to_string(), "2 GPS epochs");
     }
 
     #[test]

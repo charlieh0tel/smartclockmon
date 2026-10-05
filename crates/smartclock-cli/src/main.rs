@@ -32,6 +32,7 @@ use smartclock::device::Device;
 use smartclock::device::dialect_for;
 use smartclock::error::Error;
 use smartclock::parse;
+use smartclock::rollover::ReceiverDate;
 use smartclock::session::Config;
 use smartclock::session::Session;
 use smartclock::transport;
@@ -725,35 +726,31 @@ fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
     // past.  Its time of day and outputs are sound.
     let today = Zoned::now().date();
     match device.date(today) {
-        Ok(date) => match date.rollover() {
-            Some(slip) => {
-                // Corrected first: almost every receiver of this
-                // vintage is behind by whole epochs, so this is the
-                // ordinary case rather than a fault, and its time of
-                // day and outputs are unaffected either way.  The raw
-                // date stays beside it because the correction is
-                // computed against the host clock and is only as good
-                // as that clock is.
-                line(
-                    "date",
-                    &format!(
-                        "{}  ({} GPS epoch{} applied, {} days; reported {})",
-                        date.corrected(),
-                        slip.epochs,
-                        if slip.epochs == 1 { "" } else { "s" },
-                        slip.days(),
-                        date.raw()
-                    ),
-                );
-            }
-            None => line("date", &date.raw().to_string()),
-        },
+        Ok(date) => line("date", &date_text(date)),
         Err(e) => line("date", &format!("unavailable: {e}")),
     }
 
     println!("\nLog");
     show("entries", device.log_count().map(|n| n.to_string()));
     Ok(())
+}
+
+/// A receiver's date, corrected first: almost every receiver of this
+/// vintage is behind by whole epochs, so this is the ordinary case
+/// rather than a fault, and its time of day and outputs are unaffected
+/// either way.  The raw date stays beside it because the correction is
+/// computed against the host clock and is only as good as that clock
+/// is.
+fn date_text(date: ReceiverDate) -> String {
+    match date.rollover() {
+        Some(slip) => format!(
+            "{}  ({slip} applied, {} days; reported {})",
+            date.corrected(),
+            slip.days(),
+            date.raw()
+        ),
+        None => date.raw().to_string(),
+    }
 }
 
 /// The conditions that are true, named, or "none".
@@ -1031,30 +1028,8 @@ fn render(info: &serde_json::Value, r: &Reading) {
         }
         None => line("satellites", "unavailable: no status screen yet"),
     }
-    match r.date.as_ref() {
-        Some(date) => match date.rollover() {
-            Some(slip) => {
-                // Corrected first: almost every receiver of this
-                // vintage is behind by whole epochs, so this is the
-                // ordinary case rather than a fault, and its time of
-                // day and outputs are unaffected either way.  The raw
-                // date stays beside it because the correction is
-                // computed against the host clock and is only as good
-                // as that clock is.
-                line(
-                    "date",
-                    &format!(
-                        "{}  ({} GPS epoch{} applied, {} days; reported {})",
-                        date.corrected(),
-                        slip.epochs,
-                        if slip.epochs == 1 { "" } else { "s" },
-                        slip.days(),
-                        date.raw()
-                    ),
-                );
-            }
-            None => line("date", &date.raw().to_string()),
-        },
+    match r.date {
+        Some(date) => line("date", &date_text(date)),
         None => line("date", "unavailable"),
     }
 

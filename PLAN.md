@@ -1254,6 +1254,5 @@ instance label).
 **Smaller.**
 
 - The audit `label` column is always NULL.
-- Refactors: the rollover and date wording is written three times;
-  status register newtypes by macro; `Screen` fields as the existing
-  newtypes.
+- Refactors: status register newtypes by macro; `Screen` fields as the
+  existing newtypes.
