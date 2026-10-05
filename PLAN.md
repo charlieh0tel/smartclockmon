@@ -717,7 +717,9 @@ The chi-squared quantile is Wilson and Hilferty's approximation, within
 0.4 % of scipy's in the deviation from two degrees of freedom up and
 2.6 % at one and a half; the chain is tested against allantools'
 `autocorr_noise_id`, `edf_greenhall` and `confidence_interval` on the
-reference record.  The TUI draws no band: ratatui has no fill.
+reference record, and the edf and noise identification alone on every
+power law from white PM to random walk FM, at record lengths that reach
+each branch of Greenhall's algorithm and its refusals.  The TUI draws no band: ratatui has no fill.
 
 `:DIAGnostic:PTIMe:TINTerval?`, the latest one-second reading, would
 extend the curves below 10 s and is not polled: it costs a query a
@@ -1252,8 +1254,6 @@ instance label).
 **Smaller.**
 
 - The audit `label` column is always NULL.
-- Allan deviation confidence references cover one noise type; add white
-  and flicker phase and random walk, and the boundary cases.
 - Refactors: the rollover and date wording is written three times;
   status register newtypes by macro; `Screen` fields as the existing
   newtypes; the normal quantile code computes only plus or minus one;

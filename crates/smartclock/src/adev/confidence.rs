@@ -412,6 +412,7 @@ pub(super) fn bounds(deviation: f64, edf: f64) -> Bounds {
 mod tests {
     use super::CONFIDENCE;
     use super::chi_squared_quantile;
+    use super::edf;
     use super::noise_type;
 
     /// `(edf, lower quantile, upper quantile)` at one sigma, from
@@ -471,5 +472,212 @@ mod tests {
             .collect();
         assert_eq!(noise_type(&walk, 1), Some(0));
         assert_eq!(noise_type(&walk[..20], 1), None, "too short to tell");
+    }
+
+    /// One row of [`ALLANTOOLS_EDF`].
+    type Edf = (i32, usize, usize, Option<f64>, Option<f64>);
+
+    /// `(alpha, m, n, edf, modified edf)`: allantools 2024.06's
+    /// `edf_greenhall`, from `tests/adev_reference.py`.  The `(m, n)`
+    /// pairs reach each branch: the basic sum in full (1, 1000), the
+    /// limiting form (50, 1000), the truncated sum unmodified (100, 350)
+    /// and modified (100, 500), a record a few windows long (10, 40),
+    /// and one shorter than the estimator (10, 20).  `None` where
+    /// allantools raises or returns a negative edf.
+    const ALLANTOOLS_EDF: [Edf; 30] = [
+        (2, 1, 1000, Some(513.5217690192485), Some(513.5217690192483)),
+        (
+            2,
+            50,
+            1000,
+            Some(476.4705882352941),
+            Some(22.741831821353802),
+        ),
+        (2, 100, 350, None, Some(1.8053097345132743)),
+        (
+            2,
+            100,
+            500,
+            Some(186.20689655172413),
+            Some(3.781911689584706),
+        ),
+        (2, 10, 40, None, Some(2.911764705882352)),
+        (2, 10, 20, None, None),
+        (1, 1, 1000, Some(634.8300364705808), Some(634.8300364705808)),
+        (
+            1,
+            50,
+            1000,
+            Some(90.69279911430581),
+            Some(17.71427033915614),
+        ),
+        (
+            1,
+            100,
+            350,
+            Some(14.498374611968455),
+            Some(1.3583797152554027),
+        ),
+        (
+            1,
+            100,
+            500,
+            Some(23.382801846683414),
+            Some(2.9050087515766516),
+        ),
+        (1, 10, 40, Some(6.766018610299145), Some(2.1787272093432954)),
+        (1, 10, 20, None, None),
+        (0, 1, 1000, Some(781.2476904305386), Some(781.2476904305386)),
+        (
+            0,
+            50,
+            1000,
+            Some(27.771428571428576),
+            Some(17.065461104964694),
+        ),
+        (
+            0,
+            100,
+            350,
+            Some(3.3609069420826825),
+            Some(1.2344524869245619),
+        ),
+        (
+            0,
+            100,
+            500,
+            Some(5.395795202485174),
+            Some(2.7468011587168784),
+        ),
+        (
+            0,
+            10,
+            40,
+            Some(3.6499466382070995),
+            Some(1.9152603690068313),
+        ),
+        (0, 10, 20, None, None),
+        (-1, 1, 1000, Some(894.351406796214), Some(894.351406796214)),
+        (
+            -1,
+            50,
+            1000,
+            Some(21.656306396631244),
+            Some(16.74166732166057),
+        ),
+        (
+            -1,
+            100,
+            350,
+            Some(2.438091528291954),
+            Some(1.1533718057002516),
+        ),
+        (
+            -1,
+            100,
+            500,
+            Some(4.124580867273417),
+            Some(2.5502447525092538),
+        ),
+        (
+            -1,
+            10,
+            40,
+            Some(2.9715057962291245),
+            Some(1.6529296309328325),
+        ),
+        (-1, 10, 20, None, None),
+        (
+            -2,
+            1,
+            1000,
+            Some(761.5276183629079),
+            Some(761.5276183629079),
+        ),
+        (
+            -2,
+            50,
+            1000,
+            Some(17.00430355830797),
+            Some(13.39560065553636),
+        ),
+        (
+            -2,
+            100,
+            350,
+            Some(1.799933492780238),
+            Some(1.0774694995711656),
+        ),
+        (
+            -2,
+            100,
+            500,
+            Some(3.1380673811645483),
+            Some(1.9404343062895817),
+        ),
+        (
+            -2,
+            10,
+            40,
+            Some(2.2287339830612494),
+            Some(1.3365516791839211),
+        ),
+        (-2, 10, 20, None, None),
+    ];
+
+    /// Agreement expected between two double-precision implementations
+    /// of the same sums.
+    const RELATIVE_TOLERANCE: f64 = 1e-9;
+
+    #[test]
+    fn greenhalls_edf_agrees_with_allantools_for_every_noise_type_and_branch() {
+        for (alpha, m, n, want, want_modified) in ALLANTOOLS_EDF {
+            for (modified, want) in [(false, want), (true, want_modified)] {
+                let got = edf(alpha, m, n, modified);
+                let case = format!("alpha {alpha}, m {m}, n {n}, modified {modified}");
+                match (got, want) {
+                    (Some(got), Some(want)) => {
+                        let error = (got - want).abs() / want;
+                        assert!(
+                            error < RELATIVE_TOLERANCE,
+                            "{case}: {got} against {want}, relative error {error}"
+                        );
+                    }
+                    (None, None) => {}
+                    _ => panic!("{case}: {got:?} against {want:?}"),
+                }
+            }
+        }
+    }
+
+    /// Kasdin's power-law noise, built as `tests/adev_reference.py`
+    /// builds it: [`uniform`] through the filter for phase noise
+    /// `S_x ~ f^(alpha - 2)`, by direct convolution.
+    fn power_law(alpha: i32, count: usize) -> Vec<Option<f64>> {
+        let beta = f64::from(2 - alpha);
+        let white = uniform(count);
+        let filter: Vec<f64> = std::iter::once(1.0)
+            .chain((1..count).scan(1.0, |h, i| {
+                *h *= (i as f64 - 1.0 + beta / 2.0) / i as f64;
+                Some(*h)
+            }))
+            .collect();
+        (0..count)
+            .map(|i| Some((0..=i).map(|j| filter[j] * white[i - j]).sum()))
+            .collect()
+    }
+
+    /// allantools 2024.06's `autocorr_noise_id` names each series's own
+    /// noise type at averaging factors 1, 2 and 4, from
+    /// `tests/adev_reference.py`.
+    #[test]
+    fn each_power_law_reads_as_its_own_noise_type_as_allantools_reads_it() {
+        const READINGS: usize = 1000;
+        for alpha in [2, 1, 0, -1, -2] {
+            let series = power_law(alpha, READINGS);
+            for m in [1, 2, 4] {
+                assert_eq!(noise_type(&series, m), Some(alpha), "alpha {alpha}, m {m}");
+            }
+        }
     }
 }
