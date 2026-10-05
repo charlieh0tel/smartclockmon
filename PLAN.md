@@ -932,6 +932,10 @@ written through the daemon and never sent to the receiver:
 Once built, the events in `hardware-investigations.md` are entered as
 notes at their recorded times.
 
+Later: adding, editing and deleting notes from the web view, through
+the daemon socket.  Needs POST bodies in `smartclock-http`, and notes
+with ids rather than append-only.
+
 ### Next: comparing receivers
 
 When the host logs more than one receiver, a page of its own shows
