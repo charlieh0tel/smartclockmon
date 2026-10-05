@@ -437,37 +437,13 @@ erasing is irreversible, and the entry count is passed with the command
 so the receiver refuses with -222 if an entry arrived between the copy
 and the clear.
 
-The receiver's log timestamps are not monotonic across a power
-cycle.  Its clock restarts at midnight on a stale date and runs free
-until the first lock, so a stamp in that window is elapsed time since
-boot.  From the development unit's log:
-
-    3  20050528.00:01:08  Position hold mode started
-    4  20050528.00:02:00  GPS reference valid at 20050529.04:09:25
-    5  20050528.00:00:00  Power on
-    6  20050528.00:00:28  Position hold mode started
-
-Eighteen of the nineteen midnight stamps in that log are a power-on or
-a preset.  Entry 4 carries the real time in its message.  The stamps
-are stored as written and are not an ordering key.
-
-Ordering by `entry` alone is wrong across a clear, which restarts the
-numbering; ordering by `at` is wrong within the bulk copy of history,
-which is not fetched in entry order.  Since schema 7,
-`receiver_log.generation` counts the clears, so `(generation, entry)`
-orders the whole log.  Migration infers generations by walking a
-unit's rows in read order and starting a new one wherever an entry
-number comes round again.
-
-A clear is noticed by the count falling below the highest entry held.
-A log cleared and refilled to at least that count while the link was
-down numbers the same way, and with `--adopt-log` the old generation's
-completeness would authorize erasing entries never copied.  So once per
-connection, before copying or erasing, three held entries -- the
-newest, the oldest and one between -- are read again and compared;
-any difference starts a new generation.  Three because the receiver
-repeats a power-on stamp and message.  Two logs matching at all three
-would still pass.
+Receiver log stamps are kept as written but are no ordering key: after
+a power cycle the clock runs from a stale midnight until first lock.
+`at`, host UTC when read, is the best time an entry has.
+`(generation, entry)` orders the log; `generation` counts clears.  Once
+per connection three held entries are re-read, and any difference starts
+a new generation, so a log cleared and refilled offline is not mistaken
+for the old one.
 
 ### Rows belong to a receiver, not to a file
 
