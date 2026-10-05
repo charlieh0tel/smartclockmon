@@ -103,6 +103,7 @@ fn journal(frame: &mut Frame, area: Rect, app: &App) {
                 Source::Log => Color::Gray,
                 Source::Event => Color::Cyan,
                 Source::Error => Color::Yellow,
+                Source::Note => Color::Green,
             };
             Row::new(vec![
                 Cell::from(stamp(&line.stamp)).style(Style::new().fg(Color::DarkGray)),
@@ -121,7 +122,7 @@ fn journal(frame: &mut Frame, area: Rect, app: &App) {
         // log follows in its own entry order, and claiming one
         // chronology across two clocks would be a lie.
         format!(
-            " Journal -- {} lines: events, then the receiver's log ",
+            " Journal -- {} lines: events and notes, then the receiver's log ",
             app.journal.len()
         )
     };

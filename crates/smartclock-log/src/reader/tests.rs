@@ -471,6 +471,54 @@ fn the_journal_is_one_receivers_and_in_the_receivers_own_order() {
 }
 
 #[test]
+fn notes_come_newest_first_and_a_fact_shows_its_latest_value() {
+    let scratch = two_units("notes");
+    scratch
+        .connect()
+        .execute_batch(
+            r#"
+            INSERT INTO note (at, text, receiver_id) VALUES
+                ('2026-09-01T00:00:00.000000000Z','first A',1),
+                ('2026-09-01T00:00:05.000000000Z','later A',1),
+                ('2026-09-02T00:00:00.000000000Z','only B',2);
+            INSERT INTO fact (since, key, value, receiver_id) VALUES
+                ('2026-09-01T00:00:00.000000000Z','ocxo.serial','old',1),
+                ('2026-09-03T00:00:00.000000000Z','ocxo.serial','new',1),
+                ('2026-09-01T00:00:00.000000000Z','antenna.feed','LNA',1),
+                ('2026-09-02T00:00:00.000000000Z','ocxo.serial','B',2);
+            "#,
+        )
+        .expect("fill it");
+    let log = Log::open(scratch.path()).expect("open");
+    let notes = log.journal(1, 50).expect("A's journal").notes;
+    assert_eq!(
+        notes.iter().map(|n| n.text.as_str()).collect::<Vec<_>>(),
+        vec!["later A", "first A"]
+    );
+    let facts = log.facts(1).expect("A's facts");
+    assert_eq!(
+        facts
+            .iter()
+            .map(|f| (f.key.as_str(), f.value.as_str()))
+            .collect::<Vec<_>>(),
+        vec![("antenna.feed", "LNA"), ("ocxo.serial", "new")],
+        "by key, each at its latest value, and none of B's"
+    );
+}
+
+#[test]
+fn a_log_older_than_notes_has_none() {
+    let scratch = two_units("old-notes");
+    scratch
+        .connect()
+        .execute_batch("DROP TABLE note; DROP TABLE fact;")
+        .expect("make it old");
+    let log = Log::open(scratch.path()).expect("open");
+    assert!(log.journal(1, 50).expect("journal").notes.is_empty());
+    assert!(log.facts(1).expect("facts").is_empty());
+}
+
+#[test]
 fn many_events_do_not_crowd_the_diagnostic_log_out_of_the_journal() {
     let scratch = two_units("crowded");
     let conn = scratch.connect();

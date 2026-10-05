@@ -202,6 +202,8 @@ pub struct Journal {
     pub events: Vec<Event>,
     /// Entries taken from its error queue.
     pub errors: Vec<ReceiverError>,
+    /// What a person wrote about it, by when it happened.
+    pub notes: Vec<Note>,
 }
 
 /// One diagnostic log entry.
@@ -242,6 +244,26 @@ pub struct ReceiverError {
     pub code: i64,
     /// What the receiver called it.
     pub message: String,
+}
+
+/// A person's note about the receiver or the bench.
+#[derive(Debug, Serialize)]
+pub struct Note {
+    /// When it happened, as the writer gave it.
+    pub at: String,
+    /// What it says.
+    pub text: String,
+}
+
+/// A fact about the unit, as a person recorded it.
+#[derive(Debug, Serialize)]
+pub struct Fact {
+    /// When the value became true.
+    pub since: String,
+    /// What it is about, such as `ocxo.serial`.
+    pub key: String,
+    /// Its value.
+    pub value: String,
 }
 
 /// Whether a failure is a table this log predates.
@@ -598,7 +620,42 @@ impl Log {
                     })
                 },
             )?,
+            notes: self.stream(
+                receiver,
+                "SELECT at, text FROM note
+                 WHERE receiver_id = ?1 ORDER BY at DESC, id DESC",
+                limit,
+                |row| {
+                    Ok(Note {
+                        at: row.get(0)?,
+                        text: row.get(1)?,
+                    })
+                },
+            )?,
         })
+    }
+
+    /// The current value of each fact about the receiver, by key: the
+    /// one with the latest `since`, an older value having been
+    /// replaced.
+    pub fn facts(&self, receiver: i64) -> Result<Vec<Fact>> {
+        self.stream(
+            receiver,
+            "SELECT since, key, value FROM fact AS f
+             WHERE receiver_id = ?1 AND id = (
+                 SELECT id FROM fact
+                 WHERE receiver_id = f.receiver_id AND key = f.key
+                 ORDER BY since DESC, id DESC LIMIT 1)
+             ORDER BY key",
+            MAX_JOURNAL as i64,
+            |row| {
+                Ok(Fact {
+                    since: row.get(0)?,
+                    key: row.get(1)?,
+                    value: row.get(2)?,
+                })
+            },
+        )
     }
 
     /// One journal stream, empty if this log predates it.

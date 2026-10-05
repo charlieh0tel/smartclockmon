@@ -155,6 +155,8 @@ pub(crate) enum Source {
     Event,
     /// An entry from the error queue.
     Error,
+    /// A person's note.
+    Note,
 }
 
 impl Source {
@@ -164,6 +166,7 @@ impl Source {
             Self::Log => "log",
             Self::Event => "event",
             Self::Error => "error",
+            Self::Note => "note",
         }
     }
 }
@@ -173,7 +176,7 @@ impl Source {
 pub(crate) struct Line {
     /// When the daemon read it, on the host clock.
     ///
-    /// The sort key, and only that.  Ordering the three records against
+    /// The sort key, and only that.  Ordering the records against
     /// each other needs one clock, and this is the only one they share:
     /// a diagnostic log entry carries the receiver's calendar, which on
     /// this firmware is 1024 weeks behind, so comparing those against
@@ -228,7 +231,7 @@ impl Log {
     /// receiver's own history in its own sequence.
     pub(crate) fn journal(&self, receiver: i64, limit: usize) -> Result<Vec<Line>> {
         let journal = self.0.journal(receiver, limit)?;
-        // Events and errors share the host clock, so these two do
+        // Events, errors and notes share the host clock, so these
         // merge, newest first.
         let mut lines: Vec<Line> = journal
             .events
@@ -244,6 +247,12 @@ impl Log {
                 at: error.at,
                 text: format!("{} {}", error.code, error.message),
                 source: Source::Error,
+            }))
+            .chain(journal.notes.into_iter().map(|note| Line {
+                stamp: note.at.clone(),
+                at: note.at,
+                text: note.text,
+                source: Source::Note,
             }))
             .collect();
         lines.sort_by(|a, b| b.at.cmp(&a.at));
@@ -421,7 +430,9 @@ mod tests {
                  INSERT INTO receiver_event (at, register, bits, decoded, receiver_id) VALUES
                      ('2026-09-01T00:00:00.000000000Z', 'alarm', 0, 'clear', 1);
                  INSERT INTO receiver_error (at, code, message, receiver_id) VALUES
-                     ('2026-09-01T00:00:05.000000000Z', -113, 'undefined header', 1);",
+                     ('2026-09-01T00:00:05.000000000Z', -113, 'undefined header', 1);
+                 INSERT INTO note (at, text, receiver_id) VALUES
+                     ('2026-09-01T00:00:03.000000000Z', 'added an LNA', 1);",
             )
             .expect("fill it");
         let lines: Vec<Line> = scratch.open().journal(1, 50).expect("journal");
@@ -432,6 +443,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 ("-113 undefined header", Source::Error),
+                ("added an LNA", Source::Note),
                 ("clear", Source::Event),
                 ("two", Source::Log),
                 ("one", Source::Log),
@@ -439,7 +451,7 @@ mod tests {
         );
         // An entry the receiver did not stamp is dated by when it was
         // read; one it did keeps its own stamp.
-        assert_eq!(lines[2].stamp, "2026-09-01T00:00:01.000000000Z");
-        assert_eq!(lines[3].stamp, "20050528.00:01:00");
+        assert_eq!(lines[3].stamp, "2026-09-01T00:00:01.000000000Z");
+        assert_eq!(lines[4].stamp, "20050528.00:01:00");
     }
 }

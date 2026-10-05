@@ -48,6 +48,7 @@
 </div>
 
 <footer id="about"></footer>
+<footer id="facts"></footer>
 <footer id="colophon"></footer>
 
 <script src="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.iife.min.js"
@@ -604,15 +605,16 @@ function buttons() {
 
 // ------------------------------------------------- the receiver's journal
 
-// Three streams the snapshot table does not carry and no chart can
-// show: what the receiver wrote in its own diagnostic log, the
-// transitions taken from its event registers, and what its error queue
-// held.  Tabbed rather than stacked because they are read one at a
+// Streams the snapshot table does not carry and no chart can show:
+// what the receiver wrote in its own diagnostic log, the transitions
+// taken from its event registers, what its error queue held, and the
+// notes a person wrote about it.  Tabbed rather than stacked because they are read one at a
 // time and the panel would otherwise own the page.
 const JOURNAL = [
   ["events", "transitions"],
   ["entries", "receiver log"],
   ["errors", "error queue"],
+  ["notes", "notes"],
 ];
 // Chosen on first draw as the first stream that has anything, unless
 // the URL names one.  Defaulting to a fixed tab meant landing on an
@@ -627,6 +629,7 @@ const rows = {
   events: (r) => [local(r.at), `${esc(r.decoded)} <span class="muted">(${esc(r.register)} ${r.bits})</span>`],
   entries: (r) => [stamped(r), `<span class="muted">#${r.entry}</span> ${esc(r.message)}`],
   errors: (r) => [local(r.at), `<span class="muted">${r.code}</span> ${esc(r.message)}`],
+  notes: (r) => [local(r.at), esc(r.text)],
 };
 
 // The receiver's own stamp as it wrote it, or when the daemon read the
@@ -693,6 +696,15 @@ async function loadAbout(signal) {
       .join("  --  ");
 }
 
+// What a person recorded the unit is made of, in the footer: each
+// fact at its current value, since when.
+async function loadFacts(signal) {
+  const facts = await ask("/api/facts?" + withUnit(new URLSearchParams()), signal);
+  $("facts").textContent = facts
+    .map((f) => `${f.key} ${f.value} (since ${new Date(f.since).toLocaleDateString()})`)
+    .join("  --  ");
+}
+
 // Each part reports its own failure in its own place, so a daemon that
 // has gone takes the footer with it and leaves the history, which the
 // logs still hold, where it is.
@@ -731,12 +743,14 @@ const HISTORY_EVERY = 30000;
       clearCharts(why);
       $("journal").innerHTML = muted(why);
       $("about").textContent = "";
+      $("facts").textContent = "";
     },
     load: (signal) =>
       Promise.all([
         part(draw, signal, clearCharts),
         part(loadJournal, signal, (why) => ($("journal").innerHTML = muted(why))),
         part(loadAbout, signal, (why) => ($("about").textContent = why)),
+        part(loadFacts, signal, (why) => ($("facts").textContent = why)),
       ]),
   });
 })();

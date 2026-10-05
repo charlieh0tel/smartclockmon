@@ -29,6 +29,7 @@ use smartclock::client::Daemons;
 use smartclock::parse::Identity;
 use smartclock::protocol::Op;
 use smartclock_http::Response;
+use smartclock_log::reader::Journal;
 use smartclock_log::reader::Log;
 use smartclock_log::reader::MAX_PHASE_ROWS;
 use smartclock_log::reader::Receiver;
@@ -134,6 +135,7 @@ fn main() -> Result<()> {
             "/api/status" => json(choose(&daemons, &cache, query).and_then(|s| status(&s))),
             "/api/history" => json(series(&logs, query)),
             "/api/journal" => json(journal(&logs, query)),
+            "/api/facts" => json(facts(&logs, query)),
             "/api/receivers" => json(receivers(&logs, &daemons, &cache)),
             "/api/adev" => json(deviation(&logs, query)),
             _ => Response::not_found(),
@@ -342,13 +344,24 @@ fn choose(daemons: &Daemons, cache: &Cache, query: &str) -> Result<PathBuf> {
 /// of one without paging.
 const JOURNAL_ROWS: usize = 100;
 
-/// The receiver's own record-keeping: its diagnostic log, the
-/// transitions taken from its event registers, and its error queue.
+/// The receiver's own record-keeping -- its diagnostic log, the
+/// transitions taken from its event registers, and its error queue --
+/// and the notes a person wrote about it.
 fn journal(logs: &Logs, query: &str) -> Result<serde_json::Value> {
-    let Some((log, receiver)) = logs.choose(query)? else {
-        return Ok(serde_json::json!({ "entries": [], "events": [], "errors": [] }));
+    let journal = match logs.choose(query)? {
+        Some((log, receiver)) => log.journal(receiver, JOURNAL_ROWS)?,
+        None => Journal::default(),
     };
-    Ok(serde_json::to_value(log.journal(receiver, JOURNAL_ROWS)?)?)
+    Ok(serde_json::to_value(journal)?)
+}
+
+/// The current value of each fact a person recorded about the receiver.
+fn facts(logs: &Logs, query: &str) -> Result<serde_json::Value> {
+    let facts = match logs.choose(query)? {
+        Some((log, receiver)) => log.facts(receiver)?,
+        None => Vec::new(),
+    };
+    Ok(serde_json::to_value(facts)?)
 }
 
 /// The Allan deviation of the 1 PPS interval over a range.

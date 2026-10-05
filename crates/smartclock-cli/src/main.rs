@@ -44,6 +44,8 @@ use smartclock::types::BaudRate;
 use smartclock::types::Framing;
 use smartclock::types::Seconds;
 use smartclock::wire::Reading;
+use smartclock_log::reader::Fact;
+use smartclock_log::reader::Log;
 
 use crate::flash::FlashArgs;
 
@@ -949,7 +951,7 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
 ///
 /// The ages come from the reading's own per-tier state, so a field the
 /// daemon has not refreshed lately says so rather than looking current.
-fn render(info: &serde_json::Value, r: &Reading) {
+fn render(info: &serde_json::Value, r: &Reading, facts: &Result<Vec<Fact>>) {
     let text = |key: &str| {
         info.get(key)
             .and_then(serde_json::Value::as_str)
@@ -958,6 +960,20 @@ fn render(info: &serde_json::Value, r: &Reading) {
     println!("{}", text("identity"));
     line("dialect", text("dialect"));
     line("source", &format!("daemon, reading taken {}", r.at));
+
+    println!("\nFacts");
+    match facts {
+        Ok(facts) if facts.is_empty() => line("", "none recorded"),
+        Ok(facts) => {
+            for fact in facts {
+                line(
+                    &fact.key,
+                    &format!("{}  (since {})", fact.value, fact.since),
+                );
+            }
+        }
+        Err(e) => line("", &format!("unavailable: {e:#}")),
+    }
 
     println!("\nLock");
     show_opt("mode", r.mode.as_ref().map(ToString::to_string));
@@ -1112,8 +1128,30 @@ fn show_opt(label: &str, value: Option<String>) {
 fn diagnose_daemon(daemon: &mut Daemon) -> Result<()> {
     let info = daemon.info()?;
     let reading = daemon.latest()?;
-    render(&info, &reading);
+    render(&info, &reading, &facts(&info));
     Ok(())
+}
+
+/// The current facts about the daemon's receiver, read from its log.
+///
+/// The daemon names its log; reading it needs the same group a monitor
+/// needs.
+fn facts(info: &serde_json::Value) -> Result<Vec<Fact>> {
+    let path = info
+        .get("database")
+        .and_then(serde_json::Value::as_str)
+        .filter(|p| !p.is_empty())
+        .context("the daemon did not say where its log is")?;
+    let identity = info
+        .get("identity")
+        .and_then(serde_json::Value::as_str)
+        .context("the daemon did not say what it is attached to")?;
+    let serial = parse::identity(identity)?.serial;
+    let log = Log::open(Path::new(path)).with_context(|| format!("reading {path}"))?;
+    let Some(receiver) = log.receivers()?.into_iter().find(|r| r.serial == serial) else {
+        return Ok(Vec::new());
+    };
+    Ok(log.facts(receiver.id)?)
 }
 
 #[cfg(test)]

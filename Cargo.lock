@@ -1740,6 +1740,7 @@ dependencies = [
  "sha2 0.11.0",
  "signal-hook 0.4.5",
  "smartclock",
+ "smartclock-log",
  "smartclock-sim",
  "thiserror 2.0.21",
 ]
