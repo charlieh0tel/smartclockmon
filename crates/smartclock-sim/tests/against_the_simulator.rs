@@ -10,6 +10,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+use smartclock::command::Dialect;
 use smartclock::device::Device;
 use smartclock::session::Config;
 use smartclock::session::Session;
@@ -959,4 +960,27 @@ fn an_error_is_attributed_to_the_command_that_caused_it() {
         device.session().take_stray_errors().is_empty(),
         "taking them should clear them"
     );
+}
+
+#[test]
+fn a_z3801a_without_echo_is_read_as_one_with_it_is() {
+    // The bench Z3801A does not echo, so every reply arrives bare and a
+    // refusal arrives as nothing but its prompt.
+    let transport = SimTransport::new(Receiver::z3801a()).with_echo(false);
+    let mut device = Device::open(Session::new(transport, Config::default())).expect("open");
+    assert_eq!(device.dialect(), Dialect::Z3801);
+    let now = jiff::Timestamp::now();
+    let mut snapshot = Snapshot::new(now);
+    for tier in Tier::ALL {
+        device
+            .poll(tier, &mut snapshot, now)
+            .unwrap_or_else(|e| panic!("{tier:?}: {e}"));
+    }
+    assert!(snapshot.efc.is_some(), "{snapshot:?}");
+    assert!(snapshot.polled.fast.at.is_some());
+    assert!(snapshot.polled.slow.at.is_some());
+    match device.session().query(":NO:SUCH?") {
+        Err(smartclock::error::Error::Device { code: -113, .. }) => {}
+        other => panic!("expected -113, got {other:?}"),
+    }
 }

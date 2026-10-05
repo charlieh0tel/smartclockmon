@@ -29,6 +29,10 @@ pub struct SimTransport {
     pending: Arc<Mutex<VecDeque<u8>>>,
     /// The command being typed, up to its terminator.
     partial: Arc<Mutex<String>>,
+    /// Whether what is sent comes back.  The 58503A and the Z3805A echo;
+    /// the bench Z3801A does not, so a command with no reply arrives as
+    /// nothing but the next prompt.
+    echo: bool,
 }
 
 impl Default for SimTransport {
@@ -44,11 +48,18 @@ impl SimTransport {
             receiver: Arc::new(Mutex::new(receiver)),
             pending: Arc::new(Mutex::new(VecDeque::new())),
             partial: Arc::new(Mutex::new(String::new())),
+            echo: true,
         };
         // A real receiver is already sitting at a prompt when something
         // connects to it.
         transport.emit(PROMPT);
         transport
+    }
+
+    /// This transport with its echo on or off.
+    pub fn with_echo(mut self, echo: bool) -> Self {
+        self.echo = echo;
+        self
     }
 
     /// The receiver, for a test that wants to change or inspect it.
@@ -94,7 +105,9 @@ impl Write for SimTransport {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         // Echo, as the receiver does, a character at a time as they
         // arrive.
-        self.emit(&String::from_utf8_lossy(buf));
+        if self.echo {
+            self.emit(&String::from_utf8_lossy(buf));
+        }
 
         let mut partial = self.partial.lock().expect("partial mutex");
         // A client that never sends a newline would otherwise grow this

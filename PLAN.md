@@ -1249,8 +1249,7 @@ instance label).
 
 **Web view.**  Host and Origin checks are open question 5.
 
-**Simulator.**  A Z3801A with no echo should exist so both framings
-are tested.  Its binary takes arguments by position.
+**Simulator.**  Its binary takes arguments by position.
 
 **Smaller.**
 
