@@ -26,6 +26,7 @@ use smartclock::command::Class;
 use smartclock::command::Dialect;
 use smartclock::console;
 use smartclock::console::Progress;
+use smartclock::console::Region;
 use smartclock::control::forbidden;
 use smartclock::device::Device;
 use smartclock::device::dialect_for;
@@ -319,6 +320,7 @@ fn main() -> Result<()> {
 
     // The console has its own prompt, so this skips the SCPI session.
     if let Some((from, length, to)) = console_read(&cli.command) {
+        let region = Region::new(from, length)?;
         let ReadTo {
             out,
             compare,
@@ -342,8 +344,7 @@ fn main() -> Result<()> {
         let summary = if *stay_in_console {
             console::read_memory(
                 &mut port,
-                from,
-                length,
+                region,
                 &mut file,
                 expected.as_deref(),
                 report,
@@ -352,8 +353,7 @@ fn main() -> Result<()> {
         } else {
             let (summary, identity) = console::read_and_return(
                 port,
-                from,
-                length,
+                region,
                 &mut file,
                 expected.as_deref(),
                 report,

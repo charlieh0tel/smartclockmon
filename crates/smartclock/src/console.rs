@@ -352,6 +352,36 @@ fn words(reply: &str, request: &str) -> Result<Vec<u32>> {
         .collect()
 }
 
+/// Memory to read through the console: whole long words, the console's
+/// `@` being a long-word read, ending inside the address space.  Made
+/// only through [`Region::new`], so a read never starts on one that
+/// would fail part way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Region {
+    /// The first address.
+    from: u32,
+    /// How many bytes.
+    length: u32,
+}
+
+impl Region {
+    /// The `length` bytes from `from`, if they are whole long words
+    /// that end inside the address space.
+    pub fn new(from: u32, length: u32) -> Result<Self> {
+        if !(from.is_multiple_of(4) && length.is_multiple_of(4)) {
+            return Err(ConsoleError::Range(
+                "the address and length must be multiples of four, since memory is read a long word at a time",
+            ));
+        }
+        if from.checked_add(length).is_none() {
+            return Err(ConsoleError::Range(
+                "the range runs past the end of the address space",
+            ));
+        }
+        Ok(Self { from, length })
+    }
+}
+
 /// What a read reports as it goes.
 #[derive(Debug)]
 pub enum Progress {
@@ -384,21 +414,14 @@ pub struct Summary {
 /// The port is left at the console.
 pub fn read_memory<T: Read + Write>(
     port: T,
-    from: u32,
-    length: u32,
+    region: Region,
     out: &mut impl Write,
     compare: Option<&[u8]>,
     mut progress: impl FnMut(Progress),
     stop: &AtomicBool,
 ) -> Result<Summary> {
-    if !(from.is_multiple_of(4) && length.is_multiple_of(4)) {
-        return Err(ConsoleError::Range(
-            "the address and length must be multiples of four, since memory is read a long word at a time",
-        ));
-    }
-    let end = from.checked_add(length).ok_or(ConsoleError::Range(
-        "the range runs past the end of the address space",
-    ))?;
+    let Region { from, length } = region;
+    let end = from + length;
     let mut console = Console { port };
     if console.send_within("", PROBE_TIMEOUT).is_err() {
         progress(Progress::Entering);
@@ -585,21 +608,16 @@ pub fn back_to_scpi<T: Transport>(port: T, config: Config) -> Result<String> {
 /// [`read_memory`], then [`back_to_scpi`] whether or not the read
 /// succeeded, since a read that fails part way leaves the port at the
 /// console too.  Returns the summary and the primary's `*IDN?` answer.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "read_memory's arguments and the way back's config, passed straight through"
-)]
 pub fn read_and_return<T: Transport>(
     mut port: T,
-    from: u32,
-    length: u32,
+    region: Region,
     out: &mut impl Write,
     compare: Option<&[u8]>,
     progress: impl FnMut(Progress),
     stop: &AtomicBool,
     config: Config,
 ) -> Result<(Summary, String)> {
-    let read = read_memory(&mut port, from, length, out, compare, progress, stop);
+    let read = read_memory(&mut port, region, out, compare, progress, stop);
     match (read, back_to_scpi(port, config)) {
         (Ok(summary), Ok(identity)) => Ok((summary, identity)),
         (Ok(_), Err(back)) => Err(back),
@@ -624,6 +642,7 @@ mod tests {
 
     use super::ConsoleError;
     use super::EXITS;
+    use super::Region;
     use super::at_prompt;
     use super::back_to_scpi;
     use super::enter_installer;
@@ -817,8 +836,15 @@ mod tests {
     fn a_read_stops_on_request_before_its_next_chunk() {
         let mut console = Fake::new(&[]);
         let stop = AtomicBool::new(true);
-        let error = read_memory(&mut console, 0, 8, &mut Vec::new(), None, |_| {}, &stop)
-            .expect_err("stopped");
+        let error = read_memory(
+            &mut console,
+            Region::new(0, 8).expect("aligned"),
+            &mut Vec::new(),
+            None,
+            |_| {},
+            &stop,
+        )
+        .expect_err("stopped");
         assert!(matches!(error, ConsoleError::Stopped(0)), "{error}");
         assert!(!console.sent.iter().any(|line| line.ends_with("rd")
             && line != ": rd ( addr n -- ) over + swap do i @ u. 4 +loop ;"));
@@ -829,8 +855,15 @@ mod tests {
         // The fake answers `rd` with no words, so every attempt fails.
         let mut console = Fake::new(&[]);
         let stop = AtomicBool::new(false);
-        let error = read_memory(&mut console, 0, 8, &mut Vec::new(), None, |_| {}, &stop)
-            .expect_err("no words");
+        let error = read_memory(
+            &mut console,
+            Region::new(0, 8).expect("aligned"),
+            &mut Vec::new(),
+            None,
+            |_| {},
+            &stop,
+        )
+        .expect_err("no words");
         assert!(matches!(error, ConsoleError::GaveUp { .. }), "{error}");
         let after_first: Vec<&str> = console
             .sent
@@ -840,5 +873,13 @@ mod tests {
             .collect();
         assert_eq!(after_first.get(1), Some(&""), "{after_first:?}");
         assert_eq!(after_first.get(2), Some(&"0 8 rd"), "{after_first:?}");
+    }
+
+    #[test]
+    fn a_region_is_whole_long_words_inside_the_address_space() {
+        assert!(Region::new(0x40_0000, 0x2000).is_ok());
+        assert!(Region::new(2, 8).is_err());
+        assert!(Region::new(0, 6).is_err());
+        assert!(Region::new(0xffff_fffc, 8).is_err());
     }
 }

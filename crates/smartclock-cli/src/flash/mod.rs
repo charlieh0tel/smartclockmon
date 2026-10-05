@@ -13,6 +13,7 @@ use smartclock::attach::answering;
 use smartclock::console;
 use smartclock::console::LANGUAGE_SETTLE;
 use smartclock::console::Progress;
+use smartclock::console::Region;
 use smartclock::parse;
 use smartclock::parse::Identity;
 use smartclock::session::Config;
@@ -377,8 +378,7 @@ fn readback(port: Box<dyn Transport>, firmware: &Firmware, config: Config) -> Re
     eprintln!("Reading the flash back through the debug console.");
     let (summary, identity) = console::read_and_return(
         port,
-        0,
-        u32::try_from(IMAGE_SIZE).expect("the image fits the address space"),
+        Region::new(0, u32::try_from(IMAGE_SIZE)?)?,
         &mut std::io::sink(),
         Some(firmware.bytes()),
         |progress| {
