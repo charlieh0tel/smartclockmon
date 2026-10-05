@@ -28,6 +28,29 @@ use smartclock_log::schema;
 use smartclock_log::schema::cadence_key;
 use smartclock_log::schema::stored;
 
+/// A log written by a newer smartclockd than this one, which it refuses
+/// rather than write into.  Typed so the daemon can tell it from a log
+/// that merely failed to open, since no retry fixes it.
+#[derive(Debug)]
+pub(crate) struct NewerSchema {
+    /// The schema the log is stamped with.
+    found: i64,
+}
+
+impl std::fmt::Display for NewerSchema {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "this database is schema {} and this smartclockd understands {}; \
+             it was written by a newer version",
+            self.found,
+            schema::VERSION
+        )
+    }
+}
+
+impl std::error::Error for NewerSchema {}
+
 /// The first schema whose timestamps all carry nine fractional digits.
 const FIXED_WIDTH_STAMPS: i64 = 8;
 
@@ -160,13 +183,10 @@ impl Log {
                     .with_context(|| format!("meta.schema is {found:?}, which is not a version"))
             })
             .transpose()?;
-        if let Some(found) = found {
-            anyhow::ensure!(
-                found <= schema::VERSION,
-                "this database is schema {found} and this smartclockd understands {}; \
-                 it was written by a newer version",
-                schema::VERSION
-            );
+        if let Some(found) = found
+            && found > schema::VERSION
+        {
+            return Err(NewerSchema { found }.into());
         }
 
         self.conn.execute_batch(schema::TABLES)?;
@@ -1289,6 +1309,10 @@ mod tests {
         drop(conn);
 
         let refused = Log::open(path).expect_err("a newer schema must be refused");
+        assert!(
+            refused.downcast_ref::<super::NewerSchema>().is_some(),
+            "typed, so the daemon stops rather than retrying: {refused:#}"
+        );
         let why = format!("{refused:#}");
         assert!(
             why.contains("99"),

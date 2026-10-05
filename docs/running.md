@@ -7,7 +7,7 @@ per serial port, named by the port as `serial-getty@` is:
 `smartclockd@ttyUSB0` opens `/dev/ttyUSB0`.  Instances are named for
 ports and logs for receivers, since receivers move between ports.
 
-    sudo dpkg -i smartclockmon_0.1.0-1_amd64.deb
+    sudo apt install ./smartclockmon_<version>_amd64.deb
     sudo systemctl enable --now smartclockd@ttyUSB0
     sudo usermod -aG smartclockd $USER        # then log in again
 
@@ -48,19 +48,19 @@ has answered `*IDN?`.
 
 ### Upgrading
 
-Install the new package over the old one and restart each instance.
 On opening a log written by an earlier version, the daemon upgrades it
-to its own schema and stamps it with that schema.
-
-This is irreversible.  A daemon refuses to write a log stamped with a
-newer schema than its own, so once a newer daemon has opened a log,
-an older one will not.  Copy the log first if you may need to go
-back.  The readers, `smartclock-web` and `smartclockmon`, open a log
-of any schema.
+to its own schema and stamps it with that schema.  This is
+irreversible: a daemon refuses a log stamped with a newer schema than
+its own, exiting with status 2, which the unit does not restart.  So
+if you may need to go back, copy each log before the new daemon first
+opens it:
 
     sudo systemctl stop smartclockd@ttyUSB0
     sudo -u smartclockd cp /var/lib/smartclockd/<model>-<serial>.sqlite \
         /var/lib/smartclockd/<model>-<serial>.sqlite.bak
+
+Then install the new package and restart each instance.  The readers,
+`smartclock-web` and `smartclockmon`, open a log of any schema.
 
 ## What the daemon does to the receiver
 
