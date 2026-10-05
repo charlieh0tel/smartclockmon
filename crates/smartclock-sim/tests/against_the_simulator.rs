@@ -984,3 +984,19 @@ fn a_z3801a_without_echo_is_read_as_one_with_it_is() {
         other => panic!("expected -113, got {other:?}"),
     }
 }
+
+#[test]
+fn the_error_query_reads_the_queue_itself() {
+    // Not emptied ahead of the command that reads it, or there would be
+    // nothing left to read.
+    let transport = SimTransport::new(Receiver::default());
+    transport
+        .receiver()
+        .lock()
+        .expect("receiver mutex")
+        .queue_error(-313, "Calibration memory lost");
+    let mut session = Session::new(transport, Config::default());
+    session.sync().expect("a prompt");
+    let reply = session.query(":SYSTem:ERRor?").expect("the oldest error");
+    assert_eq!(reply.lines, ["-313,\"Calibration memory lost\""]);
+}

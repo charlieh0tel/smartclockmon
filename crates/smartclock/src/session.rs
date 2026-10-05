@@ -240,7 +240,8 @@ impl<T: Transport> Session<T> {
     /// "The error prompt"): it carries the newest queued error, and a
     /// command that succeeds while one is queued answers under it.  So
     /// a queue the last prompt showed holding errors is read off first,
-    /// into [`Session::strays`], and only then is the command sent.
+    /// into [`Session::strays`], and only then is the command sent --
+    /// except a command that reads or clears the queue itself.
     /// After it, a query that answered succeeded, since a failing one
     /// answers with the prompt alone (097-59551-02, A-6), and whatever
     /// the prompt shows is kept as a stray.  Otherwise the error is the
@@ -250,8 +251,10 @@ impl<T: Transport> Session<T> {
     /// exchange.
     pub fn query(&mut self, command: &str) -> Result<Reply> {
         // Emptied first, so that an error prompt after this command can
-        // only mean something happened since it was sent.
-        if self.errors_queued {
+        // only mean something happened since it was sent -- unless the
+        // command is how the queue is read or cleared, which emptying it
+        // first would leave with nothing to read.
+        if self.errors_queued && !reads_queue(command) {
             self.keep_queued_as_strays()?;
         }
         let reply = self.send_raw(command)?;
@@ -436,6 +439,22 @@ fn split_prompt(buf: &str) -> Option<(&str, Prompt)> {
     Some((body, prompt))
 }
 
+/// Whether a command reads or clears the error queue: `:SYSTem:ERRor?`
+/// in any of its spellings, or `*CLS`.
+fn reads_queue(command: &str) -> bool {
+    let header = command
+        .split_whitespace()
+        .next()
+        .unwrap_or_default()
+        .trim_start_matches(':')
+        .to_ascii_uppercase();
+    header == "*CLS"
+        || matches!(
+            header.as_str(),
+            "SYST:ERR?" | "SYST:ERROR?" | "SYSTEM:ERR?" | "SYSTEM:ERROR?"
+        )
+}
+
 /// Whether a command asks for an answer: its header ends in `?`.
 fn is_query(command: &str) -> bool {
     command
@@ -576,5 +595,22 @@ mod tests {
         assert!(default.at_rate(BaudRate::B4800).timeout > default.timeout);
         assert!(default.at_rate(BaudRate::B2400).timeout >= std::time::Duration::from_secs(15));
         assert!(default.at_rate(BaudRate::B1200).timeout >= std::time::Duration::from_secs(30));
+    }
+
+    #[test]
+    fn reading_the_queue_is_recognized_in_any_spelling() {
+        use super::reads_queue;
+        for command in [
+            ":SYSTem:ERRor?",
+            "SYST:ERR?",
+            ":system:error?",
+            "*CLS",
+            "*cls",
+        ] {
+            assert!(reads_queue(command), "{command}");
+        }
+        for command in ["*IDN?", ":SYSTem:STATus?", ":SYST:ERR"] {
+            assert!(!reads_queue(command), "{command}");
+        }
     }
 }

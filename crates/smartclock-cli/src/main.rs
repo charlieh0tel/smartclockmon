@@ -449,7 +449,7 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command, checked: &[Stri
     }
     let session = &mut session;
 
-    match command {
+    let result = match command {
         Command::Query { .. } => {
             for one in checked {
                 let reply = session
@@ -470,7 +470,17 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command, checked: &[Stri
         | Command::Flash(_) => unreachable!("handled before the session is opened"),
         // Handled before the port is opened.
         Command::Commands => Ok(()),
+    };
+    // Errors read off the queue so that no command was judged by them
+    // (docs/protocol.md, "The error prompt"): the receiver raised them,
+    // so they are shown rather than dropped.
+    for stray in session.take_stray_errors() {
+        eprintln!(
+            "the receiver also held: {},\"{}\"",
+            stray.code, stray.message
+        );
     }
+    result
 }
 
 /// The commands a subcommand sends as given by the operator, rather

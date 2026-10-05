@@ -53,3 +53,8 @@ queued answers in full under an error prompt.  An error prompt alone
 does not say the command just sent failed.  A query that fails returns
 no response, only the prompt (097-59551-02, A-6).
 
+So the session reads a queue the last prompt showed holding errors
+before sending anything but `:SYSTem:ERRor?` or `*CLS`, keeping what it
+read as strays; the daemon logs them, and `smartclock-cli` prints them
+on stderr.
+
