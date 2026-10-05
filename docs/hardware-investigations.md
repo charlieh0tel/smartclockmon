@@ -328,3 +328,23 @@ bytes free (`firmware.md`, "Leaving it").
 *Changes:* `read-memory` and its kin leave the console with `halt`
 first on every image, keeping the installer route as the fallback, and
 firmware with no known installer exit is no longer refused.
+
+## 15. A receiver swapped under a running daemon
+
+*Open item:* whether the slow tier's `*IDN?` check catches a cable
+moved between two units on the same line settings (PLAN.md, "Rows
+belong to a receiver, not to a file").
+
+Done on 2026-10-05 with the installed daemons stopped and a throwaway
+`smartclockd --device /dev/ttyUSB0 --baud 19200 --slow 10` logging to a
+scratch file:
+
+- *Z3805A to 58503A, slowly.*  Reads failed long enough to call the
+  link dead; the daemon reopened and attached as the 58503A.  The
+  Z3805A's rows end at 21:21:31 UTC under its serial, the 58503A's
+  begin at 21:21:48 under its own.  The check took no part.
+- *58503A to Z3805A, in a few seconds.*  No run of failures; the check
+  logged `the receiver was swapped`, dropped the one queued command and
+  reattached as the Z3805A.  Five rows from 21:22:51.5 to 21:22:54.5,
+  with the Z3805A's EFC of 45.476 %, are filed under the 58503A: the
+  window up to one slow pass that PLAN.md states.
