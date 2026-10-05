@@ -1,3 +1,44 @@
+smartclockmon (1.0.3-1) unstable; urgency=low
+
+  * Upgrading: the log's schema is now 11.  A daemon refuses a log
+    written by a newer one and exits 2, so copy each log before
+    installing if you may need to go back.  An existing log needs no
+    cleanup.  See docs/running.md, "Upgrading".
+  * Notes and facts: smartclock-cli note and fact write free text and
+    key=value facts about a receiver to its log through the daemon;
+    nothing is sent to the receiver.  Notes show in the web and monitor
+    journals and as dashed lines on the web charts; clicking one in the
+    web journal shows an hour either side.  Current facts head diagnose
+    and sit under the web history.
+  * A new web page, /compare, overlays every receiver over one range:
+    1 PPS TI, EFC, temperature, TFOM and FFOM, and their MDEV and ADEV
+    curves on one plot.
+  * The daemon notices a receiver swapped on a port while the link stays
+    up, within one slow poll, and reopens as the new unit.  The journal
+    confirms the receiver before each pass and before clearing its log,
+    so --adopt-log never erases a swapped-in unit's log.
+  * The daemon reads the status screen every 300 s (SMARTCLOCKD_SKY) to
+    keep the satellite table in the log.
+  * Errors the receiver raised on its own are read off its queue before
+    a command and kept separately, so no command is blamed for them; the
+    daemon logs them and smartclock-cli prints them.
+  * A log closed by anything but the daemon stays readable to the
+    viewers, and the daemon keeps its WAL files on close.
+  * smartclock-cli: read-memory leaves the pForth console with halt;
+    sweep sends exactly the file it checked; --capture records every
+    command and refuses an existing file; probe uses the model's command
+    tree; read --compare fails on a difference; Ctrl-C stops a flash or
+    a read at a safe boundary.
+  * Monitor: answers keys at once and keeps drawing while one is held;
+    graphs align on the window and break at gaps; trends restart when
+    the daemon reattaches.
+  * Exporter and web view ask several daemons in parallel within a time
+    budget, and a stopped daemon no longer holds up the others.
+  * The daemon stops cleanly on SIGTERM and SIGINT, and many smaller
+    fixes from two adversarial reviews.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Mon, 05 Oct 2026 16:17:46 -0700
+
 smartclockmon (1.0.2-1) unstable; urgency=low
 
   * The live page's column checkboxes name the figures of merit without
