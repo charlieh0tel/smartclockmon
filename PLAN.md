@@ -1231,8 +1231,6 @@ instance label).
 
 **Command-line tool.**
 
-- `sweep` checks its file for forbidden commands and then reads it
-  again to send; read once and send what was checked.
 - `--capture` behaves three ways: the console reads ignore it, other
   commands truncate an existing file, `flash` refuses one.  One helper,
   refusing an existing file.

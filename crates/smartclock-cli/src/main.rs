@@ -241,8 +241,10 @@ fn main() -> Result<()> {
         return through_daemon(&socket, &cli.command);
     }
     // Before the port is opened, so a refused list sends nothing at
-    // all rather than the commands ahead of the refused one.
-    refuse_forbidden(&typed(&cli.command)?)?;
+    // all rather than the commands ahead of the refused one.  What is
+    // checked is what is sent: a sweep file is read here once.
+    let checked = typed(&cli.command)?;
+    refuse_forbidden(&checked)?;
 
     let baud = BaudRate::new(cli.baud).with_context(|| {
         let supported = BaudRate::ALL.map(|b| b.to_string()).join(", ");
@@ -352,15 +354,17 @@ fn main() -> Result<()> {
             let sink = File::create(path)
                 .with_context(|| format!("creating transcript {}", path.display()))?;
             let session = Session::new(TeeTransport::new(port, sink), config);
-            let result = run(session, &cli.command);
+            let result = run(session, &cli.command, &checked);
             eprintln!("transcript written to {}", path.display());
             result
         }
-        None => run(Session::new(port, config), &cli.command),
+        None => run(Session::new(port, config), &cli.command, &checked),
     }
 }
 
-fn run<T: Transport>(mut session: Session<T>, command: &Command) -> Result<()> {
+/// Carry out `command`, sending `checked` where it is one that sends
+/// commands as given.
+fn run<T: Transport>(mut session: Session<T>, command: &Command, checked: &[String]) -> Result<()> {
     session
         .sync()
         .with_context(|| format!("no prompt from {}", session.describe()))?;
@@ -373,8 +377,8 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command) -> Result<()> {
     let session = &mut session;
 
     match command {
-        Command::Query { commands } => {
-            for one in commands {
+        Command::Query { .. } => {
+            for one in checked {
                 let reply = session
                     .query(one)
                     .with_context(|| format!("sending {one}"))?;
@@ -385,7 +389,7 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command) -> Result<()> {
             Ok(())
         }
         Command::Probe { dialect } => probe(session, dialect),
-        Command::Sweep { from } => sweep(session, from),
+        Command::Sweep { .. } => sweep(session, checked),
         Command::Diagnose => unreachable!("handled above, since it takes the session"),
         Command::ReadMemory { .. }
         | Command::ReadFlash { .. }
@@ -440,12 +444,10 @@ fn candidates(from: &PathBuf) -> Result<Vec<String>> {
 }
 
 /// Send each candidate and report what the receiver makes of it.
-fn sweep<T: Transport>(session: &mut Session<T>, from: &PathBuf) -> Result<()> {
-    let candidates = candidates(from)?;
-
+fn sweep<T: Transport>(session: &mut Session<T>, candidates: &[String]) -> Result<()> {
     let mut known = Vec::new();
     let (mut unknown, mut refused, mut failed) = (0usize, 0usize, 0usize);
-    for scpi in &candidates {
+    for scpi in candidates {
         match session.query(scpi) {
             Ok(reply) => {
                 let value = reply.lines.join(" | ");
