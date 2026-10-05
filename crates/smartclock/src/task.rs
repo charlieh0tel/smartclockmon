@@ -737,6 +737,20 @@ impl<T: Transport> DeviceTask<T> {
     /// Anything that reads a reply has to do this first, a poll and a
     /// served command alike, or it reads the previous exchange's late
     /// answer as its own.
+    /// After any failed exchange -- a poll, a command, a screen.  A
+    /// failure that may have left the receiver's reply still travelling
+    /// -- the link failing, a timeout, an error prompt nothing in the
+    /// queue explains -- has the session resynchronized before anything
+    /// reads again, or whatever read next would take that reply as its
+    /// own: a TFOM reported as an FFOM, recorded to the log as a
+    /// measurement.  A plain refusal arrived with its prompt and its
+    /// queue read, so the session is in step and nothing is done.
+    fn after_failure(&mut self, error: &Error) {
+        if error.is_link_failure() {
+            self.resync = true;
+        }
+    }
+
     fn ensure_synced(&mut self) -> Option<Stopped> {
         if !self.resync {
             return None;
@@ -820,15 +834,7 @@ impl<T: Transport> DeviceTask<T> {
                     self.publish(snapshot);
                     return Some(Stopped::LinkFailed(e));
                 }
-                // One bad poll can leave the session mid-reply, so
-                // resynchronise before trying the next.  A failure here
-                // means the receiver is still talking and nothing after
-                // it can be trusted, so it ends the task rather than
-                // being discarded.
-                if let Err(e) = self.device.session().sync() {
-                    self.publish(snapshot);
-                    return Some(Stopped::LinkFailed(e));
-                }
+                self.after_failure(&e);
             }
         }
         self.publish(snapshot);
@@ -883,18 +889,12 @@ impl<T: Transport> DeviceTask<T> {
                 }
                 let outcome = self.device.session().query(&scpi);
                 self.report_strays();
-                // A failed command leaves the receiver's reply still
-                // travelling, and whatever reads next would take it as
-                // its own answer: a TFOM reported as an FFOM, oven
-                // current reported as temperature, recorded to the log
-                // as a measurement.
-                let failed = outcome.is_err();
+                if let Err(e) = &outcome {
+                    self.after_failure(e);
+                }
                 // A caller that gave up before the answer arrived is
                 // not an error worth acting on.
                 let _ = answer.send(outcome);
-                if failed {
-                    self.resync = true;
-                }
                 None
             }
             Request::Screen { deadline, answer } => {
@@ -938,7 +938,7 @@ impl<T: Transport> DeviceTask<T> {
                             self.publish(snapshot);
                             return Some(Stopped::LinkFailed(e));
                         }
-                        self.resync = true;
+                        self.after_failure(&e);
                         let _ = answer.send(Err(e));
                     }
                 }

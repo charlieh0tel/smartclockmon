@@ -1249,8 +1249,6 @@ instance label).
 
 **Daemon, other.**
 
-- One failure path per request kind; a plain refusal from the receiver
-  needlessly resynchronizes the link.
 - The medium tier aborts when `holdover_duration` is refused, where
   every other field is left absent.
 - The fixed five-second prompt timeout is too short for the status
