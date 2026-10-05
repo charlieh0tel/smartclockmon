@@ -289,8 +289,6 @@ impl Shared {
         });
     }
 
-    /// Mark the last snapshot as no longer describing the receiver.
-    ///
     /// The attachment being served now.
     pub fn attachment(&self) -> AttachmentId {
         *self.attachment.lock().expect("attachment mutex")
@@ -308,9 +306,10 @@ impl Shared {
         *self.latest.lock().expect("snapshot mutex") = None;
     }
 
-    /// Called when the link drops.  The values stay so a client can
-    /// still show what was last true, but nothing may present them as
-    /// current.
+    /// Mark the last snapshot as no longer describing the receiver:
+    /// the link dropped, or another unit answers on it.  The values
+    /// stay so a client can still show what was last true, but nothing
+    /// may present them as current.
     pub fn mark_disconnected(&self, at: Timestamp, why: &str) {
         let mut snapshot = self.latest().unwrap_or_else(|| Snapshot::new(at));
         snapshot.at = at;
