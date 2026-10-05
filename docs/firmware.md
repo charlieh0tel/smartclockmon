@@ -1020,7 +1020,7 @@ the way back to SCPI is `halt` (see "Leaving it").
 ### Leaving it
 
 `halt` is the console's own exit, and it is the same in every image
-(read from the images, October 2026; not yet tried on a unit).  It
+(read from the images, October 2026; tried on a Z3805A, below).  It
 reads a hook cell and jumps through it, or executes `trap #14` when
 the cell is zero.  The interpreter's setup clears the cell and the
 console's start sets it at once, so in practice the hook runs.  The
@@ -1051,6 +1051,16 @@ region the task stacks share.  And the console does not close device
 closes its stream before handing over (`0x28fac` to `0x28fbc`).  How
 many visits a unit survives, and whether the second open of the port
 matters, are for the bench; `mem_rep` reports free memory.
+
+On 2026-10-04 the bench Z3805A (3625A01487, 3543B-A, 19200 8N1) was
+taken into the console and out with `halt` twice.  Each time `halt`
+answered `scpi > ` at once, and the unit was in `"PRIMARY"` with an
+empty error queue; `*IDN?` and ordinary queries answered as before.
+`mem_rep` in the second visit matched the first: 18,790 bytes free,
+and the console's two segments, 4,114 and 2,854 bytes, at the same
+addresses (`0x10af2e`, `0x10a408`).  So two visits leaked nothing
+`mem_rep` shows.  The 58503A's `halt`, whose hook differs, has not been
+tried.
 
 ### Reading memory through it
 
