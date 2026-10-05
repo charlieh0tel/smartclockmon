@@ -146,6 +146,11 @@ flight: the next poll would read it as its own and record, say, TFOM as
 FFOM.  `drain` reports failure when it gives up, so `sync` cannot match
 an abandoned reply's prompt and call itself current one exchange behind.
 
+One daemon per socket, too.  A socket file left by a crash is removed
+before binding, but only when nothing answers on it: a second daemon
+pointed at a live one's socket refuses to start rather than unlinking
+it and stranding the first.
+
 ```
                       smartclockd (system service)
                   +----------------------------------+
@@ -1244,8 +1249,6 @@ instance label).
 
 **Daemon, other.**
 
-- Starting a second daemon on a live socket unlinks it; probe with a
-  connect first.  The accept loop spins on EMFILE; back off.
 - A log that fails to open is retried, and reported, on every snapshot.
 - A journal pass ignores its time budget except in two steps.
 - A screen request has no deadline, and one discarded with the queue is

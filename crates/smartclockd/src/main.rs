@@ -37,7 +37,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 use clap::Parser;
 use interprocess::local_socket::GenericFilePath;
+use interprocess::local_socket::Stream;
 use interprocess::local_socket::ToFsName as _;
+use interprocess::local_socket::traits::Stream as _;
 use jiff::Timestamp;
 use signal_hook::consts::SIGINT;
 use signal_hook::consts::SIGTERM;
@@ -1001,13 +1003,21 @@ fn start_server(listening: Listening<'_>) -> Result<()> {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("creating {}", parent.display()))?;
     }
-    // A socket left behind by a crash would otherwise block the bind.
-    let _ = std::fs::remove_file(socket);
-
     let name = socket
         .to_fs_name::<GenericFilePath>()
         .context("naming the socket")?
         .into_owned();
+    // A socket left behind by a crash would otherwise block the bind,
+    // so it is removed -- but only if nothing answers on it.  Removing a
+    // live daemon's socket left that daemon running, logging and
+    // unreachable, and its clients reconnecting to this one.
+    if Stream::connect(name.clone()).is_ok() {
+        anyhow::bail!(
+            "another daemon is serving {}; stop it first",
+            socket.display()
+        );
+    }
+    let _ = std::fs::remove_file(socket);
     // Bound here, not in the serving thread, so a failure is reported
     // to whoever started the daemon rather than to a dying thread.
     let listener = server::bind(name)?;
@@ -1034,11 +1044,14 @@ fn start_server(listening: Listening<'_>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::Entry;
+    use super::Listening;
     use super::Place;
     use super::Recorder;
     use super::db;
     use super::queued;
     use super::record_strays;
+    use super::server;
+    use super::start_server;
     use smartclock::device::Device;
     use smartclock::session::Config;
     use smartclock::session::Session;
@@ -1046,6 +1059,7 @@ mod tests {
     use smartclock::snapshot::Snapshot;
     use smartclock::task;
     use smartclock::task::Cadence;
+    use smartclock::task::Shared;
     use smartclock::types::AlarmCondition;
     use smartclock_sim::receiver::Receiver;
     use smartclock_sim::transport::SimTransport;
@@ -1269,5 +1283,36 @@ mod tests {
         drop(recorder);
         wipe();
         assert_eq!(serials, vec![Some("A".to_owned())]);
+    }
+
+    #[test]
+    fn a_live_socket_is_not_taken_over_and_a_stale_one_is() {
+        let socket =
+            std::env::temp_dir().join(format!("smartclockd-takeover-{}.sock", std::process::id()));
+        // Left behind by a crash: not a listening socket at all.
+        std::fs::write(&socket, b"").expect("a stale file");
+        let shared = Shared::new();
+        let (requests, _queue) = channel();
+        let (audit, _audit) = channel();
+        let info = || {
+            std::sync::Arc::new(std::sync::Mutex::new(server::Info {
+                identity: String::new(),
+                dialect: smartclock::command::Dialect::Hp58503,
+                database: String::new(),
+                policy: server::Policy::default(),
+                audit: crate::audit::Audit::new(audit.clone()),
+                cadence: Cadence::default(),
+            }))
+        };
+        let listening = |info| Listening {
+            socket: &socket,
+            shared: &shared,
+            requests: &requests,
+            info,
+        };
+        start_server(listening(info())).expect("the stale file is replaced");
+        let refused = start_server(listening(info())).expect_err("the socket is live");
+        assert!(format!("{refused}").contains("another daemon"), "{refused}");
+        let _ = std::fs::remove_file(&socket);
     }
 }

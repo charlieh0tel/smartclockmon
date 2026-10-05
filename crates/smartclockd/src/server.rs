@@ -71,6 +71,11 @@ const MAX_CLIENTS: usize = 16;
 /// at exactly the moment they were wanted.
 const HANGUP_CHECK: Duration = Duration::from_secs(1);
 
+/// How long the accept loop waits after a failed accept.  Long enough
+/// that a persistent failure costs nothing, short next to a client's
+/// patience.
+const ACCEPT_BACKOFF: Duration = Duration::from_millis(200);
+
 /// What a client is permitted to do.
 ///
 /// Set once from the command line and never from the socket.  A daemon
@@ -249,13 +254,23 @@ impl Drop for Slot {
 /// Listen for clients until the process ends.
 pub(crate) fn serve(listener: Listener, handle: Handle, info: SharedInfo) -> Result<()> {
     let clients = Arc::new(AtomicUsize::new(0));
+    let mut failing = false;
     for incoming in listener.incoming() {
         let stream = match incoming {
-            Ok(stream) => stream,
+            Ok(stream) => {
+                failing = false;
+                stream
+            }
             // One client failing to connect is not a reason to stop
-            // serving the others.
+            // serving the others.  But an error that persists -- out of
+            // file descriptors, say -- comes straight back, so the loop
+            // pauses rather than spinning, and says so once.
             Err(e) => {
-                eprintln!("smartclockd: rejected a connection: {e}");
+                if !failing {
+                    eprintln!("smartclockd: rejected a connection: {e}");
+                    failing = true;
+                }
+                thread::sleep(ACCEPT_BACKOFF);
                 continue;
             }
         };
