@@ -47,6 +47,22 @@ Check it took:
 The log file appears once the receiver has answered `*IDN?`, since it
 is named after the receiver.
 
+### Upgrading
+
+Install the new package over the old one and restart each instance.
+The daemon brings a log written by an earlier version up to its own
+schema when it opens it, and stamps the log with that schema.
+
+That cannot be undone.  A daemon refuses a log stamped with a schema
+newer than its own rather than write into it, so once a newer daemon
+has opened a log, an older one will not.  Copy the log first if you
+may need to go back.  The readers, `smartclock-web` and
+`smartclockmon`, open a log of any schema.
+
+    sudo systemctl stop smartclockd@ttyUSB0
+    sudo -u smartclockd cp /var/lib/smartclockd/<model>-<serial>.sqlite \
+        /var/lib/smartclockd/<model>-<serial>.sqlite.bak
+
 ## What the daemon does to the receiver
 
 It reads, and with one opt-in exception changes nothing, apart from
