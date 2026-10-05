@@ -482,7 +482,8 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command, checked: &[Stri
     let session = &mut session;
 
     let result = match command {
-        Command::Query { .. } => {
+        // A closure, so a failed query still reaches the strays below.
+        Command::Query { .. } => (|| {
             for one in checked {
                 let reply = session
                     .query(one)
@@ -492,7 +493,7 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command, checked: &[Stri
                 }
             }
             Ok(())
-        }
+        })(),
         Command::Probe { dialect } => probe(session, dialect.as_deref()),
         Command::Sweep { .. } => sweep(session, checked),
         Command::Diagnose => unreachable!("handled above, since it takes the session"),
