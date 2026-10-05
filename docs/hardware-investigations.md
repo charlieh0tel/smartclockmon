@@ -325,10 +325,10 @@ SCPI as the images say, and what each visit costs (`firmware.md`,
 - If the port stays silent or at the console prompt, leave it through
   the installer as `read-memory` does, or power cycle.
 
-Done on the Z3805A on 2026-10-04, two visits: `halt` returned to SCPI
-in PRIMARY each time with an empty error queue, and the second visit's
-`mem_rep` matched the first, 18,790 bytes free (`firmware.md`,
-"Leaving it").  Not yet tried on a 58503A.
+Done on 2026-10-04, two visits on each of the Z3805A and the 58503A:
+`halt` returned to SCPI in PRIMARY each time with an empty error queue,
+and each unit's second `mem_rep` matched its first, 18,790 and 16,248
+bytes free (`firmware.md`, "Leaving it").
 
 *Changes:* `read-memory` and its kin leave the console with `halt`
 first on every image, keeping the installer route as the fallback, and

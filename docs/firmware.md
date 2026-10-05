@@ -1020,7 +1020,8 @@ the way back to SCPI is `halt` (see "Leaving it").
 ### Leaving it
 
 `halt` is the console's own exit, and it is the same in every image
-(read from the images, October 2026; tried on a Z3805A, below).  It
+(read from the images, October 2026; tried on a Z3805A and a 58503A,
+below).  It
 reads a hook cell and jumps through it, or executes `trap #14` when
 the cell is zero.  The interpreter's setup clears the cell and the
 console's start sets it at once, so in practice the hook runs.  The
@@ -1058,9 +1059,12 @@ answered `scpi > ` at once, and the unit was in `"PRIMARY"` with an
 empty error queue; `*IDN?` and ordinary queries answered as before.
 `mem_rep` in the second visit matched the first: 18,790 bytes free,
 and the console's two segments, 4,114 and 2,854 bytes, at the same
-addresses (`0x10af2e`, `0x10a408`).  So two visits leaked nothing
-`mem_rep` shows.  The 58503A's `halt`, whose hook differs, has not been
-tried.
+addresses (`0x10af2e`, `0x10a408`).  The bench 58503A (3710A01056,
+3704-C, 19200 8N1), whose hook differs, did the same the same day:
+`scpi > ` at once both times, `"PRIMARY"`, an empty error queue, and
+16,248 bytes free in both visits with the console's segments at
+`0x10a71c` and `0x109bf6`.  So on both units two visits leaked nothing
+`mem_rep` shows.
 
 ### Reading memory through it
 
