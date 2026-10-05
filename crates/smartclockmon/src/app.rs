@@ -35,7 +35,7 @@ fn push_bounded<T>(trend: &mut VecDeque<T>, value: T) {
     trend.push_back(value);
 }
 
-/// How many of the receiver's notes to hold for the journal view.
+/// How many of the receiver's journal lines to hold for the journal view.
 ///
 /// The whole of its diagnostic log is 222 entries, so this shows all of
 /// one with room for the events and errors beside it.
@@ -115,7 +115,7 @@ pub(crate) struct App {
     /// Why the history is unavailable, if it is.
     pub(crate) history_error: Option<String>,
     /// What the receiver recorded about itself, newest first.
-    pub(crate) journal: Vec<crate::history::Note>,
+    pub(crate) journal: Vec<crate::history::Line>,
     /// Where console commands go.
     pub(crate) console: Console,
     /// What the daemon says this client may do.

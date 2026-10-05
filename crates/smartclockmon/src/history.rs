@@ -146,7 +146,7 @@ pub(crate) struct History {
     pub(crate) time_interval: Trace,
 }
 
-/// Which of the receiver's records a note came from.
+/// Which of the receiver's records a line came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Source {
     /// The receiver's own diagnostic log.
@@ -158,7 +158,7 @@ pub(crate) enum Source {
 }
 
 impl Source {
-    /// A short tag for the column that says where a note came from.
+    /// A short tag for the column that says where a line came from.
     pub(crate) fn tag(self) -> &'static str {
         match self {
             Self::Log => "log",
@@ -170,7 +170,7 @@ impl Source {
 
 /// One thing the receiver recorded about itself.
 #[derive(Debug, Clone)]
-pub(crate) struct Note {
+pub(crate) struct Line {
     /// When the daemon read it, on the host clock.
     ///
     /// The sort key, and only that.  Ordering the three records against
@@ -226,33 +226,33 @@ impl Log {
     /// backwards.  So each record keeps its own order and they are
     /// shown in sequence: what has happened recently first, then the
     /// receiver's own history in its own sequence.
-    pub(crate) fn journal(&self, receiver: i64, limit: usize) -> Result<Vec<Note>> {
+    pub(crate) fn journal(&self, receiver: i64, limit: usize) -> Result<Vec<Line>> {
         let journal = self.0.journal(receiver, limit)?;
         // Events and errors share the host clock, so these two do
         // merge, newest first.
-        let mut notes: Vec<Note> = journal
+        let mut lines: Vec<Line> = journal
             .events
             .into_iter()
-            .map(|event| Note {
+            .map(|event| Line {
                 stamp: event.at.clone(),
                 at: event.at,
                 text: event.decoded,
                 source: Source::Event,
             })
-            .chain(journal.errors.into_iter().map(|error| Note {
+            .chain(journal.errors.into_iter().map(|error| Line {
                 stamp: error.at.clone(),
                 at: error.at,
                 text: format!("{} {}", error.code, error.message),
                 source: Source::Error,
             }))
             .collect();
-        notes.sort_by(|a, b| b.at.cmp(&a.at));
+        lines.sort_by(|a, b| b.at.cmp(&a.at));
         // Then the receiver's log in the receiver's own sequence.  The
         // receiver's own stamp where there is one: an entry it
         // timestamped itself is better dated by the receiver than by
         // when we happened to copy it out, even though that clock can
         // be behind by whole GPS epochs.
-        notes.extend(journal.entries.into_iter().map(|entry| Note {
+        lines.extend(journal.entries.into_iter().map(|entry| Line {
             stamp: if entry.stamp.is_empty() {
                 entry.at.clone()
             } else {
@@ -262,7 +262,7 @@ impl Log {
             text: entry.message,
             source: Source::Log,
         }));
-        Ok(notes)
+        Ok(lines)
     }
 
     /// The Allan deviation of the 1 PPS interval over the window.
@@ -303,8 +303,8 @@ impl Log {
 
 #[cfg(test)]
 mod tests {
+    use super::Line;
     use super::Log;
-    use super::Note;
     use super::Series;
     use super::Source;
     use super::Window;
@@ -424,9 +424,9 @@ mod tests {
                      ('2026-09-01T00:00:05.000000000Z', -113, 'undefined header', 1);",
             )
             .expect("fill it");
-        let notes: Vec<Note> = scratch.open().journal(1, 50).expect("journal");
+        let lines: Vec<Line> = scratch.open().journal(1, 50).expect("journal");
         assert_eq!(
-            notes
+            lines
                 .iter()
                 .map(|n| (n.text.as_str(), n.source))
                 .collect::<Vec<_>>(),
@@ -439,7 +439,7 @@ mod tests {
         );
         // An entry the receiver did not stamp is dated by when it was
         // read; one it did keeps its own stamp.
-        assert_eq!(notes[2].stamp, "2026-09-01T00:00:01.000000000Z");
-        assert_eq!(notes[3].stamp, "20050528.00:01:00");
+        assert_eq!(lines[2].stamp, "2026-09-01T00:00:01.000000000Z");
+        assert_eq!(lines[3].stamp, "20050528.00:01:00");
     }
 }

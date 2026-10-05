@@ -98,16 +98,16 @@ fn journal(frame: &mut Frame, area: Rect, app: &App) {
     let rows: Vec<Row> = app
         .journal
         .iter()
-        .map(|note| {
-            let colour = match note.source {
+        .map(|line| {
+            let colour = match line.source {
                 Source::Log => Color::Gray,
                 Source::Event => Color::Cyan,
                 Source::Error => Color::Yellow,
             };
             Row::new(vec![
-                Cell::from(stamp(&note.stamp)).style(Style::new().fg(Color::DarkGray)),
-                Cell::from(note.source.tag()).style(Style::new().fg(colour)),
-                Cell::from(note.text.clone()),
+                Cell::from(stamp(&line.stamp)).style(Style::new().fg(Color::DarkGray)),
+                Cell::from(line.source.tag()).style(Style::new().fg(colour)),
+                Cell::from(line.text.clone()),
             ])
         })
         .collect();
@@ -121,7 +121,7 @@ fn journal(frame: &mut Frame, area: Rect, app: &App) {
         // log follows in its own entry order, and claiming one
         // chronology across two clocks would be a lie.
         format!(
-            " Journal -- {} notes: events, then the receiver's log ",
+            " Journal -- {} lines: events, then the receiver's log ",
             app.journal.len()
         )
     };
