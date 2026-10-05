@@ -458,6 +458,15 @@ receiver attached at the time.
 Rows written before this existed keep a NULL id; backfilling them with
 today's receiver would put one unit's history under another's name.
 
+A swap is noticed even when the link stays up.  The slow tier asks
+`*IDN?` before anything else, and a different model or serial stops the
+task; the daemon reopens at once, which files the new unit under its
+own serial.  Firmware is not compared, as above.  What is read between
+the swap and that check -- at most one slow interval, a minute by
+default -- is still filed under the old unit, so stop the daemon before
+moving a cable between units.  Asking more often would narrow that
+window at the cost of a query on a faster tier.
+
 ### Storage: SQLite
 
 Chosen over JSONL because EFC and holdover trending means range queries
@@ -1183,15 +1192,6 @@ Things not decided, as distinct from the defects below.
 ## Known defects
 
 Known and unfixed, each because the fix is not yet worth its cost.
-
-**A receiver swapped without breaking the link is not noticed.**
-`*IDN?` is read when the port is opened and not again while the link
-stays up.  Swap the cable between two receivers quickly enough that no
-command fails and the new unit's rows are filed under the old one.  The
-fast tier sends a command every second, so a swap almost always breaks
-a read and is caught; still, stop the daemon before moving the cable
-between units.  The fix is cheap -- ask `*IDN?` on the slow tier and
-compare -- if swapping becomes routine.
 
 **The receiver's log timestamps are not monotonic across a power
 cycle.**  Its clock restarts at midnight on a stale date and runs free

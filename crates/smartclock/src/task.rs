@@ -492,6 +492,9 @@ pub enum Stopped {
     HandlesDropped,
     /// The link failed repeatedly and the device should be reopened.
     LinkFailed(Error),
+    /// Another receiver answers on the link: an [`Error::Swapped`].
+    /// The device should be reopened, as the new unit.
+    Swapped(Error),
     /// A [`Request::Stop`] was served.
     Requested,
 }
@@ -814,6 +817,10 @@ impl<T: Transport> DeviceTask<T> {
 
         match outcome {
             Ok(()) => self.failures = 0,
+            // Nothing more is published under the old unit's name: the
+            // snapshot in hand is the old receiver's, and the reopen
+            // starts the new one from nothing.
+            Err(e @ Error::Swapped { .. }) => return Some(Stopped::Swapped(e)),
             Err(e) => {
                 // A parse error or a refusal is recorded against the
                 // tier and retried on its next turn; only a failing

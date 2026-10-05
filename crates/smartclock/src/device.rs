@@ -53,8 +53,7 @@ impl<T: Transport> Device<T> {
     /// mid-reply from whatever spoke to it last.
     pub fn open(mut session: Session<T>) -> Result<Self> {
         session.sync()?;
-        let reply = session.query("*IDN?")?;
-        let identity = parse::identity(reply.one_line("an identity")?)?;
+        let identity = read_identity(&mut session)?;
         let dialect = dialect_for(&identity.model);
         Ok(Self {
             session,
@@ -354,6 +353,12 @@ fn absent_if_unsupported<T>(result: Result<T>) -> Result<Option<T>> {
     }
 }
 
+/// Ask the receiver what it is.
+fn read_identity<T: Transport>(session: &mut Session<T>) -> Result<Identity> {
+    let reply = session.query("*IDN?")?;
+    parse::identity(reply.one_line("an identity")?)
+}
+
 fn to_u8(line: &str) -> Option<u8> {
     parse::int(line).ok().and_then(|n| u8::try_from(n).ok())
 }
@@ -407,6 +412,8 @@ enum Step {
     Registers,
     /// Holdover duration, prediction and present error.
     Holdover,
+    /// `*IDN?`, compared with the identity read at open.
+    Identity,
     /// Position and date.
     Position,
     /// Log count, the oscillator-current constant and the powerup register.
@@ -429,7 +436,9 @@ const fn steps(tier: Tier) -> &'static [Step] {
             Step::Registers,
             Step::Holdover,
         ],
-        Tier::Slow => &[Step::Position, Step::Counters],
+        // Identity first, so a swapped receiver's position and
+        // counters are never read into the old one's snapshot.
+        Tier::Slow => &[Step::Identity, Step::Position, Step::Counters],
     }
 }
 
@@ -487,6 +496,7 @@ impl<T: Transport> Device<T> {
             Step::Oscillator => self.poll_oscillator(into)?,
             Step::Registers => self.poll_registers(into)?,
             Step::Holdover => self.poll_holdover(into)?,
+            Step::Identity => self.check_identity()?,
             Step::Position => self.poll_position(into, now)?,
             Step::Counters => self.poll_counters(into)?,
         }
@@ -569,6 +579,23 @@ impl<T: Transport> Device<T> {
         Ok(())
     }
 
+    /// Whether the receiver is still the one the port was opened on.
+    ///
+    /// `*IDN?` is otherwise read only at open, so a cable moved to
+    /// another unit quickly enough that no read failed would leave the
+    /// new unit's readings filed under the old one's serial.
+    fn check_identity(&mut self) -> Result<()> {
+        let now = read_identity(&mut self.session)?;
+        if self.identity.same_unit(&now) {
+            Ok(())
+        } else {
+            Err(Error::Swapped {
+                was: self.identity.to_string(),
+                now: now.to_string(),
+            })
+        }
+    }
+
     /// Every one of these is wrapped, including the two that already
     /// return an Option.  A receiver that has never had a fix refuses
     /// its date with -230, and a bare `?` on that line aborts the rest
@@ -619,6 +646,7 @@ mod tests {
             Step::Oscillator,
             Step::Registers,
             Step::Holdover,
+            Step::Identity,
             Step::Position,
             Step::Counters,
         ] {
@@ -628,7 +656,7 @@ mod tests {
                 "{step:?}"
             );
         }
-        assert_eq!(scheduled.len(), 7);
+        assert_eq!(scheduled.len(), 8);
     }
 
     #[test]

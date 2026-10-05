@@ -210,3 +210,12 @@ fn booleans_reject_anything_else() {
     assert!(parse::bool01("2").is_err());
     assert!(parse::bool01("").is_err());
 }
+
+#[test]
+fn a_firmware_change_is_the_same_unit_and_another_serial_is_not() {
+    let unit = parse::identity("HEWLETT-PACKARD,58503A,3710A01056,3704-C").expect("an identity");
+    let reflashed = parse::identity("HEWLETT-PACKARD,58503A,3710A01056,3633").expect("an identity");
+    let other = parse::identity("HEWLETT-PACKARD,58503A,3625A01487,3704-C").expect("an identity");
+    assert!(unit.same_unit(&reflashed));
+    assert!(!unit.same_unit(&other));
+}

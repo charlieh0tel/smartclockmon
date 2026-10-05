@@ -262,3 +262,12 @@ anyway, add a drop-in rather than editing the shipped unit:
 
 `systemd-escape --path --suffix=device /dev/serial/by-id/...` gives the
 escaped name.
+
+Moving the cable to another receiver without unplugging the adapter is
+noticed within a minute, when the slow tier asks `*IDN?` again, and the
+daemon reopens as the new unit.  Readings taken in that minute are
+filed under the old one, so stop the daemon first and start it again
+once the cable is moved:
+
+    sudo systemctl stop smartclockd@ttyUSB0
+    sudo systemctl start smartclockd@ttyUSB0

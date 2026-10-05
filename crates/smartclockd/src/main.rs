@@ -621,6 +621,19 @@ fn supervise(supervisor: Supervisor) -> Result<()> {
                     eprintln!("smartclockd: dropped {late} commands sent during the outage");
                 }
             }
+            // Reopened at once: the link is up, and the open reads the
+            // new unit's identity and files it under its own serial.
+            Stopped::Swapped(e) => {
+                eprintln!("smartclockd: {e}; reopening");
+                shared.mark_disconnected(Timestamp::now(), &e.to_string());
+                let dropped = task::discard_queued(
+                    &requests,
+                    "the receiver was swapped before the command ran",
+                );
+                if dropped > 0 {
+                    eprintln!("smartclockd: dropped {dropped} queued commands");
+                }
+            }
         }
     }
 }

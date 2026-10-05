@@ -8,10 +8,12 @@
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
+use std::sync::mpsc::channel;
 use std::time::Duration;
 
 use smartclock::command::Dialect;
 use smartclock::device::Device;
+use smartclock::error::Error;
 use smartclock::session::Config;
 use smartclock::session::Session;
 use smartclock::snapshot::Freshness;
@@ -19,6 +21,7 @@ use smartclock::snapshot::Snapshot;
 use smartclock::snapshot::Tier;
 use smartclock::task;
 use smartclock::task::Cadence;
+use smartclock::task::DeviceTask;
 use smartclock::task::Handle;
 use smartclock::task::Shared;
 use smartclock::types::SmartClockMode;
@@ -451,6 +454,42 @@ fn a_command_submitted_to_the_task_is_served_between_polls() {
     assert_eq!(reply.lines, vec!["+3"]);
     drop(handle);
     joiner.join().expect("the device thread");
+}
+
+#[test]
+fn a_receiver_swapped_under_a_live_link_stops_the_task() {
+    let transport = SimTransport::new(Receiver::default());
+    let receiver = Arc::clone(transport.receiver());
+    let session = Session::new(transport, Config::default());
+    let device = Device::open(session).expect("open the simulated receiver");
+    let shared = Shared::new();
+    let updates = shared.subscribe();
+    let (_requests, requests) = channel();
+    let mut task = DeviceTask::new(
+        device,
+        Cadence {
+            fast: Duration::from_millis(20),
+            medium: Duration::from_millis(50),
+            slow: Duration::from_millis(80),
+        },
+        shared,
+        requests,
+    );
+    // Another unit on the same cable before the first slow pass; a new
+    // firmware revision alone would not count.
+    receiver.lock().expect("receiver").identity =
+        "HEWLETT-PACKARD,58503A,1111A11111,3704-C".to_owned();
+
+    let stopped = task.run();
+    assert!(
+        matches!(stopped, task::Stopped::Swapped(Error::Swapped { ref now, .. }) if now.contains("1111A11111")),
+        "{stopped:?}"
+    );
+    // The identity is read first on the slow tier, so the new unit's
+    // position never reached a snapshot under the old one's name.
+    for snapshot in updates.try_iter() {
+        assert_eq!(snapshot.position, None, "{snapshot:?}");
+    }
 }
 
 #[test]

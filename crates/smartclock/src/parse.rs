@@ -255,6 +255,15 @@ pub struct Identity {
     pub firmware: String,
 }
 
+impl Identity {
+    /// Whether `other` is this same receiver: the model and serial
+    /// agree.  Firmware is not compared, since loading new firmware
+    /// does not make a different instrument.
+    pub fn same_unit(&self, other: &Identity) -> bool {
+        self.model == other.model && self.serial == other.serial
+    }
+}
+
 /// Joined as the receiver answers it, the form the daemon keys receivers
 /// on.
 impl std::fmt::Display for Identity {

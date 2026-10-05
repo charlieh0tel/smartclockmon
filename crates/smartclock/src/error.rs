@@ -79,6 +79,18 @@ pub enum Error {
     #[error("the receiver was reattached after this command was sent; it was not sent")]
     Reattached,
 
+    /// The receiver answering is not the one the port was opened on:
+    /// its `*IDN?` names another model or serial.  The link stayed up
+    /// through a swap, and everything read from here belongs to a
+    /// different unit.
+    #[error("the receiver was swapped: {was} is now {now}")]
+    Swapped {
+        /// The identity read when the port was opened.
+        was: String,
+        /// The identity read now.
+        now: String,
+    },
+
     /// The device task was asked for something after it stopped.
     #[error("the device task has stopped: {0}")]
     TaskStopped(&'static str),
