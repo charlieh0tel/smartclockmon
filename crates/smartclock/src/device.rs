@@ -174,14 +174,11 @@ impl<T: Transport> Device<T> {
             .transpose()
     }
 
-    /// The temperature coefficient the receiver has learned for its
-    /// oscillator.  Undocumented.
-    ///
-    /// Unlike the temperature and the oven current, this is not a
-    /// measurement but a model: the receiver's own estimate of how the
-    /// crystal responds.  An estimate that moves over months is the
-    /// receiver saying the crystal has changed, which no instantaneous
-    /// reading shows.
+    /// `:DIAGnostic:ROSCillator:TCOefficient?`, undocumented.  Despite the
+    /// name, not a temperature coefficient: the constant `c` in the
+    /// loop's EFC term `c.s`, in EFC counts per unit of oscillator
+    /// current, set by a calibration and held in EEPROM; nothing in the
+    /// firmware learns it (`docs/efc.md`, "The reported tempco").
     pub fn oven_tempco(&mut self) -> Result<Option<f64>> {
         self.ask_optional(CommandId::OvenTempco)?
             .map(|l| parse::real(&l))
@@ -412,7 +409,7 @@ enum Step {
     Holdover,
     /// Position and date.
     Position,
-    /// Log count, learned tempco and the powerup register.
+    /// Log count, the oscillator-current constant and the powerup register.
     Counters,
 }
 

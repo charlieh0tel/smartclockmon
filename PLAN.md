@@ -1251,8 +1251,6 @@ instance label).
 
 **Smaller.**
 
-- The `oven_tempco` HELP text repeats a claim `docs/efc.md` retracted;
-  reword it, keeping the name.
 - Comments that describe something else: `JOURNAL_EVERY` says passes
   read the event registers; `adev::at_with` says holes are not
   subtracted; doc comments sit on the wrong items in `smartclockd/db.rs`

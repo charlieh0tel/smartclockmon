@@ -149,10 +149,9 @@ pub struct Snapshot {
     pub temperature: Option<f64>,
     /// Oven current.  Undocumented command.
     pub oven_current: Option<f64>,
-    /// The temperature coefficient the receiver has learned for its
-    /// oscillator.  Undocumented command, so the units are unknown; the
-    /// value is worth recording for its trend rather than its
-    /// magnitude.
+    /// The loop's oscillator-current constant, in EFC counts per unit of
+    /// oscillator current, from `:DIAGnostic:ROSCillator:TCOefficient?`:
+    /// not a temperature coefficient despite the name (`docs/efc.md`).
     pub oven_tempco: Option<f64>,
     /// EFC as the raw 20-bit DAC code.  Undocumented command.
     pub efc_dac: Option<u32>,

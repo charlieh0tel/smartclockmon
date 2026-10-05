@@ -66,8 +66,9 @@ pub struct Reading {
     pub temperature_c: Option<f64>,
     /// Oven current, as the receiver reports it.
     pub oven_current: Option<f64>,
-    /// The oscillator temperature coefficient the receiver has learned.
-    /// Units unknown; the trend is the point.
+    /// The loop's oscillator-current constant, EFC counts per unit of
+    /// oscillator current; not a temperature coefficient despite its
+    /// command's name (`docs/efc.md`).
     pub oven_tempco: Option<f64>,
     /// Hardware condition register.
     pub hardware: Option<HardwareCondition>,

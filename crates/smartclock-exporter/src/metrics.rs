@@ -187,9 +187,10 @@ fn one(out: &mut Families, scrape: &Scrape) {
     );
     out.maybe(
         "oven_tempco",
-        "Oscillator temperature coefficient, in parts in 10^12 per degree C; \
-         measured against GPS while locked and kept in EPROM, so it sits \
-         still for long stretches",
+        "The loop's oven-current constant, from \
+         :DIAGnostic:ROSCillator:TCOefficient?: EFC counts per unit of oven \
+         current, set by calibration and kept in EEPROM; not a temperature \
+         coefficient despite the name",
         labels,
         r.oven_tempco.filter(|_| slow),
     );

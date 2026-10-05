@@ -615,10 +615,10 @@ fn diagnose<T: Transport>(session: Session<T>) -> Result<()> {
             .map(|v| absent_or(v, |v| format!("{v:.1}"))),
     );
     show(
-        "oven tempco",
+        "current coeff",
         device
             .oven_tempco()
-            .map(|v| absent_or(v, |v| format!("{v:.2}e-12 /C (learned)"))),
+            .map(|v| absent_or(v, |v| format!("{v:.2} EFC counts per unit of oven current"))),
     );
     show(
         "EFC raw",
@@ -940,8 +940,9 @@ fn render(info: &serde_json::Value, r: &Reading) {
     );
     show_opt("oven current", r.oven_current.map(|v| format!("{v:.1}")));
     show_opt(
-        "oven tempco",
-        r.oven_tempco.map(|v| format!("{v:.2}e-12 /C (learned)")),
+        "current coeff",
+        r.oven_tempco
+            .map(|v| format!("{v:.2} EFC counts per unit of oven current")),
     );
     show_opt("EFC raw", r.efc_raw.map(|v| v.to_string()));
     show_opt(

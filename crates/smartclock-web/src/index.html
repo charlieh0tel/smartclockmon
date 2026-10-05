@@ -86,7 +86,7 @@ const LABELS = {
   efc_dac: ["EFC, raw counts", 1],
   temperature_c: ["Internal temperature, C", 1],
   oven_current: ["Oven current", 1],
-  oven_tempco: ["Oscillator tempco, learned", 1],
+  oven_tempco: ["Oven current coefficient, EFC counts per unit", 1],
   time_interval_s: ["1 PPS TI, ns", 1e9],
   tfom: ["Time figure of merit", 1, "lower is better"],
   ffom: ["Frequency figure of merit", 1, "lower is better"],
@@ -244,8 +244,8 @@ function niceScale(min, max, target) {
   // the same number repeatedly in floating point does not give it back
   // exactly.  Oven current held at 104.9 came through spanning 2e-14,
   // which is not flat by `===`, so the step came out at 1e-15 and the
-  // axis read 104.900000000000020.  The learned tempco, which really
-  // is constant on this hardware, would do the same.
+  // axis read 104.900000000000020.  The oven current coefficient,
+  // which is constant between calibrations, would do the same.
   const noise = Math.max(Math.abs(min), Math.abs(max)) * 1e-9;
   if (max - min <= noise) {
     const pad = Math.max(Math.abs(min) * 0.05, 1);
