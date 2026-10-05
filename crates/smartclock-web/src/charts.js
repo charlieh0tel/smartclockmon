@@ -244,3 +244,160 @@ function noteTip(chart, text) {
   tip.style.top = `${box.top + chart.cursor.top + 12}px`;
   tip.style.display = "block";
 }
+
+// ----------------------------------------------------------- log axes
+
+// Both axes are decades, which is the only way this curve is read: the
+// slope between decades is what names the noise.
+const LOG = { distr: 3, log: 10 };
+
+// An axis ends on a named graduation -- 1, 2 or 5 in some decade --
+// at or beyond the data, so the ends of the axis are labelled and a
+// curve that starts at 10.0004 s (the receiver's ten-second cadence
+// is not exactly ten) still gets its graduation at 10.  uPlot's own
+// log range rounds out to whole decades, which for a curve ending
+// just past 10⁻⁹ leaves most of a decade empty above it.
+// A value within a percent of a graduation counts as on it: the
+// last tau of a run is 1000.04 s, not 1000, and an axis to 2000 for
+// that would be most of a decade of nothing.
+const STEPS = [1, 2, 5, 10];
+const SNAP = 0.01;
+function snapDown(v) {
+  const e = Math.floor(Math.log10(v) + 1e-9);
+  const m = v / 10 ** e;
+  return [...STEPS].reverse().find((s) => s <= m * (1 + SNAP)) * 10 ** e;
+}
+function snapUp(v) {
+  const e = Math.floor(Math.log10(v) - 1e-9);
+  const m = v / 10 ** e;
+  return STEPS.find((s) => s >= m * (1 - SNAP)) * 10 ** e;
+}
+const TAU_SCALE = { ...LOG, range: (_, min, max) => [snapDown(min), snapUp(max)] };
+
+// uPlot's axis text defaults to 12px, which is small for numbers that
+// are read off, not just glanced at.
+const AXIS_FONT = "14px system-ui, sans-serif";
+
+// A value as a mantissa and a power, for the readout and the table,
+// where the exact figure matters and a bare decade would not do.
+function decade(v) {
+  if (!Number.isFinite(v) || v <= 0) return "--";
+  const exponent = Math.floor(Math.log10(v));
+  const mantissa = v / 10 ** exponent;
+  return `${mantissa.toFixed(mantissa < 10 ? 1 : 0)}×${power(10 ** exponent)}`;
+}
+
+// A log ruler: a graduation at every 1 to 9 of each decade, so the
+// spacing between them shows the scale is logarithmic and a point can
+// be read off between labels.  uPlot's own splits label 1, 2 and 5 of
+// each decade, which is what made the axis look busy -- the answer is
+// fewer labels, not fewer graduations, so only the decades are named.
+//
+// A span too narrow to hold two decades keeps uPlot's own splits,
+// rather than being given an axis with one mark on it.
+function graduations(u, axis, min, max) {
+  const first = Math.floor(Math.log10(min) - 1e-9);
+  const last = Math.ceil(Math.log10(max) + 1e-9);
+  const out = [];
+  for (let e = first; e <= last; e++) {
+    for (let m = 1; m < 10; m++) {
+      const v = m * 10 ** e;
+      if (v >= min * (1 - 1e-9) && v <= max * (1 + 1e-9)) out.push(v);
+    }
+  }
+  return out.length > 1 ? out : null;
+}
+
+// The mantissa of a graduation, 1 to 9, as an integer.  Found from the
+// rounded exponent rather than by dividing, because 1e-9 divided out
+// does not land exactly on 1.
+function mantissa(v) {
+  const e = Math.floor(Math.log10(v) + 1e-9);
+  return Math.round(v / 10 ** e);
+}
+
+// Both axes name 1, 2 and 5 in each decade: a curve spanning two
+// decades has only three decade lines, and the reader is left
+// counting grid lines to place 50 s or 2 × 10⁻¹⁰.  An axis spanning
+// less than that has too few of those, and names every graduation.
+function labels(splits, format) {
+  const sparse = splits.filter((v) => [1, 2, 5].includes(mantissa(v)));
+  const name = sparse.length >= 3 ? (v) => sparse.includes(v) : () => true;
+  return splits.map((v) => (name(v) ? format(v) : null));
+}
+
+// A decade of sigma_y, which is dimensionless and always small.
+// Written 10 to the power rather than as 1e-9, which is a programming
+// language's spelling of a number rather than a physicist's.
+const SUPERSCRIPT = { "-": "⁻", 0: "⁰", 1: "¹", 2: "²",
+                      3: "³", 4: "⁴", 5: "⁵", 6: "⁶",
+                      7: "⁷", 8: "⁸", 9: "⁹" };
+function power(v) {
+  if (!Number.isFinite(v) || v <= 0) return "";
+  const exponent = String(Math.floor(Math.log10(v) + 1e-9));
+  const m = mantissa(v);
+  return (m === 1 ? "" : `${m}×`) + "10" + [...exponent].map((c) => SUPERSCRIPT[c]).join("");
+}
+
+// A graduation as the number itself: 1, 2, 5, 10, 20, 50.  Past six figures
+// the exponent is shorter than the number and just as readable.
+function plain(v) {
+  if (!Number.isFinite(v) || v <= 0) return "";
+  const exponent = Math.floor(Math.log10(v) + 1e-9);
+  const m = mantissa(v);
+  return exponent < 6 ? String(m * 10 ** exponent) : `${m}e${exponent}`;
+}
+
+function seconds(v) {
+  if (!Number.isFinite(v)) return "--";
+  if (v >= 86400) return `${(v / 86400).toFixed(v < 864000 ? 1 : 0)} d`;
+  if (v >= 3600) return `${(v / 3600).toFixed(1)} h`;
+  if (v >= 60) return `${(v / 60).toFixed(1)} m`;
+  return `${v.toFixed(v < 10 ? 2 : 0)} s`;
+}
+
+// The tau axis, the same on both charts.
+function tauAxis() {
+  return {
+    scale: "x",
+    stroke: "#8b929c",
+    grid: { stroke: "#2b3038" },
+    label: "averaging time τ, seconds",
+    labelSize: 28,
+    font: AXIS_FONT,
+    labelFont: AXIS_FONT,
+    splits: graduations,
+    // uPlot's own filter for a log axis keeps only the decades; which
+    // graduations are named is decided in `values` instead.
+    filter: (_, splits) => splits,
+    values: (_, splits) => labels(splits, plain),
+  };
+}
+
+function sigmaAxis(label) {
+  return {
+    scale: "y",
+    stroke: "#8b929c",
+    grid: { stroke: "#2b3038" },
+    size: 72,
+    label,
+    labelSize: 28,
+    font: AXIS_FONT,
+    labelFont: AXIS_FONT,
+    splits: graduations,
+    filter: (_, splits) => splits,
+    values: (_, splits) => labels(splits, power),
+  };
+}
+
+// A y scale that ranges over the bands as well as the lines, so a wide
+// interval at long tau is not cut off at the axis.  uPlot ranges from
+// the series alone; the shading is not one.
+function sigmaScale(bands) {
+  const values = Object.values(bands).flat(2).filter((v) => v !== null && v > 0);
+  const lo = Math.min(...values), hi = Math.max(...values);
+  return {
+    ...LOG,
+    range: (_, min, max) => [snapDown(Math.min(min, lo)), snapUp(Math.max(max, hi))],
+  };
+}
