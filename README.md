@@ -98,7 +98,7 @@ no answer.  The bench itself is described in `BENCHNOTES.md`.
 | `docs/OCXO.md` | the oscillator itself |
 | `docs/firmware.md` | what the firmware shows: the 1 PPS measurement, the disciplining loop, the GPS engine interface and the pForth console |
 | [`docs/loop.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/loop.html) | the disciplining loop as a block diagram, with its update law, constants and closed-loop poles |
-| [`docs/sky-comparison.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/sky-comparison.html) | a 58503A, a Z3805A and a u-blox NEO-M8T on one antenna for 24 hours: which satellites each SmartClock holds, by signal and elevation |
+| [`docs/sky-comparison.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/sky-comparison.html) | a healthy 58503A against a half-deaf Z3805A, with a u-blox NEO-M8T as referee, on one antenna for 24 hours: the Z3805A hears nothing the NEO-M8T reads below 39 dB-Hz, 20 dB LNA and all |
 | `docs/hardware-investigations.md` | what the firmware leaves open that only a bench can settle |
 | `docs/recovery-hypothesis.md` | S1 and forced-recovery hypotheses, including modeled flash-read faults |
 | `docs/z3801-keywords.md`, `docs/z3801-tree.md`, `docs/58503a-tree.md` | the SCPI keywords and command paths read from the firmware |
