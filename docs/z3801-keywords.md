@@ -8,7 +8,7 @@ it settles spelling questions the manual leaves open.
 Each keyword is stored as two consecutive NUL-terminated strings: the
 mandatory short form, then the optional tail.  `ROSC\0ILLATOR\0` is
 `ROSCillator`; a keyword with no optional part has an empty second
-string, so `SERIAL2\0\0` is just `SERIAL2`.  That is exactly the SCPI
+string, so `SERIAL2\0\0` is just `SERIAL2`.  This is the SCPI
 convention of uppercase-required and lowercase-optional, stored as a
 split rather than as case.
 
@@ -23,9 +23,9 @@ nonsense like `ESHOLDstat`.
 ## Against the command table
 
 All but one of the 82 Z3801 entries in `commands.toml` have every
-keyword present here.  The 63 marked `evidence = "firmware"` rest
-on this table alone.  The 18 marked `evidence = "hardware"` were found on a Z3805A
-(3625A01487, firmware 3543B-A) and cite it; their keywords --
+keyword present here.  The 63 marked `evidence = "firmware"` rest on
+this table alone.  The 18 marked `evidence = "hardware"` were found on
+a Z3805A (3625A01487, firmware 3543B-A) and cite it; their keywords --
 `TFOMerit`, `TEMPerature`, `TCOefficient`, `CURRent`, `ABSolute`,
 `SLOG`, `LEAPsecond`, `TZONe`, `STRing`, `LENGth`, `GPSystem` -- are
 all here too.
@@ -36,10 +36,9 @@ table serves.  It stays `evidence = "manual"`.
 
 ## The tree
 
-The tree is in the image too, readable without the parser code.  Two
-structures, both at file offsets -- pointers are absolute and the
-image is not relocated, so a stored pointer is a file offset as it
-stands.
+The image also holds the tree, readable without the parser code, in
+two structures.  Pointers are absolute and the image is not relocated,
+so a stored pointer is a file offset as it stands.
 
 A **node** lives in `0x57000`..`0x5e000`:
 
@@ -62,8 +61,8 @@ Five of those, put to a Z3805A, exist: `:SYSTem:PRINt:LENGth?`
 answered `+23`, `:SYSTem:LANGuage?` answered `"PRIMARY"`,
 `:SYSTem:DATE?` and `:SYSTem:TIME?` were recognized and declined with
 -230 for want of a fix, and `:SYSTem:COMMunicate:SERIAL2:BAUD?`
-answered `+9600` -- a second serial port, at a different rate to the
-first, which neither manual mentions.
+answered `+9600` -- a second serial port, at a different rate from
+the first, which neither manual mentions.
 
 The whole tree, 513 paths, is `z3801-tree.md`.  Two points of method:
 only a child list that some node's `+4` points at is real, since
@@ -170,8 +169,8 @@ from a Z3805A.
 
 Candidate paths built from the keyword table and sent to a receiver
 show which it implements: an unknown header returns -113 and changes
-nothing.  A read is not always harmless, though; see `z3801-tree.md`
-on event registers.  1,530 candidates over the `:DIAGnostic` subtree
+nothing.  A read can still change state; see `z3801-tree.md` on
+event registers.  1,530 candidates over the `:DIAGnostic` subtree
 found fifteen commands, none of which appear in any manual here.
 
 | Command | Reading on the 58503A |
@@ -195,7 +194,7 @@ See `efc.md` for what the EFC commands mean in volts and in frequency.
 
 `:DIAGnostic:IDENtification:GPSystem?` names the GPS engine: a Motorola
 with `SOFTWARE DATE 06 Aug 1996`, before the 1024-week rollovers of
-1999 and 2019, which is the source of the receiver's 1024-week date
+1999 and 2019, and so the source of the receiver's 1024-week date
 error (`firmware.md`, "The engines on the bench").
 
 ### Ovens

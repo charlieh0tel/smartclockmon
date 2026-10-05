@@ -1,11 +1,11 @@
 # Hardware investigations
 
-Things the firmware images cannot settle and a bench can.  Each item
-names the open question in `docs/firmware.md` it would close, what to
-measure, and what the answer changes.  Receiver access requires
-authorization under `AGENTS.md`; firmware installation has a specific
-exception for `smartclock-cli flash`.  Investigations that need the console
-are marked as wanting a spare unit.
+Questions a bench can settle and the firmware images cannot.  Each
+item names the open question in `docs/firmware.md` it would close, what
+to measure, and what the answer changes.  Receiver access needs
+authorization under `AGENTS.md`; `smartclock-cli flash` has a specific
+exception for firmware installation.  Items that need the console are
+marked as wanting a spare unit.
 
 Stop the daemon before any direct-mode work; it holds the port.
 
@@ -15,23 +15,21 @@ Stop the daemon before any direct-mode work; it holds the port.
 (chip select 7), which picks −1.25 × 10⁻¹² or −2.125 × 10⁻¹² per EFC
 unit on the Z3816A.
 
-- Find the device CS7 selects: follow the MC68331's CS7 pin
-  (CSPAR1 field 1; pin table in MC68331UM appendix D) to whatever it
-  strobes -- a buffer, a latch, or a switch pack.  Note what feeds its
-  D8 line.
+- Follow the MC68331's CS7 pin (CSPAR1 field 1; pin table in
+  MC68331UM appendix D) to the device it strobes -- a buffer, a latch,
+  or a switch pack.  Note what feeds its D8 line.
 - If it is a link or switch, record its position and the unit's
   oscillator option.  If it is a signal, trace it to the oscillator or
   DAC board.
 - Cross-check against the actual EFC sensitivity (item 2).
 
-*Changes:* the G row of the loop table stops saying "by a hardware
-bit", and the two Z3816A gains get names.
+*Changes:* the G row of the loop table loses "by a hardware bit", and
+the two Z3816A gains get names.
 
 ## 2. The actual EFC sensitivity and its sign
 
-*Open item:* G is the sensitivity the firmware *assumes*; the sign is
-negative on the Z3816A and positive on the Z3801A, and neither is
-measured.
+*Open item:* G is the sensitivity the firmware *assumes*, negative on
+the Z3816A and positive on the Z3801A; neither is measured.
 
 - With the receiver in holdover or with the loop open (a `phase_off`
   setpoint is console-only; do not use it -- instead compare EFC
@@ -39,8 +37,7 @@ measured.
   `:DIAGnostic:ROSCillator:EFControl:RELative?` and the 10 MHz
   frequency against an external reference.
 - Fit frequency against EFC.  The slope in fractional frequency per
-  percent, scaled by whatever the EFC word is per percent, is the real
-  G.
+  percent, scaled by the EFC word per percent, is the real G.
 
 *Measured on the bench 58503A, 3704-C, 2026-09-26* (`efc.md`, "The pull,
 measured"): **+3.94 × 10⁻¹³ per count**, count up raising the frequency,
@@ -50,8 +47,8 @@ holding count 0, 4.568 V, with the output 2.840 × 10⁻⁷ low.  The
 agrees and the real gain is 0.63 of the assumed.  Still open for the
 Z3816A, whose image picks one of two negative values, and the Z3801A.
 
-*Changes:* whether the loop's poles sit where the doc's derivation
-puts them (−1/(2τ)) or are scaled by the ratio of real to assumed G.
+*Changes:* whether the loop's poles sit where the derivation puts
+them (−1/(2τ)) or are scaled by the ratio of real to assumed G.
 
 ## 3. Which connector the SCI reaches
 
@@ -70,29 +67,28 @@ image; that it is the RS-422 port on J3 is inferred, not traced.
 *Open item:* the Z3816A firmware leaves channel B idle apart from a
 loopback self-test; a 59551A would need a second port for PORT 2.
 
-- Follow TXB/RXB from the DUART.  If they end at an unpopulated header
-  or a spare connector, note it; the firmware has nothing that would
-  talk on it, so this is documentation only.
+- Follow TXB/RXB from the DUART.  Note any unpopulated header or
+  spare connector they reach; no firmware talks on it, so this is
+  documentation only.
 
 ## 5. The outer oven's enable and readback
 
-*Open items:* that PORTGP bit 5 (PGP5) reaches P2/8, that the ADC is an
-ADC0838, and how the Z3801A's "Oven" and "Secondary oven voltage"
-channels map to volts at P2/9, are owners' reports, not traced here.
+*Open items:* that PORTGP bit 5 (PGP5) reaches P2/8, that the ADC is
+an ADC0838, and how the Z3801A's "Oven" and "Secondary oven voltage"
+channels map to volts at P2/9 are owners' reports, not traced here.
 
 - Trace PGP5 (MC68331 pin, see the manual's pinout) to P2/8 and
   confirm the level changes when the firmware's state passes
   `external oven warmup` (the `Oven Pwr` field on the status screen).
 - Identify the ADC by its markings and confirm which of its inputs
   P2/9 feeds.
-- Record the ADC count for P2/9 against a meter reading at two or
-  three heater voltages, to give the "Secondary oven voltage" channel
-  its unit.  The firmware's alarm limit is 6.8 in the channel's own
-  unit.
+- Record the ADC count for P2/9 against a meter at two or three
+  heater voltages, to give the "Secondary oven voltage" channel its
+  unit.  The firmware's alarm limit is 6.8 in that unit.
 
 *Changes:* the ovens section's owner-report caveats become
 measurements; the health-monitor table gets a unit for the oven
-channels.  The 58503A image (revision 3633) shows two oven channels
+channels.  The 58503A image (revision 3633) has two oven channels
 with a default reading of 4.0 and a message naming one `Primary oven
 voltage`, so the unit to establish is volts at P2/9 against that
 reading.
@@ -102,10 +98,10 @@ reading.
 *Open item:* channel 6 (`Oscillator current`) has a nominal 250 and a
 limit 650 after 4.489 per ADC count, unit unknown.
 
-- Find the sense resistor in the oven supply and measure the voltage
-  across it and the supply current at warm-up and at steady state;
-  compare with the channel's value from `:DIAGnostic:...` or the
-  status screen.
+- Find the sense resistor in the oven supply; measure the voltage
+  across it and the supply current at warm-up and at steady state, and
+  compare with the channel's value from `:DIAGnostic:...` or the status
+  screen.
 
 *Changes:* the c·s term of the loop gets a physical scale; the
 `Oscillator current` health channel gets a unit.
@@ -114,21 +110,20 @@ limit 650 after 4.489 per ADC count, unit unknown.
 
 *Open item:* the firmware keeps its loop state across a reset when
 the reset-status register shows neither EXT nor POW and the RAM
-checksum holds; this was read, not exercised.
+checksum holds.  Read, not exercised.
 
-- The two software restarts the image has both discard that state
-  before resetting (`docs/firmware.md`, "Restarting"): `:SYSTem:PON`
-  zeroes the region and `:SYSTem:PRESet` clears its flag, so neither
-  exercises the warm path, and neither is a command this project
-  sends.  `*TST?` does not reset the processor at all: it resets the
-  GPS engine and sends the loop back through `powerup`, with the
-  loop's RAM intact, so it is not a test of this path either -- though
-  on a spare unit it is the one way to watch the receiver re-acquire
-  from the daemon's log without touching the power.
-- A brief external reset, if the board has a reset input, answers
-  whether EXT alone (without POW) is treated as warm; a RESET-
-  instruction restart with the flag intact has no command that
-  triggers it.
+- Both software restarts in the image discard that state before
+  resetting (`docs/firmware.md`, "Restarting"): `:SYSTem:PON` zeroes
+  the region and `:SYSTem:PRESet` clears its flag.  Neither exercises
+  the warm path, and this project sends neither.  `*TST?` does not
+  reset the processor: it resets the GPS engine and sends the loop
+  back through `powerup` with the loop's RAM intact, so it does not
+  test this path either.  On a spare unit it is the one way to watch
+  the receiver re-acquire from the daemon's log without touching the
+  power.
+- A brief external reset, if the board has a reset input, shows
+  whether EXT alone (without POW) counts as warm.  No command triggers
+  a RESET-instruction restart with the flag intact.
 - Watch whether τ (loop time constant) and the aging fit survive: the
   EFC should not jump and the drift term should not go to zero.
 
@@ -150,17 +145,16 @@ image and by 187 polls.
 ## 9. The console, on a spare unit only
 
 *Open item:* what the pForth console does once started, and whether
-anything short of a power cycle returns the port to SCPI.  Entering
-it needs `:SYSTem:LANGuage "PFORTH"`, which only
-`smartclock-cli read-memory` sends.
+anything short of a power cycle returns the port to SCPI.  Entering it
+needs `:SYSTem:LANGuage "PFORTH"`, which only `smartclock-cli
+read-memory` sends.
 
 - On a unit that is not the bench reference: send the language
-  command from a terminal, observe the banner (`pForth $Revision:
+  command from a terminal, note the banner (`pForth $Revision:
   1.2 $`), try `words`, and try whether any pSOS word (`spawn` of the
   `sci` task's entry, `0x39706`) brings SCPI back.  Power-cycle to
   recover.
-- While there, `302000 w@ .` would print the port word from item 1
-  directly.
+- While there, `302000 w@ .` prints the port word from item 1.
 
 *Changes:* closes the console items, and item 1 without a probe.
 
@@ -177,8 +171,8 @@ The bench receiver's own flash, revision 3704-C, was read through its
 pForth console (`firmware.md`, "Reading memory through it"): its loop
 has the same term, on the same current renumbered as channel 6.
 
-*Still open:* why the bench receiver's record shows no response to the
-oven current when its firmware applies the term.
+*Still open:* why the bench receiver's record shows no response to
+the oven current when its firmware applies the term.
 
 ## 11. The two Z380x units that track nothing
 
@@ -188,10 +182,10 @@ since it came to the bench, and the Z3805A (3625A01487) none since
 B1121P1114 with software 8.4 (`firmware.md`, "The engines on the
 bench").
 
-The Z3801A's own log dates it: it cycled between GPS lock and holdover
-from 2016-08-05 to its last lock on 2016-09-20, and every power-on
-since is stamped 2016-09-24, the date its engine still holds.  So it
-has tracked nothing since 2016, before the 2019 week rollover.
+The Z3801A's own log dates it: it cycled between GPS lock and
+holdover from 2016-08-05 to its last lock on 2016-09-20, and every
+power-on since is stamped 2016-09-24, the date its engine still holds.
+It has tracked nothing since 2016, before the 2019 week rollover.
 
 Checked on 2026-09-27:
 
@@ -214,11 +208,11 @@ Checked on 2026-09-27:
   the Z3805A, whose bit 0 is Bad Almanac in the VP Oncore reference.
   The day before, the Z3801A's engine had read 02/10/2007, 2026-09-26
   less 1024 weeks.
-- *An initial date and time.*  `:GPS:INITial:DATE 2007,2,11` and
-  `:GPS:INITial:TIME` at the same offset, 1024 weeks behind UTC, were
-  accepted by both with no error (097-59551-02, 5-7 and 5-8; volatile,
-  and valid only before the first satellite is tracked).  Neither
-  tracked a satellite in the 30 minutes after.
+- *An initial date and time.*  Both accepted
+  `:GPS:INITial:DATE 2007,2,11` and `:GPS:INITial:TIME` at the same
+  offset, 1024 weeks behind UTC, with no error (097-59551-02, 5-7 and
+  5-8; volatile, and valid only before the first satellite is
+  tracked).  Neither tracked a satellite in the 30 minutes after.
 - *The feed, again.*  The HP 58517A eight-way amplifier then failed
   on and off for every receiver on it, whichever one powered it.  On
   an HP 58516A four-way with the Taoglas, a known-good receiver held
@@ -232,14 +226,14 @@ Checked on 2026-09-27:
 - *What each engine expects to see.*  With the bench position held
   and the date and time given (1024 weeks behind UTC), on the same
   four-way as a known-good receiver, 2026-09-27 at about 21:25 UTC:
-  the Z3805A predicted PRNs 3, 4, 6, 7, 9, 16, 26 and 27 within a degree
-  or two of where the known-good receiver was tracking them, 42 to
-  46 dB-Hz for the higher ones, and was attempting 3, 4, 7, 9, 16 and
-  26, tracking none.  The Z3801A predicted 1, 8, 10, 11, 14, 18, 22, 31
-  and 32, with the same elevations and azimuths its console's
-  `print_vis` gave on 2026-09-26: its 2016 almanac, not the sky.  So the
+  the Z3805A predicted PRNs 3, 4, 6, 7, 9, 16, 26 and 27 within a
+  degree or two of where the known-good receiver was tracking them, 42
+  to 46 dB-Hz for the higher ones, and was attempting 3, 4, 7, 9, 16
+  and 26, tracking none.  The Z3801A predicted 1, 8, 10, 11, 14, 18,
+  22, 31 and 32, with the same elevations and azimuths its console's
+  `print_vis` gave on 2026-09-26: its 2016 almanac, not the sky.  The
   Z3805A searches the right satellites in the right places and does
-  not acquire them, and the Z3801A searches the wrong ones.
+  not acquire them; the Z3801A searches the wrong ones.
 - *`master_reset`, then 20 dB more gain* (a Raven LA-21-1575-100-T,
   under 3 dB noise figure) on the Z3805A: its engine held PRNs 9, 14
   and 22, which the known-good receiver had at 39 to 44 dB-Hz, for
@@ -256,22 +250,22 @@ u-blox NEO-M8T, the Z3805A held no satellite the NEO-M8T read below
 
 *Next:* one of these engines in the 58503A (3710A01056), whose
 firmware takes a six-channel engine (`firmware.md`, "Six or eight
-channels").  Tracking there puts the fault in the Z380x unit; not
-tracking, in the engine.  Waiting on a supply for the 58503A.
+channels").  If it tracks there, the fault is in the Z380x unit; if
+not, in the engine.  Waiting on a supply for the 58503A.
 
 ## 12. Field upgrades -- Z3801A reinstall verified
 
-The flasher (now `smartclock-cli flash`) reinstalled the Z3801A's own dump on 2026-09-28;
-PRIMARY boot and the recorded settings were verified.  See
-[the flasher](firmware.md#the-flasher) for the procedure, checks and
-limits.  Other models and revision changes have simulator coverage,
-not hardware validation.  Which flash part holds which byte lane is
-still unknown.
+The flasher (now `smartclock-cli flash`) reinstalled the Z3801A's own
+dump on 2026-09-28; PRIMARY boot and the recorded settings were
+verified.  See [the flasher](firmware.md#the-flasher) for the
+procedure, checks and limits.  Other models and revision changes have
+simulator coverage, not hardware validation.  Which flash part holds
+which byte lane is unknown.
 
 An interrupted load that leaves invalid primary checksums enters the
-protected installer at power-up.  Recovery after Ctrl-C mid-record
-remains untested; no test is planned.  Recovery with valid checksums
-but an unusable primary is the separate open item below.
+protected installer at power-up.  Recovery after Ctrl-C mid-record is
+untested, and no test is planned.  Recovery with valid checksums but
+an unusable primary is item 13.
 
 ## 13. S1 and recovery from a checksum-valid unusable primary
 
@@ -280,10 +274,10 @@ whether any forces INSTALL without a working primary interpreter.
 The Z3801A 3543 and Z3805A 3543B reset-to-primary paths contain no
 switch test, and a running primary enters the installer only through
 the SCPI task (`firmware.md`, "Forced installer entry with an unusable
-primary").  The pForth console's `execute` reaches that same exit and
-was verified on the Z3801A and Z3805A on 2026-09-28.  This does not exclude a
-hardware effect on booting.
-See [recovery-hypothesis.md](recovery-hypothesis.md) for modeled flash
+primary").  The pForth console's `execute` reaches that same exit,
+verified on the Z3801A and Z3805A on 2026-09-28.  This does not exclude
+a hardware effect on booting.  See
+[recovery-hypothesis.md](recovery-hypothesis.md) for modeled flash
 read faults that preserve the installer while failing primary checks.
 
 - [ ] TODO: with the unit open, read the byte at `0x302000` from the
@@ -292,9 +286,10 @@ read faults that preserve the installer while failing primary checks.
   byte for its host-port settings (`firmware.md`, "The switch byte at
   `0x302000`"); whether S1 drives it is unknown.  See
   [recovery-hypothesis.md](recovery-hypothesis.md), hypothesis 4.
-- [ ] TODO: on an unpowered board, map S1's connections to buffers, CPU pins,
-  flash or programmable logic.  Record the assembly revision, physical
-  switch numbering and which contacts close in the marked ON position.
+- [ ] TODO: on an unpowered board, map S1's connections to buffers,
+  CPU pins, flash or programmable logic.  Record the assembly
+  revision, physical switch numbering and which contacts close in the
+  marked ON position.
 - Check whether any contact reaches the CPU's reset/debug signals or
   the flash's address/control signals.  Keep those possibilities
   separate from an ordinary input byte read by software.
@@ -305,7 +300,7 @@ read faults that preserve the installer while failing primary checks.
   "Forced installer entry with an unusable primary".  Neither the
   board connection nor that recovery method has been tested.
 
-*Changes:* a verified switch map and, if supported by the board, a
+*Changes:* a verified switch map and, if the board supports it, a
 recovery procedure for a primary whose checksums pass but which cannot
 accept `:SYSTem:LANGuage "INSTALL"`.
 

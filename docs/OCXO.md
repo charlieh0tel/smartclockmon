@@ -56,8 +56,8 @@ distortion < -25 dBc.
 ### Power
 
 Oven circuit 12 to 30 Vdc, 11 W maximum at turn on, dropping to about
-2 W steady state at 25 C in still air at 20 V.  That turn-on surge is
-what `:DIAGnostic:ROSCillator:CURRent?` is watching.
+2 W steady state at 25 C in still air at 20 V.
+`:DIAGnostic:ROSCillator:CURRent?` watches that turn-on surge.
 
 Warm-up, from the 10811A/B manual: within 5x10^-9 of final value 10
 minutes after turn-on at 25 C and 20 Vdc, where final value means the
@@ -75,16 +75,16 @@ The EFC input is a -5 V to +5 V span covering at least ±2.0x10^-7,
 which across the 2^20 counts of the receiver's internal value is about
 3.8x10^-13 per count.
 
-On this unit both ends of that are measured (`efc.md`).  The receiver
-drives the pin at 6.33 uV per count, crossing 0 V at +37.6 percent and
+On this unit both ends are measured (`efc.md`).  The receiver drives
+the pin at 6.33 uV per count, crossing 0 V at +37.6 percent and
 reaching 4.568 V at count 0.  The oscillator pulls -6.22x10^-8 per
-volt, 1.55 times the specified minimum, which is 3.94x10^-13 per
-count.  Since a retrim on 2026-09-26, made with the EFC input
-grounded, the receiver locks with the pin within millivolts of 0 V, and
-has 2.84x10^-7 of pull below it, measured.
+volt, 1.55 times the specified minimum, or 3.94x10^-13 per count.
+Since a retrim on 2026-09-26 with the EFC input grounded, the receiver
+locks with the pin within millivolts of 0 V and has 2.84x10^-7 of pull
+below it, measured.
 
-The EFC input must be grounded, not left floating, when the crystal is
-trimmed: a trim against a floating input landed 3.7x10^-7 from where
+Ground the EFC input, do not leave it floating, when trimming the
+crystal: a trim against a floating input landed 3.7x10^-7 from where
 the receiver needed it, and the receiver drove its EFC to full scale.
 
 ## The Z3801A's oscillator is a different part
@@ -93,8 +93,8 @@ The Z3801A is reported to use a 10811-60161, which appears in none of
 the sources here: not among the 27 variants in `10811-90027-1`, and
 not among the six on the etoysbox page.  Van Baak measured 5.2x10^-13
 per EFC count on one, implying about ±2.7x10^-7, a third more per count
-than this unit's measured 3.94x10^-13.  That is one oscillator's
-measurement, not a specification.
+than this unit's 3.94x10^-13.  That is one oscillator's measurement,
+not a specification.
 
 ## Sources
 

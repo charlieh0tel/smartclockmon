@@ -47,8 +47,8 @@ The frame is 79 columns.
     PRN  El  Az   SS
     PRN  El  Az
 
-Two header variants, and the signal column is what distinguishes the
-tracked group from the untracked one.  Cell contents:
+Two header variants; the signal column distinguishes the tracked group
+from the untracked one.  Cell contents:
 
     %2d %3d          elevation and azimuth
      %2d             signal
@@ -70,17 +70,16 @@ tracked group from the untracked one.  Cell contents:
 
 ## Mode suffixes
 
-Appended to the mode marked `>>`.  Long and short forms are chosen by
-available width:
+Appended to the mode marked `>>`.  Available width chooses the long or
+short form:
 
     : stabilizing frequency          FFOM 1
 
 Once the PLL has settled the suffix goes and FFOM reads 0.
 
-Why it is in holdover.  These are the same distinctions
-`:SYNChronization:HOLDover:WAITing?` answers with `GPS`, `LIMit` and
-`HARDware`, and the first of them is the one the register bits do not
-make: a manual holdover is what sets Holding, bit 0:
+Why it is in holdover.  `:SYNChronization:HOLDover:WAITing?` makes the
+same distinctions with `GPS`, `LIMit` and `HARDware`.  The register
+bits do not make the first: a manual holdover sets Holding, bit 0:
 
     : manually initiated
     : GPS 1PPS CLK invalid       58503A: : GPS 1PPS invalid
@@ -172,8 +171,8 @@ Confirms the two documented formats character for character:
     T1#H%08X%01d%01d%1c%1c%1c
     T2%04d%02d%02d%02d%02d%02d%01d%01d%1c%1c%1c
 
-Note that the leap, service-request and validity fields are `%1c`, not
-digits, which is why the leap field can carry `+` or `-`.
+The leap, service-request and validity fields are `%1c`, not digits,
+so the leap field can carry `+` or `-`.
 
 ## Identity
 

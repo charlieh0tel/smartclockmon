@@ -10,8 +10,8 @@ INSTALL?  The boards of interest are the Z3801A and Z3805A, with a
 the one candidate input is the byte at `0x302000` (hypothesis 4).
 
 These are hypotheses, not instructions for changing switches or wiring.
-The investigation below used the firmware dumps and the MCU manual;
-no receiver was accessed.  Results recorded on 2026-09-28.
+The investigation used the firmware dumps and the MCU manual; no
+receiver was accessed.  Results recorded on 2026-09-28.
 
 ## Candidate mechanisms
 
@@ -34,9 +34,8 @@ the hypotheses rely on are in
 ### What the firmware establishes
 
 The Z3801A 3543 and Z3805A 3543B dumps have identical reset code from
-`0x550` through `0x745`.  All 502 bytes were disassembled.  There is
-no switch-byte test on this path: four lane checksum comparisons decide
-whether to enter installer startup at `0x746` or jump to PRIMARY at
+`0x550` through `0x745`; all 502 bytes were disassembled.  The path has
+no switch-byte test: four lane checksum comparisons decide whether to enter installer startup at `0x746` or jump to PRIMARY at
 `0x744`.
 
 Both configure two separate 256 KiB flash banks.  Addresses below are
@@ -50,8 +49,7 @@ CPU byte addresses, not individual flash-chip addresses.
 MC68331UM sections 4.8.1.2 and 4.8.1.3, tables 4-21 and 4-22, decode
 these settings: 256 KiB blocks, both byte lanes, reads or writes only,
 one internally generated wait state, supervisor and user spaces.
-The physical connections between those selects and the flash parts
-still need tracing.
+How those selects connect to the flash parts is not yet traced.
 
 The low bank contains both the protected installer and part of PRIMARY:
 
@@ -60,15 +58,15 @@ The low bank contains both the protected installer and part of PRIMARY:
 - `0x40000`--`0x7ffff`: remainder of PRIMARY.
 
 The installer copy records begin at `0xbbc` and end with the terminator
-at `0xb328` in both dumps.  Parsing every record confirms that their
-source bytes are below `0x10000`.  The checksum-failure startup, copy
-routine and installer source therefore remain readable if a fault
-leaves the entire protected region unchanged.  This establishes a
-necessary condition, not successful execution on faulty hardware.
+at `0xb328` in both dumps.  Every record's source bytes are below
+`0x10000`.  The checksum-failure startup, copy routine and installer
+source therefore remain readable if a fault leaves the whole protected
+region unchanged.  That is a necessary condition, not successful
+execution on faulty hardware.
 
 ### Read-fault modeling
 
-For each altered read view, the calculation sums even and odd bytes
+For each altered read view, the model sums even and odd bytes
 separately, modulo 65536.  Data ends at `0x3fffb` and `0x7fffb`; each
 bank's final four bytes contain the two interleaved stored sums.  The
 model alters those stored-sum reads too, as actual address aliasing or
@@ -85,40 +83,38 @@ bank deselection would.  It does not modify either source dump.
 
 The address-bit cases were checked for the even lane alone, odd lane
 alone and both lanes; all six cases fail on each image while preserving
-every protected byte.  For interleaved eight-bit chips, CPU address bit
-16 corresponds to chip address bit 15, and CPU bit 17 to chip bit 16,
-assuming conventional sequential wiring.  That correspondence still
-needs a board trace.  The model changes the address seen by flash; it
-does not model grounding a driven CPU address line.
+every protected byte.  For interleaved eight-bit chips with
+conventional sequential wiring, CPU address bit 16 is chip address bit
+15, and CPU bit 17 is chip bit 16; this needs a board trace.  The model
+changes the address flash sees; it does not model grounding a driven
+CPU address line.
 
 For the all-`0xff` case, each upper lane sums 131070 data bytes to
-`0xfe02`, while its stored sum reads `0xffff`: failure is deterministic
-under that assumed read value.  All-zero data and stored sums instead
-compare equal.  A floating bus is not guaranteed to read either value.
+`0xfe02`, while its stored sum reads `0xffff`: under that read value
+the check always fails.  All-zero data and stored sums compare equal.  A floating bus is not guaranteed to read either value.
 
 The MCU supplies the read acknowledgment internally for these settings.
-Consequently, externally gating the flash output while leaving the
-MCU's chip-select configuration intact could complete bus cycles with
-incorrect data rather than automatically produce a bus error.  That
-is an inference from the manual; actual board loading and decode logic
-are unmeasured.
+So gating the flash output externally, with the MCU's chip-select
+configuration intact, could complete bus cycles with wrong data rather
+than produce a bus error.  That is an inference from the manual; board
+loading and decode logic are unmeasured.
 
 ### Implications for S1
 
 The strongest specific versions of hypothesis 1 are:
 
-1. A contact gates the upper bank's read enable, without disturbing
-   the low bank.  It must produce checksum-breaking read values; mere
-   deselection is insufficient evidence because zero-filled reads pass.
+1. A contact gates the upper bank's read enable, leaving the low bank
+   alone.  It must produce checksum-breaking read values; deselection
+   alone is not enough, because zero-filled reads pass.
 2. A contact causes flash address bit 15 or 16 to read low through
    suitable isolation or selection logic.  The corresponding CPU
    address alias preserves the installer while failing the checks on
    both existing images, even when it affects only one byte lane.
 
-Neither needs the CPU to read S1 as a byte.  The firmware observes the
-result indirectly through its checksum comparisons.
+Neither needs the CPU to read S1 as a byte; the firmware sees the
+result only through its checksum comparisons.
 
-Disabling the entire low bank would also hide the reset code and is
+Disabling the whole low bank would also hide the reset code and is
 not this mechanism.  A write-protect switch alone would not change
 read checksums or prevent the jump to PRIMARY.  A global data-bit fault
 would also affect boot instructions; the model does not support it as
@@ -127,8 +123,8 @@ a clean recovery method.
 Even if a read override gets INSTALL running in RAM, normal flash
 access must be restored before programming and verifying PRIMARY.
 Whether a switch can be restored while running, whether its state is
-latched at reset, and whether it also affects write addressing are
-unresolved.  No live-switching procedure is established here.
+latched at reset, and whether it affects write addressing are
+unresolved.  No live-switching procedure is established.
 
 ### What would confirm or reject it
 
@@ -136,8 +132,8 @@ On an unpowered board, trace S1 to the flash address pins, read-enable
 and chip-enable logic, and the CPU's CSBOOT/CS1/CS6/CS7 signals.
 Record the assembly revision and switch numbering.  A connection to a
 flash-side address selector or upper-bank read gate supports this
-hypothesis.  A connection only to unrelated GPIO or debug signals
-would redirect the investigation.
+hypothesis; one only to unrelated GPIO or debug signals redirects the
+investigation.
 
 The model verifies checksum consequences for known images, not the
 electrical circuit, an S1 assignment, an installer session, or recovery
@@ -151,8 +147,8 @@ enabling it through BKPT at reset and entering it through a hardware
 breakpoint.  Sections 5.10.2.5.2 and 5.10.2.6 describe changing the
 return program counter (RPC) and resuming with GO.  After the reset
 code has configured the memory interfaces, redirecting execution to the
-protected installer entry at `0xa58` is therefore a candidate recovery
-for a checksum-valid primary that cannot accept commands.  This is an
+protected installer entry at `0xa58` is a candidate recovery for a
+checksum-valid primary that cannot accept commands.  This is an
 inference from the CPU manual and firmware, not a tested procedure.
 Access to BKPT/DSCLK, IFETCH/DSI and IPIPE/DSO on these boards has not
 been mapped.
@@ -167,11 +163,11 @@ Ports at Powerup", in kind.  If S1 drives this byte, it sets the
 installer's line settings; it does not force INSTALL, and on the
 bench units' Peru and USA installers it does nothing at all.
 
-It can be tested without any firmware that uses it.  From the pForth
+It can be tested without firmware that uses it.  From the pForth
 console, `3153920 c@ .` reads the byte (`0x302000` is 3153920).  Read
 it, change one S1 position with the unit powered down, and read it
-again; a bit that follows the switch maps that position.  No bit
-changing, for every position, rejects the hypothesis for that board.
+again; a bit that follows the switch maps that position.  If no bit
+changes for any position, the hypothesis is rejected for that board.
 This needs `:SYSTem:LANGuage "PFORTH"` and a power cycle to return to
 SCPI, and has not been done.  What else a read of `0x302000` does on
 the Z3801A and Z3805A boards is unknown.

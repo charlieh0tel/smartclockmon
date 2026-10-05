@@ -18,7 +18,7 @@ Between them the manual samples cover:
 - `Survey: 0% complete` alongside `Suspended:track <4 sats`.
 - `Synchronized to UTC`, `Inaccurate: not tracking` and
   `Invalid: not tracking`.
-- Column spacing in the health monitor line that varies between screens.
+- Health monitor line column spacing that varies between screens.
 
 ## From hardware
 
@@ -26,8 +26,7 @@ Between them the manual samples cover:
 3704-C.  It differs from every manual sample:
 
 - The satellite table's fourth column is headed `SS`, not `C/N`, and
-  carries a different range: 28 to 114 here against 36 to 49 in the
-  manuals.
+  ranges 28 to 114 here against 36 to 49 in the manuals.
 - Section headings are padded with underscores (`Reference Outputs
   ______`) where the manuals show spaces.
 - The screen is 79 columns wide; the manual samples are 75.
@@ -37,6 +36,6 @@ Between them the manual samples cover:
   `(GPS)`, when the receiver is in position hold rather than surveying.
 - Several lines carry trailing whitespace.
 
-Both sets are kept: the manual samples cover states the unit was not
-in, such as survey and power-up, and the capture is what firmware
-3704-C sends.
+Both sets stay: the manual samples cover states the unit was not in,
+such as survey and power-up, and the capture is what firmware 3704-C
+sends.

@@ -2,7 +2,7 @@
 
 A Rust library, logging daemon, terminal monitor and browser view for
 HP / Symmetricom SmartClock GPS time and frequency reference
-receivers, spoken to over RS-232.
+receivers, over RS-232.
 
 ![The live page: the 1 PPS interval, EFC and satellites of a locked Z3805A](docs/images/web-live.png)
 
@@ -14,9 +14,9 @@ receivers, spoken to over RS-232.
 ## Status
 
 Running as a service on a bench of three units, logging continuously.
-`PLAN.md` holds the design decisions, the open questions and the known
-defects; `docs/hardware-investigations.md` what is left for the bench
-to settle.
+`PLAN.md` holds the design decisions, open questions and known
+defects; `docs/hardware-investigations.md` what the bench has yet to
+settle.
 
 ## Parts
 
@@ -32,12 +32,13 @@ to settle.
 
 ## Running it
 
-Build with `make`, or `make deb` for a package.  Installed from the
-package, the daemon runs as one instance per serial port, named by
-the port: `systemctl enable --now smartclockd@ttyUSB0`, with shared
-settings in `/etc/default/smartclockd`; see `docs/running.md`.
+Build with `make`, or `make deb` for a package.  The package runs
+one daemon instance per serial port, named by the port:
+`systemctl enable --now smartclockd@ttyUSB0`, with shared settings in
+`/etc/default/smartclockd`; see `docs/running.md`.
 
-Run by hand, it holds the port and everything else is a client of it:
+Run by hand, the daemon holds the port and everything else is its
+client:
 
     smartclockd --device /dev/serial/by-id/usb-... \
                 --log-dir . \
@@ -47,13 +48,13 @@ Run by hand, it holds the port and everything else is a client of it:
     smartclock-web --socket /tmp/smartclockd.sock --log-dir .        # http://127.0.0.1:9980/
     smartclock-exporter --socket /tmp/smartclockd.sock               # http://127.0.0.1:9979/metrics
 
-Installed, the web view and the exporter need no telling: both read
+Installed, the web view and the exporter need no options: both read
 every daemon's socket under `/run/smartclockd` and every log under
-`/var/lib/smartclockd`.  `docs/views.md` has what each view shows and
+`/var/lib/smartclockd`.  `docs/views.md` says what each view shows and
 why.
 
-With no receiver to hand, the simulator answers in its place, and
-every tool takes `tcp://host:port` wherever it takes a device path:
+Without a receiver, use the simulator; every tool takes
+`tcp://host:port` wherever it takes a device path:
 
     smartclock-sim 127.0.0.1:5025            # --model z3801a --no-echo for the Z3801A's framing
     smartclockd     --device tcp://127.0.0.1:5025 ...
@@ -65,8 +66,8 @@ tests, after `make web-deps` once.
 ## Hardware
 
 HP / Agilent / Symmetricom SmartClock receivers: GPS-disciplined
-OCXO references that emit 10 MHz and 1 PPS and report
-their state over a serial port in SCPI.
+OCXO references that emit 10 MHz and 1 PPS and report their state over
+a serial port in SCPI.
 
 | Model  | Command tree             | Notes                                   |
 | ------ | ------------------------ | --------------------------------------- |
@@ -79,12 +80,12 @@ their state over a serial port in SCPI.
 
 Their GPS engines are mid-1990s Motorola boards whose firmware
 predates the GPS week rollovers of 1999 and 2019, so a unit reports a
-date 1024 weeks in the past; time of day, 1 PPS and 10 MHz are
-unaffected, and the date is corrected rather than presented as a
-fault.  Factory serial settings are 9600 8N1; the Z3801A's port is
-fixed at 19200 7O1.  The daemon, the monitor and the CLI look for a
-unit at 19200 and 9600, 8N1 and 7O1, when the configured settings get
-no answer.  The bench itself is described in `BENCHNOTES.md`.
+date 1024 weeks in the past.  Time of day, 1 PPS and 10 MHz are
+unaffected; the tools correct the date rather than flag a fault.
+Factory serial settings are 9600 8N1; the Z3801A's port is fixed at
+19200 7O1.  When the configured settings get no answer, the daemon,
+monitor and CLI probe 19200 and 9600, 8N1 and 7O1.  `BENCHNOTES.md`
+describes the bench.
 
 ## Documentation
 
@@ -113,6 +114,6 @@ and `097-z3801-01` (Z3801A) are the primary references, and
 Copyright © 2026 Christopher Hoover.  GPL-3.0-or-later.  See
 `LICENSE`.
 
-The vendor manuals in `third_party/` are not covered by it; they remain
-the copyright of Symmetricom and its successors and are kept here as
-protocol documentation.  See `third_party/NOTICE`.
+The license does not cover the vendor manuals in `third_party/`; they
+remain the copyright of Symmetricom and its successors and are kept
+here as protocol documentation.  See `third_party/NOTICE`.

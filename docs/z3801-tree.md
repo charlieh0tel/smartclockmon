@@ -22,10 +22,10 @@ The four that do not:
 answers with or without it: `:PTIMe:FFOMerit?` and
 `:SOURce:PTIMe:FFOMerit?` both returned `+3` from a Z3805A.
 
-A path being here means the parser knows it, not that the receiver
+A path here means the parser knows it, not that the receiver
 implements it: of 282 put to a Z3805A as queries, 124 answered or
 declined and 158 came back undefined.  A path is a candidate until a
-receiver has answered it.
+receiver answers it.
 
 `GARY`, `DOUGlas`, `KENneth`, `ROBin` and the four-letter
 `R...`/`W...` tokens are in the keyword table but have no path here;
@@ -44,17 +44,16 @@ A sweep list must exclude the bare group forms and anything ending
 
 Each node carries two handler slots: a setter at +8 from the keyword
 pointer and a query at +18.  A setter of zero means the command is
-read-only, and that is a fact about the firmware rather than about any
-manual.  Of the 513 paths, 277 are writable and 236 are not.
+read-only -- a fact about the firmware, not any manual.  Of the 513
+paths, 277 are writable and 236 are not.
 
-Checked against the 70 Z3801-dialect entries in `commands.toml`, 69
-agree.  The ten that look like disagreements are not: the table gives a
-query and its setter separate ids where the firmware has one node with
-both slots.
+Of the 70 Z3801-dialect entries in `commands.toml`, 69 agree.  The
+ten apparent disagreements are not: the table gives a query and its
+setter separate ids where the firmware has one node with both slots.
 
-The one real gap is `:DIAGnostic:ROSCillator:TCOefficient`.  Its setter
-slot holds `FUN_0002a93c`, so the oscillator temperature coefficient
-can be written, and the command appears in no manual in either
+The one real gap is `:DIAGnostic:ROSCillator:TCOefficient`.  Its
+setter slot holds `FUN_0002a93c`, so the oscillator temperature
+coefficient is writable, and no manual has the command in either
 direction.  Kusters describes the coefficient as measured against GPS
 while locked and kept in EPROM; in the Z3816A image the setter is the
 only writer, the loop never adjusts the value, and a console word
@@ -69,8 +68,8 @@ oscillator-current channel (`firmware.md`).
 
 ## What answered on a Z3805A
 
-`:DIAGnostic:OS:MEMory?`, `:PROCess?` and `:STACk?` dump the whole
-state of the real-time system, which is pSOS, and name its tasks:
+`:DIAGnostic:OS:MEMory?`, `:PROCess?` and `:STACk?` dump the state of
+the real-time system, pSOS, and name its tasks:
 
     scpi   the command parser        pllp   the disciplining loop
     gpsm   GPS manager               curv   curve fitting

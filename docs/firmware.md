@@ -1,29 +1,29 @@
 # What the firmware shows
 
-What `third_party/z3816a-4001.bin` shows about how the receiver measures the
-1 PPS time interval, how it disciplines the oscillator from it, and
-whether the Oncore's sawtooth correction enters either.  Every address
-below is in that image, which is loaded at address zero, except where
-a section names another: the Z3801A's (`z3801a-3543.bin`), the
-Z3805A's (`z3805a-3543b.bin`) and the 58503A's (`58503a-3633.bin`,
+What `third_party/z3816a-4001.bin` shows about how the receiver
+measures the 1 PPS time interval, how it disciplines the oscillator
+from it, and whether the Oncore's sawtooth correction enters either.
+Addresses are in that image, loaded at address zero, except where a
+section names another: the Z3801A's (`z3801a-3543.bin`), the Z3805A's
+(`z3805a-3543b.bin`) or the 58503A's (`58503a-3633.bin`,
 `58503a-3704.bin`).
 
 The processor is a CPU32 part: the reset code at `0x400` sets the
 vector base with `movec` and programs the System Integration Module's
-registers at `0xfffa00`, and the QSM at `0xfffc00` carries the SCI and
+registers at `0xfffa00`; the QSM at `0xfffc00` carries the SCI and
 QSPI.  It also initializes and uses a register block at `0xfff900`
 (`0x22118` onwards; a port whose bit 5 the firmware switches, and a
 counter at `0xfff90c`/`0xfff90d` it reads to count 1 PPS edges).  That
 is the General-Purpose Timer module, which the 68331 has alongside its
 SIM and QSM (NXP's MC68331 page, <https://www.nxp.com/products/MC68331>)
-and the 68332 does not -- the 68332 has a TPU there instead.  The
-MC68331 User's Manual (`third_party/MC68331UM.pdf`) places the SIM at
-$YFFA00 (Table D-3), the GPT at $YFF900 with the port GP data register
-PORTGP at $YFF907 (Table D-2, D.5) and the QSM at $YFFC00 (Table
-D-13), which is where this image finds them; bit 5 of PORTGP is the
-pin PGP5/OC3/OC1 (section 7.2).  An owner's description of the
-Z3801A's outer-oven circuit names the main CPU as "U33 / MC68331" and
-the oven's control line as PGP5 (see "The ovens").
+and the 68332 lacks -- it has a TPU there.  The MC68331 User's Manual
+(`third_party/MC68331UM.pdf`) places the SIM at $YFFA00 (Table D-3),
+the GPT at $YFF900 with the port GP data register PORTGP at $YFF907
+(Table D-2, D.5) and the QSM at $YFFC00 (Table D-13), where this image
+finds them; bit 5 of PORTGP is the pin PGP5/OC3/OC1 (section 7.2).  An
+owner's description of the Z3801A's outer-oven circuit names the main
+CPU as "U33 / MC68331" and the oven's control line as PGP5 (see "The
+ovens").
 
 The reset code at `0x2466e` sets the SIM up as follows (register
 names and encodings from MC68331UM appendix D; block sizes from Table
@@ -45,45 +45,43 @@ D-11):
 | SYNCR `0xfffa04` | `0xcf80` | W = 1, X = 1, Y = 15: f = f_ref · 4 · 16 · 8 (section 4.3.2): 16.777 MHz from the 32.768 kHz reference the manual's frequency tables assume (4.3.2, appendix A) |
 | PORTE0 `0xfffa11` | `0x40` | port E bit 6 high; `0x22e30` later pulses it low and high |
 
-The SCI's baud rate is SCBR in SCCR0 at `0xfffc08`, f / (32 · SCBR)
+The SCI's baud rate is f / (32 · SCBR), SCBR in SCCR0 at `0xfffc08`
 (section 6.4.3.3).  `FUN_0002e610` sets it from a setting byte: 437,
 218, 55 and 27 for settings 0 to 3, which at 16.777 MHz are 1200,
 2405, 9533 and 19418 baud -- the manual's four rates, each within
 0.7 %.  `FUN_0002ed56` sets PE and PT in SCCR1 (`0xfffc0a`) from the
 byte at `0x10261d`: no parity for 0, even for 1, odd for 2.
 
-The Z3816A image describes the design family; what holds for the
-58503A's own code is in "The 58503A image".
+The Z3816A image describes the design family; the 58503A's own code is
+in "The 58503A image".
 
 ## Summary
 
-- The reported interval is the mean of ten one-second readings,
-  stored as a single-precision float in seconds.  It changes once every
-  ten seconds.
-- Each reading comes from a counter in the FPGA: a coarse count of
-  100 ns ticks plus an interpolator, with calibration terms applied.
-- The firmware decodes the Oncore's negative sawtooth from the
-  Time RAIM message, and prints it on a status page.  No path was
-  found from it into the interval measurement.
-- The oscillator is steered by a proportional-integral loop on that
-  same ten-second mean, run every ten seconds.  Both gains follow
-  from one time constant τ and one gain G: the proportional gain goes
-  as 1/(Gτ) and the integral as 1/(4Gτ²).  τ is 500 s by default in
-  the Z3816A and 1000 s in the Z3801A, from a block of defaults in ROM;
-  after power-up the loop starts at 150 s and lengthens by 5 s every
-  update until it reaches τ.  Its phase input is the
-  interval mean; no read of the sawtooth was found in it.
+- The reported interval is the mean of ten one-second readings, a
+  single-precision float in seconds.  It changes every ten seconds.
+- Each reading comes from an FPGA counter: a coarse count of 100 ns
+  ticks plus an interpolator, with calibration terms applied.
+- The firmware decodes the Oncore's negative sawtooth from the Time
+  RAIM message and prints it on a status page.  No path was found from
+  it into the interval measurement.
+- A proportional-integral loop on the same ten-second mean steers the
+  oscillator every ten seconds.  Both gains follow from a time constant
+  τ and a gain G: proportional 1/(Gτ), integral 1/(4Gτ²).  τ defaults
+  to 500 s in the Z3816A and 1000 s in the Z3801A, from a block of
+  defaults in ROM; after power-up the loop starts at 150 s and
+  lengthens by 5 s each update until it reaches τ.  Its phase input is
+  the interval mean; no read of the sawtooth was found in it.
 - A separate task fits a + b·t + c·ln t to 45-minute means of the
-  EFC, up to 64 of them (48 hours), and the loop adds the fitted
-  slope to its integrator each update as predicted drift.
-  `startup_pll` sets its first EFC from the same curve.
-- The outer oven of a double-oven oscillator is switched, not
-  regulated, by the firmware: one port bit, turned on when the
-  oscillator current has stopped falling, and never turned off except
-  from the console.  No loop in either image drives a heater.
-- The firmware carries a Forth interpreter that calls itself
-  pForth, whose words include the loop's own diagnostics.  It is a
-  shell over compiled code: no word in the image is written in Forth.
+  EFC, up to 64 of them (48 hours); the loop adds the fitted slope to
+  its integrator each update as predicted drift.  `startup_pll` sets
+  its first EFC from the same curve.
+- The firmware switches, not regulates, the outer oven of a
+  double-oven oscillator: one port bit, set when the oscillator current
+  has stopped falling and cleared only from the console.  No loop in
+  either image drives a heater.
+- The firmware carries a Forth interpreter that calls itself pForth,
+  whose words include the loop's diagnostics.  It is a shell over
+  compiled code: no word in the image is written in Forth.
 
 ## The GPS receiver link
 
@@ -97,9 +95,9 @@ sixteen registers sit on odd byte addresses (`0x200001` + 2*n).
 | `FUN_0002d6dc` | takes one byte from the ring |
 | `FUN_00050314` | the message framer |
 
-Channel B's receive routine (`FUN_0002db42`) records error bits only
-and buffers no data; `FUN_0002dc9a` is a channel B loopback self-test
-that sends the string `DUART` and checks the echo.
+Channel B's receive routine (`FUN_0002db42`) records error bits and
+buffers no data; `FUN_0002dc9a` is a channel B loopback self-test that
+sends `DUART` and checks the echo.
 
 ### Framing
 
@@ -122,8 +120,8 @@ the `@@`.
 at `0x56732` (`FUN_000560fc` returns descriptor *i* as
 `0x56732 + 60 * i`).  Each holds a pointer to its two-character ID at
 +0, its length at +28, a decoder at +0x20 and a post-handler at +0x38.
-The two Time RAIM messages are there with the lengths the VP Oncore
-reference gives:
+The two Time RAIM messages have the lengths the VP Oncore reference
+gives:
 
 | Entry | ID | Length | Decoder | Post-handler |
 | ----- | -- | ------ | ------- | ------------ |
@@ -137,8 +135,8 @@ count at `0x100ebc + 0x606`.
 ### Decoding
 
 Both decoders unpack through `FUN_00054ec8`, driven by a byte program
-rather than by code, which is why no instruction reads a field of the
-raw message directly.  The program's opcodes:
+rather than code, so no instruction reads a field of the raw message
+directly.  The opcodes:
 
 | Byte | Meaning |
 | ---- | ------- |
@@ -156,18 +154,18 @@ The `En` program, at `0x57e39`:
 
     02 84 84 03 00 84 03 04 00 0a 00 f8 01 00 04 81 80
 
-Walked against the message layout in `VPCommands.pdf` (message byte 0
-being the first `@`), its fifth copy moves message bytes 16 to 25 --
-hours, minutes, seconds, pulse status, 1 PPS sync, Time RAIM solution
-status, Time RAIM status, the two-byte one-sigma estimate, and the
-negative sawtooth -- to record offsets 17 to 26.  The `Bn` program at
-`0x57e25` is the same apart from its channel count.  The sawtooth is
-at offset 26 of the decoded record.
+Against the message layout in `VPCommands.pdf` (message byte 0 being
+the first `@`), its fifth copy moves message bytes 16 to 25 -- hours,
+minutes, seconds, pulse status, 1 PPS sync, Time RAIM solution status,
+Time RAIM status, the two-byte one-sigma estimate, and the negative
+sawtooth -- to record offsets 17 to 26.  The `Bn` program at `0x57e25`
+differs only in its channel count.  The sawtooth is at offset 26 of
+the decoded record.
 
 ### The engines on the bench
 
-`:DIAGnostic:IDENtification:GPSystem?` returns the engine's own
-identity, a list of quoted `LABEL value` strings.  Read on 2026-09-26:
+`:DIAGnostic:IDENtification:GPSystem?` returns the engine's identity,
+a list of quoted `LABEL value` strings.  Read on 2026-09-26:
 
 | | 58503A 3710A01056 | Z3801A 3542A01548 | Z3805A 3625A01487 |
 | - | ----------------- | ----------------- | ----------------- |
@@ -180,24 +178,22 @@ identity, a list of quoted `LABEL value` strings.  Read on 2026-09-26:
 | Manufactured | 7D01 | 6J25 | 6G09 |
 | Options | IB | IB | IB |
 
-The Z3805A's was recorded by the daemon on 2026-09-26 when it
-reattached (below).  The two Z380x engines are the same model with
-the same software; the 58503A's is a different model with later
-software.  From schema 9
-the daemon reads it once per connection and keeps it, as answered, in
-the receiver table of each unit's log, and says so in the journal when
-it is first seen or changes.
+The daemon recorded the Z3805A's on 2026-09-26 when it reattached.
+The two Z380x engines are the same model with the same software; the
+58503A's is a different model with later software.  From schema 9 the
+daemon reads it once per connection, keeps it as answered in the
+receiver table of each unit's log, and notes in the journal when it
+is first seen or changes.
 
-The Z3801A's answered while it tracked no satellites on an antenna the
-58503A tracks on: its engine is powered and answering on the link
-while it hears nothing.
+The Z3801A's engine answered while tracking no satellites on an
+antenna the 58503A tracks on.
 
 ### Six or eight channels
 
-Which engines each image can take, by the two pairs of messages the
-VP Oncore reference gives a six-channel and an eight-channel form:
-position/status `@@Ba` / `@@Ea` and Time RAIM `@@Bn` / `@@En`.  A
-message counts as handled when the image holds a pointer to its ID:
+Which engines each image can take, by the two message pairs the VP
+Oncore reference gives in six- and eight-channel forms: position/status
+`@@Ba` / `@@Ea` and Time RAIM `@@Bn` / `@@En`.  A message counts as
+handled when the image holds a pointer to its ID:
 
 | Image | `Ba` | `Ea` | `Bn` | `En` |
 | ----- | ---- | ---- | ---- | ---- |
@@ -213,19 +209,19 @@ The 58503A images decide at run time.  In 3704:
   entries 50 and 54, decoders `0x506e2` and `0x5098a`.  Both set bit 5
   of the byte at `0x1013e2` and call `FUN_000509fe`, which stores 8 at
   `0x1013e0` when that bit is set and 6 when it is clear.  No other
-  code in the image sets or clears the bit by address.
-- The descriptor's last long, at +0x38, is a filter on sending.  The
-  command builder `FUN_00050bc8` calls it with the entry number and
-  the command's first argument and, when it returns zero, sends
-  nothing.  `FUN_00050ad8`, the filter of `Ba`, `Ea` and `Ek` and,
-  through `0x50b48`, of `Bn` and `En`, passes `Ba`, `Bk` and `Bn`
-  (entries 30, 39, 41) when the count is 6 and `Ea`, `Ek` and `En`
-  (50 to 52) only when it is 8.  With the count at 8 it still passes
-  the six-channel three when their first argument, the output rate,
-  is 0: the reference's "output response message once".  So an
-  eight-channel engine is polled with the six-channel messages but
-  given continuous output only in the eight-channel ones.  Entry 54,
-  the second `Ea`, has no filter and no destination.
+  code sets or clears the bit by address.
+- The descriptor's last long, at +0x38, is a send filter.  The command
+  builder `FUN_00050bc8` calls it with the entry number and the
+  command's first argument and sends nothing when it returns zero.
+  `FUN_00050ad8`, the filter of `Ba`, `Ea` and `Ek` and, through
+  `0x50b48`, of `Bn` and `En`, passes `Ba`, `Bk` and `Bn` (entries 30,
+  39, 41) when the count is 6 and `Ea`, `Ek` and `En` (50 to 52) only
+  when it is 8.  With the count at 8 it still passes the six-channel
+  three when their first argument, the output rate, is 0: the
+  reference's "output response message once".  So an eight-channel
+  engine is polled with the six-channel messages but given continuous
+  output only in the eight-channel ones.  Entry 54, the second `Ea`,
+  has no filter and no destination.
 - `Ca` and `Fa`, the six- and eight-channel self-tests, are filtered
   on bit 5 alone (`0x50ab8`, `0x50ac8`).
 - Bits 6 and 7 of `0x1013e2` come from the engine's `@@Cj` identity,
@@ -233,19 +229,19 @@ The 58503A images decide at run time.  In 3704:
   `0x100e50`.  Once a `Cj` has been received (`0x101258`, set by its
   decoder), bit 6 is set when the `OPTIONS LIST` value contains an
   `I`, and bit 7 when `SOFTWARE VER` × 10 + `SOFTWARE REV` is 84:
-  software 8.4.  Run before a `Cj` has arrived, it clears both.  `Bn` and `En` go out
-  only with bit 6 set (`0x50b48`); entry 55, a second `@@Ar`
-  (position fix algorithm), only with bit 7 (`0x50b6c`).  The field
-  labels are matched from the table at `0x5262c`.
+  software 8.4.  Run before a `Cj` arrives, it clears both.  `Bn` and
+  `En` go out only with bit 6 set (`0x50b48`); entry 55, a second
+  `@@Ar` (position fix algorithm), only with bit 7 (`0x50b6c`).  The
+  field labels are matched from the table at `0x5262c`.
 
 So the count is 6 until an `@@Ea` arrives from the engine and 8 after.
-The three engines on the bench all report options `IB`, so each
-would get Time RAIM commands; the two Z380x engines report software
-8.4 and the 58503A's 8.8.  3633 has the same selector at `0x50802`,
-the same two `bset` sites at `0x5051c` and `0x5078e`, and the same
-identity tests at `0x50834` and `0x5088e`.  Neither Z380x image has an
-`Ea` or `En` entry or these tests.  None of this has been run with an
-engine other than the one each unit came with.
+The three bench engines all report options `IB`, so each would get
+Time RAIM commands; the two Z380x engines report software 8.4 and the
+58503A's 8.8.  3633 has the same selector at `0x50802`, the same two
+`bset` sites at `0x5051c` and `0x5078e`, and the same identity tests
+at `0x50834` and `0x5088e`.  Neither Z380x image has an `Ea` or `En`
+entry or these tests.  None of this has been run with an engine other
+than the one each unit came with.
 
 ### Where the sawtooth is read
 
@@ -257,15 +253,14 @@ format strings are:
     SIGMA EST  %-24s   SAWT ERR  %+d ns
 
 `SIGMA EST` is read from record offset 24 and `SAWT ERR` from offset
-26, which agrees with the layout above.  The page is reached through a
-pointer table; the command that shows it has not been identified.
+26, matching the layout above.  The page is reached through a pointer
+table; the command that shows it has not been identified.
 
 ## The interval
 
 ### What the query returns
 
-Three nodes in the command tree are named `TINTerval`.  Walking their
-parents:
+Three nodes in the command tree are named `TINTerval`.  Their parents:
 
 | Node | Path | Query handler |
 | ---- | ---- | ------------- |
@@ -273,44 +268,40 @@ parents:
 | `0x60dbc` | `:SOURce:PTIMe:TINTerval` | `FUN_0003f8fa` |
 | `0x63fb2` | `:DIAGnostic:PTIMe:TINTerval` | `FUN_0003b052` |
 
-(The parents come from the child lists at `0x59000` to `0x5b000`: a
-node's word at +4 points at its list, and a node is found by which
-list holds it.)  `:SOURce` is optional, so the first is
-`:SYNChronization:TINTerval?` and the second `:PTIMe:TINTerval?`, and
-they share a handler: a bench 58503A polled once a second for 187 s
-answered `:PTIM:TINT?` with exactly its `:SYNC:TINT?` value every time,
-held for ten polls like it.
-Its handler copies the 32-bit value at `0x102c0c` into its reply,
-tagged with the halfword `0xfff6` (−10), when the flag at `0x102c10` is
-set.  That value is a single-precision float in seconds: `pll_normal`
-stores it there as the float sum of the readings divided by their
-count, converted to float (below).  The receiver prints the value to
-10⁻¹⁰ s: seven readings -- one in a recorded transcript, six from a
-58503A through the daemon -- are all whole tenths of a nanosecond,
-which is what a −10 resolution would give.  That the reply formatter
-uses the tag that way was not traced.
+(Parents are resolved as in "Note on the disassembly".)  `:SOURce`
+is optional, so the first is `:SYNChronization:TINTerval?` and the
+second `:PTIMe:TINTerval?`; they share a handler.  A bench 58503A polled once a second for 187 s
+answered `:PTIM:TINT?` with its `:SYNC:TINT?` value every time, held
+for ten polls like it.  The handler copies the 32-bit value at
+`0x102c0c` into its reply, tagged with the halfword `0xfff6` (−10),
+when the flag at `0x102c10` is set.  The value is a single-precision
+float in seconds: `pll_normal` stores there the float sum of the
+readings divided by their count, converted to float (below).  The
+receiver prints it to 10⁻¹⁰ s: seven readings -- one from a recorded
+transcript, six from a 58503A through the daemon -- are all whole
+tenths of a nanosecond, as a −10 resolution would give.  How the reply
+formatter uses the tag was not traced.
 
-The `PTIMe` node's handler, `FUN_0003b052`, answers from a different
-place: under the lock `FUN_00023488` takes, it converts the double at
+The `PTIMe` node's handler, `FUN_0003b052`, answers from elsewhere:
+under the lock `FUN_00023488` takes, it converts the double at
 `0x102666` -- the latest one-second reading, see "One reading" below
--- to a float for the reply, with the halfword at `0x102670` as its
-tag, when the byte at `0x10266e` is set, and otherwise fails with code
-0xc.  So `:DIAGnostic:PTIMe:TINTerval?` is one reading and
-`:SYNChronization:TINTerval?` -- and `:PTIMe:TINTerval?` -- the mean of
+-- to a float for the reply, tagged with the halfword at `0x102670`,
+when the byte at `0x10266e` is set, and otherwise fails with code
+0xc.  So `:DIAGnostic:PTIMe:TINTerval?` is one reading, and
+`:SYNChronization:TINTerval?` and `:PTIMe:TINTerval?` the mean of
 ten.  A Z3805A answered the `DIAGnostic` form in the keyword sweep
-(`z3801-tree.md`, "time interval, unlocked reading"); whether a 58503A
-does has not been tried.
+(`z3801-tree.md`, "time interval, unlocked reading"); a 58503A has not
+been tried.
 
 ### The ten-second average
 
-`FUN_0004824a` writes both.  Each second it takes a reading and, if it
-is valid, adds it to a running sum with a count at `0x102735`.  A
+`FUN_0004824a` writes both.  Each second it takes a reading and, if
+valid, adds it to a running sum with a count at `0x102735`.  A
 counter at `0x102734` runs to ten; at ten, the sum is divided by the
 count, the flag is set and the mean is stored at `0x102c0c`.
 
-Measured on a 58503A, 397 of 400 consecutive distinct values were each
-held for exactly ten one-second polls, which is this schedule seen from
-outside.
+On a 58503A, 397 of 400 consecutive distinct values were each held for
+exactly ten one-second polls: this schedule seen from outside.
 
 ### One reading
 
@@ -329,10 +320,9 @@ outside.
 5. A calibration double is subtracted.
 6. The long at `0x1023d0` is converted and added.
 
-`0x1023d0` is not a live value.  `FUN_0004045c` loads it, with
-`0x1023cc` and `0x1023d4`, from a checksummed 64-byte block at
-`0x400080`, and `FUN_000404be` writes them back: it is a stored
-constant.
+`0x1023d0` is a stored constant, not a live value: `FUN_0004045c`
+loads it, with `0x1023cc` and `0x1023d4`, from a checksummed 64-byte
+block at `0x400080`, and `FUN_000404be` writes them back.
 
 On failure the reading is replaced by a sentinel double and one of four
 error codes is logged.
@@ -341,23 +331,23 @@ error codes is logged.
 
 The counter is read through a port at `0x304000`.  `FUN_000440a6`
 writes a register index into a control byte, shadowed at `0x102673`,
-and reads back four bits; `FUN_000444e2` reads two nibbles for a byte,
-and the count is assembled from three bytes, register selectors `0x16`,
+and reads back four bits; `FUN_000444e2` reads two nibbles for a byte;
+the count is assembled from three bytes, register selectors `0x16`,
 `0x14` and `0x12`.
 
 ## The disciplining loop
 
 ### The stages
 
-The firmware's names for them, from its state strings at `0x2c5be` to
-`0x2c758`: `coarse`, then `fine` -- with the sub-states `fine start`,
-`fine sync meas`, `fine sync 1`, `fine sync 2`, `fine meas 1`,
-`fine meas delay`, `fine meas 2`, `fine slew`, `fine slew meas`,
-`fine fine slew` -- then `startup pll`, then `normal pll`.
+From the state strings at `0x2c5be` to `0x2c758`: `coarse`, then
+`fine` -- with sub-states `fine start`, `fine sync meas`, `fine sync
+1`, `fine sync 2`, `fine meas 1`, `fine meas delay`, `fine meas 2`,
+`fine slew`, `fine slew meas`, `fine fine slew` -- then `startup pll`,
+then `normal pll`.
 
-The stage lives in the byte at `0x10282c`, the first of the loop's
-state block.  The console word that prints `PLL state: ` switches on it
-at `0x2bba8`:
+The stage is the byte at `0x10282c`, the first of the loop's state
+block.  The console word that prints `PLL state: ` switches on it at
+`0x2bba8`:
 
 | Value | Name |
 | ----- | ---- |
@@ -377,16 +367,15 @@ The pSOS tasks are created at `0x231f0` to `0x232d4`: `gpsm` (entry
 `0x103d4e`) and `curv` (`0x450d4`, task id at `0x103d5e`); the SCPI
 task, `sci` (entry `0x39706`, task id at `0x103d5a`), is created by
 `FUN_00039732`.  The Z3805A's `:DIAGnostic:OS:PROCess?` lists the same
-names (see `z3801-tree.md`).
-The loop below runs in `pllp`; the fit in "The aging fit" runs in
-`curv`.
+names (see `z3801-tree.md`).  The loop below runs in `pllp`; the fit
+in "The aging fit" runs in `curv`.
 
 ### Fine acquisition
 
 `FUN_00048db6` is a state machine that takes fifty one-second readings
 of the interval (state 5, `DAT_00102845 < 0x33`), accumulates the sums
 of a straight-line fit, and sets the EFC from the fitted slope -- the
-frequency offset.  Its messages say so:
+frequency offset.  Its messages:
 
     i= %d, ti= %.1f, y0= %.2e, x0= %.2e
     y0 = %f, efc =  %d
@@ -396,19 +385,19 @@ frequency offset.  Its messages say so:
 
 ### The loop
 
-[`loop.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/loop.html) beside this file draws what follows as a block diagram,
-with the constants and the closed-loop poles.
+[`loop.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/loop.html)
+draws what follows as a block diagram, with the constants and the
+closed-loop poles.
 
-`FUN_0004824a` is `pll_normal`: its failure
-message is `pll_normal - Error with measurement` (`0x487f8`) and its
-report is
+`FUN_0004824a` is `pll_normal`: its failure message is `pll_normal -
+Error with measurement` (`0x487f8`) and its report is
 
     %d/%d/%d %02d:%02d:%02d efc= %d ti= %.1f loop= %d curr= %.2f
 
 It keeps its state in a block at `0x10282c`.  Each second it adds that
-second's reading (see "One reading" above) to a sum at `0x10272c`;
-every tenth second it runs the update below, in single-precision
-floating point.  Written out, with the addresses the values live at:
+second's reading (see "One reading") to a sum at `0x10272c`; every
+tenth second it runs the update below, in single-precision floating
+point.  The values and their addresses:
 
 | Symbol | Address | What it is |
 | ------ | ------- | ---------- |
@@ -434,50 +423,49 @@ The update:
     u  = K·f + B + I + c·s                   K = 1 / (G·τ)
 
 and `FUN_00033798(u)` converts the result.  On entry the integrator is
-cleared and B is set to the EFC in force less c·s, so that starting the
+cleared and B is set to the EFC in force less c·s, so starting the
 loop does not move the oscillator.
 
 q is the seconds counter `FUN_00023818` returns, which `FUN_00023624`
 advances once a second; it lies in the region a warm restart preserves
 (see "τ and G").  p and r are two coefficients of a fit to the EFC's
-own history, described under "The aging fit" below: with y = q / 2700,
-d = b + c / y is the slope of the fitted curve a + b·y + c·ln y at the
-present moment, in EFC units per 2700 s.  The integrator's second term
-is then 10·d / 2700: the EFC change the fit predicts over the ten
-seconds between updates.
+own history ("The aging fit"): with y = q / 2700, d = b + c / y is the
+slope of the fitted curve a + b·y + c·ln y now, in EFC units per
+2700 s.  The integrator's second term is then 10·d / 2700: the EFC
+change the fit predicts over the ten seconds between updates.
 
 That is a proportional-integral loop on the prefiltered interval error,
-with K ∝ 1/τ and the integral gain ∝ 1/(4τ²).  Taking the oscillator as
-the integrator that turns an EFC change into phase, with G as its gain,
-the loop gains are 1/τ and 1/(4τ²), which in the continuous
-approximation is a second-order loop with damping ratio 1.  The factor
-10 matches the ten seconds between updates.
+with K ∝ 1/τ and the integral gain ∝ 1/(4τ²).  Taking the oscillator
+as the integrator that turns an EFC change into phase, with gain G,
+the loop gains are 1/τ and 1/(4τ²): in the continuous approximation, a
+second-order loop with damping ratio 1.  The factor 10 matches the ten
+seconds between updates.
 
 ### Starting up
 
 `startup_pll`, at `0x47bac`, runs before `pll_normal` and applies the
-same update law, with two differences: its time constant is its own,
-at `0x102be8`, and it recomputes K, k and a from it on every update
-rather than once on entry.  That time constant is set to 150 s at
-`0x47af6` and `0x4af58`.
+same update law, except that its time constant is its own, at
+`0x102be8`, and it recomputes K, k and a from it every update rather
+than once on entry.  That time constant is set to 150 s at `0x47af6`
+and `0x4af58`.
 
 Its first state counts ten-second means whose magnitude is below
 150 ns -- the double 1.5 × 10⁻⁷, loaded as two halves at `0x47e60` and
 `0x47e66` -- and clears the count at the first that is not; sixteen in
 a row (`0x47e46`) end the state.  Then, at `0x47ede` to `0x47fce`, it
-lengthens its constant by 5 s (`0x47efe`) each update until that is
+lengthens its constant by 5 s (`0x47efe`) each update until it is
 within 5 s of τ, sets it to τ, and hands over to `pll_normal`.  The
 Z3801A's `FUN_000442ca` does the same.
 
 At `0x475b8` to `0x476b4` it also sets the EFC from the aging fit
 below: u = FUN_00033798(a + b·y + c·ln y + c·s), with y = q / 2700 and
-the ln term left out when y ≤ 1.  Which of its states runs that code
+the ln term omitted when y ≤ 1.  Which of its states runs that code
 was not traced.
 
 ### The aging fit
 
-The `curv` task fits a curve to the EFC's history, and the loop above
-feeds the curve's slope into its integrator.
+The `curv` task fits a curve to the EFC's history; the loop feeds the
+curve's slope into its integrator.
 
 **Sampling.**  `FUN_00044cbe`, which `pll_normal` calls on each pass
 (`0x48a66`, `0x48be2`), works on a ring of 64 samples at `0x102876`:
@@ -525,15 +513,15 @@ a + b·t + c·ln t.
 
 `FUN_00045ce0` is an unweighted least-squares line of e on y,
 returning the slope, the intercept and the rms of the residuals over
-n − 2; it fails, and clears its results, with fewer than three points
-or no spread in y.  The three-term fit forms a first c and a step from
-the line (`FUN_00045782`), refits the line to e − c·w with c moved by
-that step while the rms falls (`FUN_0004587a`), and sets c from the
-last three trials (`FUN_00045a78`).  Every fit but mode 0 ends by
-resetting a so that the curve passes through the newest sample
+n − 2; with fewer than three points or no spread in y it fails and
+clears its results.  The three-term fit forms a first c and a step
+from the line (`FUN_00045782`), refits the line to e − c·w with c
+moved by that step while the rms falls (`FUN_0004587a`), and sets c
+from the last three trials (`FUN_00045a78`).  Every fit but mode 0
+ends by resetting a so the curve passes through the newest sample
 (`FUN_0004571c`).  HQ is `FUN_00045f94`'s result for modes 2 to 4 and
-4.32 × 10⁻⁴ for modes 0 and 1; what it measures was not traced.  128 in
-units of 2700 s is 96 hours.
+4.32 × 10⁻⁴ for modes 0 and 1; what it measures was not traced.  128
+in units of 2700 s is 96 hours.
 
 **Back to the loop.**  `curv` then sends event 0x100 to `pllp`.  At the
 start of each sampling pass `FUN_0004508e` asks for that event
@@ -541,11 +529,11 @@ start of each sampling pass `FUN_0004508e` asks for that event
 `0x102bd8` -- the loop's r -- c to `0x102bdc` -- its p -- and HQ to
 `0x102866`.  All four sit in the loop block a warm restart preserves,
 so after such a restart the loop starts with the last fit.  After a
-power-up they are zero, and stay zero until a fit with at least three
-samples -- mode 1 or above -- so d is zero for the first hours of the
-loop.  The `holdover` stage, `FUN_000473de` (its return of 1 moves
-the stage byte to 4 at `0x4b36a`), seeds a with u − c·s when a is
-zero (`0x47440` to `0x47460`).
+power-up they are zero until a fit with at least three samples --
+mode 1 or above -- so d is zero for the loop's first hours.  The
+`holdover` stage, `FUN_000473de` (its return of 1 moves the stage byte
+to 4 at `0x4b36a`), seeds a with u − c·s when a is zero (`0x47440` to
+`0x47460`).
 
 The console's `last efc average = %.1f` (`0x2c3a5`) prints the newest
 e; `dmes_curv` (`0x2befe`) sets the byte at `0x103d8a`.
@@ -554,72 +542,71 @@ e; `dmes_curv` (`0x2befe`) sets the byte at `0x103d8a`.
 
 `FUN_000324b0(n)` returns channel n of eight measured channels, each a
 48-byte record at `0x102258` + 0x30·n: the live value when the flag at
-`0x10225c` + 0x30·n is set, and otherwise a default from a ROM table at
+`0x10225c` + 0x30·n is set, otherwise a default from a ROM table at
 `0x325b2` + 0x2a·n.  The channels' names follow that table at
 `0x326e6`, in order:
 
     12B  5V  12C  -12B  -12C  -12D  Oscillator current  Antenna current
 
 and their defaults are 12, 5, 12, −11.5, −11.5, −11.5, 250 and 50.  The
-loop reads channel 6, the oscillator current, so the term c·s is a
-stored constant times the oscillator current.
+loop reads channel 6, so c·s is a stored constant times the oscillator
+current.
 
-What the record holds is not the latest reading.  Each channel's
+The record does not hold the latest reading.  Each channel's
 descriptor at `0x32596` + 0x2a·n names a conversion (`FUN_00031e66`
 for channel 6) that `FUN_00031eac(n)` applies to a fresh ADC read, and
 a writer that files the result: `FUN_00031f3e` for most channels,
 which averages ten readings; `FUN_00031fc4` and, for channel 6,
 `FUN_00032048`, which keep an exponential average, s ← 0.1·fresh +
 0.9·s (`0x3dcccccd`, `0x3f666666`) on each of the health monitor's
-passes.  So the loop's s follows the current with a lag of about ten
-passes, and a flicker of the reading between two ADC levels barely
-moves it.  The SCPI queries read different cells: `:DIAGnostic:
-ROSCillator:CURRent?` (handler `0x3b18c`) returns `FUN_00031eac(6)`, a
-fresh conversion, not the average the loop uses; `:DIAGnostic:
-ROSCillator:EFControl:ABSolute?` (`0x3b1f0`) and `:RELative?`
-(`0x3b1a2`) both read u at `0x10285e`, the value the loop's update
-writes, so on this firmware the DAC word a monitor logs is the whole
-of the update, c·s included.
+passes.  So the loop's s lags the current by about ten passes, and a
+reading flickering between two ADC levels barely moves it.  The SCPI
+queries read different cells: `:DIAGnostic:ROSCillator:CURRent?`
+(handler `0x3b18c`) returns `FUN_00031eac(6)`, a fresh conversion, not
+the loop's average; `:DIAGnostic:ROSCillator:EFControl:ABSolute?`
+(`0x3b1f0`) and `:RELative?` (`0x3b1a2`) both read u at `0x10285e`,
+the value the update writes, so on this firmware the DAC word a
+monitor logs is the whole update, c·s included.
 
 c is what `:DIAGnostic:ROSCillator:TCOefficient` reads and writes.
 The query's node names the handler `FUN_0003b248`, which formats the
 record at `0x43324`: the cell `0x1023cc`, the getter `FUN_00022bb8`,
 the limits −200 and 200 (`0x43314`, `0x43318`) and the setter
 `FUN_000404be`, which writes the calibration block back to the EEPROM
-at `0x400080`.  Nothing else in the image writes the cell: the loop
-applies it at every update, `startup_pll` and the aging fit's sampler
-use it, and none of them adjusts it.  So in this firmware the
-"temperature coefficient" is a stored calibration constant that
-multiplies the oscillator current -- in EFC units per unit of that
-channel, whose nominal reading is 250 -- applied all the time, not a
-coefficient on temperature and not learned while locked.
+at `0x400080`.  Nothing else writes the cell: the loop applies it every
+update, `startup_pll` and the aging fit's sampler use it, and none
+adjusts it.  So in this firmware the "temperature coefficient" is a
+stored calibration constant multiplying the oscillator current -- in
+EFC units per unit of that channel, nominally 250 -- applied all the
+time; it is not a coefficient on temperature and is not learned while
+locked.
 
-The console word that measures it is `xcal` (`0x2bf78`).  Given a
-number of seconds, it prints `curr= %d efc= %.1f, sec remaining= %d`
-(`0x2c7db`) every ten seconds for that long -- the raw current from
-the ADC (`FUN_0002e3b0`, the reading shifted right by two) and the EFC
-in force at `0x10285e` -- then `now do a least square line fit to
-data...` and `tempco = %f` (`0x2c803`, `0x2c82f`), the slope of EFC
-on current.  It stores nothing; the value is entered afterwards with
-the SCPI command.
+The console word `xcal` (`0x2bf78`) measures it.  Given a number of
+seconds, it prints `curr= %d efc= %.1f, sec remaining= %d` (`0x2c7db`)
+every ten seconds for that long -- the raw current from the ADC
+(`FUN_0002e3b0`, the reading shifted right by two) and the EFC in
+force at `0x10285e` -- then `now do a least square line fit to
+data...` and `tempco = %f` (`0x2c803`, `0x2c82f`), the slope of EFC on
+current.  It stores nothing; the value is entered afterwards with the
+SCPI command.
 
 The 58503A images 3633 and 3704 apply the same term ("The 58503A
 image"), though the bench 58503A's DAC word does not jump at a step of
 its reported oven current (`efc.md`, "The regression").  The Z3801A's
 image reads channel 3 of its own function, `FUN_00022fd2`; its report
 strings list Temperature, 5V, +15V, −15V, Oven, Double oven and Antenna
-current, but which of those is its channel 3 was not traced.
+current, but which is its channel 3 was not traced.
 
 ### τ and G
 
 `FUN_0002b358` sets τ from its argument.  Nothing calls it directly; a
 pointer to it sits in the console's word table at `0x2d368`, beside the
 name `loop_time`, and the message `max loop time = %d` (`0x2c370`)
-prints τ.  It is the only code that writes τ's address, and the start-up
-code clears the RAM τ lives in, so its value in service comes from
-somewhere else: a 25-byte block of defaults in ROM.
+prints τ.  It is the only code that writes τ's address, and the
+start-up code clears the RAM τ lives in, so its value in service comes
+from a 25-byte block of defaults in ROM.
 
-τ lives at offset 0x14 of a 25-byte block at `0x102534`.  The
+τ is at offset 0x14 of a 25-byte block at `0x102534`.  The
 initialization routine `FUN_00022c7c` fills that block one of two ways:
 
 - from ROM, `memcpy(0x102534, 0x40174, 0x19)` (`0x22dd8`, `0x22e06`),
@@ -627,28 +614,26 @@ initialization routine `FUN_00022c7c` fills that block one of two ways:
   routine first copies a longer block of defaults, `0x400de` to
   `0x40173`, into `0x10249e` to `0x102532`;
 - or from the region `0x100000` to `0x100c3b`, which the start-up code
-  does not clear (its clear runs from `0x100c3c`) and which the pllp
-  task keeps writing its state into (`0x4b5fc`: the τ block to
+  does not clear (its clear runs from `0x100c3c`) and into which the
+  pllp task keeps writing its state (`0x4b5fc`: the τ block to
   `0x100b82`, the loop block to `0x100622`, another to `0x100004`).
   That copy is taken when a byte checksum of the region (`FUN_00040056`
   over 0xb9c bytes) matches the word stored at its start, the flag word
-  at `0x100002` is 1, the byte at `0x10262c` is clear and bits 7 and 6
+  at `0x100002` is 1, the byte at `0x10262c` is clear, and bits 7 and 6
   of the reset-status register at `0xfffa07` are clear -- EXT and POW
   in MC68331UM D.3.4: the reset was neither external nor a power-up
   (the other bits are SW, HLT, LOC, SYS and TST; `FUN_00022c7c` at
-  `0x22dc4` also asks for the register to be exactly SYS, a RESET
-  instruction); then the loop
-  block, the health-monitor records and the τ block are all restored
-  event 0x19 is posted (`FUN_0003ec76`) and `Power on` is written to
-  the log (`FUN_00041180(1)`, `0x4b188`).  Otherwise the defaults are
-  loaded and `System preset` is logged (`FUN_00041180(0x1b)`,
-  `0x4b196`).
+  `0x22dc4` also requires the register to be exactly SYS, a RESET
+  instruction).  Then the loop block, the health-monitor records and
+  the τ block are restored, event 0x19 is posted (`FUN_0003ec76`) and
+  `Power on` is logged (`FUN_00041180(1)`, `0x4b188`).  Otherwise the
+  defaults are loaded and `System preset` is logged
+  (`FUN_00041180(0x1b)`, `0x4b196`).
 
 So a value set with `loop_time` survives a reset that leaves RAM
-intact, and 500 s is what the loop uses after a power-up.  The startup
-ramp (above) runs its own constant from 150 s to τ − 5 in steps of 5 s
-per ten-second update, so it reaches 500 s about 700 s after it
-begins.
+intact, and the loop uses 500 s after a power-up.  The startup ramp
+(above) runs its own constant from 150 s to τ − 5 in 5 s steps per
+ten-second update, reaching 500 s about 700 s after it begins.
 
 The Z3801A's image does the same with its block at `0x101e6e`, filled
 from ROM `0x2f846` (`0x12ce0`), whose float at offset 0x14 is
@@ -685,33 +670,31 @@ lock at `0x1023fa`.
 
 G is a constant.  `FUN_0004b088` reads the hardware word at
 `0x302000` and passes −1.25 × 10⁻¹² if bit 8 is set and
-−2.125 × 10⁻¹² if it is clear (`0x4b14c` to `0x4b166`); the Z3801A's
-image passes a fixed +6.25 × 10⁻¹³ (`0x475bc`).  That word is the
-whole of what the firmware does with chip select 7: the reset code
-makes `0x302000` a 2 KB, 16-bit, read-only block with one wait state
-(see the chip-select table above), `0x4b14c` is the only access to it
-in the image -- every other form of the address was searched for --
-and only bit 8 of the word is ever looked at.  So it is an input port
-the processor reads once, when the loop task starts, and what drives
-its bit 8 -- a link, a switch, or a signal from the oscillator or
-DAC board -- is on the board, not in the image.  The Z3801A's reset
-code sets no chip select there and its image never reads the address.
-What the sign of G stands for was not traced.
+−2.125 × 10⁻¹² if clear (`0x4b14c` to `0x4b166`); the Z3801A's image
+passes a fixed +6.25 × 10⁻¹³ (`0x475bc`).  That word is all the
+firmware does with chip select 7: the reset code makes `0x302000` a
+2 KB, 16-bit, read-only block with one wait state (see the chip-select
+table above), `0x4b14c` is the only access to it in the image -- every
+other form of the address was searched for -- and only bit 8 is
+examined.  So it is an input port the processor reads once, when the
+loop task starts; what drives bit 8 -- a link, a switch, or a signal
+from the oscillator or DAC board -- is on the board, not in the image.
+The Z3801A's reset code sets no chip select there and its image never
+reads the address.  What the sign of G stands for was not traced.
 
 `FUN_0004b022(G)` stores G, sets both gain constants to 1/G, sets M to
 6.25 × 10⁻¹⁰ / |G|, and sets a second limit at `0x102c3c` to
 5.787 × 10⁻¹⁴ / G -- 5.787 × 10⁻¹⁴ being 5 × 10⁻⁹ per day expressed per
-second.  Its one caller is
-`FUN_0004b088`.
+second.  Its one caller is `FUN_0004b088`.
 
 ### How this was read
 
-The arithmetic is done by a software floating-point library, which the
-decompiler shows only as calls with the operands hidden.  Each routine
-was identified by running it in an emulator (Unicorn, on a 68000 core)
-on known inputs, and the update above transcribed from the disassembly
-of `0x4850c` to `0x48674`.  Operands go in D0 and D1 and the result
-comes back in D0:
+A software floating-point library does the arithmetic; the decompiler
+shows it only as calls with the operands hidden.  Each routine was
+identified by running it in an emulator (Unicorn, on a 68000 core) on
+known inputs, and the update above was transcribed from the
+disassembly of `0x4850c` to `0x48674`.  Operands go in D0 and D1 and
+the result comes back in D0:
 
 | Routine | Operation |
 | ------- | --------- |
@@ -750,8 +733,8 @@ integers `0xa8c` 2700, `0x2a3` 675, `0x2a30` 10800.
 ## The ovens
 
 Both images name a `doven` console word, and the Z3801A's health
-monitor names a "Secondary oven voltage".  The processor does not
-regulate the outer oven of a double-oven oscillator; it switches it.
+monitor names a "Secondary oven voltage".  The processor switches the
+outer oven of a double-oven oscillator; it does not regulate it.
 
 ### The switch
 
@@ -764,8 +747,8 @@ Two other places set that bit and nothing else clears it:
   (`0x49c00`).
 
 Both also set the byte at `0x10222b` to 1, which nothing reads.  The
-status screen's `Oven Pwr` field is produced by a different routine,
-`0x4e9d2`, which was not traced.
+status screen's `Oven Pwr` field comes from a different routine,
+`0x4e9d2`, not traced.
 
 ### When it is switched on
 
@@ -781,16 +764,17 @@ The power-up machine's states, named by the print switch at `0x2bbe8`:
 | 5 | fine | `FUN_00048db6` (above) returns 1 |
 | 6, 7 | waiting; calculating leapseconds | -- |
 
-`FUN_0003254a` is the whole of the decision: it returns true when the
+`FUN_0003254a` makes the decision alone: it returns true when the
 float at `0x102358` exceeds 0.9.  That float is field `+0x08` of
-health-monitor record 6, the oscillator current's (records are 48 bytes
-at `0x102230`; see below), and it is set to 1.0 by that channel's own
-routine `FUN_00032048` when the current has settled: every 75th call
-it takes the change in the filtered current since the last such call
-and marks the channel settled if the change is greater than −10 and the
-current is below 650 -- the channel descriptor's two limits -- or if
-the seconds counter at `0x100c08` has passed 900.  On the channel's
-first reading the flag is cleared and the change is seeded at −10.
+health-monitor record 6, the oscillator current's (records are 48
+bytes at `0x102230`; see below), and the channel's own routine
+`FUN_00032048` sets it to 1.0 when the current has settled: every 75th
+call it takes the change in the filtered current since the last such
+call and marks the channel settled if the change is greater than −10
+and the current is below 650 -- the channel descriptor's two limits --
+or if the seconds counter at `0x100c08` has passed 900.  On the
+channel's first reading the flag is cleared and the change seeded at
+−10.
 
 So the outer oven is powered once the inner oven's current has stopped
 falling, or after fifteen minutes regardless.  State 2 lasts one
@@ -800,8 +784,7 @@ it afterwards.
 ### The Z3801A
 
 The same two machines (`FUN_00045ec6` at `0x45f84`, `FUN_000461c0` at
-`0x461fe`) set the same bit and a flag at `0x101b6f`; its default
-time constant is 1000 s, against the Z3816A's 500 s.  Its decision,
+`0x461fe`) set the same bit and a flag at `0x101b6f`.  Its decision,
 `FUN_000230b8`, reads health-monitor channel 5 -- named `Oven` by the
 console's print word (`0x1adfe`) -- and returns true when the filtered
 value is below −2.0.  That channel's reader, the `adc_oven` word,
@@ -810,16 +793,15 @@ are was not traced.
 
 The Z3801A also monitors a "Secondary oven voltage": state 1 of its
 supply monitor `FUN_00022c44` reads the `adc_doven` word
-(0.0743·ADC₁ − 0.0472·ADC₄), but only while `0x101b6f` is set, that is
-once the outer oven is on, and raises the alarm above 6.8 with no lower
-limit.  The Z3816A's monitor has no oven channel at all: its eight are
-`12B`, `5V`, `12C`, `-12B`, `-12C`, `-12D`, `Oscillator current` and
-`Antenna current`.
+(0.0743·ADC₁ − 0.0472·ADC₄), but only while `0x101b6f` is set -- once
+the outer oven is on -- and raises the alarm above 6.8, with no lower
+limit.  The Z3816A's monitor has no oven channel (see "s, the
+oscillator current").
 
 ### What others have measured
 
-None of the following was measured here; it is what owners have
-reported, and it agrees with the code.
+None of the following was measured here; owners reported it, and it
+agrees with the code.
 
 - On a Z3805A the outer oven's enable is pin 8 of the power board's
   connector P2: 0 V with the heater off, about 4.5 V with it on, and
@@ -846,9 +828,9 @@ reported, and it agrees with the code.
   (<https://www.febo.com/pipermail/time-nuts/2013-July/078414.html>);
   Jarl Risum wrote that it holds 60 to 65 °C in normal operation
   (<https://febo.com/pipermail/time-nuts_lists.febo.com/2020-April/099815.html>).
-  The code settles only the processor's part: once the enable is set it
-  is never cleared, so what the heater does after that is the analog
-  controller's doing.
+  The code settles only the processor's part: once set, the enable is
+  never cleared, so what the heater does after that is up to the
+  analog controller.
 - An owner's "Z3801A Outer Oven Description", with a schematic drawn
   from their own unit, was on ko4bb.com and survives as a PDF attached
   to a time-nuts message of December 2022
@@ -873,16 +855,14 @@ reported, and it agrees with the code.
   heating power in the ON state".
 
 The description agrees with the code.  PGP5 is bit 5 of the GPT's
-port GP, which is the `0xfff907` bit the firmware sets; the heater is
-off until the processor raises it, regulated by the analog PI loop
-once it does, and never turned off again by the firmware.  P2/9, the
-servo output, is what the Z3801A's firmware watches as "Secondary oven
-voltage" once the oven is on; its limit of 6.8 is in the units the
-firmware's channel reader produces, not volts at P2/9, and the two
-scales were not related.  An ADC0838 is also what the firmware's ADC
-reader talks to: it sends a start bit and channel select over the QSPI
-and keeps eight bits of the reply.  All of this rests on the report,
-not on this bench.
+port GP, the `0xfff907` bit the firmware sets; the heater is off until
+the processor raises it, regulated by the analog PI loop once it does,
+and never turned off again by the firmware.  P2/9, the servo output, is
+what the Z3801A's firmware watches as "Secondary oven voltage" once the
+oven is on; its limit of 6.8 is in the units of the firmware's channel
+reader, not volts at P2/9, and the two scales were not related.  The
+firmware's ADC reader also talks to an ADC0838: it sends a start bit
+and channel select over the QSPI and keeps eight bits of the reply.
 
 ### What `hdac` is not
 
@@ -893,10 +873,9 @@ from the console, the only code that writes them is the time-interval
 counter's interpolator calibration, `FUN_00043b56`: it steps DAC
 channels 2 and 3 (`0x43a9c`, `0x439be`) until the interpolator's
 readings at its two reference points fall in 1..25 and 201..225 with a
-spread of exactly 200, and stores the result.  It is run from
-`FUN_00048aea`, which the power-up machine's state 0 calls with 1 and
-the recovery machine with 0.  These DACs trim the counter, and have
-nothing to do with an oven.
+spread of exactly 200, and stores the result.  `FUN_00048aea` runs it,
+called with 1 by the power-up machine's state 0 and with 0 by the
+recovery machine.  These DACs trim the counter, not an oven.
 
 ### The health monitor
 
@@ -919,13 +898,13 @@ value at +0x28 (0.9 of the old, 0.1 of the new, per `FUN_00032048` and
 the Z3801A's `FUN_00022b88`), an enabled flag at +0x2c, an
 out-of-tolerance flag at +0x2e, and for the oscillator current the
 previous value at +0, its change at +4 and the settled flag at +8.
-`FUN_000324b0(n)` returns the filtered value or the default, and is
-what `pll_normal` reads for its oscillator-current term.  The same loop
-counts 1 PPS edges through the `0xfff90c`/`0xfff90d` counter every
-0xcc passes (`FUN_00033ad0`: `GPS 1pps signal is dead`, `... frequency
-is incorrect`, expecting 8 to 12 in ten samples) and does the same for
-an internal 1 PPS (`FUN_00033c4a`, setting `0x102229`, which the loop
-treats as an error).
+`FUN_000324b0(n)` returns the filtered value or the default; it is
+what `pll_normal` reads for its oscillator-current term.  The same
+loop counts 1 PPS edges through the `0xfff90c`/`0xfff90d` counter
+every 0xcc passes (`FUN_00033ad0`: `GPS 1pps signal is dead`, `...
+frequency is incorrect`, expecting 8 to 12 in ten samples) and does
+the same for an internal 1 PPS (`FUN_00033c4a`, setting `0x102229`,
+which the loop treats as an error).
 
 ## The debug console
 
@@ -942,13 +921,13 @@ include words that call the real-time system directly: `spawn`,
 `dev_write`, `dev_ctrl`.  That layout and those names are not Phil
 Burk's portable pForth; what the name stands for here is not known.
 
-Every word's code pointer is a 68000 routine of its own -- only one pair
-share one -- so none is a Forth definition, which would point at a
-common routine that runs a list of other words.  No Forth source text is
-stored in the image.  The interpreter is a shell over compiled code, not
-a language any of the firmware is written in; `:` can still define
-words at run time, and a word named `startup` exists, so whether Forth
-is loaded from elsewhere at boot is not something the image can show.
+Every word's code pointer is a 68000 routine of its own -- only one
+pair share one -- so none is a Forth definition, which would point at a
+common routine that runs a list of other words.  No Forth source text
+is stored in the image.  The interpreter is a shell over compiled
+code, not a language any of the firmware is written in; `:` can still
+define words at run time, and a word named `startup` exists, so the
+image cannot show whether Forth is loaded from elsewhere at boot.
 
 A second table, around `0x2d300`, holds the firmware's own words, each
 a name followed by the address of its code.  Among them:
@@ -970,20 +949,20 @@ third.  It upper-cases its argument and compares it with `PFORTH`
 0 for `PFORTH`, 1 for `INSTALL` -- and returns `0xffffffc4`, which ends
 the SCPI parser's loop.  Anything else goes to `FUN_0003b7d8`.
 
-The comparison is guarded by a check of which port the command came
-from, `FUN_00039480`: only port 1 may change the language.  That is the
-rule 097-59551-02 states for the 59551A, whose front-panel PORT 2 is a
-second SCPI port that "cannot be used to upgrade the Receiver
+The comparison is guarded by a check of the port the command came
+from, `FUN_00039480`: only port 1 may change the language.  That is
+the rule 097-59551-02 states for the 59551A, whose front-panel PORT 2
+is a second SCPI port that "cannot be used to upgrade the Receiver
 firmware".  The `*IDN?` handler keeps a reply buffer per port for the
 same reason.  In this image `FUN_00039480` returns 1 unconditionally,
-so the Z3816A accepts the command on the one port it has.
+so the Z3816A accepts the command on its one port.
 
-`FUN_000395fc`, the SCPI task, runs the parser on its port and, when the
-parser returns, reads `0x103326`: for `PFORTH` it calls `0x2fe06` with
-the code at `0x230ba`; for `INSTALL` it calls `0x23036`; then it ends
-itself through `0x271ac`.  The choice is held only in RAM -- nothing
-else writes `0x103326` and nothing reads it at startup -- so a power
-cycle starts the SCPI task again.
+`FUN_000395fc`, the SCPI task, runs the parser on its port and, when
+the parser returns, reads `0x103326`: for `PFORTH` it calls `0x2fe06`
+with the code at `0x230ba`; for `INSTALL` it calls `0x23036`; then it
+ends itself through `0x271ac`.  The choice is held only in RAM --
+nothing else writes `0x103326` and nothing reads it at startup -- so a
+power cycle starts the SCPI task again.
 
 `0x2fe06` runs the function it is given at once when the byte at
 `0x10385e` is clear, and otherwise queues it to `0x10385a` for another
@@ -1005,32 +984,31 @@ table is eighteen `jmp` stubs, six per major, and major 0's are the
 SCI driver's -- `FUN_0002ed56`, the initialization that creates
 `sciR` and `sciW`, then `0x2ecae`, `0x2ebc0`, `0x2f15c`, `0x2f10e`
 and `0x2efb6` for open, close, read, write and control.  So the
-console reads and writes the same port SCPI does.  The same `de_open(0)` is made at
-`0x2f286`, and `de_open(1)` at `0x2f34a`.
+console reads and writes the same port as SCPI.  The same
+`de_open(0)` is made at `0x2f286`, and `de_open(1)` at `0x2f34a`.
 
 The word list (`0x2a500` to `0x2b100`, 89 kernel words, and the 69
 diagnostic words from `0x2c800`; every code pointer in both tables is
-an even ROM address) is a stock kernel
-plus pSOS wrappers -- `spawn`, `delete`, `suspend`, `resume`,
-`priority`, `send_x`, `request_x`, `signal_v`, `wait_v`, `dev_init`,
-`dev_open`, `dev_close`, `dev_read`, `dev_write`, `dev_ctrl`, `!iodev`
--- and the diagnostic words.  It has no `bye`, `quit` or `exit`;
-the way back to SCPI is `halt` (see "Leaving it").
+an even ROM address) is a stock kernel plus pSOS wrappers -- `spawn`,
+`delete`, `suspend`, `resume`, `priority`, `send_x`, `request_x`,
+`signal_v`, `wait_v`, `dev_init`, `dev_open`, `dev_close`, `dev_read`,
+`dev_write`, `dev_ctrl`, `!iodev` -- and the diagnostic words.  It has
+no `bye`, `quit` or `exit`; the way back to SCPI is `halt` (see
+"Leaving it").
 
 ### Leaving it
 
-`halt` is the console's own exit, and it is the same in every image
-(read from the images, October 2026; tried on a Z3805A and a 58503A,
-below).  It
+`halt`, the console's own exit, is the same in every image (read from
+the images, October 2026; tried on a Z3805A and a 58503A, below).  It
 reads a hook cell and jumps through it, or executes `trap #14` when
 the cell is zero.  The interpreter's setup clears the cell and the
 console's start sets it at once, so in practice the hook runs.  The
 hook raises the console task's priority to 26, has the deferred-call
-routine run the SCPI task's creator at priority 25 -- the same creator
-the root task uses at boot, which looks the task up by name and
-creates and starts it -- clears the console's task id and deletes the
-console task.  The new SCPI task, below the console's 26, cannot run
-until the console is gone.
+routine run the SCPI task's creator at priority 25 -- the creator the
+root task uses at boot, which looks the task up by name and creates
+and starts it -- clears the console's task id and deletes the console
+task.  The new SCPI task, below the console's 26, cannot run until the
+console is gone.
 
 | Image | `halt` | Hook cell | Hook (set at) | Creator |
 | ----- | ------ | --------- | ------------- | ------- |
@@ -1042,13 +1020,13 @@ until the console is gone.
 
 So `halt` returns the port to SCPI without restarting the processor,
 without the installer, without an EEPROM write and without the
-checksums the installer route costs, and needs no address.  Two things
-it does not do.  The console's 4 KB dictionary, allocated with pSOS
+checksums the installer route costs, and needs no address.  It leaves
+two things undone.  The console's 4 KB dictionary, allocated with pSOS
 call 8 (Z3801A `0x1aa40`), is never returned -- the only callers of
 call 9 are the SCPI task's own parser buffer and the C library's
 `free` -- so each visit to the console probably leaks 4 KB of the
 region the task stacks share.  And the console does not close device
-0 before deleting itself, where the SCPI task frees its buffer and
+0 before deleting itself, whereas the SCPI task frees its buffer and
 closes its stream before handing over (`0x28fac` to `0x28fbc`).  How
 many visits a unit survives, and whether the second open of the port
 matters, are for the bench; `mem_rep` reports free memory.
@@ -1060,18 +1038,18 @@ empty error queue; `*IDN?` and ordinary queries answered as before.
 `mem_rep` in the second visit matched the first: 18,790 bytes free,
 and the console's two segments, 4,114 and 2,854 bytes, at the same
 addresses (`0x10af2e`, `0x10a408`).  The bench 58503A (3710A01056,
-3704-C, 19200 8N1), whose hook differs, did the same the same day:
+3704-C, 19200 8N1), whose hook differs, did the same that day:
 `scpi > ` at once both times, `"PRIMARY"`, an empty error queue, and
 16,248 bytes free in both visits with the console's segments at
-`0x10a71c` and `0x109bf6`.  So on both units two visits leaked nothing
+`0x10a71c` and `0x109bf6`.  On both units two visits leaked nothing
 `mem_rep` shows.
 
 ### Reading memory through it
 
-The console's `c@` and `@` read the running unit's own memory, so its
-ROM and its EEPROM can be read without opening it.  Loops are
-compile-only here, so one word does it, and defining it touches
-nothing but the dictionary in RAM:
+The console's `c@` and `@` read the running unit's memory, so its ROM
+and EEPROM can be read without opening it.  Loops are compile-only
+here, so one word does it, and defining it touches only the dictionary
+in RAM:
 
     : rd ( addr n -- ) over + swap do i @ u. 4 +loop ;
 
@@ -1080,18 +1058,18 @@ bytes.  `smartclock-cli read-memory` does the rest: it sends an empty
 line and, when no console prompt comes back within three seconds,
 sends `:SYSTem:LANGuage "PFORTH"` and waits for one; then it defines
 `rd`, reads 1 KB per request with retries, each after draining the
-line and taking a fresh prompt, writes the bytes to a file
-and, given `--compare`, checks each kilobyte against an image of the
-same length, failing on any difference.  Then,
-unless given `--stay-in-console`, it returns the port to SCPI, after a
-failed read as well.  It sends `halt` and checks that
-`:SYSTem:LANGuage?` answers `"PRIMARY"` ("Leaving it").  If it does
-not, it falls back to the installer: it checks that the cell and
-`trap #11` of exactly one known image are where that image has them,
-sends `<cell> execute`, checks that the installer answers
-`:SYSTem:LANGuage?` with `"INSTALL"`, sends `:SYSTem:LANGuage
+line and taking a fresh prompt, writes the bytes to a file and, given
+`--compare`, checks each kilobyte against an image of the same length,
+failing on any difference.  Then, unless given `--stay-in-console`, it
+returns the port to SCPI, after a failed read as well.  It sends
+`halt` and checks that `:SYSTem:LANGuage?` answers `"PRIMARY"`
+("Leaving it").  If not, it falls back to the installer: it checks
+that the cell and `trap #11` of exactly one known image are where that
+image has them, sends `<cell> execute`, checks that the installer
+answers `:SYSTem:LANGuage?` with `"INSTALL"`, sends `:SYSTem:LANGuage
 "PRIMARY"`, and checks for `"PRIMARY"` again ("Forced installer entry
-with an unusable primary").  Nothing is erased or programmed.  The procedure:
+with an unusable primary").  Nothing is erased or programmed.  The
+procedure:
 
 1. Stop the unit's daemon, which holds the port:
    `sudo systemctl stop smartclockd@<port>`.
@@ -1107,18 +1085,18 @@ with an unusable primary").  Nothing is erased or programmed.  The procedure:
    ranges fixed.
 
 3. Start the daemon again.  With `--stay-in-console`, or if neither
-   way out worked, leave the console with `halt` by hand or power cycle
-   the unit first.
+   way out worked, first leave the console with `halt` by hand or
+   power cycle the unit.
 
 On 2026-09-28 the bench Z3801A (3542A01548, 3543-A) read 4 bytes this
 way and came back to SCPI on 3543-A, in PRIMARY, with an empty error
 queue, without a power cycle.  On 2026-10-04, after `read-memory`
 changed to leave with `halt`, `read-eeprom` on the bench Z3805A and
 58503A each came back through `halt`, in PRIMARY with an empty error
-queue, and the installer fallback was not used.  The installer route
-restarts the primary, and the restart writes the EEPROM: on
-2026-09-28, between two `read-eeprom` runs that returned that way, one
-44-byte record was added at `0x1140`, after the last one there.
+queue, without the installer fallback.  The installer route restarts
+the primary, and the restart writes the EEPROM: on 2026-09-28, between
+two `read-eeprom` runs that returned that way, one 44-byte record was
+added at `0x1140`, after the last one there.
 
 On the bench Z3801A (3542A01548, 3543-A), on 2026-09-26, the ROM came
 back in 689 seconds and is byte-identical to `z3801a-3543.bin`:
@@ -1129,11 +1107,11 @@ revision.  Its EEPROM took 6 seconds.  It begins with the model
 `0x0c0` and `0x140`, each starting with the revision `3543` -- the
 two settings records `:SYSTem:PRESet` writes at `0x4000c0` in the
 Z3816A image; and from `0x1c0` holds the diagnostic log, starting
-with `Log cleared`.  The rest of its layout is not worked out here.
-The first session is `docs/z3801a-pforth.txt`.
+with `Log cleared`.  The rest of its layout is not worked out.  The
+first session is `docs/z3801a-pforth.txt`.
 
 The bench 58503A (3710A01056, 3704-C) works the same way at 19200 8N1.
-On the same day its ROM came back in 647 seconds and is
+The same day its ROM came back in 647 seconds and is
 `third_party/58503a-3704.bin`, SHA-256
 `d13b9ff1e4a0a59517aac4d066c60e22b290cf4ff6810c5c2bf01f1bc9491ca3`:
 the same reset vector as 3633, its revision string `3704` at
@@ -1151,9 +1129,9 @@ the same reset vector, its revision string `3543B` at `0x12eee`, where
 the Z3801A image has `3543`, and 281 of its 512 kilobytes different
 from `z3801a-3543.bin`.  Its console words are the Z3801A's, all 242.
 Its EEPROM, `third_party/z3805a-3625A01487-eeprom.bin`, opens with
-`Z3805A`, `3625A01487` and `AS` where the Z3801A's has `AQ`; and its
-diagnostic log is stamped with calendar dates where the Z3801A's
-uses hex.  The session is `docs/z3805a-pforth.txt`.
+`Z3805A`, `3625A01487` and `AS` where the Z3801A's has `AQ`; its
+diagnostic log is stamped with calendar dates where the Z3801A's uses
+hex.  The session is `docs/z3805a-pforth.txt`.
 
 The 58503A's and the Z3801A's firmware words differ.  The 58503A's has
 `force_ext_1pps` and `force_gps_1pps` where the Z3801A's has
@@ -1171,24 +1149,22 @@ firmware drives two serial devices:
 - the processor's own SCI, with the message exchanges `sciR` and `sciW`
   and the driver strings at `0xba16` and `0x2f395`;
 - channel A of the 68681 DUART, `drta_send_message` and
-  `drta_get_byte` (`0x2df43`), which is the GPS receiver link described
-  above.
+  `drta_get_byte` (`0x2df43`), the GPS receiver link described above.
 
 Channel B of the DUART buffers no data ("The GPS receiver link"), its
 transmit register (`0x200017`) is written only by the loopback
 self-test, and the remaining references reset it.  So the console,
 like SCPI, is on the SCI, and nothing in the firmware runs a console
-on another port.
-Whether channel B is wired to a header on the board is not something
-the image can show.
+on another port.  The image cannot show whether channel B is wired to
+a header on the board.
 
-The Z3801A's image, revision 3543, does it the other way.  It carries no
-SCI driver: its host port is channel B of the DUART, with the exchanges
-`drtR` and `drtW` (`0x460c`) and the interrupt messages
-`DUARTB isr signaling ...` (`0x4686`), while `drta_get_byte` is still the
-GPS link on channel A.  The Z3805A's own `:DIAGnostic:OS` listing names
-both `sciR`/`sciW` and `drtR`/`drtW` (`z3801-tree.md`), so its firmware,
-3543B, is neither image exactly.
+The Z3801A's image, revision 3543, does the reverse.  It has no SCI
+driver: its host port is DUART channel B, with the exchanges `drtR`
+and `drtW` (`0x460c`) and the interrupt messages `DUARTB isr signaling
+...` (`0x4686`), while `drta_get_byte` is still the GPS link on
+channel A.  The Z3805A's own `:DIAGnostic:OS` listing names both
+`sciR`/`sciW` and `drtR`/`drtW` (`z3801-tree.md`), so its firmware,
+3543B, matches neither image exactly.
 
 ### The Z3801A image
 
@@ -1199,15 +1175,15 @@ confirmed in its bytes.
 **The same.**  CPU32: the reset vector points at `0x550`, which sets
 the status register and the vector base with `movec`; the code before
 it, `0x400` to `0x54f`, writes channel B's transmit register beside the
-string `DUART`, a loopback test.  The landmarks of every section above
-are present at their own addresses: `pll_normal`'s and `startup_pll`'s
-failure messages (`0x44e94`, `0x44e2e`), the fine stage's
-(`0x45e4a`), the loop report (`0x44e6d`), `PFORTH`/`INSTALL`/`PRIMARY`
-(`0x2f711`), the pForth banner (`0x18ad0`), `loop_time` (`0x1d172`),
-`max loop time` (`0x1c0b8`), `SAWT ERR` (`0x4d57a`), and the loop's
-constants 29.75, 6.25 × 10⁻¹⁰ and 5.787 × 10⁻¹⁴.  The counter's port
-routine (`0x4076a`) is instruction for instruction the Z3816A's
-(`0x440a6`), and so is the routine that joins two of its four-bit
+string `DUART`, a loopback test.  Every section's landmarks are present
+at their own addresses: `pll_normal`'s and `startup_pll`'s failure
+messages (`0x44e94`, `0x44e2e`), the fine stage's (`0x45e4a`), the
+loop report (`0x44e6d`), `PFORTH`/`INSTALL`/`PRIMARY` (`0x2f711`), the
+pForth banner (`0x18ad0`), `loop_time` (`0x1d172`), `max loop time`
+(`0x1c0b8`), `SAWT ERR` (`0x4d57a`), and the loop's constants 29.75,
+6.25 × 10⁻¹⁰ and 5.787 × 10⁻¹⁴.  The counter's port routine
+(`0x4076a`) matches the Z3816A's (`0x440a6`) instruction for
+instruction, as does the routine that joins two of its four-bit
 registers into a byte (`0x40ba6`, against `0x444e2`).  The interval
 query's handler (`0x2efb8`) copies a float in seconds from `0x102530`
 with the same `0xfff6` tag, and `pll_normal` stores the float mean
@@ -1226,8 +1202,8 @@ there.  The unpacker takes the same opcodes.
   The Time RAIM page reads the sawtooth as `move.b (0x1a,A3)` at
   `0x486ec` with A3 = `0x100f62`: record offset 26, as in the other
   image.
-- *Chip selects.*  Its reset code, at `0x550`, programs the same SIM
-  the same way but for the map: CSBARBT and CSBAR6 `0x0005`, 256 KB
+- *Chip selects.*  Its reset code, at `0x550`, programs the SIM the
+  same way except for the map: CSBARBT and CSBAR6 `0x0005`, 256 KB
   at 0, and CSBAR1 and CSBAR7 `0x0405`, 256 KB at `0x40000` -- the
   image's two halves; CSBAR0, 2, 3 `0x1003`, the 64 KB of RAM; CSBAR5
   `0x3003`, 64 KB at `0x300000`; CSBAR8 `0x2000`, the DUART; CSBAR9
@@ -1235,17 +1211,17 @@ there.  The unpacker takes the same opcodes.
   2 KB each.  SYNCR is `0xcf00`, the same 16.777 MHz.  Nothing in it
   reads `0x302000`.
 - *Serial ports.*  The host port is DUART channel B, with the exchanges
-  `drtR` and `drtW` and `DUARTB isr` messages; the SCI is switched off
-  -- the one reference to its registers, at `0x120da`, clears SCCR1.
-- *The language command.*  Its handler (`0x2f57a`) compares the port the
-  command came from with the descriptor that `0x28a46` returns,
+  `drtR` and `drtW` and `DUARTB isr` messages; the SCI is off -- the
+  one reference to its registers, at `0x120da`, clears SCCR1.
+- *The language command.*  Its handler (`0x2f57a`) compares the port
+  the command came from with the descriptor `0x28a46` returns,
   `0x28cdc`, before it looks at `PFORTH`: a real check, where the
   Z3816A's always passes.  `0x28cdc` is the parser's one descriptor --
   two function pointers and the prompts `E%+04d> ` and `scpi > ` -- and
   its reader `FUN_00028a92` fills the buffer at `0x102b20` from stream
   0 (`FUN_0001dbc4`, `FUN_0001711e`).  The image has no second
-  descriptor: the other copy of those prompts, at `0x7ee6`, is
-  referenced by nothing.
+  descriptor: nothing references the other copy of those prompts, at
+  `0x7ee6`.
 - *The loop.*  The term the Z3816A takes from `FUN_000324b0(6)` comes
   from `FUN_00022fd2(3)` (`0x4496e`).  A field the Z3816A initializes
   to 10⁻⁷ is 10⁻⁸ here (`0x44a3a`).  With no valid reading in ten
@@ -1257,10 +1233,10 @@ there.  The unpacker takes the same opcodes.
 ### Resetting the GPS engine from the console
 
 The Oncore's `@@Cf` sets the engine to its defaults and clears its
-almanac, which is how a unit whose engine has held an almanac for years
-is made to search the sky afresh.  In 3543 the only thing that sends it
-is the console word `master_reset`; nothing reachable from SCPI does,
-and neither a power cycle nor `:SYSTem:PRESet`.
+almanac, which makes a unit whose engine has held an almanac for years
+search the sky afresh.  In 3543 only the console word `master_reset`
+sends it; nothing reachable from SCPI does, nor does a power cycle or
+`:SYSTem:PRESet`.
 
 - *The send path.*  The Oncore descriptor table is at `0x4fe8c`, 56
   bytes an entry; `Cf` is entry 45 (`0x50864`), sent bare.  The one
@@ -1273,19 +1249,19 @@ and neither a power cycle nor `:SYSTem:PRESet`.
   code 0x47.  The GPS task first clears its own state (`0x4beb4`,
   `0x100c68` to `0x1011c1`, the same routine a cold start runs), then
   sends `Ci`, `Cf`, `Cj`, and a fixed set of HP defaults: among them
-  `At` 0, position hold off, and `Ad`/`Ae`/`Af`/`As` with a position held
-  as constants in ROM.  It writes nothing to the EEPROM and does not
-  restart the processor, and it does not send the unit's stored mask
-  angle, cable delay or position.  Those go to the engine from the
+  `At` 0, position hold off, and `Ad`/`Ae`/`Af`/`As` with a position
+  held as constants in ROM.  It writes nothing to the EEPROM, does not
+  restart the processor, and does not send the unit's stored mask
+  angle, cable delay or position.  Those reach the engine from the
   start-up sequence (`0x46802`), which a cold start and `pll_restart`
   run.
 - *The others.*  `init_gps` (`0x1b28a`, code 0x48, script `0x50cf0`)
   re-sends the fixed option set, with no `Cf`.  `clear_nv` (`0x1bba6`)
   writes 0xFF over the first byte of both settings records, as
   `:SYSTem:PRESet` does.  `wr_eeprom` is a raw one-byte write;
-  `disable_gps_cmds` sets one flag.  `gps_change` posts whatever code it
-  is given, so could send `Cf` or run the whole `master_reset` script;
-  which of its arguments is the code was not traced.
+  `disable_gps_cmds` sets one flag.  `gps_change` posts whatever code
+  it is given, so could send `Cf` or run the whole `master_reset`
+  script; which of its arguments is the code was not traced.
 - *3543B* has the same logic at shifted addresses: table `0x4fece`,
   `Cf` at `0x508a6`, mailbox `0x10256c`, `master_reset` at `0x1b564`,
   and byte-identical scripts.
@@ -1327,9 +1303,9 @@ through the converter routine (`0x1efc8`, `0x1f1a8`: command word
 `channel << 11 | 0xc000`, result shifted right by two), keeps the low
 byte, converts it to a float and multiplies by 0.273
 (`0x3e8bc6a8`), with no offset.  So the answer is 0.273 °C per count
-from a 0 V zero, and cannot exceed 69.6.  In the Z3801A image nothing
-else reads channel 0: the other eleven calls to the converter pass
-channels 1 to 6, or one from a register.  Both images carry the same
+from a 0 V zero, at most 69.6.  In the Z3801A image nothing else reads
+channel 0: the other eleven calls to the converter pass channels 1 to
+6, or one from a register.  Both images carry the same
 `Temperature: %f` and `Temperature: %.2f` strings.
 
 The bench 58503A reads 34 to 38 °C, about 130 counts.  The bench
@@ -1357,18 +1333,17 @@ table.
   2700 at `0x44750` and `0x447b6`, 150 s at `0x441cc` and `0x474c8`,
   G = +6.25 × 10⁻¹³ at `0x476bc` -- the Z3801A's value and sign;
   the bench 58503A (3704-C) measures +3.94 × 10⁻¹³, 0.63 of it
-  (`efc.md`) -- and
-  the clamp 6.25 × 10⁻¹⁰ at `0x475cc`.  The update has the c·s term:
-  at `0x4480a` to `0x4481e`, `0x44a18` and `0x44d26` it multiplies the
-  float at `0x102014` by D5, the value `FUN_00023120(3)` returned at
-  `0x44964`, and adds it to the EFC.
+  (`efc.md`) -- and the clamp 6.25 × 10⁻¹⁰ at `0x475cc`.  The update
+  has the c·s term: at `0x4480a` to `0x4481e`, `0x44a18` and `0x44d26`
+  it multiplies the float at `0x102014` by D5, the value
+  `FUN_00023120(3)` returned at `0x44964`, and adds it to the EFC.
 - *`:DIAGnostic:ROSCillator:TCOefficient`.*  Its node (`0x5fe98`)
   names the query handler `FUN_0002b534` and the setter
   `FUN_0002b4fa`, both on the record at `0x337d4`: the cell
   `0x102014` -- the loop's c above -- limits −200 and 200 (`0x337c4`,
   `0x337c8`), getter `FUN_00012bac`, setter `FUN_000308f4`.  So on
   this revision the coefficient is the loop's constant on the
-  oscillator current, exactly as on the Z3816A.
+  oscillator current, as on the Z3816A.
 - *The oscillator current.*  `FUN_00023120(n)` is a switch over eight
   channel records at `0x101e78` + 0x30·n, value at +0x28, live flag at
   +0x2c, a ROM default when the flag is clear; channel 3's default is
@@ -1380,22 +1355,21 @@ table.
   (`0x1c26c` on), and one format says `Oven current`.
 - *The queries.*  `:DIAGnostic:ROSCillator:CURRent?` (`FUN_0002b47e`)
   returns `FUN_0001f36e`: a fresh ADC read, shifted right by two,
-  converted and scaled -- not the average the loop uses.
+  converted and scaled -- not the loop's average.
   `:EFControl:ABSolute?` (`FUN_0002b4dc`) returns the float at
   `0x1024a0`, which `FUN_0001b7b0` sets to sixteen times the DAC word
   as it is written, so it is u after conversion, c·s included.
   `:DIAGnostic:PTIMe:TINTerval?` (`0x2b344`) is the one-second
   reading and `:SYNChronization:TINTerval?` and `:PTIMe:TINTerval?`
-  (both `0x2fbf6`) the mean, which is what the bench 58503A did.
+  (both `0x2fbf6`) the mean, as the bench 58503A showed.
 - *The EFC scale.*  `:EFControl:RELative?` (`FUN_0002b48e`) returns
   (ABS − 2¹⁹) / 2¹⁹ × 100, which is the command table's
-  "value / 2²⁰ × 200 − 100".  The EFC
-  writer `FUN_0002334e` clamps u to 0 and 1 048 560 (2²⁰ − 16) and
-  posts events 0x48 and 0x49 at the rails, and `FUN_0001b7b0` records
-  16 × the word it sends, so the DAC is written as a 16-bit word and
-  ABS is that word times sixteen.  (The bench 3704's ABS readings are
-  not multiples of sixteen; 3704 writes its cell from the same places,
-  so why is not worked out.)
+  "value / 2²⁰ × 200 − 100".  The EFC writer `FUN_0002334e` clamps u
+  to 0 and 1 048 560 (2²⁰ − 16) and posts events 0x48 and 0x49 at the
+  rails, and `FUN_0001b7b0` records 16 × the word it sends, so the DAC
+  is written as a 16-bit word and ABS is that word times sixteen.
+  (The bench 3704's ABS readings are not multiples of sixteen; 3704
+  writes its cell from the same places, so why is not worked out.)
 - *The channels.*  The reader's eight cases carry these defaults:
   0 → 25.0, 1 → 4.0, 2 → 15.0, 3 → 250.0, 4 → 5.0, 5 → 4.0, 6 → −15.0,
   7 → 50.0.  With the report strings, 0 is the temperature, 2, 4 and 6
@@ -1414,10 +1388,6 @@ table.
   #12`), as 3704 does (handler `0x3061a`, action `0x45e94`); only the
   Z3801A and Z3805A images lack it.
 
-So revision 3633 applies its coefficient the way the Z3816A does, to
-the smoothed oscillator current, and reports the DAC word with the
-term in it.
-
 Revision 3704, read from the bench receiver itself
 (`third_party/58503a-3704.bin`), has the same term in the same three
 places.  Its `pll_normal` is `FUN_0004495a` (message at `0x44f22`); at
@@ -1428,9 +1398,9 @@ oven current held in D6, and the sum goes to the EFC writer
 current comes from channel 6, not 3: 3704's reader, `FUN_000222a6`,
 takes a channel's filtered value from `0x101ea0` + 0x30·n or, while
 the channel is not live, a default from a table of 42-byte
-descriptors, and that table names the channels Temperature, 5V, (none),
-Oven, 15V, −15V, Primary oven current and Antenna current, the sixth
-with the default 250 that 3633 gives its channel 3.  Its
+descriptors, and that table names the channels Temperature, 5V,
+(none), Oven, 15V, −15V, Primary oven current and Antenna current, the
+sixth with the default 250 that 3633 gives its channel 3.  Its
 `EFControl:ABSolute?` handler, `FUN_0002b58a`, returns the cell at
 `0x1024aa`, written from the same places 3633 writes its `0x1024a0`.
 Channel 6 has its own per-call routine in the health monitor,
@@ -1441,9 +1411,9 @@ stores the reading; on every later one it keeps s ← 0.1·fresh + 0.9·s
 `0x1e3ce508`, about 10⁻²⁰.  So once the monitor has reached channel 6
 the loop uses the averaged measurement, not the default.
 `:DIAGnostic:ROSCillator:CURRent?` (`FUN_0002b526`) returns a fresh
-conversion of that same channel 6 (`FUN_00021ca2(6)`).
+conversion of the same channel 6 (`FUN_00021ca2(6)`).
 
-So the bench receiver's lack of a response to the oven current in its
+So the bench receiver's lack of response to the oven current in its
 record (`efc.md`, "The regression") is not explained by the term being
 absent, by the loop reading a default, or by the regression using a
 different current; its cause is not worked out.  The running unit's
@@ -1460,9 +1430,9 @@ the GPT and QSM interrupt sources at `0xfff920` and `0xfffc1a` to
 `0xfffc1f`, clears SCCR1 so the SCI stops, and calls `FUN_0002dc72` --
 then executes the `RESET` instruction, reloads the VBR, and jumps
 through the primary's own reset vector (`0x20004`) to its reset code
-at `0x2466e` -- not through the boot ROM's at address 4, so the boot
-code at `0x550`, and the flash checksums it runs, are skipped.  RSR
-then shows SYS and nothing else.
+at `0x2466e`.  It does not go through the boot ROM's vector at address
+4, so the boot code at `0x550`, and the flash checksums it runs, are
+skipped.  RSR then shows SYS alone.
 
 Every primary's `trap #12` handler has that shape; the shutdown
 routine also stops the PIT (PICR to `0x0042`) and disables both DUART
@@ -1484,13 +1454,13 @@ neither an external nor a power-up reset (`RSR & 0xc0` is zero; a
 software, halt-monitor or loss-of-clock reset passes), the flag word at
 `0x100002` is 1, and, on the 58503A and Z3816A, a settings byte is
 clear (3633 `0x102270`, 3704 `0x102276`, Z3816A `0x10262c`).  With the
-checksum good and the flag 0 a second branch loads the ROM defaults;
-on the 58503A and Z3816A that branch also wants RSR to be exactly SYS,
-which `RESET` gives.  Anything else is a cold start, which also pulses
-PE6.  The checksum is an 8-bit sum stored as sum and complement, so a
-zeroed region fails it.  So `:SYSTem:PRESet`, which clears the flag,
-restarts into the defaults, and `:SYSTem:PON`, which zeroes the region,
-restarts cold.  No console word reaches `trap #12`.
+checksum good and the flag 0, a second branch loads the ROM defaults;
+on the 58503A and Z3816A that branch also requires RSR to be exactly
+SYS, which `RESET` gives.  Anything else is a cold start, which also
+pulses PE6.  The checksum is an 8-bit sum stored as sum and
+complement, so a zeroed region fails it.  So `:SYSTem:PRESet`, which
+clears the flag, restarts into the defaults, and `:SYSTem:PON`, which
+zeroes the region, restarts cold.  No console word reaches `trap #12`.
 
 Two actions reach it, and the SCPI handlers that name them, through
 descriptor lists at `0x44c9a` to `0x44cb2` of six-byte entries (a word
@@ -1506,69 +1476,71 @@ The `:GPS:POSition` handler `FUN_0003c268` passes the list starting at
 a list and where it stops were not traced.  `PON` is a keyword of the
 Z3816A image (`0x5a280`) and both 58503A images (see "The 58503A
 image"); the Z3801A's image has the same `:SYSTem:PRESet` action,
-`FUN_00045cca` (`0x2f66a` passes its list at `0x41392`), and no
-`PON`, nor has the Z3805A's.  Owners report that `:SYSTem:PON` is accepted
-by newer firmware and refused by older, which matches: on 2026-09-27
-the bench Z3801A (3543) and Z3805A (3543B) both refused it.
+`FUN_00045cca` (`0x2f66a` passes its list at `0x41392`), and no `PON`,
+nor has the Z3805A's.  Owners report that newer firmware accepts
+`:SYSTem:PON` and older refuses it, which matches: on 2026-09-27 the
+bench Z3801A (3543) and Z3805A (3543B) both refused it.
 
-`*TST?` is reported by owners to restart the receiver as well, with a
-minute of GPS reacquisition after it.  It does not reset the
-processor; it restarts the loop.  A node's handler pointer sits at
-byte 18 of its record, so its node (`0x5cb36`) names `FUN_00039aa8`,
-which posts the entry at `0x44c88` -- `FUN_00049d60` -- to the `pllc`
-queue (id at `0x103d6a`, created at `0x23204`) that the loop task
-drains through `FUN_00046cc8`, and replies with the word at
-`0x100eae`.  The entry sets a request flag at `0x102c61` and stores
-the argument at `0x102c64`; the loop task's pass sees the flag
-(`0x4b25c`) and moves the stage byte to 7, `diag`.  That stage,
-`FUN_0004ad3e`, is a sub-state machine at `0x102850`: it sends the
-GPS task a reset and waits up to thirty passes for its acknowledgment
-(`Error in DIAG GPS RST ack`, `0x4b806`, otherwise), sends a test
-message and waits for that (`Error in DIAG GPS TST ack`, `0x4b822`),
-records the results at `0x100e88`, runs `FUN_00048b62`, and in its
-last state compiles the self-test result with `FUN_00028c56`, clears
-the flag and returns 1.  On that return the loop task runs
-`FUN_0004afb6`: loop state cleared, events 0x2f and 0x35 posted, and
-the stage byte set to 1, `powerup` (`0x4b016`).  So `*TST?` resets
-the GPS engine and sends the receiver back through warm-up, coarse and
-fine acquisition, which is the "reboot" owners see; the loop block,
-the τ block and the aging fit stay in RAM, and RSR is untouched.
+Owners report that `*TST?` also restarts the receiver, with a minute
+of GPS reacquisition after it.  It restarts the loop, not the
+processor.  A node's handler pointer sits at byte 18 of its record, so
+its node (`0x5cb36`) names `FUN_00039aa8`, which posts the entry at
+`0x44c88` -- `FUN_00049d60` -- to the `pllc` queue (id at `0x103d6a`,
+created at `0x23204`) that the loop task drains through
+`FUN_00046cc8`, and replies with the word at `0x100eae`.  The entry
+sets a request flag at `0x102c61` and stores the argument at
+`0x102c64`; the loop task's pass sees the flag (`0x4b25c`) and moves
+the stage byte to 7, `diag`.  That stage, `FUN_0004ad3e`, is a
+sub-state machine at `0x102850`: it sends the GPS task a reset and
+waits up to thirty passes for its acknowledgment (`Error in DIAG GPS
+RST ack`, `0x4b806`, otherwise), sends a test message and waits for
+that (`Error in DIAG GPS TST ack`, `0x4b822`), records the results at
+`0x100e88`, runs `FUN_00048b62`, and in its last state compiles the
+self-test result with `FUN_00028c56`, clears the flag and returns 1.
+On that return the loop task runs `FUN_0004afb6`: loop state cleared,
+events 0x2f and 0x35 posted, and the stage byte set to 1, `powerup`
+(`0x4b016`).  So `*TST?` resets the GPS engine and sends the receiver
+back through warm-up, coarse and fine acquisition -- the "reboot"
+owners see; the loop block, the τ block and the aging fit stay in RAM,
+and RSR is untouched.
 
 `:SYSTem:LANGuage "INSTALL"` takes a different exit: `FUN_00023036`
 executes `trap #11`, whose handler at `0x24b18` masks interrupts, runs
 the same `FUN_00022172`, and jumps through vector 43 of the table at
 address 0 -- the boot ROM's own table, not the one at `0x20000` --
-which is how the installer in the low half of the image is entered.
-Those addresses are the Z3816A's; the Z3801A, Z3805A and 58503A images
-put the primary's table at `0x10000` (Z3801A trap #11 handler
-`0x1467c`).  "The installer" below has the rest.
+which enters the installer in the low half of the image.  Those
+addresses are the Z3816A's; the Z3801A, Z3805A and 58503A images put
+the primary's table at `0x10000` (Z3801A trap #11 handler `0x1467c`).
+"The installer" below has the rest.
 
 The monitoring and generic query paths never send `:SYSTem:PRESet`,
 `:SYSTem:PON` or `:SYSTem:LANGuage`.  The command table includes
 `:SYSTem:PON` as `system_pon` so that `docs/commands.md` shows it.
 
-`smartclock-cli flash` is the exception for entering the installer and
-programming flash; it is never called through the daemon.
+`smartclock-cli flash` enters the installer to program flash, and
+`read-memory` enters it only as a fallback way back from the console;
+the daemon calls neither.
 
 ### The watchdog
 
-The software watchdog is on (SYPCR `0xcc`) and is serviced in one
-place after start-up: a routine of the `hmon` task, priority 200, the
+The software watchdog is on (SYPCR `0xcc`) and, after start-up, is
+serviced in one place: a routine of the `hmon` task, priority 200, the
 highest of the application's tasks (Z3801A `0x2323e`, Z3805A
-`0x2437a`, 3633 `0x2345a`, 3704 `0x2369e`, Z3816A `0x338a4`).  The PIT,
-1024 ticks a second, signals `hmon` every ten ticks, and every 112 of
-those, about 1.1 s, the routine checks heartbeat bytes the clock, GPS,
-loop, monitor and spool tasks set (Z3801A block `0x1009b0`).  All
-healthy, it resets a countdown to 8; otherwise it prints `watchdog:`
-and counts down, and it writes SWSR only while the count is above
-zero.  So the kicks stop about nine seconds after a task stops
-reporting, and the hardware resets the unit some seconds later (the
-timeout itself is from SYPCR's prescaler, not established here).  That
-reset goes through the boot code and its checksums, and with the
-region good and the flag set it is a warm start, which writes the
-pending exception, fatal message or `Watchdog timeout: clk ... gps ...
-mon ... pll ... spl ...` to the EEPROM log at `0x4001c0` (`0x23afc`);
-a `:SYSTem:PRESet` or `PON` restart clears those records unlogged.
+`0x2437a`, 3633 `0x2345a`, 3704 `0x2369e`, Z3816A `0x338a4`).  The
+PIT, 1024 ticks a second, signals `hmon` every ten ticks, and every
+112 of those, about 1.1 s, the routine checks heartbeat bytes the
+clock, GPS, loop, monitor and spool tasks set (Z3801A block
+`0x1009b0`).  All healthy, it resets a countdown to 8; otherwise it
+prints `watchdog:` and counts down, and it writes SWSR only while the
+count is above zero.  So the kicks stop about nine seconds after a
+task stops reporting, and the hardware resets the unit some seconds
+later (the timeout itself is from SYPCR's prescaler, not established
+here).  That reset goes through the boot code and its checksums, and
+with the region good and the flag set it is a warm start, which writes
+the pending exception, fatal message or `Watchdog timeout: clk ... gps
+... mon ... pll ... spl ...` to the EEPROM log at `0x4001c0`
+(`0x23afc`); a `:SYSTem:PRESet` or `PON` restart clears those records
+unlogged.
 
 An exception no handler takes prints `<task>: <name>: PC = ..., SR =
 ...` and `RESET to recover.` and spins with interrupts masked, which
@@ -1590,38 +1562,39 @@ rewrites the defaults.
 
 ### The installer
 
-Read from all five images; the installer entry/exit bench check is below.
+Read from all five images; the bench check of entry and exit is below.
 
 - *Where it lives.*  Below `0x10000` (Z3816A: `0x20000`), in flash the
-  installer never erases or writes: the writable range starts at
-  `0x10000` (Z3816A: `0x20000`) and ends at `0x7ffff`.
-  Vector 43 (Z3801A `0xa58`) unpacks it into RAM and runs it there, a
-  pSOS system of its own with its own SCPI parser, on the host port
-  at the EEPROM's line settings (`0x400000`, checksum at +0), or
-  9600 8N1 if that record is bad.  The Oman installer can then
-  override either with the byte at `0x302000`; see "The switch byte at
-  `0x302000`".
+  installer never erases or writes: the writable range runs from
+  `0x10000` (Z3816A: `0x20000`) to `0x7ffff`.  Vector 43 (Z3801A
+  `0xa58`) unpacks it into RAM and runs it there, a pSOS system of its
+  own with its own SCPI parser, on the host port at the EEPROM's line
+  settings (`0x400000`, checksum at +0), or 9600 8N1 if that record is
+  bad.  The Oman installer can then override either with the byte at
+  `0x302000`; see "The switch byte at `0x302000`".
 - *Telling it apart.*  `*IDN?` names a place, not a revision: `Peru`
   on the Z3801A, `Oman` on 58503A 3633, `USA` on 3704 and the Z3816A;
   `:SYSTem:LANGuage?` always answers `INSTALL`.
 - *Commands.*  `*IDN?`, `*CLS`, `:SYSTem:LANGuage`, `:SYSTem:ERRor?`,
   `:DIAGnostic:TEST? n` (0 summary, 1 checksum flags, 2 CPU, 3 RAM,
-  4 DUART), `:DIAGnostic:ERASe`, `:DIAGnostic:ERASe?` (1 when
-  the writable range is blank) and `:DIAGnostic:DOWNload "<S-record>"`,
+  4 DUART), `:DIAGnostic:ERASe`, `:DIAGnostic:ERASe?` (1 when the
+  writable range is blank) and `:DIAGnostic:DOWNload "<S-record>"`,
   one Motorola S-record per command, checked record by record and
-  refused outside its writable range.  As 097-58503-13, 4-15 and 5-115.
+  refused outside the writable range.  As 097-58503-13, 4-15 and
+  5-115.
 - *Flash.*  Z3801A, Z3805A and 58503A: AM29F010s in word-interleaved
   pairs, even bytes on one part and odd on the other; `0x0`--`0x3ffff`
   the low pair, `0x40000`--`0x7ffff` the high.  Z3816A: an
   Intel-style part, one 16-bit wide.
-- *Boot check.*  The AMD-flash reset code (`0x550`) sums each byte lane of
-  each pair against the bytes at `0x3fffc` and `0x7fffc`.  A pass boots the
-  primary; a failure stays in the installer.  `LANG "PRIMARY"` re-runs
-  the reset code, so a unit with a bad image comes back to the
-  installer.  The Z3816A instead sums big-endian words from `0x20000`
-  through `0x7fffc`, modulo 65536, against the word at `0x7fffe`
-  (reset code `0x526`--`0x53a`).  Its erase handler starts at `0x20000`
-  and erases three 128 KiB blocks.  All five images pass their own sums.
+- *Boot check.*  The AMD-flash reset code (`0x550`) sums each byte
+  lane of each pair against the bytes at `0x3fffc` and `0x7fffc`.  A
+  pass boots the primary; a failure stays in the installer.
+  `LANG "PRIMARY"` re-runs the reset code, so a unit with a bad image
+  comes back to the installer.  The Z3816A instead sums big-endian
+  words from `0x20000` through `0x7fffc`, modulo 65536, against the
+  word at `0x7fffe` (reset code `0x526`--`0x53a`).  Its erase handler
+  starts at `0x20000` and erases three 128 KiB blocks.  All five
+  images pass their own sums.
 
 On 2026-09-28 the bench Z3801A was taken into the installer and back,
 with queries only: `*IDN?` answered `Peru-A`, `:DIAGnostic:TEST? 1`
@@ -1629,35 +1602,35 @@ with queries only: `*IDN?` answered `Peru-A`, `:DIAGnostic:TEST? 1`
 back on 3543-A with its settings unchanged.
 
 So a load interrupted part way that leaves invalid primary checksums
-is retried over the serial port, from the installer that the next
-power-up lands in.  Valid checksums do not establish that the primary
-can run or accept the command to enter INSTALL.  Recovery from that
-case is discussed below.  A dump written back a lane per part carries
-its own valid sums.  `:DIAGnostic:TEST? 1` names
-the failing lane.  Not established: which part is which lane on the
-board, and how the new primary resets the settings after an upgrade,
-which 097-58503-13 appendix C says it does.
+can be retried over the serial port, from the installer the next
+power-up lands in.  Valid checksums do not show that the primary can
+run or accept the command to enter INSTALL; that case is below.  A
+dump written back a lane per part carries its own valid sums.
+`:DIAGnostic:TEST? 1` names the failing lane.  Not established: which
+part is which lane on the board, and how the new primary resets the
+settings after an upgrade, which 097-58503-13 appendix C says it does.
 
 ### Forced installer entry with an unusable primary
 
-The Z3801A 3543 and Z3805A 3543B reset paths are byte-for-byte identical
-from `0x550` through `0x745`.  All 502 bytes were disassembled: register
-setup, four flash lane checksum comparisons, then the primary-vector
-loads at `0x738` and `0x73e` and jump at `0x744`.  The failure branches
-enter the installer startup at `0x746`.  There is no switch input read,
-serial-break poll or separate force-INSTALL test along this path.
-This does not establish what the board's eight-position S1 does.
+The Z3801A 3543 and Z3805A 3543B reset paths are byte-for-byte
+identical from `0x550` through `0x745`.  All 502 bytes were
+disassembled: register setup, four flash lane checksum comparisons,
+then the primary-vector loads at `0x738` and `0x73e` and jump at
+`0x744`.  The failure branches enter the installer startup at
+`0x746`.  The path has no switch input read, serial-break poll or
+separate force-INSTALL test.  This does not establish what the board's
+eight-position S1 does.
 
-There is a separate entry in protected flash at `0xa58`, addressed by
-vector 43 at `0xac`.  It masks interrupts, resets VBR and SP, unpacks
-the installer through `0xaa0`, copies its vectors to RAM at `0x100000`,
+A separate entry in protected flash at `0xa58` is addressed by vector
+43 at `0xac`.  It masks interrupts, resets VBR and SP, unpacks the
+installer through `0xaa0`, copies its vectors to RAM at `0x100000`,
 sets VBR there and jumps to `0x10135c`.  The unpacker at `0xaa0` reads
 records from `0xbbc`: an `S`, then records of a `C`, a 32-bit count, a
 32-bit RAM destination and that many bytes inline, up to an `E` at
 `0xb328`.  So everything it copies comes from below `0x10000`, into
 `0x100400`--`0x10aad2`.  This entry and unpacker are identical in the
-two dumps.  The normal PRIMARY trap handler reaches
-this entry, but the entry itself does not call PRIMARY code.
+two dumps.  The normal PRIMARY trap handler reaches this entry, but
+the entry itself calls no PRIMARY code.
 
 A running primary has one way there.  Each Z3801A, Z3805A and 58503A
 primary contains a single `trap #11` instruction, and no primary
@@ -1718,7 +1691,7 @@ reach the installer without a working primary is speculative; see
 
 The Z3801A and Z3805A reset code sets up these chip selects (CSPAR0
 `0x2bff`, CSPAR1 `0x03af`; MC68331UM 4.8).  The 58503A's are the same
-except that it has no CS4.
+but for CS4, which it lacks.
 
 | Select | Base, size | Port | Access | Use in the firmware |
 | ------ | ---------- | ---- | ------ | ------------------- |
@@ -1732,7 +1705,7 @@ except that it has no CS4.
 
 The only read of `0x302000` in any installer is in the Oman installer
 that 58503A 3633 carries (unpacked address `0x108290`).  The installer
-first loads its host-port settings from the EEPROM record or from its
+first loads its host-port settings from the EEPROM record or its
 defaults, then reads the byte and overrides them:
 
 ```
@@ -1748,13 +1721,12 @@ defaults, then reads the byte and overrides them:
 Bit 0 clear enables the override.  Bits 2:1 index the DUART channel B
 clock select values `0x66`, `0x88`, `0xbb`, `0xcc`.  Bit 3 set selects
 7 data bits, odd parity; clear, 8 bits, no parity.  Bit 4 turns on
-XON/XOFF pacing.  One stop bit is forced, and bits 5 to 7 are not
-tested.  The installer writes the ACR once, `0xb0` (`0x346e`,
-`0x3476` in the unpacked image), selecting the 68681's baud-rate set 2,
-in which those codes are 1200, 2400, 9600 and 19200 baud at the
-part's standard 3.6864 MHz clock; the board's crystal was not checked.
-The byte is read each time the
-installer starts and is not stored.
+XON/XOFF pacing.  One stop bit is forced; bits 5 to 7 are not tested.
+The installer writes the ACR once, `0xb0` (`0x346e`, `0x3476` in the
+unpacked image), selecting the 68681's baud-rate set 2, in which those
+codes are 1200, 2400, 9600 and 19200 baud at the part's standard
+3.6864 MHz clock; the board's crystal was not checked.  The byte is
+read each time the installer starts and is not stored.
 
 The Peru installer (Z3801A 3543, Z3805A 3543B) and the USA installer
 (58503A 3704, Z3816A 4001) do not read `0x302000`.  Nor does any
@@ -1762,21 +1734,20 @@ primary except the Z3816A's, which reads bit 8 of the word at
 `0x302000` to pick G (see "τ and G").  So no firmware on the bench
 units reads this byte.  Whether it is S1 has not been established.
 097-55300-01 figures 3-14 and 3-15A give the related 55300A's S1 B1 as
-"Preset All Serial Ports at Powerup", which is the same kind of
-function.
+"Preset All Serial Ports at Powerup", the same kind of function.
 
 ### The flasher
 
 `smartclock-cli flash` uses the serial port directly.  Stop the daemon
-for that port first; it has no daemon socket mode and does not discover
-or probe other ports.  It finds the port's line settings as the other
-commands do (`smartclock::attach`): the given `--baud` and `--framing`
-first, then the others these receivers use, reading the probe's errors
-off the queue before its checks.  `--device` also takes
-`tcp://host:port`.  `--capture` records the exchange to a new file,
-as it does for every command; an existing transcript is refused, not
-overwritten.  Replace the placeholders
-below with the image path, device and receiver serial.
+for that port first; the flasher has no daemon socket mode and does
+not discover or probe other ports.  It finds the port's line settings
+as the other commands do (`smartclock::attach`): the given `--baud`
+and `--framing` first, then the others these receivers use, reading
+the probe's errors off the queue before its checks.  `--device` also
+takes `tcp://host:port`.  `--capture` records the exchange to a new
+file, as for every command; an existing transcript is refused, not
+overwritten.  Replace the placeholders below with the image path,
+device and receiver serial.
 
 Inspect the file without opening hardware:
 
@@ -1810,76 +1781,74 @@ The image catalog accepts these full 512 KiB dumps by exact SHA-256:
 
 It rejects modified files, chip dumps and S-record input.  Model and
 running primary/installer revision must match an audited profile; the
-candidate's model must match the receiver.  The expected serial is
-required for writing and the identity's revision suffix must remain
-unchanged when entering the installer.  After programming, a changed
-suffix is reported separately from successful primary boot; its behavior
+candidate's model must match the receiver.  Writing requires the
+expected serial, and the identity's revision suffix must not change on
+entering the installer.  After programming, a changed suffix is
+reported separately from a successful primary boot; its behavior
 across upgrades is not established.  This relies on the receiver's
-EEPROM identity; it is not independent board identification.  A model
+EEPROM identity, not independent board identification.  A model
 without a dump (such as 59551A) is refused until its image and layout
 can be audited.
 
 The installer is checked only against the model/layout allowlist, not
-against the primary revision it was entered from.  For example, a 58503A
-running 3704 can retain the Oman installer from 3633 after an upgrade.
-The table describes the installer bundled in each dump; it does not
-prove that every allowlisted installer/primary pairing has been tested.
-The CLI reports this policy in check-only mode and immediately before
-erase.
+against the primary revision it was entered from: a 58503A running
+3704 can keep the Oman installer from 3633 after an upgrade.  The
+table gives the installer bundled in each dump; not every allowlisted
+installer/primary pairing has been tested.  The CLI reports this
+policy in check-only mode and immediately before erase.
 
 Errors the receiver held from before the run stop even check-only
-mode, all of them listed.  The session reads them off the queue as it
-meets them, so that no command is judged by an older error
-(`protocol.md`, "The error prompt"); run again once they are
-understood.  The tool never sends `*CLS`.
+mode, and all are listed.  The session reads them off the queue as it
+meets them, so no command is judged by an older error (`protocol.md`,
+"The error prompt"); run again once they are understood.  The tool
+never sends `*CLS`.
 
 Only the model's writable range is downloaded, as word-aligned 64-byte
 S2 records, each passed as a quoted SCPI string.  A bare S-record is
-parsed as a mnemonic and the bench Z3801A rejects it with -112, "Program
-mnemonic too long".  The boot area and EEPROM are not written by the
-tool.  It checks blank flash after erasing, waits for each record's
+parsed as a mnemonic; the bench Z3801A rejects it with -112, "Program
+mnemonic too long".  The tool does not write the boot area or EEPROM.
+It checks for blank flash after erasing, waits for each record's
 prompt and checks the error queue before continuing.  The installer's
 word programmer (`0x107c18` in the unpacked Z3801A installer) compares
-the flash word to the requested word and reports failure if programming
-fails.
+the flash word to the requested word and reports failure if
+programming fails.
 
 For the AMD-flash models, four lane sums cover `0x10000`--`0x3fffb` and
-`0x40000`--`0x7fffb`, even and odd bytes separately, modulo 65536.  Each
-pair's sums are stored interleaved in its last four bytes.
+`0x40000`--`0x7fffb`, even and odd bytes separately, modulo 65536.
+Each pair's sums are stored interleaved in its last four bytes.
 `:DIAGnostic:TEST? 1` reads the flags saved at boot (`0x1080ec`); it
-does **not** recompute them after download.  Final verification
-therefore switches to PRIMARY, which runs the model's boot checksum
-checks, then requires the same serial and the candidate revision in
-PRIMARY.  After that, unless given `--no-readback`, it reads the whole
-512 KiB back through the debug console, as `smartclock-cli read-flash`
-does, requires it to equal the image, protected boot region included,
-and returns the port to SCPI as `read-flash` does (see "Reading memory
-through it").  That adds about eleven minutes.  For an image with no
-known installer exit, such as the Z3816A's, it says so and relies on
-`halt` alone.  Simulator tests compare all bytes after programming for
-each catalog image, including the protected boot region; the simulator
-has no console, so the readback is not among them.
+does not recompute them after download.  Final verification therefore
+switches to PRIMARY, which runs the model's boot checksum checks, then
+requires the same serial and the candidate revision in PRIMARY.  Then,
+unless given `--no-readback`, it reads the whole 512 KiB back through
+the debug console, as `smartclock-cli read-flash` does, requires it to
+equal the image, protected boot region included, and returns the port
+to SCPI as `read-flash` does (see "Reading memory through it").  That
+adds about eleven minutes.  For an image with no known installer exit,
+such as the Z3816A's, it says so and relies on `halt` alone.
+Simulator tests compare all bytes after programming for each catalog
+image, protected boot region included; the simulator has no console,
+so the readback is not tested there.
 
-An error stops the transfer without automatic write retries or reboot.
-Keep the daemon stopped and rerun the same command with a new transcript
-path to restart from erase in the surviving installer.  Ctrl-C during a
-write stops before the next record, never inside one, and prints that
-command, with the transcript renamed; before the erase it stops with
-nothing written.  During the readback it stops before the next
-kilobyte and still returns the port to SCPI.  A second Ctrl-C exits at
-once.  `read-memory` and its kin stop the same way.  There is no
-settings restoration in the tool.
+An error stops the transfer, with no automatic write retries or
+reboot.  Keep the daemon stopped and rerun the same command with a new
+transcript path to restart from erase in the surviving installer.
+Ctrl-C during a write stops before the next record, never inside one,
+and prints that command, with the transcript renamed; before the
+erase it stops with nothing written.  During the readback it stops
+before the next kilobyte and still returns the port to SCPI.  A second
+Ctrl-C exits at once.  `read-memory` and its kin stop the same way.
+The tool does not restore settings.
 
 Cross-revision flashing is allowed between catalog images of the same
 model and layout, but has not been tried on hardware.  Simulator tests
-cover both 58503A 3633 to 3704 and 3704 to 3633, comparing the
-downloaded primary bytes and the original protected boot bytes.
-097-58503-13 appendix C, page C-3, says new firmware resets settings to
-system-preset defaults.  The same-revision Z3801A reinstall below kept
-every setting checked, despite that warning.  Whether a revision change
-resets settings remains unverified on hardware.  Record settings before
-and after the first real upgrade; the reinstall below lists the settings
-checked on that unit.
+cover 58503A 3633 to 3704 and 3704 to 3633, comparing the downloaded
+primary bytes and the original protected boot bytes.  097-58503-13
+appendix C, page C-3, says new firmware resets settings to
+system-preset defaults; the same-revision Z3801A reinstall below kept
+every setting checked.  Whether a revision change resets settings is
+unverified on hardware.  Record settings before and after the first
+real upgrade.
 
 Bench validation on 2026-09-28: the Z3801A `3542A01548` was reflashed
 with its own `z3801a-3543.bin` dump at 19200 7O1.  All 7,168 quoted
@@ -1895,8 +1864,8 @@ antenna delay, ignored satellites and timezone again matched their
 pre-flash queries.  A third reflash that day, through `smartclock-cli
 flash` after the flasher moved into the CLI, gave the same results,
 with a readback of 645 seconds and a 3.9 MB transcript holding all
-7,168 records.  Other models have simulator
-coverage and firmware analysis, not a hardware flashing test.
+7,168 records.  Other models have simulator coverage and firmware
+analysis, not a hardware flashing test.
 
 ### `:DIAGnostic:GPSystem:UTC`
 
@@ -1915,9 +1884,7 @@ with 0 or 1 is what owners describe.
 `hardware-investigations.md` lists what a bench would settle of the
 following, and how.
 
-- Whether `halt` returns a unit to SCPI as the images say, how much
-  memory each visit to the console leaks, and whether the port's
-  second open matters.
+- Whether the port's second open matters.
 - What PE6 drives, pulsed only on a cold start; what the settings byte
   that blocks the warm restore on the 58503A and Z3816A is; what bit 1
   of `0xfff925` does on 3704.
@@ -1957,28 +1924,22 @@ following, and how.
 - The units of the oscillator current: nominal 250 and limit 650 after
   a scale of 4.489 per ADC count.
 - That `0xfff907` bit 5 reaches P2/8 and that the ADC is an ADC0838
-  are an owner's report of a Z3801A board, not something traced here;
-  and how the Z3801A firmware's "Oven" and "Secondary oven voltage"
-  values relate to the volts at P2/9 was not worked out.
+  are an owner's report of a Z3801A board, not traced here; how the
+  Z3801A firmware's "Oven" and "Secondary oven voltage" values relate
+  to the volts at P2/9 was not worked out.
 - Which CPU32 part this is: the register map matches the MC68331
   manual's and the `0xfff900` block rules out the 68332, but the part
-  name comes from an owner's description of the board, not from the
-  image.
+  name comes from an owner's description of the board, not the image.
 - What drives bit 8 of the read-only port at `0x302000`, which
   chooses between the Z3816A's two values of G.  The image reads it
-  once and looks at nothing else in that block.
-- Whether any sequence of the console's pSOS words gets SCPI back
-  short of a power cycle was not tried.  Nothing was sent to a
-  receiver to find out; the monitoring paths never set the language.
-  The standalone memory reader and flasher enter their respective
-  interpreters explicitly.
+  once and examines nothing else in that block.
 - That the SCI is the port wired to J3: the firmware's SCPI port is the
   one it creates `sciR` and `sciW` for, but the board was not traced.
 - What drives the 59551A's PORT 2.  DUART channel B, idle here, is the
   device a single-port unit would leave spare, but no image of a
   59551A's firmware is at hand.
 - Only byte loads of offset 26 of the form `move.b (0x1a,An),Dn` were
-  searched for.  A reader using another addressing form would have
+  searched for; a reader using another addressing form would have
   been missed.
 - 3704, the bench 58503A's own revision, has been compared with 3633
   only where this document says so.
@@ -1995,5 +1956,5 @@ child list holds it, which is how the paths above were resolved.
 Ghidra resolves the table address of this compiler's switch idiom,
 `move.w (d8,PC,Dn*2),Dn` followed by `jmp (d8,PC,Dn)`, twelve bytes
 late.  The table starts at the `jmp`'s base, and offsets are taken
-from there.  Case bodies reached only through such a table are left
+from there.  Case bodies reached only through such a table stay
 undisassembled until disassembly is forced at the resolved targets.
