@@ -1231,8 +1231,6 @@ instance label).
 
 **Command-line tool.**
 
-- `probe --dialect` defaults to the 58503A's on any unit; default from
-  `*IDN?`.
 - `read-* --compare` exits 0 when bytes differ, and a comparison file
   longer than the read is reported identical.  Check the length first
   and fail on a difference.

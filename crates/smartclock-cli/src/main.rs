@@ -22,7 +22,9 @@ use smartclock::console;
 use smartclock::console::Progress;
 use smartclock::control::forbidden;
 use smartclock::device::Device;
+use smartclock::device::dialect_for;
 use smartclock::error::Error;
+use smartclock::parse;
 use smartclock::session::Config;
 use smartclock::session::Session;
 use smartclock::transport;
@@ -94,9 +96,10 @@ enum Command {
     /// the receiver actually answers.  This is how table entries earn
     /// their `verified` flag.
     Probe {
-        /// Which command tree to probe.
-        #[arg(long, default_value = "hp58503")]
-        dialect: String,
+        /// Which command tree to probe, `hp58503` or `z3801`.  By default,
+        /// the one the receiver's `*IDN?` model names.
+        #[arg(long)]
+        dialect: Option<String>,
     },
     /// Report oscillator and holdover health in one pass.
     Diagnose,
@@ -400,7 +403,7 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command, checked: &[Stri
             }
             Ok(())
         }
-        Command::Probe { dialect } => probe(session, dialect),
+        Command::Probe { dialect } => probe(session, dialect.as_deref()),
         Command::Sweep { .. } => sweep(session, checked),
         Command::Diagnose => unreachable!("handled above, since it takes the session"),
         Command::ReadMemory { .. }
@@ -740,11 +743,20 @@ fn absent_or<T>(value: Option<T>, render: impl FnOnce(T) -> String) -> String {
     }
 }
 
-fn probe<T: Transport>(session: &mut Session<T>, dialect: &str) -> Result<()> {
+fn probe<T: Transport>(session: &mut Session<T>, dialect: Option<&str>) -> Result<()> {
     let dialect = match dialect {
-        "hp58503" => Dialect::Hp58503,
-        "z3801" => Dialect::Z3801,
-        other => anyhow::bail!("unknown dialect {other:?}"),
+        Some("hp58503") => Dialect::Hp58503,
+        Some("z3801") => Dialect::Z3801,
+        Some(other) => anyhow::bail!("unknown dialect {other:?}"),
+        None => {
+            let reply = session
+                .query("*IDN?")
+                .context("asking the receiver its model")?;
+            let identity = parse::identity(reply.one_line("identity")?)?;
+            let dialect = dialect_for(&identity.model);
+            println!("{identity}: probing the {dialect:?} command tree\n");
+            dialect
+        }
     };
 
     let mut answered = 0usize;
