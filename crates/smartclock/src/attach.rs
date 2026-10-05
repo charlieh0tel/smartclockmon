@@ -111,7 +111,7 @@ where
             ..settings.clone()
         };
         let probed = n > 0;
-        let session = Session::new(open(&tried)?, config.clone());
+        let session = Session::new(open(&tried)?, config.at_rate(baud));
         match identify(session, probed) {
             Ok((device, discarded)) => {
                 return Ok(Attached {

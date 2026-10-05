@@ -19,6 +19,7 @@ use std::time::Instant;
 use crate::error::Error;
 use crate::error::Result;
 use crate::transport::Transport;
+use crate::types::BaudRate;
 use crate::types::ErrorEntry;
 
 /// The prompt that ends an exchange.
@@ -79,6 +80,24 @@ impl Default for Config {
         }
     }
 }
+
+impl Config {
+    /// This configuration for a link at `baud`: the timeout raised, if
+    /// it has to be, to twice the status screen's wire time, the longest
+    /// reply.  At 9600 and above the default stands; at 4800 and below
+    /// the screen alone takes most of the default or more, and would
+    /// time out on a link that is working.
+    pub fn at_rate(&self, baud: BaudRate) -> Self {
+        Self {
+            timeout: self.timeout.max(baud.wire_time(LONGEST_REPLY_BYTES) * 2),
+            ..self.clone()
+        }
+    }
+}
+
+/// The status screen's size, the longest reply: 1574 bytes from a
+/// 58503A, rounded up.
+const LONGEST_REPLY_BYTES: u32 = 1800;
 
 /// Bytes sent after every command.
 const TERMINATOR: &str = "\r\n";
@@ -545,5 +564,17 @@ mod tests {
             parse_error("0,\"No error\""),
             Some((0, "No error".to_owned()))
         );
+    }
+
+    #[test]
+    fn the_timeout_covers_the_status_screen_at_slow_rates() {
+        use super::Config;
+        use crate::types::BaudRate;
+        let default = Config::default();
+        assert_eq!(default.at_rate(BaudRate::B19200).timeout, default.timeout);
+        assert_eq!(default.at_rate(BaudRate::B9600).timeout, default.timeout);
+        assert!(default.at_rate(BaudRate::B4800).timeout > default.timeout);
+        assert!(default.at_rate(BaudRate::B2400).timeout >= std::time::Duration::from_secs(15));
+        assert!(default.at_rate(BaudRate::B1200).timeout >= std::time::Duration::from_secs(30));
     }
 }

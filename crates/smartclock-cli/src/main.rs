@@ -305,6 +305,8 @@ fn main() -> Result<()> {
         }
         found
     };
+    // Long enough for the status screen at the rate found.
+    let config = config.at_rate(settings.baud);
     // Created before the port is opened, so an existing file stops the
     // run before anything is sent.
     let capture = cli.capture.as_deref().map(transcript).transpose()?;

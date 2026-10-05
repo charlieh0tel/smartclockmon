@@ -1249,8 +1249,6 @@ instance label).
 
 **Daemon, other.**
 
-- The fixed five-second prompt timeout is too short for the status
-  screen below 4800 baud.
 
 **Web view.**  Host and Origin checks are open question 5.  The query
 string is parsed by hand in two places; move it into `smartclock-http`.
