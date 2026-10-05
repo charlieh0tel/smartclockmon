@@ -1,4 +1,5 @@
-//! Recording commands that were not scheduled polls.
+//! What other threads ask the log thread to write: commands that were
+//! not scheduled polls.
 //!
 //! Writing goes through a channel rather than a shared connection: the
 //! log has one writer, the thread that owns it, and a client thread
@@ -33,22 +34,22 @@ pub(crate) enum LogRequest {
     Audit(Entry),
 }
 
-/// A handle for recording commands.
+/// A handle on the log thread's inbox.
 #[derive(Debug, Clone)]
-pub(crate) struct Audit {
-    entries: Sender<LogRequest>,
+pub(crate) struct LogInbox {
+    requests: Sender<LogRequest>,
 }
 
-impl Audit {
+impl LogInbox {
     /// Record into `sink`.
     pub(crate) fn new(sink: Sender<LogRequest>) -> Self {
-        Self { entries: sink }
+        Self { requests: sink }
     }
 
     /// Note a command.  Failing to record must not fail the command:
     /// the audit trail is a record of what happened, not a gate on it.
-    pub(crate) fn record(&self, scpi: &str, class: Class, outcome: &str, receiver: &str) {
-        let _ = self.entries.send(LogRequest::Audit(Entry {
+    pub(crate) fn audit(&self, scpi: &str, class: Class, outcome: &str, receiver: &str) {
+        let _ = self.requests.send(LogRequest::Audit(Entry {
             at: jiff::Timestamp::now(),
             receiver: receiver.to_owned(),
             scpi: scpi.to_owned(),

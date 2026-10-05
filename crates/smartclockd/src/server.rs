@@ -36,7 +36,7 @@ use smartclock::command::Spec;
 use smartclock::task::Cadence;
 use smartclock::task::Handle;
 
-use crate::audit::Audit;
+use crate::inbox::LogInbox;
 use smartclock::protocol::Message;
 use smartclock::protocol::Op;
 use smartclock::protocol::Request;
@@ -151,7 +151,7 @@ pub(crate) struct Info {
     /// only defaults.
     pub cadence: Cadence,
     /// Where to record commands that were not scheduled polls.
-    pub audit: Audit,
+    pub inbox: LogInbox,
 }
 
 /// Bind the socket.
@@ -501,7 +501,7 @@ fn send(id: String, scpi: &str, handle: &Handle, info: &Info) -> Message {
         Ok(reply) => format!("ok: {}", reply.lines.join(" | ")),
         Err(e) => format!("failed: {e}"),
     };
-    info.audit.record(to_send, class, &note, &info.identity);
+    info.inbox.audit(to_send, class, &note, &info.identity);
 
     // A command that changed something should not wait up to a minute
     // to show in the snapshots.
@@ -1033,7 +1033,7 @@ mod socket_tests {
     use super::SharedInfo;
     use super::bind;
     use super::serve;
-    use crate::audit::Audit;
+    use crate::inbox::LogInbox;
 
     use std::io::BufRead;
     use std::io::BufReader;
@@ -1080,7 +1080,7 @@ mod socket_tests {
                 dialect: Dialect::Hp58503,
                 database: "/nowhere".to_owned(),
                 policy: Policy::default(),
-                audit: Audit::new(audit_tx),
+                inbox: LogInbox::new(audit_tx),
                 cadence: smartclock::task::Cadence::default(),
             }));
 

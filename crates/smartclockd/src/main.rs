@@ -5,7 +5,7 @@
 //! watching.  Clients reach it over a local socket for live state, and
 //! by opening the SQLite log read-only for history.
 
-mod audit;
+mod inbox;
 
 mod db;
 mod journal;
@@ -13,9 +13,9 @@ mod journal;
 mod scratch;
 mod server;
 
-use crate::audit::Audit;
-use crate::audit::Entry;
-use crate::audit::LogRequest;
+use crate::inbox::Entry;
+use crate::inbox::LogInbox;
+use crate::inbox::LogRequest;
 use crate::journal::Journal;
 use crate::journal::LOST_TO_OVERFLOW;
 use crate::server::Policy;
@@ -298,7 +298,7 @@ fn main() -> Result<()> {
         dialect: Dialect::Hp58503,
         database: database.clone(),
         policy,
-        audit: Audit::new(inbox_tx),
+        inbox: LogInbox::new(inbox_tx),
         cadence: cadence.clone(),
     }));
 
@@ -1357,7 +1357,7 @@ mod tests {
                 dialect: smartclock::command::Dialect::Hp58503,
                 database: String::new(),
                 policy: server::Policy::default(),
-                audit: crate::audit::Audit::new(audit.clone()),
+                inbox: crate::inbox::LogInbox::new(audit.clone()),
                 cadence: Cadence::default(),
             }))
         };
