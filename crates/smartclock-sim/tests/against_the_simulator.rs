@@ -493,6 +493,32 @@ fn a_receiver_swapped_under_a_live_link_stops_the_task() {
 }
 
 #[test]
+fn an_answer_that_is_no_identity_is_taken_for_a_swap() {
+    // An installer answers *IDN? with its revision alone; polling on
+    // under the old identity would file whatever it is as that unit.
+    let transport = SimTransport::new(Receiver::default());
+    let receiver = Arc::clone(transport.receiver());
+    let device = Device::open(Session::new(transport, Config::default())).expect("open");
+    let (_requests, requests) = channel();
+    let mut task = DeviceTask::new(
+        device,
+        Cadence {
+            fast: Duration::from_millis(20),
+            medium: Duration::from_millis(50),
+            slow: Duration::from_millis(80),
+        },
+        Shared::new(),
+        requests,
+    );
+    receiver.lock().expect("receiver").identity = "Peru-A".to_owned();
+    let stopped = task.run();
+    assert!(
+        matches!(stopped, task::Stopped::Swapped(Error::Swapped { ref now, .. }) if now == "Peru-A"),
+        "{stopped:?}"
+    );
+}
+
+#[test]
 fn a_published_snapshot_names_the_receiver_it_was_read_from() {
     let simulated = Receiver::default();
     let identity = simulated.identity.clone();

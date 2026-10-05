@@ -584,15 +584,23 @@ impl<T: Transport> Device<T> {
     /// `*IDN?` is otherwise read only at open, so a cable moved to
     /// another unit quickly enough that no read failed would leave the
     /// new unit's readings filed under the old one's serial.
+    ///
+    /// An answer that is not an identity at all -- an installer's
+    /// revision string -- is not the unit attached either, and is
+    /// treated as a swap, which reopens and identifies afresh.
     fn check_identity(&mut self) -> Result<()> {
-        let now = read_identity(&mut self.session)?;
-        if self.identity.same_unit(&now) {
-            Ok(())
-        } else {
-            Err(Error::Swapped {
+        let reply = self.session.query("*IDN?")?;
+        let line = reply.one_line("an identity")?;
+        match parse::identity(line) {
+            Ok(now) if self.identity.same_unit(&now) => Ok(()),
+            Ok(now) => Err(Error::Swapped {
                 was: self.identity.to_string(),
                 now: now.to_string(),
-            })
+            }),
+            Err(_) => Err(Error::Swapped {
+                was: self.identity.to_string(),
+                now: line.to_owned(),
+            }),
         }
     }
 
