@@ -63,6 +63,7 @@ const STYLE: &str = include_str!("style.css");
 /// range control, and the lifecycle that decides when a page reads and
 /// what it does when the receiver changes or its daemon goes away.
 const COMMON: &str = include_str!("common.js");
+const CHARTS: &str = include_str!("charts.js");
 
 #[derive(Parser)]
 #[command(about, version = smartclock::VERSION)]
@@ -125,6 +126,7 @@ fn main() -> Result<()> {
             "/adev" => Response::ok("text/html; charset=utf-8", DEVIATION.to_owned()),
             "/style.css" => Response::ok("text/css; charset=utf-8", STYLE.to_owned()),
             "/common.js" => Response::ok("text/javascript; charset=utf-8", COMMON.to_owned()),
+            "/charts.js" => Response::ok("text/javascript; charset=utf-8", CHARTS.to_owned()),
             "/api/about" => json(Ok(about())),
             "/api/snapshot" => {
                 json(choose(&daemons, &cache, query).and_then(|s| cache.snapshot(&s)))

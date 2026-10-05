@@ -101,7 +101,7 @@ test("a note is marked on the charts and named when the cursor is on it", async 
   const { x, y } = await page.evaluate(() => {
     const chart = charts[0];
     const box = chart.over.getBoundingClientRect();
-    return { x: box.left + chart.valToPos(notes[0][0], "x"), y: box.top + box.height / 2 };
+    return { x: box.left + chart.valToPos(notes[0].at, "x"), y: box.top + box.height / 2 };
   });
   await page.mouse.move(x, y);
   await expect(page.locator("#readout")).toContainText(`note of ${B}`);
