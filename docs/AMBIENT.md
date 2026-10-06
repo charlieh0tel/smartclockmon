@@ -8,18 +8,22 @@ query with 0 or 1 count (`docs/firmware.md`).
 
 ## Design
 
-The daemon reads files in the kernel's sensor forms and knows nothing
-about the sensor behind them.
+The daemon reads a kernel sensor interface and knows nothing about
+the sensor behind it.
 
-- `--ambient PATH` (`SMARTCLOCKD_AMBIENT`), in one of two forms, chosen
-  by the file name and refused at startup otherwise:
-  - a file holding millidegrees Celsius: hwmon's `temp*_input`, an IIO
-    channel's `in_temp_input`, or a helper's file.  hwmon applies any
-    `temp*_offset` itself, so `_input` is already the temperature.
-  - an IIO channel's `in_temp_raw`: the temperature is (raw + offset) x
-    scale, millidegrees, from the sibling `in_temp_offset` (0 when
-    absent) and `in_temp_scale` (required).
-  The daemon logs the form it took and its first reading.
+- One of two switches, saying which kernel interface the reading
+  comes from, rather than guessing it from a file name:
+  - `--ambient-hwmon FILE` (`SMARTCLOCKD_AMBIENT_HWMON`): a hwmon
+    `temp*_input`, millidegrees Celsius.  hwmon applies any
+    `temp*_offset` itself.  A helper's file in the same form, such as
+    a TEMPer's, goes here too.
+  - `--ambient-iio CHANNEL` (`SMARTCLOCKD_AMBIENT_IIO`): an IIO
+    channel's path less its suffix, such as
+    `/sys/bus/iio/devices/iio:device0/in_temp`.  Its `_input` is read
+    if there is one; otherwise (`_raw` + `_offset`) x `_scale`,
+    millidegrees, with `_offset` 0 when absent and `_scale` required.
+  The two are exclusive.  The daemon logs which it read and its first
+  value.
 - Read on the medium tier and logged as `ambient_c` in each snapshot
   (a schema bump).
 - A reading from a file not modified for three medium periods is logged
@@ -42,7 +46,7 @@ whose kernel driver (`hid-mcp2221`) presents its I2C as `/dev/i2c-N`:
 | ------ | -------- | ------ | ---- |
 | SHT41, SHT40 | +/- 0.2 C | hwmon `sht4x` | `temp1_input`; humidity too |
 | MCP9808 | +/- 0.25 C | hwmon `jc42` | `temp1_input` |
-| TMP117 | +/- 0.1 C | IIO `tmp117` | `in_temp_raw` and scale |
+| TMP117 | +/- 0.1 C | IIO `tmp117` | `in_temp`, raw and scale |
 | PCT2075 | +/- 1 C, 0.125 C steps | hwmon `lm75` | `temp1_input` |
 
 The SHT41 is the first choice: hwmon, no glue, and humidity for a
