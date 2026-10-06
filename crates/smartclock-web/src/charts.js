@@ -279,7 +279,7 @@ function decade(v) {
   if (!Number.isFinite(v) || v <= 0) return "--";
   const exponent = Math.floor(Math.log10(v));
   const mantissa = v / 10 ** exponent;
-  return `${mantissa.toFixed(mantissa < 10 ? 1 : 0)}×${power(10 ** exponent)}`;
+  return `${mantissa.toFixed(mantissa < 10 ? 1 : 0)}×${tenTo(exponent)}`;
 }
 
 // A log ruler: a graduation at every 1 to 9 of each decade, so the
@@ -327,11 +327,14 @@ function labels(splits, format) {
 const SUPERSCRIPT = { "-": "⁻", 0: "⁰", 1: "¹", 2: "²",
                       3: "³", 4: "⁴", 5: "⁵", 6: "⁶",
                       7: "⁷", 8: "⁸", 9: "⁹" };
+// Ten to the power `exponent`, written with superscripts.
+const tenTo = (exponent) => "10" + [...String(exponent)].map((c) => SUPERSCRIPT[c]).join("");
+
+// A graduation as mantissa and power, the mantissa written even when it
+// is 1, so 1×10⁻⁹ reads in line with 2×10⁻⁹ and 5×10⁻⁹ beside it.
 function power(v) {
   if (!Number.isFinite(v) || v <= 0) return "";
-  const exponent = String(Math.floor(Math.log10(v) + 1e-9));
-  const m = mantissa(v);
-  return (m === 1 ? "" : `${m}×`) + "10" + [...exponent].map((c) => SUPERSCRIPT[c]).join("");
+  return `${mantissa(v)}×${tenTo(Math.floor(Math.log10(v) + 1e-9))}`;
 }
 
 // A graduation as the number itself: 1, 2, 5, 10, 20, 50.  Past six figures
