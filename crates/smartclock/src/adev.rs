@@ -55,7 +55,7 @@
 //! white PM the Allan variance is `3 sigma_x^2 / tau^2` at every tau,
 //! so the plain deviation of the record sits a factor `sqrt(10)` below
 //! that of the 1 PPS wherever that noise dominates -- on a bench
-//! 58503A, everywhere out to 500 s (`PLAN.md`).
+//! 58503A, everywhere out to 500 s (`docs/stability.md`).
 //!
 //! The maximum time interval error (SP 1065 section 5.2.9) is the third
 //! figure: over every window of `m + 1` consecutive readings, the

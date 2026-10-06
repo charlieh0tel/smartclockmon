@@ -196,7 +196,7 @@ const FIRST_JOURNAL: Duration = Duration::from_secs(5);
 /// its queue, and logged, within ten seconds of when it happened, and a
 /// diagnostic log being copied takes a few entries a pass.  The event
 /// registers are not read: reading one clears it, which a logger has no
-/// business doing (`PLAN.md`, Phases, 10).  The engine's identity and
+/// business doing (`PLAN.md`, "The receiver's own records").  The engine's identity and
 /// the transition filters are read once per attachment.
 ///
 /// The cost when nothing has happened is two short queries, the error

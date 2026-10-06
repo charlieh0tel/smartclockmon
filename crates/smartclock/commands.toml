@@ -27,8 +27,8 @@
 #                       though no receiver has answered it yet
 #            "hardware" the receiver answered it
 # argument:  what the command's argument may be, when it takes one.
-#            Absent means a query takes none and a setter takes anything
-#            the character whitelist allows.  Given, it is checked before
+#            Absent means the command takes none; "free" lets it take
+#            anything the character whitelist allows.  Given, it is checked before
 #            the command reaches the receiver, so the string path
 #            validates what the typed Control handle already does.
 # cite:      page in the dialect's manual
