@@ -416,6 +416,7 @@ function pickers(plottable) {
       // Kept in the menu's order rather than the order they were
       // ticked, so the stack does not reshuffle as it is built.
       columns = order.filter((c) => wanted.has(c));
+      remember({ columns: columns.join(","), column: null });
       load();
     };
   }

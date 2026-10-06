@@ -100,13 +100,14 @@ default, about one pixel's worth of time across the window rounded up
 to the next of the fixed intervals, or one of those intervals, never
 faster than the page can afford (5 s for history, a minute where each
 read measures stability).  ⟳ reads at once.  Reading pauses while the
-tab is hidden, while a read is still running, and while the pointer is
-on a chart.
+tab is hidden, while a read is still running, while the pointer is on
+a chart, and while text is selected.
 
 Two things differ from Grafana.  A range moved or zoomed out to end
 within half its length of now becomes the moving range of that length,
-where Grafana would slide on into the future.  And a range wholly in
-the past is not read again, since its readings cannot change.
+where Grafana would slide on into the future.  And a fixed range is
+read again only until a read has started after its end; past that its
+readings cannot change.
 
 The choice rides in the address (`?last=172800`, `?last=all`, or
 `?from=…&to=…` in unix seconds, plus `refresh=`) beside the receiver
@@ -114,7 +115,8 @@ and the columns, so a reload or a shared link shows the same window,
 and links between pages carry the receiver and the range.  Grafana's
 forms are read too: `from=now-6h&to=now` (units s, m, h, d and w; not
 months, years or rounding such as `now/d`), epoch milliseconds, ISO
-times; so is the older `range=SECONDS`.  The stability page uses the
+times, with `to=now` keeping the range moving; so is the older
+`range=SECONDS`.  The stability page uses the
 same control; there the range is the record the estimator runs on, so
 changing it recomputes.
 

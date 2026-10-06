@@ -379,9 +379,10 @@ The browser view's range control copies Grafana's dashboards -- half-
 window steps, zoom out about the center, the `t` keys, Back undoing a
 change of range, a refresh picker with Auto -- because people who read
 time series know them.  It departs twice: a range moved to end near now
-becomes the moving one rather than sliding into the future, and a range
-wholly past is not read again.  Each page sets its fastest refresh by
-what one read costs.  `docs/views.md` has the details.
+becomes the moving one rather than sliding into the future, and a fixed
+range is not read again once a read has started after its end.  Each
+page sets its fastest refresh by what one read costs.  `docs/views.md`
+has the details.
 
 ### systemd unit
 
@@ -546,8 +547,8 @@ view cannot drift apart.  The library, bottom up:
 - **Bench work:** the open items in `docs/hardware-investigations.md`,
   each with its TODO.
 - **Editing notes from the web view**, through the daemon socket.
-  Needs POST bodies in `smartclock-http`, and edit requests keyed by
-  the note's existing `id`.
+  Needs POST bodies in `smartclock-http`, `/api/notes` returning each
+  note's `id`, and edit requests keyed by it.
 
 ## Open questions
 

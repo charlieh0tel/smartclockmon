@@ -268,7 +268,17 @@ test("Grafana's forms of the range are read and rewritten", async ({ page }) => 
   await page.goto(`/?receiver=${B}&from=${DAY_AGO * 1000}&to=${(DAY_AGO + 3600) * 1000}`);
   await expect.poll(() => shown(page)).toEqual({ last: null, from: DAY_AGO, to: DAY_AGO + 3600 });
   await page.goto(`/?receiver=${B}&from=${new Date(DAY_AGO * 1000).toISOString()}&to=now-1h`);
-  await expect.poll(() => shown(page).from).toBe(DAY_AGO);
+  await expect.poll(() => shown(page).from).toBe(DAY_AGO);  // A fixed start up to now still moves with the clock, as in Grafana.
+  await page.goto(`/?receiver=${B}&from=${DAY_AGO * 1000}&to=now`);
+  await expect.poll(() => shown(page).last).not.toBeNull();
+  expect(Math.abs(Number(shown(page).last) - 86400)).toBeLessThan(60);
+});
+
+test("the columns chosen ride in the address", async ({ page }) => {
+  await openAt(page, "/", "last=3600");
+  await page.locator('#columns input[data-col="efc_percent"]').uncheck();
+  await expect.poll(() => new URL(page.url()).searchParams.get("columns")).not.toBeNull();
+  expect(new URL(page.url()).searchParams.get("columns")).not.toContain("efc_percent");
 });
 
 test("Back keeps the receiver chosen since", async ({ page }) => {

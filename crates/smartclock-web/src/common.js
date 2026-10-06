@@ -405,6 +405,7 @@ function refresh(asked = false) {
   if (page.daemon && linkUp === false && !asked) return;
   const control = new AbortController();
   running = control;
+  readStarted();
   page
     .load(control.signal)
     .catch((e) => {
@@ -476,7 +477,7 @@ async function content(spec) {
   page = spec;
   // The refresh picker's choices depend on the page's floor.
   refreshChoice = floored(refreshChoice);
-  if (rangeEl) remember({ refresh: refreshChoice === REFRESH_DEFAULT ? null : refreshChoice });
+  if (rangeEl) rememberRefresh();
   drawRangeControl();
   colophon();
   paintCached();
@@ -530,9 +531,9 @@ async function colophon() {
 //
 // Two departures.  A range moved or zoomed out to end within half its
 // length of now becomes the moving range of its length, where Grafana's
-// dashboards slide on into a future with no readings.  And a range
-// wholly in the past is not read again, since its readings cannot
-// change.
+// dashboards slide on into a future with no readings.  And a fixed
+// range is read again only until a read has started after its end;
+// past that its readings cannot change.
 //
 // The range rides in the address (`last=SECONDS`, `last=all`, or
 // `from=..&to=..` in unix seconds) so a reload or a shared link shows
@@ -597,8 +598,10 @@ function readRange(fallback) {
 function rangeFrom(v) {
   const from = instant(v.get("from")), to = instant(v.get("to"));
   if (from && to) {
-    if (to.ago === 0 && from.ago > 0) return { last: from.ago, from: null, to: null };
     const now = Date.now() / 1000;
+    // Up to now is a moving range, however its start is written.
+    const length = from.ago ?? now - from.at;
+    if (to.ago === 0 && length > 0) return { last: Math.round(length), from: null, to: null };
     const start = from.at ?? now - from.ago, end = to.at ?? now - to.ago;
     if (end > start) return { last: null, from: start, to: end };
   }
@@ -621,8 +624,8 @@ function rangeBounds() {
 // Whether the range moves with the clock.
 const moving = () => range.last !== null;
 // Whether reading the range again can show anything new: it moves, or
-// a fixed one, such as a note's, reaches past now.
-const growing = () => moving() || range.to > Date.now() / 1000;
+// a fixed one, such as a note's, ends after the last read started.
+const growing = () => moving() || range.to > readAt / 1000;
 
 function rememberRange(push = false) {
   const fixed = !moving();
@@ -732,10 +735,8 @@ function fixWhereItIs() {
   fixRange(from, to);
 }
 
-// The window shown, as times.  Always there, at one width, whichever the
-// range is: the control is right-aligned, so anything that came and went
-// with the range moved every button on the line, sometimes out from
-// under the pointer that had just pressed it.
+// The window shown, as times, for a span that is always present, so the
+// right-aligned buttons after it stay where they are.
 function shownSpan() {
   if (range.last === "all") return "all";
   const { from, to } = rangeBounds();
@@ -785,14 +786,10 @@ function drawRangeControl() {
   $("range-out").onclick = () => zoomOut();
   $("range-forward").onclick = () => step(1);
   $("range-now").onclick = liveAgain;
-  $("range-reload").onclick = () => {
-    renew(true);
-    readAt = Date.now();
-    schedule();
-  };
+  $("range-reload").onclick = () => renew(true);
   $("range-refresh").onchange = () => {
     refreshChoice = $("range-refresh").value;
-    remember({ refresh: refreshChoice === REFRESH_DEFAULT ? null : refreshChoice });
+    rememberRefresh();
     drawRangeControl();
     schedule();
   };
@@ -862,35 +859,44 @@ addEventListener("popstate", () => {
 // up to the next of Grafana's intervals; never more often than the
 // page's floor, which is what one read of it costs.  Paused while the
 // tab is hidden, and put off while a read is still running or the
-// pointer is on a chart, since each read redraws the charts and would
-// take the cursor readout or a drag in progress with it.
+// pointer is on a chart or text is selected, since each read redraws
+// the page and would take the cursor readout, a drag in progress or the
+// selection with it.
 
 const REFRESH_INTERVALS = [
   ["5s", 5], ["10s", 10], ["30s", 30], ["1m", 60], ["5m", 300], ["15m", 900],
   ["30m", 1800], ["1h", 3600], ["2h", 7200], ["1d", 86400],
 ];
-const REFRESH_DEFAULT = "auto";
+const REFRESH_OFF = "off";
+const REFRESH_AUTO = "auto";
+const REFRESH_DEFAULT = REFRESH_AUTO;
 // The window Auto assumes for `all`, whose length the page does not
 // know: the longest preset.
 const ALL_SPAN = RANGE_PRESETS[RANGE_PRESETS.length - 1][1];
-// How long a refresh put off by the pointer waits to try again, in ms.
-const POINTER_WAIT = 1000;
+// How long a refresh put off waits to try again, in ms.
+const PUT_OFF_WAIT = 1000;
 
 // "off", "auto", or one of REFRESH_INTERVALS' names.
 let refreshChoice = REFRESH_DEFAULT;
 // The pending timer for the next read, if any.
 let refreshTimer = null;
-// When the timer, the reload button or the tab's return last started a
-// read, in ms since the epoch.
+// When the last read started, in ms since the epoch.
 let readAt = Date.now();
 
 // The page's floor in seconds, or null on a page without a range.
 const refreshFloor = () => page?.floor ?? null;
 
+// An interval's length in seconds, by its name; undefined for Off and Auto.
+const refreshSeconds = (name) => REFRESH_INTERVALS.find(([n]) => n === name)?.[1];
+
 function refreshFrom(v) {
   const asked = v.get("refresh");
-  const known = ["off", "auto", ...REFRESH_INTERVALS.map(([name]) => name)];
+  const known = [REFRESH_OFF, REFRESH_AUTO, ...REFRESH_INTERVALS.map(([name]) => name)];
   return known.includes(asked) ? asked : REFRESH_DEFAULT;
+}
+
+function rememberRefresh() {
+  remember({ refresh: refreshChoice === REFRESH_DEFAULT ? null : refreshChoice });
 }
 
 // A choice faster than the page's floor, from an address made on
@@ -898,7 +904,7 @@ function refreshFrom(v) {
 // what it does not offer.
 function floored(choice) {
   const floor = refreshFloor() ?? 0;
-  const secs = REFRESH_INTERVALS.find(([name]) => name === choice)?.[1];
+  const secs = refreshSeconds(choice);
   if (secs === undefined || secs >= floor) return choice;
   return REFRESH_INTERVALS.find(([, s]) => s >= floor)[0];
 }
@@ -907,8 +913,8 @@ function floored(choice) {
 function refreshOptions() {
   const floor = refreshFloor() ?? 0;
   return [
-    ["off", "Off"],
-    ["auto", "Auto"],
+    [REFRESH_OFF, "Off"],
+    [REFRESH_AUTO, "Auto"],
     ...REFRESH_INTERVALS.filter(([, secs]) => secs >= floor).map(([name]) => [name, name]),
   ];
 }
@@ -916,17 +922,15 @@ function refreshOptions() {
 // The period in seconds the range is read again at, or null for never.
 function refreshEvery() {
   const floor = refreshFloor();
-  if (floor === null || !growing() || refreshChoice === "off") return null;
-  if (refreshChoice !== "auto") {
-    return Math.max(floor, REFRESH_INTERVALS.find(([name]) => name === refreshChoice)[1]);
-  }
+  if (floor === null || !growing() || refreshChoice === REFRESH_OFF) return null;
+  if (refreshChoice !== REFRESH_AUTO) return Math.max(floor, refreshSeconds(refreshChoice));
   const span = rangeBounds().seconds ?? ALL_SPAN;
   const wanted = Math.max(floor, span / Math.max(1, innerWidth));
   return (REFRESH_INTERVALS.find(([, secs]) => secs >= wanted) ?? REFRESH_INTERVALS.at(-1))[1];
 }
 
 function refreshTitle() {
-  if (!growing()) return "a range wholly past is not read again";
+  if (!growing()) return "a range now past is not read again";
   const every = refreshEvery();
   return every === null ? "not read again" : `read again every ${every} s`;
 }
@@ -941,15 +945,25 @@ function schedule() {
 
 function due() {
   if (document.hidden) return;
-  if (running || document.querySelector(".u-over:hover")) {
-    refreshTimer = setTimeout(due, POINTER_WAIT);
+  if (running || document.querySelector(".u-over:hover") || String(getSelection() ?? "")) {
+    refreshTimer = setTimeout(due, PUT_OFF_WAIT);
     return;
   }
-  readAt = Date.now();
   refresh();
+}
+
+// A read has started, whatever started it: the next is timed from it,
+// and the control's times and picker follow.
+function readStarted() {
+  readAt = Date.now();
   schedule();
   const shownEl = $("range-shown");
   if (shownEl) shownEl.textContent = shownSpan();
+  const picker = $("range-refresh");
+  if (picker) {
+    picker.disabled = !growing();
+    picker.title = refreshTitle();
+  }
 }
 
 // A hidden tab is not read; on its return it is, once a read is due.
