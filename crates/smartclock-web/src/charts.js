@@ -209,6 +209,25 @@ function settleWidths(charts, container) {
 // The y axis width a stack of fitted axes shares.
 const stackWidth = (fits) => Math.max(...fits.map((f) => f.axis.size));
 
+// Tie a time chart to the range: a drag fixes the range to the stretch
+// it covered, a double click goes back to a moving window.  The drag
+// is read from setSelect, not setScale: setScale also fires when uPlot
+// fits the scale to new data, on every draw, and taking that for a
+// zoom fixed the range and stopped the background refresh for the life
+// of the page.
+const TIME_HOOKS = {
+  setSelect: [
+    (u) => {
+      if (u.select.width <= 0) return;
+      fixRange(u.posToVal(u.select.left, "x"), u.posToVal(u.select.left + u.select.width, "x"));
+    },
+  ],
+};
+function ranged(chart) {
+  chart.over.addEventListener("dblclick", liveAgain);
+  return chart;
+}
+
 // ---------------------------------------------------------------- notes
 
 // How near the cursor must be to a note's line, in CSS pixels, for its

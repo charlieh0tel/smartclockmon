@@ -237,7 +237,7 @@ function drawHistory(shown, got) {
     const fitted = fits[place];
     const host = document.createElement("div");
     $("charts").appendChild(host);
-    const chart = new uPlot(
+    const chart = ranged(new uPlot(
       {
         width: $("charts").clientWidth || 800,
         height,
@@ -281,30 +281,12 @@ function drawHistory(shown, got) {
               noteTip(under, under ? noteAt(under, marks) : null);
             },
           ],
-          setSelect: [
-            (u) => {
-              if (u.select.width <= 0) return;
-              setAbsolute(
-                u.posToVal(u.select.left, "x"),
-                u.posToVal(u.select.left + u.select.width, "x"),
-              );
-              buttons();
-              soon();
-            },
-          ],
+          ...TIME_HOOKS,
         },
       },
       [joined[0], ...columns],
       host,
-    );
-    // Double click: back to a moving window of the same length.
-    chart.over.addEventListener("dblclick", () => {
-      const { seconds } = rangeBounds();
-      range = { last: Math.max(60, Math.round(seconds || 86400)), from: null, to: null };
-      rememberRange();
-      buttons();
-      renew();
-    });
+    ));
     charts.push(chart);
   });
   settleWidths(charts, $("charts"));
@@ -449,11 +431,7 @@ function soon() {
   settling = setTimeout(() => renew(), COALESCE);
 }
 
-function buttons() {
-  rangeControl($("ranges"), renew);
-}
-
-buttons();
+rangeControl($("ranges"), soon);
 addEventListener("resize", soon);
 // A receiver that appears is offered, unticked, as soon as the list
 // that common.js keeps has it, not at the next read.  Rebuilt only on a

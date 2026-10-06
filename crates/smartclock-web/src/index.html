@@ -122,9 +122,7 @@ let notes = [];
 
 // Center the charts on a note's time, and bring them into view.
 function showNote(at) {
-  setAbsolute(at - NOTE_SPAN, at + NOTE_SPAN);
-  buttons();
-  load();
+  fixRange(at - NOTE_SPAN, at + NOTE_SPAN);
   $("charts").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -290,31 +288,16 @@ async function draw(signal) {
         sync: { key: SYNC.key, setSeries: false },
       },
       hooks: {
-        // setSelect, not setScale.  setScale also fires when uPlot sets
-        // the scale from the data it was just given, which is every
-        // draw: the hook then decided the user had zoomed, latched the
-        // range, unlit every preset button and -- because the
-        // background refresh is skipped while zoomed -- stopped the
-        // history updating for the life of the page.  setSelect fires
-        // only for a drag.
         setCursor: [() => readout()],
         draw: [drawNotes],
-        setSelect: [(u) => {
-          if (u.select.width <= 0) return;
-          setAbsolute(
-            u.posToVal(u.select.left, "x"),
-            u.posToVal(u.select.left + u.select.width, "x"),
-          );
-          buttons();
-          load();
-        }],
+        ...TIME_HOOKS,
       },
     };
-    const chart = new uPlot(
+    const chart = ranged(new uPlot(
       opts,
       [got.at, scaled(plot.min, col), scaled(plot.max, col), mean, ...(mate ? [mate] : [])],
       host,
-    );
+    ));
     // Which column this chart is, so the shared readout can label it
     // without reaching back into the request that built it.
     chart.smartclockColumn = col;
@@ -342,14 +325,6 @@ async function draw(signal) {
           `<span style="color:${MATE}">${esc(theirs)}</span>`;
       }
     }
-    // Double click: back to a moving window of the same length.
-    chart.over.addEventListener("dblclick", () => {
-      const { seconds } = rangeBounds();
-      range = { last: Math.max(60, Math.round(seconds || 3600)), from: null, to: null };
-      rememberRange();
-      buttons();
-      load();
-    });
     charts.push(chart);
   });
   settleWidths(charts, $("charts"));
@@ -454,10 +429,6 @@ let pending = null;
 function load() {
   clearTimeout(pending);
   pending = setTimeout(renew, COALESCE);
-}
-
-function buttons() {
-  rangeControl($("ranges"), load);
 }
 
 // ------------------------------------------------- the receiver's journal
@@ -606,7 +577,7 @@ const HISTORY_EVERY = 30000;
   // drift from the columns the query will actually accept.
   const first = await getJson(seriesQuery(columns, null, null));
   const plottable = first.plottable ?? columns;
-  buttons();
+  rangeControl($("ranges"), load);
   addEventListener("resize", load);
   content({
     daemon: false,

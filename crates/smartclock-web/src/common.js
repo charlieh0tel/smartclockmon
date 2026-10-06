@@ -515,8 +515,11 @@ const RANGE_PRESETS = [
 
 // `last`: seconds, or "all"; `from`/`to`: unix seconds when absolute.
 let range = { last: 3600, from: null, to: null };
+// The page's default length, in seconds.
+let rangeFallback = 3600;
 
 function readRange(fallback) {
+  rangeFallback = fallback ?? rangeFallback;
   const v = new URLSearchParams(location.search);
   if (v.has("from") && v.has("to")) {
     const from = Number(v.get("from")), to = Number(v.get("to"));
@@ -528,7 +531,7 @@ function readRange(fallback) {
   const last = v.get("last") ?? v.get("range");
   if (last === "all" || last === "null") range = { last: "all", from: null, to: null };
   else if (last && Number(last) > 0) range = { last: Number(last), from: null, to: null };
-  else range = { last: fallback ?? 3600, from: null, to: null };
+  else range = { last: rangeFallback, from: null, to: null };
 }
 
 // The bounds to ask the server for, in unix seconds; null is open.
@@ -561,9 +564,43 @@ function shortTime(t) {
     `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// The control's element and what the page does on a change, kept so
+// that a change from anywhere -- the control, a drag, a note -- is
+// drawn and read the same way.
+let rangeEl = null;
+let rangeChanged = null;
+
 // Build the control into `el`; `changed` is called after every change.
 function rangeControl(el, changed) {
-  const apply = () => { rememberRange(); rangeControl(el, changed); changed(); };
+  rangeEl = el;
+  rangeChanged = changed;
+  drawRangeControl();
+}
+
+// Make `next` the range: into the address, onto the control, and read.
+// Charts synced by cursor each report the same drag, so a range that is
+// already the one shown is not a change.
+function setRange(next) {
+  if (next.last === range.last && next.from === range.from && next.to === range.to) return;
+  range = next;
+  rememberRange();
+  drawRangeControl();
+  rangeChanged?.();
+}
+
+// A fixed window, from a drag or a note.
+function fixRange(from, to) {
+  if (to > from) setRange({ last: null, from, to });
+}
+
+// Back to a window moving with the clock, of the length shown.
+function liveAgain() {
+  const { seconds } = rangeBounds();
+  setRange({ last: Math.max(60, Math.round(seconds || rangeFallback)), from: null, to: null });
+}
+
+function drawRangeControl() {
+  const el = rangeEl;
   const relative = range.last !== null;
   const [n, size] = relative && range.last !== "all" ? splitLength(range.last) : [1, 3600];
   el.innerHTML =
@@ -582,31 +619,19 @@ function rangeControl(el, changed) {
       ` <button id="range-fwd" title="later by one window">&rsaquo;</button>` +
       ` <button id="range-now" title="the same length, up to now">now</button>`);
   for (const b of el.querySelectorAll("button[data-last]")) {
-    b.onclick = () => {
-      range = { last: b.dataset.last === "all" ? "all" : Number(b.dataset.last), from: null, to: null };
-      apply();
-    };
+    b.onclick = () =>
+      setRange({ last: b.dataset.last === "all" ? "all" : Number(b.dataset.last), from: null, to: null });
   }
   const setLast = () => {
     const count = Number($("range-n").value), unitSize = Number($("range-unit").value);
-    if (!(count > 0)) return;
-    range = { last: count * unitSize, from: null, to: null };
-    apply();
+    if (count > 0) setRange({ last: count * unitSize, from: null, to: null });
   };
   $("range-n").onchange = setLast;
   $("range-unit").onchange = setLast;
   if (!relative) {
     const len = range.to - range.from;
-    $("range-back").onclick = () => { range = { last: null, from: range.from - len, to: range.to - len }; apply(); };
-    $("range-fwd").onclick = () => { range = { last: null, from: range.from + len, to: range.to + len }; apply(); };
-    $("range-now").onclick = () => { range = { last: Math.max(60, Math.round(len)), from: null, to: null }; apply(); };
+    $("range-back").onclick = () => fixRange(range.from - len, range.to - len);
+    $("range-fwd").onclick = () => fixRange(range.from + len, range.to + len);
+    $("range-now").onclick = liveAgain;
   }
 }
-
-// A drag on a chart: fix the window.
-function setAbsolute(from, to) {
-  if (!(to > from)) return;
-  range = { last: null, from, to };
-  rememberRange();
-}
-

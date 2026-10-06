@@ -129,6 +129,37 @@ for (const path of ["/", "/compare"]) {
   });
 }
 
+// Drag across the middle half of the first chart.
+async function dragAcross(page) {
+  const box = await page.evaluate(() => charts[0].over.getBoundingClientRect().toJSON());
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + box.width / 4, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + (box.width * 3) / 4, y, { steps: 5 });
+  await page.mouse.up();
+}
+
+for (const path of ["/", "/compare"]) {
+  test(`a drag on the ${path} charts fixes the range, and a double click moves it again`, async ({ page }) => {
+    await twoUnits().install(page);
+    await page.goto(`${path}?receiver=${B}&last=21600`);
+    await page.waitForFunction(() => charts.length > 1);
+    await dragAcross(page);
+    await expect.poll(() => new URL(page.url()).searchParams.get("from")).not.toBeNull();
+    const q = new URL(page.url()).searchParams;
+    const length = Number(q.get("to")) - Number(q.get("from"));
+    expect(q.get("last")).toBeNull();
+    expect(length).toBeGreaterThan(0);
+    expect(length).toBeLessThan(21600);
+    await expect(page.locator("#range-now")).toBeVisible();
+    await page.waitForFunction(() => charts.length > 1);
+    await page.evaluate(() => charts[0].over.dispatchEvent(new MouseEvent("dblclick")));
+    await expect.poll(() => new URL(page.url()).searchParams.get("last")).not.toBeNull();
+    expect(Math.abs(Number(new URL(page.url()).searchParams.get("last")) - length)).toBeLessThanOrEqual(1);
+    expect(new URL(page.url()).searchParams.get("from")).toBeNull();
+  });
+}
+
 test("a note clicked in the journal shows an hour either side of it", async ({ page }) => {
   await open(page, twoUnits(), "/", B);
   await page.locator('#journal-tabs button[data-stream="notes"]').click();
