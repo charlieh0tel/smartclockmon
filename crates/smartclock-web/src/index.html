@@ -65,10 +65,30 @@
 // than leaving an empty rectangle if it did not arrive.
 const haveUplot = typeof uPlot !== "undefined";
 
-// Hover text for the values whose numbers mean nothing on their own.
-// Quoted from the command reference rather than paraphrased: a low
-// TFOM is a good one, which is the opposite of most scales here.
+// Hover text for every series whose title does not say what it is:
+// the figures of merit, whose numbers are codes, and the readings whose
+// source or meaning a name and a unit cannot carry.  Taken from the
+// manuals where they document it, and from the command table
+// (crates/smartclock/commands.toml) for the undocumented queries.
 const HINTS = {
+  time_interval_s:
+    "1 PPS time interval: between the 1 PPS divided down from the "
+    + "oscillator and the 1 PPS from the GPS receiver, the receiver's own "
+    + "mean over ten seconds (097-59551-02 5-34; docs/firmware/interval.md).",
+  temperature_c:
+    "Internal temperature, from an undocumented query: not the oven, which "
+    + "runs far hotter. The low byte of ADC channel 0 times 0.273 "
+    + "(docs/firmware/console.md).",
+  oven_current:
+    "Oscillator oven current, from an undocumented query. Rises when the "
+    + "oven is heating.",
+  efc_dac:
+    "The EFC as its raw 20-bit value, from an undocumented query; percent "
+    + "of range is value / 2^20 x 200 - 100.",
+  oven_tempco:
+    "The constant the loop multiplies the oscillator current by in the "
+    + "EFC, in EFC counts per unit of that current. A calibration value in "
+    + "EEPROM that changes only when set (docs/firmware/loop.md).",
   tfom:
     "Time figure of merit: the accuracy of the 1 PPS output, as a decade "
     + "of time error. Lower is better -- 0 is under a nanosecond, 3 is "
