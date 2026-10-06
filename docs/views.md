@@ -57,7 +57,8 @@ reading is already a ten-second mean, the innermost block of that
 form's own averaging, so it is exact here, where the plain form sits a
 factor √10 low wherever the receiver's white phase noise dominates --
 on the bench, the whole measured range.  The plain form stays because
-data sheets quote it.
+data sheets quote it.  How the curves are computed and checked is in
+`docs/stability.md`.
 Each curve is shaded to its one-sigma interval, from chi-squared
 statistics with Greenhall's degrees of freedom for the noise type the
 lag 1 autocorrelation method finds at each tau (NIST SP 1065 sections
