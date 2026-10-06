@@ -6,11 +6,10 @@ browser and Prometheus views.  A GUI is not planned.
 
 ## Status
 
-Phases 0 to 12 are done; **Phases** lists what is next.  Installed
-from the package as a service, one daemon per port, logging to
-`/var/lib/smartclockd/<model>-<serial>.sqlite`; `docs/running.md` is
-the deployment note.  `make ci` is the local check; `make test-hw`, the
-hardware-only set, never runs in CI.
+Installed from the package as a service, one daemon per port, logging
+to `/var/lib/smartclockd/<model>-<serial>.sqlite`; `docs/running.md` is
+the deployment note.  **Next** lists pending work.  `make ci` is the
+local check; `make test-hw`, the hardware-only set, never runs in CI.
 
 Review diffs, not only the tree: the defects found in September 2026
 each produced a wrong value rather than an error while every test
@@ -39,49 +38,28 @@ from.
 ### Flashing is a direct-port command of the CLI
 
 `smartclock-cli flash` loads firmware with the library's session,
-console and line-settings code, so there is one tool to learn.  The
-forbidden-command check applies to commands typed to `query` and
-`sweep`; `flash`, like `read-memory`, is a fixed procedure.  It
-requires the port's daemon stopped and never connects to its socket.
+console and line-settings code, so there is one tool to learn.  Like
+`read-memory` it is a fixed procedure, outside the forbidden-command
+check, run with the port's daemon stopped.
 
-A shared installer procedure uses audited image profiles for Z3801A,
-Z3805A, 58503A and Z3816A, with their different protected flash regions
-and checksum algorithms.  Before erase it checks the exact image
-SHA-256, boot checksums, model, running revision and expected serial.
-Unknown images and revisions are refused, with no force override.
-Models without dumps, including 59551A, need an audited profile first;
-filenames and embedded model strings cannot establish compatibility.
-
-Installer revisions are checked against the model/layout allowlist, not
-paired with a primary revision: boot flash survives upgrades.  The CLI
-says so in check-only mode and just before erase.  Errors the receiver
-held before the run stop the preflight, all listed; the session has
-read them off the queue, so a second run proceeds.  The flasher never
-sends `*CLS`.
-
-The simulator optionally models the installer, flash contents, record
-validation and boot checksums.  Tests compare the whole resulting
-image, protected boot flash included, exercise interrupted-download
-recovery through the real session framing, and cover both 58503A
-revision changes (3633 to 3704 and back), reading the revision from the
-new primary and preserving the boot region.  Final verification
-requires the candidate revision, model and serial; a changed suffix is
-reported separately, since its behavior across upgrades is unknown.
-Hardware timing, wear and upgrade-induced settings changes are not
-simulated.  Cross-revision flashing is untested on hardware; record
-settings before and after the first upgrade.
-
-After writing, the flasher reads the whole flash back through the debug
-console, compares it with the image, and returns to SCPI with the
-console's `halt`, or failing that through the installer.  `read-memory` and `flash` share one reader and one way back
-in `smartclock::console`.
+An image must match an audited profile (Z3801A, Z3805A, 58503A,
+Z3816A), each with its own protected regions and checksums; filenames
+and model strings cannot establish compatibility.  Before erase it
+checks the image SHA-256, boot checksums, model, running revision and
+expected serial, and refuses anything unknown, with no force override.
+It never sends `*CLS`.  Afterwards it reads the whole flash back
+through the debug console, compares it with the image, and returns to
+SCPI with `halt`, or failing that through the installer, by the same
+code as `read-memory` (`smartclock::console`).  Revision changes have
+simulator coverage, not hardware validation
+(`docs/firmware/restart.md`, "The flasher").
 
 ### No client-side SCPI crate
 
 Surveyed: `scpi` + `scpi-contrib` (server side, no_std), `scpify` (TCP
 and HiSLIP only), `scpi-client` 0.1.1 (thin, immature),
 `instrument-core` 0.1.0 (VISA/GPIB oriented).  None fit: the receiver
-echoes, prompts with `scpi> ` / `E-nnn> `, and its richest response is
+echoes, prompts with `scpi > ` / `E-nnn> `, and its richest response is
 an ASCII status screen, where generic clients assume a clean write /
 read-to-terminator cycle.  The standard parts are shallow and specified
 in `097-59551-02`: `:SYSTem:ERRor?` returns `<code>,"<text>"`, and the
@@ -108,36 +86,16 @@ history does not depend on a TUI being up.
 
 One `DeviceTask` thread owns the `Session`, and so the fd, and issues
 every command: an interleaved command's half-read prompt desynchronizes
-every later read.  `Session` is not `Sync` and moves into the device
-thread at construction, so a second writer is a compile error.  A
-command that errors must not leave its reply in flight, or the next
-poll reads it as its own (TFOM recorded as FFOM); `drain` reports
-failure when it gives up, so `sync` cannot match an abandoned reply's
-prompt.
+every later read.  `Session` moves into that thread at construction, so
+a second writer is a compile error.  A command that errors must not
+leave its reply in flight, or the next poll reads it as its own (TFOM
+recorded as FFOM).  Client requests are served between polls, at most
+`REQUESTS_PER_POLL` before the schedule's turn, so neither starves the
+other.
 
 One daemon per socket: a stale socket file is removed before binding
 only when nothing answers on it, and a second daemon pointed at a live
 socket refuses to start.
-
-```
-                      smartclockd (system service)
-                  +----------------------------------+
-/dev/serial/by-id | DeviceTask (sole Session owner)   |
-      <---------> |   poll schedule + request queue   |
-                  +----+------------------------+-----+
-                       | broadcast<Snapshot>    | commands
-                  +----v-----+            +-----v------+
-                  |  Logger  |            | local sock |
-                  | sqlite W |            | /run/...   |
-                  +----------+            +-----+------+
-                       |                        |
-                  sqlite file               live stream
-                  (WAL, read-only)          + control
-                       |                        |
-                  +----+------------------------+-----+
-                  | smartclockmon (TUI) / smartclock-cli|
-                  +------------------------------------+
-```
 
 ### A receiver's line settings are found, not assumed
 
@@ -196,18 +154,11 @@ carry a version, since daemon and clients upgrade independently.
 
 ### Commands go through the daemon too
 
-`Control` is the same type whether the daemon calls it locally or the
-CLI over the socket, so the protocol mirrors the library API:
-
-```
--> {"v":1,"id":"7f3a","op":{"kind":"query","cmd":"holdover_waiting"}}
-<- {"v":1,"id":"7f3a","ok":{"holdover_waiting":"LIMit"}}
-<- {"v":1,"event":"snapshot","ts":"...","efc_pct":-94.2,...}
-```
-
-A reply reports what the device said, not that the operation finished;
-a survey takes hours but acks in milliseconds, and clients watch
-progress in later snapshots.
+A client sends SCPI text (op `query`; the others are `latest`,
+`status`, `info`, `note` and `fact`), which the daemon classifies
+against the command table and gates by class.  A reply reports what the
+device said, not that the operation finished: a survey takes hours but
+acks in milliseconds, and clients watch progress in later snapshots.
 
 | Class     | Examples                                              | Gate                     |
 | --------- | ----------------------------------------------------- | ------------------------ |
@@ -215,147 +166,77 @@ progress in later snapshots.
 | Control   | holdover initiate and recover, survey, antenna delay, elevation mask; reading an event register or `*ESR?`, which clears it; reading `:SYSTem:ERRor?`, which removes the entry | `--allow-control` |
 | Dangerous | `:SYSTem:PRESet`, `:SYSTem:COMMunicate:SERial1:*`, `:DIAGnostic:ERASe`, `:SYSTem:LANGuage "INSTALL"` | `--allow-dangerous` |
 
-Dangerous commands can strand the link or wipe configuration; a baud
-change persists across power cycles.  The gate is a daemon flag, set
-outside any client, so a daemon started without it cannot be talked
-into the command.  On SIGTERM or SIGINT the daemon stops its task and
-waits for the log thread to write held audit entries and snapshots; a
-second signal exits at once.
+Each gate is a daemon flag, set outside any client, so a daemon
+started without it cannot be talked into the command.  A command
+containing `;`, a control character or non-ASCII is refused before
+classification, since a query chained to a setter would classify as a
+query.  Argument ranges sit in the table beside the class, so the
+table, not the typed `Control` API, is the safety boundary.  The TUI's
+raw console bypasses the table, so it has its own flag, `--allow-raw`.
 
-A command containing `;`, a control character or any non-ASCII is
-refused before classification, since SCPI chains units with `;` and
-`:SYSTem:STATus? ;:SYSTem:COMMunicate:SERial1:BAUD 1200` would classify
-as a query.  Arguments are whitelisted: every value this receiver takes
-is a number, a word, a list or a quoted string.  Argument ranges sit in
-the command table beside the class, so the table, not the typed
-`Control` API, is the safety boundary.
-
-Authorization is socket permissions alone: `RuntimeDirectory`,
-`RuntimeDirectoryMode` and group ownership decide who opens the socket,
-and whoever can may issue whatever the daemon's flags allow.  No peer
-credentials or tokens; the audit trail records what, not who.
-
-The TUI's raw SCPI console bypasses the table, so it has its own flag,
-`--allow-raw`, off by default.  The daemon still classifies the prefix
-where it can and logs every raw command.
-
-Requests are serviced between commands; worst-case control latency is
-one status screen read, roughly a second.  At most `REQUESTS_PER_POLL`
-commands run before the schedule's turn, so neither clients nor polls
-starve the other.  A command past its caller's deadline is answered,
-not sent, so a holdover reported failed does not begin seconds later.
-
-- **Force-refresh after control.**  After a successful control
-  operation the `DeviceTask` re-polls the affected tier;
-  `:SYNC:HOLD:INIT` triggers a fast-tier and holdover refresh.
-- **Audit trail beside the telemetry.**  Every non-scheduled command is
-  recorded: timestamp, text, response, classification, and an optional,
-  untrusted client label, so one database answers "what did I do to
-  it, and what did EFC do afterwards".
+Authorization is socket permissions alone (`RuntimeDirectoryMode`,
+group ownership); no peer credentials or tokens.  Every command that is
+not a scheduled poll is audited -- time, text, class, outcome, receiver
+-- so one log answers "what did I do to it, and what did EFC do
+afterwards".  A successful non-query brings every tier's next poll
+forward.
 
 ### Disconnection is a first-class state
 
 USB serial adapters drop and receivers are power-cycled; the daemon
-reconnects rather than exiting, and records the gap.
+reconnects rather than exiting, and records the gap.  A failed poll
+republishes the last snapshot unchanged, so clients see it go stale,
+and the log writes that moment once, so the outage is a gap.
 
 Freshness is per tier: each group of fields carries when it last
 succeeded and its own error, over the wire and into the log, and each
-pane shows the age of what it displays.  A snapshot is as fresh as its
-least fresh part, so the first minute after startup, with no sky,
-position or date yet, reads `Stale`.
-
-History graphs select on `fast_at = at`: whether the fast tier
-measured this row or the row restates the last one.  A medium or slow
-column in a fast row counts while its tier's timestamp is within three
-of its intervals of the row and is null past that, so a failing tier's
-line breaks rather than running flat.  A window, not one row per read,
-because at an hour's zoom a ten-second tier would leave most buckets
-empty; a slow column's mean is therefore time-weighted.  The daemon
-records its cadence in `meta` (absent: the default).  The monitor's
-live panes and the exporter use the same window
-(`Cadence::current_window`) with the cadence from `info`: a pane past
-it shows its age, and the exporter omits its values.
+pane shows the age of what it displays.  A medium or slow value counts
+while its tier's timestamp is within three of its intervals
+(`Cadence::current_window`) and is null past that, so a failing tier's
+line breaks rather than running flat.  History queries, the monitor and
+the exporter share that window, with the cadence the daemon records in
+`meta`.
 
 Each opening of the receiver is an attachment (`AttachmentId`), which
 starts from an empty snapshot.  A command that reaches a later
 attachment than it was sent under is answered `Reattached` and not
-sent, since it was meant and audited for the earlier unit.  Readings
-carry their attachment; on a change the monitor ends its session and
-re-fetches log path, policy and cadence, as after a daemon restart.  A
-failed poll republishes the last snapshot unchanged, so clients see it
-go stale, and the log writes that moment once, so the outage is a gap.
-
-Use a `/dev/serial/by-id/...` path; `/dev/ttyUSB0` is not stable across
-re-enumeration.  The device path has no default, since a wrong one
-sends SCPI at whatever is there; the daemon and CLI refuse to run
-without one, and the packaged configuration ships it commented out.
+sent, since it was meant and audited for the earlier unit.  The daemon
+has no default device, since a wrong one sends SCPI at whatever is
+there.
 
 ### The receiver's own records
 
-**The error queue is drained and written down.**  `:SYSTem:ERRor?`
-removes the entry it returns, and unread entries are eventually
-discarded.  A failed command can read past its own error to an earlier
-one; the task keeps such strays with the identity of the receiver that
-raised them, and the daemon journals them before each pass, reporting,
-not filing, any from a receiver no longer attached.  A full queue
-replaces its last entry with -350 and discards the newest errors
-(097-59551-02 5-31); a command that then fails reports its error as
-lost and the marker is kept as a stray.  The journal records -350 and
-notes that an unknown number of errors went with it.
+The receiver keeps two records that are lost unread: its error queue,
+where `:SYSTem:ERRor?` removes the entry it returns and a full queue
+replaces its last entry with -350 and discards the newest (097-59551-02
+5-31), and its diagnostic log, which holds 222 entries and then stops
+recording.  The daemon journals both, each under the receiver that
+wrote it; how the log is copied and ordered is in `docs/running.md`.
+The journal runs on the thread that owns the database, through the
+request queue, since a channel between reading an entry and writing it
+is a gap a shutdown can lose it in.  It starts afresh on each
+attachment: the unit may have been power cycled, swapped or
+reconfigured.
 
-**The diagnostic log is copied out entry by entry.**
-`:DIAG:LOG:READ:ALL?` returns about 56 KB, half a minute of wire time,
-so the copy uses `:DIAG:LOG:READ? <n>`, sixteen entries a pass, new
-ones first, then backwards.  Entries are stored by content, not number,
-because clearing the log restarts the numbering.
+**Condition registers, never event registers.**  Reading an event
+register clears it, and with it the front-panel Alarm LED and the BITE
+output, which belong to whoever is at the instrument.  The daemon polls
+the condition registers and `*STB?`, which reading "does not change"
+(5-44); Time Reset is event-only (5-39).  So the logger never writes to
+the receiver, `*CLS` included, and a client needs `--allow-control` to
+read an event register.  The transition filters, without which events
+mean nothing, are recorded once per attachment and never written: they
+are non-volatile and only `:SYSTem:PRESet` resets them.  The bench
+58503A's negative filters are zero, so a missing clear-event is not
+evidence a fault persisted.
 
-**Condition registers, never event registers.**  The daemon polls the
-hardware, operation, holdover and powerup condition registers and
-`*STB?`.  Reading an event register clears it, and with it the alarm
-condition summary, the front-panel Alarm LED and the BITE output; the
-lamp belongs to whoever is at the instrument.  Time Reset is event-only
-(097-59551-02 5-39).  `*STB?` returns the alarm condition register,
-whose bits "are updated in real time -- there is no latching or
-buffering", and "Reading/Querying the Alarm Condition Register does not
-change its contents" (5-44).  It names the group, not the bit; for the
-questionable group that is exact, since it holds only Time Reset and
-the user-reported bit, which nothing here sets.
-
-So the logger never writes to the receiver, `*CLS` included; the
-operator clears the alarm at the panel.  Reading the bit behind a
-summary is acknowledging it (open question 4).  A socket client needs
-`--allow-control` to read an event register or `*ESR?`; the value is
-returned, and the class records that taking it acts on the receiver.
-
-The transition filters are recorded beside the events, which mean
-nothing without them.  This 58503A answers positive 127 / 2 / 5087 / 15
-/ 7 with every negative filter at zero, so faults latch appearing and
-never clearing: a missing clear-event is not evidence a fault
-persisted.  The filters are non-volatile and the only documented reset
-is `:SYSTem:PRESet`, so they are read, never written.
-
-This runs on the thread that owns the database, reaching the receiver
-through the request queue, because reading removes an entry and a
-channel between read and write is a gap a shutdown can lose it in.  It
-runs per connection: the unit may have been power cycled, swapped or
-reconfigured, so no state carries over.  The journal resets when the
-daemon's connection count moves, at the cost of one database query for
-the log span and one read of the filters.
-
-The receiver's log is erased when the copy here is complete and
-gap-free and the log-almost-full bit is set; clearing unsets the bit,
-so a flapping link cannot erase twice.  It is gated behind
-`--adopt-log`, since erasing is irreversible, and the entry count goes
-with the command so the receiver refuses with -222 if an entry arrived
-between copy and clear.
-
-Receiver log stamps are kept as written but do not order entries: after
-a power cycle the clock runs from a stale midnight until first lock.
-`at`, host UTC when read, is the best time an entry has.
-`(generation, entry)` orders the log; `generation` counts clears.  Once
-per connection three held entries are re-read, and any difference
-starts a new generation, so a log cleared and refilled offline is not
-mistaken for the old one.
+**`--adopt-log` erases the receiver's log** once it is copied, so the
+log records again.  It is opt-in because erasing is irreversible, and
+fires only when the copy is complete and gap-free, the log-almost-full
+bit is set, and `*IDN?` confirms the unit is the one copied.  Clearing
+unsets the bit, so a flapping link cannot erase twice, and the entry
+count goes with the command so the receiver refuses with -222 if an
+entry arrived in between.
 
 ### Rows belong to a receiver, not to a file
 
@@ -399,69 +280,31 @@ after a space, so a bound from `datetime('now')` excludes nothing.
 
 ### Poll scheduling is a link budget
 
-The status screen is roughly 24 lines of 76 columns, about 1.8 KB and
-0.95 s at 19200 8N1, so it cannot be polled at 1 Hz beside anything
-else.  19200 is the ceiling.  `097-59551-02` 5-101 lists four rates up to
-19200, and the 58503A answers `:SYSTem:COMMunicate:SERial1:BAUD 38400`
-with `+0,"No error"` while keeping 19200.  `BaudRate` still knows 38400
-and 115200, so a receiver another tool moved there can be moved back.
+The status screen is about 1.6 KB: 0.94 s of wire time at 19200 8N1
+and 0.5 s of the receiver composing it, so it cannot be polled at 1 Hz
+beside anything else.  19200 is the ceiling: `097-59551-02` 5-101 lists
+four rates up to 19200, and the 58503A answers
+`:SYSTem:COMMunicate:SERial1:BAUD 38400` with `+0,"No error"` while
+keeping 19200.  `BaudRate` still knows 38400 and 115200, so a receiver
+another tool moved there can be moved back.
 
-Each tier is a list of steps (`device::step_count`); the scheduler
-takes one step per turn and stamps a tier fresh when its pass
-completes.  The fast tier is one step, because its fields are compared
-against each other, and a time interval from one second beside an EFC
-from the next is a correlation nobody measured.  After each step short
-of the last, the tier is re-queued at the present instant, so it yields
-to any tier come due rather than winning every turn; unconditional
-fast-tier priority would starve the slow tier under refreshes.  A
-refresh moves deadlines, not step cursors, or under a stream of
-refreshes no tier would complete.
+On a 58503A a whole fast pass costs 0.38 s.  So the screen is on no
+tier: everything on it but per-satellite elevation, azimuth and signal
+strength has its own query.  It is read on request and every `--sky`
+seconds (300 by default), half a percent of the link, and never stored
+as the latest snapshot, which every poll starts from.
 
-Measured on a 58503A at 19200, as the marginal cost over a 0.67 s
-open-and-synchronize:
-
-| step                                    | cost   |
-| --------------------------------------- | ------ |
-| satellite counts                        | 0.16 s |
-| oscillator temperature, current, DAC    | 0.13 s |
-| condition registers                     | 0.12 s |
-| holdover duration, predicted, present   | 0.16 s |
-| status screen                           | 1.50 s |
-
-A whole fast pass, eight queries, is 0.38 s.  The screen is 1574
-bytes: 0.94 s of wire time and 0.5 s of the receiver composing it.
-The medium tier, four steps totaling 0.57 s, runs every ten seconds.
-
-So the screen is on no tier; only the sky plot is unique to it.
-`:GPS:SATellite:TRACking:COUNt?` equals its `Tracking`, and
-`:GPS:SATellite:VISible:PREDicted:COUNt?` less that equals its `Not
-Tracking` (verified against a screen showing 7 and 2); the health line
-is the hardware condition register; the bracketed synchronization text
-is `:SYNChronization:STATe?` and the operation register.  The command
-tree has no per-satellite node, so elevation, azimuth and signal
-strength are screen-only.
-
-The screen is read on request -- `Op::Status` (op `status`), the
-monitor's status view, `/status` in the browser -- and every `--sky`
-seconds (300 by default; 0 turns it off), so the satellite table is
-logged without a viewer, at half a percent of the link.  `Screen` keeps
-the text as well as what was parsed.  A read goes to whoever asked and
-to subscribers on one snapshot, so the log records that sky once.  It
-is never stored as the latest snapshot, which every poll starts from,
-or it would be copied into every later snapshot and outlive a reconnect
-to a different receiver; the exporter's satellite counts come from the
-medium tier for the same reason.
-
-Measured with the daemon running: 234 of 288 consecutive snapshots
-were 1.00 s apart, the rest being medium and slow steps publishing in
-between, and the only gaps over 1.02 s were the three around a sky
-read.
+Each tier is a list of steps, one taken per turn.  The fast tier is one
+step, because its fields are compared against each other, and a time
+interval from one second beside an EFC from the next is a correlation
+nobody measured.  A part-done tier yields to any tier come due, and a
+refresh moves deadlines, not step cursors, so no tier starves.
 
 | Tier  | Contents                                                    |
 | ----- | ----------------------------------------------------------- |
 | ~1 s  | `:SYNC:TINT?`, `:SYNC:TFOM?`, `:SYNC:FFOM?`, `:DIAG:ROSC:EFC:REL?`, `:STAT:OPER:HARD:COND?`, `:SYNC:STATE?`, `:PTIM:TIME?` |
 | ~10 s | satellite counts, oven temperature and current, the EFC DAC, `*STB?` and the operation and holdover condition registers, holdover duration and uncertainty |
-| ~60 s | position, date, diagnostic log count, the oscillator-current constant (`TCOefficient`), the powerup condition register |
+| ~60 s | `*IDN?`, position, date, diagnostic log count, the oscillator-current constant (`TCOefficient`), the powerup condition register |
 |       | `:SYST:STAT?` (satellite table, health line) is on no tier; it is read on request by the status view. |
 |       | The receiver's UTC is on the fast tier, not with the date: a clock read once a minute is wrong for the other fifty-nine seconds. |
 | ~10 s | the error queue and any new diagnostic log entries, off the schedule; see "The receiver's own records" |
@@ -482,83 +325,48 @@ and allantools, and the bench measurements are in
 ### One log per receiver, named by its serial
 
 Several receivers on a host means one daemon per port,
-`smartclockd@<name>`, each with its own device and socket, so nothing
-in a daemon becomes concurrent.  The template is the only daemon unit,
-even on a one-port host.  The instance is named by the port, as
+`smartclockd@<port>`, each with its own device and socket, so nothing
+in a daemon becomes concurrent.  The instance is named by the port, as
 `serial-getty@` is, and the unit derives device and socket from it;
-anything else per port goes in a drop-in.  Shared settings are in
-`/etc/default/smartclockd`.
-
-The daemon and monitor have no socket default, which would guess an
-instance name.  `smartclock-web` and the exporter are host-wide: they
-scan `/run/smartclockd/*/socket` as the web view scans the log
-directory, unless given a single socket.  The web's live strip follows
-the selected receiver to its daemon; the exporter labels every sample
-with the daemon instance and the receiver's serial and model.
+anything else per port goes in a drop-in, and shared settings in
+`/etc/default/smartclockd`.  The daemon and monitor have no socket
+default, which would guess an instance name; `smartclock-web` and the
+exporter scan `/run/smartclockd/*/socket` unless given one.
 
 The receiver, not the port, chooses the log: after `*IDN?` the daemon
 opens `/var/lib/smartclockd/<model>-<serial>.sqlite`, and nothing
 before.  A swap switches files, a unit moved to another port keeps one
 history, and two instances cannot collide on a file.  A receiver whose
 identity does not parse gets a file named after the device and a loud
-log line, not a shared "unknown" file.  `receiver_id` and the
-`receiver` table still record which unit a file's rows came from.
-
-`smartclock-web` lists every `*.sqlite` in the log directory, live or
-historical, and keys everything by serial (`?receiver=`).
-`/api/receivers` lists each unit with the columns its model's command
-table can measure, and the pages show only those.
+log line, not a shared "unknown" file.  `smartclock-web` lists every
+`*.sqlite` in the log directory and keys everything by serial
+(`?receiver=`).
 
 Stored data is reshaped by hand with `sqlite3`, not by daemon migration
 code: there is no fleet, and a migration nobody else runs is code
 nobody tests.
 
-## Architecture
+### Notes and facts live in the receiver's log
 
-Cargo workspace:
+Bench events and a unit's internals are invisible to the receiver, and
+kept only in `docs/hardware-investigations.md` they cannot be lined up
+against the log.  So each log has a `note` table, timestamped free text
+such as "ran `master_reset`", and a `fact` table of `key=value` about
+the unit, such as `ocxo.serial`; a fact records when it became true, so
+a replaced part keeps its old value, and setting one also leaves a
+note.  Both are written through the daemon (ops `note`, `fact`) and
+never sent to the receiver.  A note is filed under the receiver
+attached when it is written, even when `--at` backdates it past a swap;
+a bench-wide note, such as a splitter change, is written to each daemon
+in turn.  `docs/running.md`, "Notes and facts", says where they show.
 
-- `smartclock` -- library.  Typed errors via `thiserror`, no `anyhow`,
-  blocking synchronous API.
-- `smartclockd` -- the daemon.  Owns the port, logs, serves the socket.
-- `smartclockmon` -- TUI client, `ratatui` + `crossterm`.
-- `smartclock-cli` -- one-shot queries, `diagnose`, transcript capture,
-  `read-memory`, `flash`.  `--device <path>` talks to the receiver
-  directly, with the daemon stopped; `--socket <path>` goes through
-  the daemon.
-- `smartclock-sim` -- the simulated receiver, in process and over TCP.
-- `smartclock-exporter` -- Prometheus metrics from the daemons' sockets.
-- `smartclock-web` -- the browser views, over the logs and sockets.
-- `smartclock-http` -- the minimal HTTP server the exporter and web
-  view share.
-- `smartclock-log` -- the log's schema and every query that reads it:
-  table definitions, schema version, stored timestamp form and `meta`
-  keys.  The daemon creates the tables from them and keeps its own
-  writes and migrations; the monitor and web view read through it, so
-  front ends cannot drift apart.  Its tests build every log from the
-  daemon's definitions, so a table change that forgets a reader fails.
+### Comparing receivers is a page over the existing API
 
-Library layers, bottom up:
-
-1. `transport` -- `trait Transport: Read + Write`, with
-   `SerialTransport` (`serialport`), `TcpTransport` (ser2net),
-   `ReplayTransport` (fixtures) and `TeeTransport` (transcripts); the
-   simulator's `SimTransport` is in `smartclock-sim`.
-2. `session` -- command framing: read-until-prompt, echo suppression,
-   per-command timeout, error queue drain.  Handles the `scpi> ` and
-   `E-nnn> ` prompts, and reads the status screen by the line count
-   from `:SYSTem:STATus:LENGth?`, not by timeout.
-3. `dialect` -- per-model command tree.  A `Dialect` trait resolves
-   logical operations to model-specific command strings, response
-   formats and availability.  Model detected from `*IDN?`, overridable.
-4. `types` -- newtypes and enums: `Tfom`, `Ffom`, `Prn`, `EfcPercent`,
-   `TimeInterval`, `SmartClockMode`, `HoldoverState`,
-   `HoldoverWaitReason`, `HardwareCondition`, `Position`,
-   `SatelliteInfo`, `LeapPending`.  Units converted at the boundary.
-5. `parse` -- response parsers, the status screen scraper, and the
-   TCODe T1/T2 parser with checksum verification.
-6. `client` -- `Device` with typed methods, plus `poll() -> Snapshot`.
-7. `task` -- `DeviceTask`: owns the session, runs the schedule, serves
-   the request queue, broadcasts snapshots.
+`/compare` shows every receiver over the same range -- 1 PPS TI, EFC,
+temperature, TFOM and FFOM overlaid, and ADEV and MDEV curves on one
+plot -- from `/api/history`, `/api/adev` and `/api/journal`, asked once
+per receiver and joined in the browser.  The live, status and stability
+pages stay one receiver each.
 
 ### systemd unit
 
@@ -590,50 +398,36 @@ Windows service wrapper, not touching the protocol.
 
 ### The command table is data
 
-Commands live in a TOML file from which `build.rs` generates the
-dialect code.  Each entry has a stable logical id, a classification, a
-citation, and one block per dialect:
+Commands live in `crates/smartclock/commands.toml`, from which
+`build.rs` generates the `Dialect` and `CommandId` enums and the specs.
+Each entry has a stable id and a class, and one block per dialect:
 
 ```toml
 [[command]]
-id    = "holdover_waiting"
+id = "holdover_waiting"
 class = "query"
-cite  = "097-59551-02 5-36"
 
   [command.dialect.hp58503]
-  scpi     = ":SYNChronization:HOLDover:WAITing?"
+  scpi = ":SYNChronization:HOLDover:WAITing?"
   response = "enum:HoldoverWaitReason"
-  models   = ["58503A", "58503B", "59551A"]
-
-  [command.dialect.z3801]
-  scpi     = ":ROSCillator:HOLDover:WAITing?"
-  response = "enum:HoldoverWaitReason"
-  models   = ["Z3801A", "Z3816A"]
+  models = ["58503A", "58503B", "59551A"]
+  cite = "097-59551-02 5-36"
+  evidence = "hardware"
 ```
 
 Tree divergence, per-model availability and citations sit in one table
-that can be diffed against the documents.  Codegen makes the logical
-ids an enum, so a typo is a compile error.  `response` names a
-hand-written parser in `parse`.
+that can be diffed against the documents, and a typo in an id is a
+compile error.  `evidence` is `manual`, `firmware` (every keyword found
+in the firmware's own keyword table) or `hardware` (a receiver answered
+it), so an unconfirmed command is a known risk.
 
-An entry may declare its argument, which the daemon checks before
-anything reaches the receiver; no block means no argument:
-
-```toml
-  [command.argument]
-  kind = "integer"   # or "word" with `allowed`, "none", or "free"
-  min  = 0
-  max  = 90
-```
-
-`free` must be asked for by name, and a test pins the entries that ask,
-because as a default it let a query header carry the set form's
-payload: `:SYSTem:LANGuage? "INSTALL"` reached the simulated receiver
-on a daemon started with no flags.
-
-A test checks that every command reachable on the active dialect has a
-parser and a fixture.  The per-model command matrix
-(`docs/commands.md`) is generated from the same source.
+An entry may declare its argument -- `integer` with `min` and `max`,
+`word` with `allowed`, `none` or `free` -- which the daemon checks
+before anything reaches the receiver; none declared means none taken.
+`free` must be asked for by name, and a test pins the entries that ask:
+as a default it let `:SYSTem:LANGuage? "INSTALL"` through a daemon
+started with no flags.  `docs/commands.md` is generated from the table,
+and a test fails if they disagree.
 
 ### The package version is derived
 
@@ -654,6 +448,7 @@ make test       cargo test
 make test-hw    cargo test -- --ignored
 make web-deps   install the browser tests' Playwright and Chromium
 make test-web   the browser tests
+make docs       regenerate docs/commands.md from the command table
 make deb        a snapshot package
 make release    tag the version Cargo.toml already names
 make release-notes  the GitHub release notes the tag will get
@@ -666,30 +461,9 @@ changelog entry is written once, in `make release`, and is the release
 notes everywhere.
 
 CI calls the fleet's reusable `rust-ci.yml`, since one repository doing
-it differently costs more than one definition run locally and in CI.
-Its inputs pin the toolchain, pin `cargo fmt` to it (nightly rustfmt
-formats differently), and pass `--all-targets`, or clippy skips the
-tests.
-
-`make ci` is stricter in two ways.  The shared `cargo test` omits
-`--workspace`, harmless until a `default-members` silently narrows CI
-(`Cargo.toml` says so).  The shared workflow pins actions by tag, not
-commit sha: the fleet's posture, not this repository's preference.
-
-`make test-web` runs Playwright tests, installed with Chromium into
-`crates/smartclock-web/tests/browser` by `make web-deps`, so nothing
-lands in the home directory.  They serve the pages from the real server
-with a faked API, to reach what a live daemon cannot show on demand:
-which receivers exist, when a daemon goes, how late an answer arrives.
-Every test runs against every page, since pages diverge at those edges;
-the pages share one lifecycle in `crates/smartclock-web/src/common.js`.
-They need Node and a browser, so CI runs them in
+it differently costs more than one definition; `make ci` is stricter.
+The browser tests need Node and Chromium, so CI runs them in
 `.github/workflows/web.yml` and `make ci` leaves them out.
-
-Tests that need a receiver and a stopped daemon are `#[ignore]`d and
-run only through `make test-hw`.  Everything else -- parsers, the
-scraper, session framing against `ReplayTransport`, integration tests
-against the simulator -- runs in `make test`.
 
 ### Dialects
 
@@ -701,28 +475,17 @@ essentially the 58503B's:
 | 58503A / 58503B / 59551A| `:GPS:`, `:SYNChronization:`, `:PTIMe:`   |
 | Z3801A / Z3816A         | `:PTIME:GPSYSTEM:`, `:ROSCillator:`       |
 
-The Z3805A answers the z3801 dialect.  Availability is per model: the
-58503A has `:GPS:SATellite:TRACking:IGNore` / `INCLude`, which the
-58503B guide marks 59551A-only.  Unsupported operations return a typed
-`Unsupported` error without reaching the device.  Response formats
-differ too: `:DIAG:ROSC:EFC:REL?` returns `+-d.dEe` on the 58503A but
-is documented as a plain integer on the Z3801A.
+The Z3805A answers the z3801 dialect.  Availability is per model, and
+an unsupported operation returns a typed `Unsupported` error without
+reaching the device.  Response formats differ too: `:DIAG:ROSC:EFC:REL?`
+returns `+-d.dEe` on the 58503A but is documented as a plain integer on
+the Z3801A.
 
-Each entry records its `evidence`: `manual`, `firmware` (every keyword
-found in the firmware's own keyword table) or `hardware` (a receiver
-answered it), so an unconfirmed command is a known risk.
-
-The bench Z3801A (3543-A) differs from the 58503A on the wire in two
-more ways.  It does not echo, so a command with no reply returns the
-previous prompt's trailing space and the prompt alone, which the prompt
-matcher allows.  It stamps its diagnostic log `Log NNN:H%08X: message`,
-a hex count, where the 58503A and Z3805A write a date; the `H` notation
-is seconds of GPS time since 1980-01-06 (`097-z3801-01` 4-13).  The
-stamp is stored as written; the web view shows it decoded, the hex in
-the tooltip.  Its `-230 Data corrupt or stale` on `:PTIMe:TINTerval?`
-and `:PTIMe:FFOMerit?` while tracking no satellites is the manual's
-answer for an unavailable value (4-6, 4-7), taken as a state refusal
-like the 58503A's.
+The bench Z3801A (3543-A) does not echo, and stamps its diagnostic log
+in hex seconds of GPS time (`097-z3801-01` 4-13) where the others write
+a date; the stamp is stored as written.  Its `-230 Data corrupt or
+stale` while tracking no satellites is the manual's answer for an
+unavailable value (4-6, 4-7), taken as a state refusal.
 
 ### The status screen scraper is mandatory
 
@@ -745,79 +508,41 @@ The table is checked against the screen's tracked and untracked
 counts.  A disagreeing table is still shown, with the pane saying so,
 which makes misreadings visible without predicting their shape.
 
-## Phases
+## Architecture
 
-Phases 0 to 12 are done.  Suggest a commit at each phase boundary.
+The crates are listed in `README.md`.  `smartclock-log` holds the log's
+schema and every query that reads it, so the daemon, monitor and web
+view cannot drift apart.  The library, bottom up:
 
-### Notes and receiver facts
+1. `transport` -- `Transport`: serial, TCP, replay, tee.
+2. `session` -- framing: prompts, echo, timeouts, error queue drain;
+   the status screen by its `:SYSTem:STATus:LENGth?` line count.
+3. `command` -- `Dialect`, `CommandId` and specs from `commands.toml`.
+4. `types`, `parse`, `screen` -- newtypes, parsers, the scraper.
+5. `device` -- `Device`: typed queries and poll steps; `control`.
+6. `task` -- `DeviceTask`: the schedule, requests, snapshots.
+7. `protocol`, `wire`, `client` -- the socket and its client.
 
-Bench events and a unit's internals are invisible to the receiver and
-live only in `docs/hardware-investigations.md`, where they cannot be
-lined up against the log.  Two additions to each receiver's log,
-written through the daemon and never sent to the receiver:
+## Next
 
-- *Notes.*  Timestamped free text -- "added a 20 dB LNA ahead of the
-  Z3805A", "ran `master_reset`" -- for one receiver or the whole bench,
-  such as a splitter change.  `smartclock-cli --socket ... note TEXT`,
-  with `--at TIME` to backdate.  Shown as markers on the web history
-  charts, with the text on hover, in a list beside the journal, and in
-  the TUI's journal view.
-- *Facts.*  Free-form `key=value` describing the unit:
-  `ocxo.serial`, `ocxo.model`, `antenna.feed`, an engine swapped in.
-  Each records when it became true, so a replaced part keeps its old
-  value in the history.  `smartclock-cli --socket ... fact KEY VALUE`;
-  setting one also leaves a note.  Current facts head `diagnose` and
-  the web receiver info, beside what the unit reports itself.
-
-Built: the `note` and `fact` tables (schema 11), the socket requests,
-the CLI commands, notes in the web and TUI journals and as dashed
-lines on the web charts with their text in the cursor readout, and
-current facts in `diagnose` and the web view.  `diagnose` reads facts from the log
-the daemon names, so it needs the log's group, as the monitor does.  To
-do: entering the events in `hardware-investigations.md` at their
-recorded times.  A
-note is filed under the receiver attached when it is written, even
-when `--at` backdates it past a swap.  A bench-wide note is written to
-each daemon in turn.
-
-Later: adding, editing and deleting notes from the web view, through
-the daemon socket.  Needs POST bodies in `smartclock-http`, and notes
-with ids rather than append-only.
-
-### Next: sensors beside the receivers
-
-Up to twelve named hwmon or IIO sensors, read on the medium tier into
-sticky snapshot columns beside each receiver's readings;
-`docs/sensors.md`.
-
-### Comparing receivers
-
-`/compare` shows every receiver over the same range: 1 PPS TI, EFC,
-temperature, TFOM and FFOM overlaid, and ADEV and MDEV curves on one
-plot, from the existing `/api/history`, `/api/adev` and
-`/api/journal`, asked once per receiver and joined in the browser.
-The live, status and stability pages stay one receiver each.
+- **Sensors beside the receivers.**  Up to twelve named hwmon or IIO
+  sensors, read on the medium tier into sticky snapshot columns beside
+  each receiver's readings; `docs/sensors.md`.
+- **Editing notes from the web view**, through the daemon socket.
+  Needs POST bodies in `smartclock-http`, and notes with ids rather
+  than append-only.
 
 ## Open questions
 
 1. **Which state machine drives the mode suffixes.**  Still inferred
    from outside (`docs/screen-format-strings.md`, "Mode suffixes").
-   The other firmware questions are settled in `docs/firmware/README.md`:
-   `:DIAGnostic:ROSCillator:TCOefficient?` is a stored constant on the
-   oscillator current in the loop's EFC, written only by its own setter
-   ("s, the oscillator current"), and `RELative?` is (ABS − 2¹⁹) / 2¹⁹
-   × 100 with ABS sixteen times a 16-bit DAC word ("The 58503A image").
-   The images are `third_party/z3801a-3543.bin`, `z3805a-3543b.bin`,
-   `z3816a-4001.bin`, `58503a-3633.bin` (assembled from others' dumps)
-   and `58503a-3704.bin` (read from the bench unit through its pForth
-   console with `smartclock-cli read-memory`), with EEPROM dumps of the
-   bench units.  The 58503A images carry the front panel's strings
-   (`10MHZ STABLE` is in both); they have not been enumerated.
+   The rest of what the firmware leaves open is in
+   `docs/firmware/README.md`, "What is not established".
 
 2. **How far the z3801 dialect is confirmed.**  Of the z3801 entries,
-   18 are `evidence = "hardware"`, 63 `firmware` (spellings
-   corroborated against the firmware's keyword table) and one
-   `manual`; those 64 stay unconfirmed until a receiver answers them.
+   18 are `evidence = "hardware"`, 63 `firmware` and one `manual`;
+   those 64 stay unconfirmed until a receiver answers them.  The
+   keyword table they were checked against is `docs/z3801-keywords.md`.
 
 3. **Asserting a known antenna position from the configuration.**  A
    receiver told where it is goes straight to position hold and serves

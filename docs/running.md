@@ -78,6 +78,17 @@ errors, and logs to the journal how many entries it read.
 
 It copies the receiver's diagnostic log out, entry by entry, and
 optionally clears it; see `SMARTCLOCKD_ADOPT_LOG` below.
+`:DIAG:LOG:READ:ALL?` returns about 56 KB, half a minute of wire time,
+so each pass reads up to sixteen entries with `:DIAG:LOG:READ? <n>`,
+new ones first, then backwards.  The receiver's stamps are kept as
+written but do not order entries: after a power cycle its clock runs
+from a stale midnight until first lock.  An entry's `at`, host UTC when
+it was read, is the best time it has.  Clearing the log restarts its
+numbering, so entries are ordered by `(generation, entry)`, where
+`generation` counts clears.  A count below the highest entry held is a
+clear; so is any difference when three held entries are re-read, once
+per attachment, which catches a log cleared and refilled while the
+daemon was away.
 
 It reads the status screen every `SMARTCLOCKD_SKY` seconds, 300 by
 default, for the satellite table only the screen carries.  A read holds
