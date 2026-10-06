@@ -528,6 +528,8 @@ view cannot drift apart.  The library, bottom up:
 - **Sensors beside the receivers.**  Up to twelve named hwmon or IIO
   sensors, read on the medium tier into sticky snapshot columns beside
   each receiver's readings; `docs/sensors.md`.
+- **Bench work:** the open items in `docs/hardware-investigations.md`,
+  each with its TODO.
 - **Editing notes from the web view**, through the daemon socket.
   Needs POST bodies in `smartclock-http`, and notes with ids rather
   than append-only.

@@ -15,6 +15,9 @@ Stop the daemon before any direct-mode work; it holds the port.
 (chip select 7), which picks −1.25 × 10⁻¹² or −2.125 × 10⁻¹² per EFC
 unit on the Z3816A.
 
+- [ ] TODO: needs a Z3816A, which the bench lacks: trace CS7 to the
+  device it strobes and what feeds its D8.
+
 - Follow the MC68331's CS7 pin (CSPAR1 field 1; pin table in
   MC68331UM appendix D) to the device it strobes -- a buffer, a latch,
   or a switch pack.  Note what feeds its D8 line.
@@ -30,6 +33,8 @@ the two Z3816A gains get names.
 
 *Open item:* G is the sensitivity the firmware *assumes*, negative on
 the Z3816A and positive on the Z3801A; neither is measured.
+
+- [ ] TODO: measure G on the Z3801A and the Z3805A as on the 58503A.
 
 - With the receiver in holdover or with the loop open (a `phase_off`
   setpoint is console-only; do not use it -- instead compare EFC
@@ -55,6 +60,9 @@ them (−1/(2τ)) or are scaled by the ratio of real to assumed G.
 *Open item:* the SCPI port is the processor's own SCI in the Z3816A
 image; that it is the RS-422 port on J3 is inferred, not traced.
 
+- [ ] TODO: with a board open, trace the SCI's and the DUART channel B's
+  pins to their connectors.
+
 - Follow the SCI's TXD/RXD pins (PQS7/PQS6 on the MC68331) to the
   level converter and connector.
 - On the Z3801A, follow the 68681 DUART's channel B (TXB/RXB) the
@@ -67,6 +75,8 @@ image; that it is the RS-422 port on J3 is inferred, not traced.
 *Open item:* the Z3816A firmware leaves channel B idle apart from a
 loopback self-test; a 59551A would need a second port for PORT 2.
 
+- [ ] TODO: trace TXB/RXB from the DUART to any header.
+
 - Follow TXB/RXB from the DUART.  Note any unpopulated header or
   spare connector they reach; no firmware talks on it, so this is
   documentation only.
@@ -76,6 +86,9 @@ loopback self-test; a 59551A would need a second port for PORT 2.
 *Open items:* that PORTGP bit 5 (PGP5) reaches P2/8, that the ADC is
 an ADC0838, and how the Z3801A's "Oven" and "Secondary oven voltage"
 channels map to volts at P2/9 are owners' reports, not traced here.
+
+- [ ] TODO: trace PGP5 to P2/8, identify the ADC, and calibrate the P2/9
+  channel against a meter.
 
 - Trace PGP5 (MC68331 pin, see the manual's pinout) to P2/8 and
   confirm the level changes when the firmware's state passes
@@ -98,6 +111,9 @@ reading.
 *Open item:* channel 6 (`Oscillator current`) has a nominal 250 and a
 limit 650 after 4.489 per ADC count, unit unknown.
 
+- [ ] TODO: measure across the oven supply's sense resistor against
+  channel 6.
+
 - Find the sense resistor in the oven supply; measure the voltage
   across it and the supply current at warm-up and at steady state, and
   compare with the channel's value from `:DIAGnostic:...` or the status
@@ -111,6 +127,9 @@ limit 650 after 4.489 per ADC count, unit unknown.
 *Open item:* the firmware keeps its loop state across a reset when
 the reset-status register shows neither EXT nor POW and the RAM
 checksum holds.  Read, not exercised.
+
+- [ ] TODO: on a spare unit, apply a brief external reset and watch
+  whether tau and the aging fit survive.
 
 - Both software restarts in the image discard that state before
   resetting (`docs/firmware/restart.md`, "Restarting"): `:SYSTem:PON` zeroes
@@ -142,7 +161,10 @@ The numbers are in `PLAN.md`, "Allan deviation is computed over
 segments".  Plain `:PTIMe:TINTerval?` is the ten-second mean, by the
 image and by 187 polls.
 
-## 9. The console, on a spare unit only
+## 9. The console, on a spare unit only -- done
+
+*Done:* the console has been used on the bench units to read their
+ROM and EEPROM, and `halt` returns the port to SCPI (item 14).
 
 *Open item:* what the pForth console does once started, and whether
 anything short of a power cycle returns the port to SCPI.  Entering it
@@ -252,6 +274,8 @@ u-blox NEO-M8T, the Z3805A held no satellite the NEO-M8T read below
 firmware takes a six-channel engine (`firmware/gps.md`, "Six or eight
 channels").  If it tracks there, the fault is in the Z380x unit; if
 not, in the engine.  Waiting on a supply for the 58503A.
+
+- [ ] TODO: fit a Z380x engine into the 58503A once its supply arrives.
 
 ## 12. Field upgrades -- Z3801A reinstall verified
 
