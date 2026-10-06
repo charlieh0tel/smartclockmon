@@ -123,7 +123,7 @@ impl<'a, T: Transport> Control<'a, T> {
 /// never send `scpi` is, or `None` if it is none of them.
 ///
 /// `:SYSTem:PRESet`, the undocumented `:SYSTem:PON` (a restart that
-/// discards the state a warm restart would keep; `docs/firmware.md`,
+/// discards the state a warm restart would keep; `docs/firmware/restart.md`,
 /// "Restarting"), anything under `:SYSTem:COMMunicate`,
 /// `:DIAGnostic:ERASe`, and setting `:SYSTem:LANGuage`, which selects
 /// "INSTALL" or "PRIMARY" (097-59551-02 4-15).  Serial settings persist

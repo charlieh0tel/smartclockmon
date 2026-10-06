@@ -158,7 +158,7 @@ orders larger.
 It is undocumented.  Before the firmware was read its units were
 inferred as parts in 10^12 per degree C, from -33.65x10^-12/C against
 the measured +4.3x10^-11/C -- the same size, opposite in sign.  The
-firmware says otherwise (`firmware.md`, "s, the oscillator current"):
+firmware says otherwise (`firmware/loop.md`, "s, the oscillator current"):
 the value is the constant c in the loop's EFC, u = K.f + B + I + c.s,
 where s is the health monitor's oscillator-current channel (nominal
 250), so its unit is **EFC counts per unit of oscillator current**, and
@@ -192,7 +192,7 @@ no step, against 33 predicted.
 That test is too blunt.  In the Z3816A image the s the loop reads is
 not the fresh reading the query returns but the health monitor's
 exponential average of it, s <- 0.1 x fresh + 0.9 x s on
-each of its passes (`firmware.md`, "s, the oscillator current"), and
+each of its passes (`firmware/loop.md`, "s, the oscillator current"), and
 a one-level flicker of an 8-bit reading is mostly dither about a mean
 that moves slowly.  So the sharper test regresses the ten-second DAC
 change on the change of that average, for a range of monitor
@@ -214,12 +214,12 @@ channel**, but over hours, which is the loop correcting whatever the
 oven current stands for rather than a term applied at the update.
 
 So this 58503A does not apply its -33.65 the way the Z3816A image
-applies its c.  A 58503A image of revision 3633 (`firmware.md`, "The
+applies its c.  A 58503A image of revision 3633 (`firmware/console.md`, "The
 58503A image") has the term in the same form, on the same smoothed
 current, and its `EFControl:ABSolute?` reports the DAC word with the
 term in it.  This receiver's own firmware, revision 3704-C, read
 through its console, has the term too, on the same current renumbered
-as channel 6 (`firmware.md`, "The 58503A image").  So the term is in
+as channel 6 (`firmware/console.md`, "The 58503A image").  So the term is in
 the firmware and absent from the record, and why is not settled.
 
 ### It is not feedforward
@@ -249,7 +249,7 @@ ten seconds later is **+0.02 +/- 0.43 counts**.
 
 There is a feedforward term, but not from temperature: the firmware
 adds c times the oscillator current to the EFC at every update
-(`firmware.md`, "The loop").  The oven current moves with ambient,
+(`firmware/loop.md`, "The loop").  The oven current moves with ambient,
 which is why a coefficient on it is called a temperature coefficient,
 but the reported temperature is not an input to it, which is what the
 step test above shows.
@@ -299,7 +299,7 @@ Step 4 is the measurement.  Between 0 V, where the crystal sat within
 The specification column is the -60159's "> +/- 2.0x10^-7" over -5 V
 to +5 V, spread across 2^20 counts as before; the measured gain is 1.55
 times that minimum, inside it.  The firmware column is the loop's G
-in the 58503A image, revision 3633 (`firmware.md`), where the bench
+in the 58503A image, revision 3633 (`firmware/console.md`, "The 58503A image"), where the bench
 unit is 3704-C: the sign agrees -- count up, frequency up -- and the
 magnitude is 0.63 of what the loop assumes.  Per count, the measured
 figure is over the 721,580 counts from the 0 V point to count 0.

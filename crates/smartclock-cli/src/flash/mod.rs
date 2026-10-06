@@ -1,6 +1,6 @@
 //! `flash`: loading firmware through the installer over the direct
 //! port.  Protocol: 097-58503-13, 5-115 and appendix C; model-specific
-//! bounds and checks: docs/firmware.md, "The flasher".
+//! bounds and checks: docs/firmware/restart.md, "The flasher".
 
 use std::path::Path;
 use std::path::PathBuf;

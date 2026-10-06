@@ -519,7 +519,7 @@ third of the longest segment.  Long ranges are subsampled onto a
 coarser grid, not averaged (averaging is the estimator's job), at the
 cost of short taus; the caller picks.
 
-**The reading is already an average.**  `docs/firmware.md` shows
+**The reading is already an average.**  `docs/firmware/interval.md` shows
 `:SYNChronization:TINTerval?` is the mean of ten one-second readings,
 updated every ten seconds.  For white PM the Allan variance is 3σx²/τ²
 at every tau, so that averaging lowers ADEV by √10 wherever white PM
@@ -980,7 +980,7 @@ The live, status and stability pages stay one receiver each.
 
 1. **Which state machine drives the mode suffixes.**  Still inferred
    from outside (`docs/screen-format-strings.md`, "Mode suffixes").
-   The other firmware questions are settled in `docs/firmware.md`:
+   The other firmware questions are settled in `docs/firmware/README.md`:
    `:DIAGnostic:ROSCillator:TCOefficient?` is a stored constant on the
    oscillator current in the loop's EFC, written only by its own setter
    ("s, the oscillator current"), and `RELative?` is (ABS − 2¹⁹) / 2¹⁹

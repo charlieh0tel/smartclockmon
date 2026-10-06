@@ -125,7 +125,7 @@ u  = K·f + B + I + c₀·s                   K = 1 / (G·τ)</div>
 <section>
   <h2>Starting up</h2>
   <p>Before <code>pll_normal</code>, <code>startup_pll</code> runs the same update law with its own time constant, recomputing K, k and a from it every update. It first waits for sixteen consecutive ten-second means within ±150 ns, then lengthens its constant from 150 s by 5 s per update until it is within 5 s of τ, sets it to τ, and hands over. The Z3801A's firmware does the same.</p>
-  <p class="note">Source: <code>docs/firmware.md</code> in smartclockmon, sections "The loop", "Starting up", "The aging fit" and "τ and G", with the addresses and the routine identities behind each number.</p>
+  <p class="note">Source: <code>docs/firmware/loop.md</code> in smartclockmon, sections "The loop", "Starting up", "The aging fit" and "τ and G", with the addresses and the routine identities behind each number.</p>
 </section>
 </main>
 

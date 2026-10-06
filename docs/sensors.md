@@ -5,7 +5,7 @@ temperature, and perhaps its humidity, belong beside the receivers'
 readings.  None of the receivers reports them: the 58503A's
 `:DIAGnostic:TEMPerature?` is an internal reading of 34 to 38 C, and
 the z3801 receivers answer the same query with 0 or 1 count
-(`docs/firmware.md`).
+(`docs/firmware/console.md`).
 
 ## Design
 

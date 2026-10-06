@@ -23,7 +23,7 @@ design, open questions and known defects.
 | `smartclock` | the library: transports, SCPI framing, the command table, parsers, the status screen scraper, the polling task, and the Allan deviation |
 | `smartclockd` | holds the serial port, logs to SQLite, serves clients over a local socket |
 | `smartclockmon` | terminal monitor: a dashboard, history graphs, the journal, the status screen and stability |
-| `smartclock-cli` | queries, `diagnose`, notes and facts in a receiver's log, transcript capture, sweeping for undocumented commands, reading ROM and EEPROM through the debug console, and loading firmware ([firmware notes](docs/firmware.md#the-flasher)) |
+| `smartclock-cli` | queries, `diagnose`, notes and facts in a receiver's log, transcript capture, sweeping for undocumented commands, reading ROM and EEPROM through the debug console, and loading firmware ([firmware notes](docs/firmware/restart.md#the-flasher)) |
 | `smartclock-exporter` | Prometheus metrics for every receiver on the host, from the daemons' own readings |
 | `smartclock-web` | a browser view: live state, history you can zoom, and pages for the status screen, for stability and for comparing receivers |
 | `smartclock-sim` | a simulated receiver, in process for tests and over TCP for driving the real daemon |
@@ -96,7 +96,7 @@ describes the bench.
 | [`docs/efc.md`](docs/efc.md) | how the receiver reports its control voltage, measured at the oscillator's EFC pin |
 | [`docs/ocxo.md`](docs/ocxo.md) | the oscillator itself |
 | [`docs/sensors.md`](docs/sensors.md) | proposed: logging room sensors beside the receivers |
-| [`docs/firmware.md`](docs/firmware.md) | what the firmware shows: the 1 PPS measurement, the disciplining loop, the GPS engine interface and the pForth console |
+| [`docs/firmware/`](docs/firmware/) | what the firmware shows: the 1 PPS measurement, the disciplining loop, the GPS engine interface and the pForth console |
 | [`docs/loop.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/loop.html) | the disciplining loop as a block diagram, with its update law, constants and closed-loop poles |
 | [`docs/hardware-investigations.md`](docs/hardware-investigations.md) | what the firmware leaves open that only a bench can settle |
 | [`docs/z3801-keywords.md`](docs/z3801-keywords.md), [`docs/z3801-tree.md`](docs/z3801-tree.md), [`docs/58503a-tree.md`](docs/58503a-tree.md) | the SCPI keywords and command paths read from the firmware |

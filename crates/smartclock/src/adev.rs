@@ -44,7 +44,7 @@
 //! noise dominates, rising once frequency noise does.  The modified
 //! form is the one that fits this record exactly.
 //! The receiver's reading is already the mean of ten one-second
-//! readings over a contiguous window (`docs/firmware.md`, "The
+//! readings over a contiguous window (`docs/firmware/interval.md`, "The
 //! ten-second average"), so the mean of `m` consecutive readings is the
 //! mean of `10 m` consecutive one-second readings: the averaging the
 //! receiver did is the innermost block of the averaging the estimator

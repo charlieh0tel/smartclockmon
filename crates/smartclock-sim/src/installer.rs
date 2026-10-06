@@ -1,4 +1,4 @@
-//! SmartClock installer model; see docs/firmware.md for the protocol.
+//! SmartClock installer model; see docs/firmware/restart.md, "The installer", for the protocol.
 
 use thiserror::Error;
 

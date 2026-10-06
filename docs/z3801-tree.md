@@ -3,7 +3,7 @@
 Every command path in `third_party/z3801a-3543.bin`, read out of the
 parser's own tables.  `z3801-keywords.md` has the vocabulary and the
 structures this was extracted from.  `z3816a-4001.bin` holds tables of
-the same layout at other addresses (`firmware.md`, "Note on the
+the same layout at other addresses (`firmware/README.md`, "Note on the
 disassembly"), with a `PON` keyword this image lacks.
 
 ## Against the command table
@@ -16,7 +16,7 @@ The four that do not:
     appear as `:DURation:MEASurement:THReshold`.  The short form answers
     on hardware, so `MEASurement` is optional here.
   - `:SYSTem:PON`, which is in the table to be refused; this image has
-    no `PON` (`firmware.md`, "Restarting").
+    no `PON` (`firmware/restart.md`, "Restarting").
 
 `:SOURce` is an optional header, as SCPI allows.  Everything under it
 answers with or without it: `:PTIMe:FFOMerit?` and
@@ -57,14 +57,14 @@ coefficient is writable, and no manual has the command in either
 direction.  Kusters describes the coefficient as measured against GPS
 while locked and kept in EPROM; in the Z3816A image the setter is the
 only writer, the loop never adjusts the value, and a console word
-`xcal` measures it for an operator to enter (`firmware.md`, "s, the
+`xcal` measures it for an operator to enter (`firmware/loop.md`, "s, the
 oscillator current").  The 58503A image 3633 has the same setter
-(`58503a-tree.md`; `firmware.md`, "The 58503A image").
+(`58503a-tree.md`; `firmware/console.md`, "The 58503A image").
 
 The setter is not in the command table, which carries only the query.
 It has not been sent: it writes a calibration constant to the EEPROM,
 with limits of -200 and 200 and units of EFC counts per unit of the
-oscillator-current channel (`firmware.md`).
+oscillator-current channel (`firmware/loop.md`).
 
 ## What answered on a Z3805A
 
@@ -79,7 +79,7 @@ the real-time system, pSOS, and name its tasks:
 with message exchanges `1pps`, `pllc`, `plla`, `gpsx`, `logr`, `eepx`,
 `sciR`/`sciW` and `drtR`/`drtW`, and about 13 percent of the CPU idle.
 `pllp` runs the disciplining loop and `curv` the aging fit
-(`firmware.md`, "The disciplining loop").
+(`firmware/loop.md`, "The disciplining loop").
 
 Other answers:
 

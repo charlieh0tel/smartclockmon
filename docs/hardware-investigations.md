@@ -1,7 +1,7 @@
 # Hardware investigations
 
 Questions a bench can settle and the firmware images cannot.  Each
-item names the open question in `docs/firmware.md` it would close, what
+item names the open question in `docs/firmware/README.md` it would close, what
 to measure, and what the answer changes.  Receiver access needs
 authorization under `AGENTS.md`; `smartclock-cli flash` has a specific
 exception for firmware installation.  Items that need the console are
@@ -113,7 +113,7 @@ the reset-status register shows neither EXT nor POW and the RAM
 checksum holds.  Read, not exercised.
 
 - Both software restarts in the image discard that state before
-  resetting (`docs/firmware.md`, "Restarting"): `:SYSTem:PON` zeroes
+  resetting (`docs/firmware/restart.md`, "Restarting"): `:SYSTem:PON` zeroes
   the region and `:SYSTem:PRESet` clears its flag.  Neither exercises
   the warm path, and this project sends neither.  `*TST?` does not
   reset the processor: it resets the GPS engine and sends the loop
@@ -161,14 +161,14 @@ read-memory` sends.
 ## 10. A 58503A image -- done for revision 3633
 
 `third_party/58503a-3633.bin`, assembled from willhb's flash dumps
-(`NOTICE`), answered the first questions (`firmware.md`, "The 58503A
+(`NOTICE`), answered the first questions (`firmware/console.md`, "The 58503A
 image"): the loop has the c·s term, `TCOefficient` is that c and its
 setter writes it, the oscillator current is channel 3 with the same
 exponential average, and `EFControl:ABSolute?` reports the DAC word
 with the term in it.
 
 The bench receiver's own flash, revision 3704-C, was read through its
-pForth console (`firmware.md`, "Reading memory through it"): its loop
+pForth console (`firmware/console.md`, "Reading memory through it"): its loop
 has the same term, on the same current renumbered as channel 6.
 
 *Still open:* why the bench receiver's record shows no response to
@@ -179,7 +179,7 @@ the oven current when its firmware applies the term.
 *Open item:* why the Z3801A (3542A01548) has tracked no satellite
 since it came to the bench, and the Z3805A (3625A01487) none since
 2026-09-23, when it held six.  Both have the same engine, a Motorola
-B1121P1114 with software 8.4 (`firmware.md`, "The engines on the
+B1121P1114 with software 8.4 (`firmware/gps.md`, "The engines on the
 bench").
 
 The Z3801A's own log dates it: it cycled between GPS lock and
@@ -249,7 +249,7 @@ u-blox NEO-M8T, the Z3805A held no satellite the NEO-M8T read below
 58503A held 88% of those at 36 to 39 dB-Hz ([`bench-sky-2026-10-03.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/bench-sky-2026-10-03.html)).
 
 *Next:* one of these engines in the 58503A (3710A01056), whose
-firmware takes a six-channel engine (`firmware.md`, "Six or eight
+firmware takes a six-channel engine (`firmware/gps.md`, "Six or eight
 channels").  If it tracks there, the fault is in the Z380x unit; if
 not, in the engine.  Waiting on a supply for the 58503A.
 
@@ -257,7 +257,7 @@ not, in the engine.  Waiting on a supply for the 58503A.
 
 The flasher (now `smartclock-cli flash`) reinstalled the Z3801A's own
 dump on 2026-09-28; PRIMARY boot and the recorded settings were
-verified.  See [the flasher](firmware.md#the-flasher) for the
+verified.  See [the flasher](firmware/restart.md#the-flasher) for the
 procedure, checks and limits.  Other models and revision changes have
 simulator coverage, not hardware validation.  Which flash part holds
 which byte lane is unknown.
@@ -273,7 +273,7 @@ an unusable primary is item 13.
 whether any forces INSTALL without a working primary interpreter.
 The Z3801A 3543 and Z3805A 3543B reset-to-primary paths contain no
 switch test, and a running primary enters the installer only through
-the SCPI task (`firmware.md`, "Forced installer entry with an unusable
+the SCPI task (`firmware/restart.md`, "Forced installer entry with an unusable
 primary").  The pForth console's `execute` reaches that same exit,
 verified on the Z3801A and Z3805A on 2026-09-28.  This does not exclude
 a hardware effect on booting.  The hypotheses below model flash read
@@ -282,7 +282,7 @@ faults that preserve the installer while failing primary checks.
 - [ ] TODO: with the unit open, read the byte at `0x302000` from the
   pForth console (`3153920 c@ .`) before and after changing each S1
   position, one at a time, powered down.  The Oman installer reads that
-  byte for its host-port settings (`firmware.md`, "The switch byte at
+  byte for its host-port settings (`firmware/restart.md`, "The switch byte at
   `0x302000`"); whether S1 drives it is unknown.  See hypothesis 4
   below.
 - [ ] TODO: on an unpowered board, map S1's connections to buffers,
@@ -295,7 +295,7 @@ faults that preserve the installer while failing primary checks.
 - Locate BKPT/DSCLK, IFETCH/DSI and IPIPE/DSO.  MC68331UM section
   5.10.2 documents debug access independent of a running primary.
   Protected installer entry `0xa58` is a candidate destination after
-  reset has initialized the memory interfaces; see `firmware.md`,
+  reset has initialized the memory interfaces; see `firmware/restart.md`,
   "Forced installer entry with an unusable primary".  Neither the
   board connection nor that recovery method has been tested.
 
@@ -306,7 +306,7 @@ accept `:SYSTem:LANGuage "INSTALL"`.
 ### Recovery hypotheses
 
 *Speculative, by request: hypotheses to guide a bench investigation,
-not findings.  Facts they rest on are in `firmware.md`.*
+not findings.  Facts they rest on are in `firmware/README.md`.*
 
 Research question: can a jumper or the eight-position S1 force recovery
 when PRIMARY has valid checksums but cannot accept the command to enter
@@ -332,7 +332,7 @@ Powerup" and B2 to "Password Required" (097-55300-01, figures 3-14 and
 3-15A; `third_party/097-55300-01-iss-1.pdf`).  Those assignments are
 not established for these boards.  The reset path and installer entry
 the hypotheses rely on are in
-[firmware.md](firmware.md#forced-installer-entry-with-an-unusable-primary).
+[`firmware/restart.md`](firmware/restart.md#forced-installer-entry-with-an-unusable-primary).
 
 ### 1. Alter primary flash reads
 
@@ -460,7 +460,7 @@ been mapped.
 
 ### 4. S1 is the byte at `0x302000`
 
-The facts are in `firmware.md`, "The switch byte at `0x302000`": the
+The facts are in `firmware/restart.md`, "The switch byte at `0x302000`": the
 Oman installer (58503A 3633) reads that byte at every start and, when
 bit 0 is clear, takes the host port's baud, framing and pacing from
 bits 1 to 4.  That matches the 55300A's S1 B1, "Preset All Serial
@@ -480,7 +480,7 @@ the Z3801A and Z3805A boards is unknown.
 ## 14. Leaving the console with `halt`
 
 *Open item:* whether `halt` returns the port from the pForth console to
-SCPI as the images say, and what each visit costs (`firmware.md`,
+SCPI as the images say, and what each visit costs (`firmware/console.md`,
 "Leaving it").
 
 - With the daemon stopped, at the unit's own line settings, capture a
@@ -496,7 +496,7 @@ SCPI as the images say, and what each visit costs (`firmware.md`,
 Done on 2026-10-04, two visits on each of the Z3805A and the 58503A:
 `halt` returned to SCPI in PRIMARY each time with an empty error queue,
 and each unit's second `mem_rep` matched its first, 18,790 and 16,248
-bytes free (`firmware.md`, "Leaving it").
+bytes free (`firmware/console.md`, "Leaving it").
 
 *Changes:* `read-memory` and its kin leave the console with `halt`
 first on every image, keeping the installer route as the fallback, and

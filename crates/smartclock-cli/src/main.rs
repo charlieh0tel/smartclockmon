@@ -129,11 +129,11 @@ enum Command {
     },
     /// Read memory through the pForth debug console, entering it with
     /// `:SYSTem:LANGuage "PFORTH"` if the port is not already there
-    /// (docs/firmware.md, "Reading memory through it").  Defines one word
+    /// (docs/firmware/console.md, "Reading memory through it").  Defines one word
     /// in the console's RAM and writes nothing else.  Afterwards the
     /// port is returned to SCPI with the console's `halt`, or failing
     /// that through the primary's exit into the installer and
-    /// `:SYSTem:LANGuage "PRIMARY"` (docs/firmware.md, "Leaving it");
+    /// `:SYSTem:LANGuage "PRIMARY"` (docs/firmware/console.md, "Leaving it");
     /// nothing is erased or programmed.
     ReadMemory {
         /// First address, as 0x-prefixed hex or decimal.
@@ -148,7 +148,7 @@ enum Command {
     /// Check a firmware image and the receiver it is for; with
     /// `--write`, erase and program the receiver's flash through its
     /// installer, check that the new primary boots, and read the whole
-    /// flash back (docs/firmware.md, "The flasher").  Stop the port's
+    /// flash back (docs/firmware/restart.md, "The flasher").  Stop the port's
     /// daemon first.  The only command that erases or programs.
     Flash(FlashArgs),
     /// Read the whole flash, 512 KiB from address 0, as `read-memory`
@@ -207,10 +207,10 @@ struct ReadTo {
 }
 
 /// The flash, as every model maps it: the boot and primary images
-/// together (docs/firmware.md, "The installer").
+/// together (docs/firmware/restart.md, "The installer").
 const FLASH: (u32, u32) = (0, 0x80000);
 
-/// The EEPROM behind chip select 9 (docs/firmware.md, "Reading memory
+/// The EEPROM behind chip select 9 (docs/firmware/console.md, "Reading memory
 /// through it").
 const EEPROM: (u32, u32) = (0x40_0000, 0x2000);
 

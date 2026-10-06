@@ -1,7 +1,7 @@
 //! Reading a receiver's memory through its pForth debug console.
 //!
 //! `:SYSTem:LANGuage "PFORTH"` turns the SCPI port into a Forth console
-//! (`docs/firmware.md`, "The debug console").  Its `@` reads the running
+//! (`docs/firmware/console.md`, "The debug console").  Its `@` reads the running
 //! unit's own memory, so the ROM and the EEPROM can be read without
 //! opening the case.  Loops are compile-only there, so one word is
 //! defined for the purpose, in the console's RAM dictionary, and nothing
@@ -16,10 +16,10 @@
 //! value is one this project never sends, and only this value is.
 //!
 //! [`back_to_scpi`] leaves the console with its own word `halt`, which
-//! recreates the SCPI task and deletes the console's (docs/firmware.md,
+//! recreates the SCPI task and deletes the console's (docs/firmware/console.md,
 //! "Leaving it").  If that does not bring back the primary's SCPI, it
 //! falls back to the primary's own exit into the installer, from which
-//! `:SYSTem:LANGuage "PRIMARY"` restarts the primary (docs/firmware.md,
+//! `:SYSTem:LANGuage "PRIMARY"` restarts the primary (docs/firmware/restart.md,
 //! "Forced installer entry with an unusable primary").  Nothing is
 //! erased or programmed on either way.
 
@@ -192,7 +192,7 @@ pub type Result<T> = std::result::Result<T, ConsoleError>;
 /// One image's exit into the installer, as the console can reach it.
 /// `execute` calls the address held in the cell it is given; `cell` is
 /// the operand of the SCPI task's call to the routine that ends in
-/// `trap #11` (docs/firmware.md, "Forced installer entry with an
+/// `trap #11` (docs/firmware/restart.md, "Forced installer entry with an
 /// unusable primary").
 #[derive(Debug)]
 pub struct Exit {

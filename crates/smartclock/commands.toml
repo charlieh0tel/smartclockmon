@@ -829,7 +829,7 @@ doc = "1 PPS to GPS 1 PPS interval, seconds."
 [[command]]
 id = "tinterval_reading"
 class = "query"
-doc = "The latest one-second 1 PPS to GPS 1 PPS interval, seconds, before the ten-second averaging behind `tinterval`; carries the GPS engine's sawtooth uncorrected.  The daemon does not poll it.  See docs/firmware.md, What the query returns."
+doc = "The latest one-second 1 PPS to GPS 1 PPS interval, seconds, before the ten-second averaging behind `tinterval`; carries the GPS engine's sawtooth uncorrected.  The daemon does not poll it.  See docs/firmware/interval.md, What the query returns."
 
   [command.dialect.hp58503]
   scpi = ":DIAGnostic:PTIMe:TINTerval?"
@@ -2008,7 +2008,7 @@ doc = "Restore all receiver settings to factory values."
 [[command]]
 id = "system_pon"
 class = "dangerous"
-doc = "Restart as from power-on: the loop state kept for a warm restart is discarded. Undocumented; refused by every tool here. See docs/firmware.md, Restarting."
+doc = "Restart as from power-on: the loop state kept for a warm restart is discarded. Undocumented; refused by every tool here. See docs/firmware/restart.md, Restarting."
 
   [command.argument]
   kind = "none"
@@ -2080,7 +2080,7 @@ doc = "Erase flash. Firmware download only."
 [[command]]
 id = "temperature"
 class = "query"
-doc = "Internal temperature, degrees Celsius. Not the oven: this reads 34 to 38 C where a 10811 oven runs at 75 to 85. Undocumented; both the 58503A and Z3801A images answer it with the low byte of ADC channel 0 times 0.273 and no offset (docs/firmware.md). The Z3801 dialect leaves it out: the same query on a Z3801A and a Z3805A reads 0 or 1 count, 0.0 or 0.273, which is not a temperature."
+doc = "Internal temperature, degrees Celsius. Not the oven: this reads 34 to 38 C where a 10811 oven runs at 75 to 85. Undocumented; both the 58503A and Z3801A images answer it with the low byte of ADC channel 0 times 0.273 and no offset (docs/firmware/console.md). The Z3801 dialect leaves it out: the same query on a Z3801A and a Z3805A reads 0 or 1 count, 0.0 or 0.273, which is not a temperature."
 
   [command.dialect.hp58503]
   scpi = ":DIAGnostic:TEMPerature?"
@@ -2131,7 +2131,7 @@ doc = "Oscillator EFC as a raw 20-bit value; relative percent is value / 2^20 * 
 [[command]]
 id = "oven_tempco"
 class = "query"
-doc = "Oscillator temperature coefficient: the constant the loop multiplies the oscillator current by in the EFC, in EFC counts per unit of that channel.  A calibration value in EEPROM, applied at every update and adjusted by nothing but its own setter, so it sits still.  See docs/firmware.md."
+doc = "Oscillator temperature coefficient: the constant the loop multiplies the oscillator current by in the EFC, in EFC counts per unit of that channel.  A calibration value in EEPROM, applied at every update and adjusted by nothing but its own setter, so it sits still.  See docs/firmware/loop.md."
 
   [command.dialect.hp58503]
   scpi = ":DIAGnostic:ROSCillator:TCOefficient?"

@@ -177,7 +177,7 @@ found the commands below, none of which appear in any manual here.
 | ------- | --------------------- |
 | `:DIAGnostic:TEMPerature?` | `+3.68550E+001`, degrees Celsius |
 | `:DIAGnostic:ROSCillator:CURRent?` | `+1.05882E+002`, oven current |
-| `:DIAGnostic:ROSCillator:TCOefficient?` | `-3.36500E+001`, oven-current constant (`firmware.md`) |
+| `:DIAGnostic:ROSCillator:TCOefficient?` | `-3.36500E+001`, oven-current constant (`firmware/loop.md`) |
 | `:DIAGnostic:ROSCillator:EFControl:ABSolute?` | `+713392`, DAC code |
 | `:DIAGnostic:ROSCillator:EFControl:DATA?` | `+0` |
 | `:DIAGnostic:ROSCillator:EFControl?` | same as `:RELative?` |
@@ -195,10 +195,10 @@ See `efc.md` for what the EFC commands mean in volts and in frequency.
 `:DIAGnostic:IDENtification:GPSystem?` names the GPS engine: a Motorola
 with `SOFTWARE DATE 06 Aug 1996`, before the 1024-week rollovers of
 1999 and 2019, and so the source of the receiver's 1024-week date
-error (`firmware.md`, "The engines on the bench").
+error (`firmware/gps.md`, "The engines on the bench").
 
 ### Ovens
 
 The firmware strings include `Double oven`.  The 58503A images carry it
-too (`firmware.md`, "The 58503A image"); the bench 58503A's oscillator
+too (`firmware/console.md`, "The 58503A image"); the bench 58503A's oscillator
 is a 10811-60159 (`ocxo.md`).
