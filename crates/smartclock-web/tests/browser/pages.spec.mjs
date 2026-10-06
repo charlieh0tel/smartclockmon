@@ -114,6 +114,9 @@ test("a note is marked on the charts and named when the cursor is on it", async 
 
 for (const path of ["/", "/compare"]) {
   test(`every chart in the ${path} stack plots the same time at the same x`, async ({ page }) => {
+    // Short enough that a scrollbar appears partway down the stack as
+    // charts are added (the config shows scrollbars).
+    await page.setViewportSize({ width: 1200, height: 700 });
     await open(page, twoUnits(), path, B);
     await page.waitForFunction(() => charts.length > 1);
     const edges = await page.evaluate(() =>

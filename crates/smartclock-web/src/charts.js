@@ -196,6 +196,16 @@ function yAxis(col, values, height) {
 // uPlot would otherwise make room for on that chart alone.
 const STACK_RIGHT = 32;
 
+// Give every chart in a stack the width its container has settled at.
+// Each was made at the width the container had then, and adding charts
+// can bring on a scrollbar that narrows it partway down the stack.
+function settleWidths(charts, container) {
+  const width = container.clientWidth;
+  for (const c of charts) {
+    if (width && c.width !== width) c.setSize({ width, height: c.height });
+  }
+}
+
 // The y axis width a stack of fitted axes shares.
 const stackWidth = (fits) => Math.max(...fits.map((f) => f.axis.size));
 

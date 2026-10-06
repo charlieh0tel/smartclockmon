@@ -16,7 +16,12 @@ export default defineConfig({
   // ten for the receiver list, so they run side by side.
   fullyParallel: true,
   timeout: 60000,
-  use: { baseURL: `http://127.0.0.1:${PORT}` },
+  use: {
+    baseURL: `http://127.0.0.1:${PORT}`,
+    // Scrollbars that take width, as desktop browsers draw them, where
+    // headless Chromium would hide them.
+    launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] },
+  },
   webServer: {
     command:
       `sh -c 'd=$(mktemp -d) && exec ../../../../target/debug/smartclock-web ` +

@@ -352,6 +352,7 @@ async function draw(signal) {
     });
     charts.push(chart);
   });
+  settleWidths(charts, $("charts"));
   // Say what the row is for before anything has been hovered, rather
   // than leaving an empty strip that looks like a rendering fault.
   readout();
