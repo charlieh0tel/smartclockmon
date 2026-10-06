@@ -67,14 +67,14 @@ HP / Agilent / Symmetricom SmartClock receivers: GPS-disciplined
 OCXO references that emit 10 MHz and 1 PPS and report their state over
 a serial port in SCPI.
 
-| Model  | Command tree             | Notes                                   |
-| ------ | ------------------------ | --------------------------------------- |
-| 58503A | `:GPS:`, `:SYNC:`        | Primary development target              |
-| 58503B | `:GPS:`, `:SYNC:`        | Same tree as the 58503A                 |
-| 59551A | `:GPS:`, `:SYNC:`        | Adds pulse output and event timestamping|
-| Z3801A | `:PTIME:GPSYSTEM:`, `:ROSC:` | Divergent tree; different response formats |
-| Z3805A | `:PTIME:GPSYSTEM:`, `:ROSC:` | Answers the Z3801A tree; verified on hardware |
-| Z3816A | `:PTIME:GPSYSTEM:`, `:ROSC:` | Assumed as Z3801A; unverified          |
+| Model  | Command tree                 | Tested on hardware | Notes |
+| ------ | ---------------------------- | ------------------ | ----- |
+| 58503A | `:GPS:`, `:SYNC:`            | yes | Primary development target |
+| Z3801A | `:PTIME:GPSYSTEM:`, `:ROSC:` | yes | Divergent tree; different response formats |
+| Z3805A | `:PTIME:GPSYSTEM:`, `:ROSC:` | yes | Answers the Z3801A tree |
+| 58503B | `:GPS:`, `:SYNC:`            | no; may work | Same tree as the 58503A by its manual |
+| 59551A | `:GPS:`, `:SYNC:`            | no; may work | The 58503A tree; its pulse output and event timestamping are unused |
+| Z3816A | `:PTIME:GPSYSTEM:`, `:ROSC:` | no; may work | Firmware image studied; assumed to answer as the Z3801A |
 
 Their GPS engines are mid-1990s Motorola boards whose firmware predates
 the GPS week rollovers of 1999 and 2019, so a unit reports a date 1024
