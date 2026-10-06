@@ -56,7 +56,9 @@ Slots are sticky.  A new name takes the lowest slot never assigned; a
 name dropped from the configuration keeps its slot, which reads NULL
 from then on; a slot is given to another name only by
 `smartclock-cli sensor reassign SLOT NAME`, which the daemon records as
-a new row.  With all twelve assigned, a new name is
+a new row.  The daemon refuses it while the slot's current name is
+still configured, naming the conflict; otherwise that name would take
+a new slot at the next start and its chart would split.  With all twelve assigned, a new name is
 refused at startup.  So a chart of one name never changes sensors
 partway along.
 
