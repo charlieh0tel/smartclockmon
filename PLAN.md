@@ -791,7 +791,14 @@ make web-deps   install the browser tests' Playwright and Chromium
 make test-web   the browser tests
 make deb        a snapshot package
 make release    tag the version Cargo.toml already names
+make release-notes  the GitHub release notes the tag will get
 ```
+
+Pushing a release tag builds the packages, sets the GitHub release's
+notes from the newest `packaging/debian/changelog` entry
+(`packaging/release-notes.sh`), and rebuilds the apt repository.  The
+changelog entry is written once, in `make release`, and is the release
+notes everywhere.
 
 CI calls the fleet's reusable `rust-ci.yml`, since one repository doing
 it differently costs more than one definition run locally and in CI.

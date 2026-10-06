@@ -17,7 +17,7 @@ CARGO ?= cargo
 # identical version as a no-op: the binaries change or they do not, and
 # nothing from the outside says which.
 
-.PHONY: all build ci fmt fmt-check clippy test test-hw web-deps test-web doc docs clean deb release install-service
+.PHONY: all build ci fmt fmt-check clippy test test-hw web-deps test-web doc docs clean deb release release-notes install-service
 
 all: build
 
@@ -149,6 +149,11 @@ release:
 	@echo "Tagged v$(VERSION), and Cargo.toml now reads $(NEXT_VERSION)."
 	@echo "Push the tag to build and publish:"
 	@echo "    git push origin main && git push origin v$(VERSION)"
+
+# The GitHub release's notes, as the release workflow sets them from the
+# newest changelog entry; for checking before a tag is pushed.
+release-notes:
+	@./packaging/release-notes.sh
 
 install-service:
 	install -m 0644 packaging/systemd/smartclockd@.service /etc/systemd/system/

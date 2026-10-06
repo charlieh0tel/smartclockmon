@@ -24,6 +24,23 @@ jobs:
       # built by the compiler this repo names, without the version having
       # to be kept equal in two places.
 
+  # The release the deb job created carries only a compare link; its
+  # notes are the changelog entry the release commit wrote, so the page
+  # says what changed without anyone pasting it in.
+  notes:
+    needs: deb
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set the release notes from the changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./packaging/release-notes.sh > notes.md
+          gh release edit "$GITHUB_REF_NAME" --notes-file notes.md
+
   trigger-apt-repo:
     needs: deb
     if: startsWith(github.ref, 'refs/tags/v')
