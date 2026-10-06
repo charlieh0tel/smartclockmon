@@ -501,7 +501,7 @@ This needs `:SYSTem:LANGuage "PFORTH"` and `halt` to return to SCPI
 (item 14), and has not been done.  What else a read of `0x302000` does on
 the Z3801A and Z3805A boards is unknown.
 
-## 14. Leaving the console with `halt`
+## 14. Leaving the console with `halt` -- done
 
 *Open item:* whether `halt` returns the port from the pForth console to
 SCPI as the images say, and what each visit costs (`firmware/console.md`,
@@ -526,7 +526,7 @@ bytes free (`firmware/console.md`, "Leaving it").
 first on every image, keeping the installer route as the fallback, and
 firmware with no known installer exit is no longer refused.
 
-## 15. A receiver swapped under a running daemon
+## 15. A receiver swapped under a running daemon -- done
 
 *Open item:* whether the slow tier's `*IDN?` check catches a cable
 moved between two units on the same line settings (PLAN.md, "Rows
