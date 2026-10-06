@@ -128,6 +128,9 @@ here, where they go stale unnoticed.
 - Never employ a wildcard `use` statement on an enum when trying to
   shorten match arms.
 - Use the newtype idiom as appropriate.
+- Every database schema change needs an automated forward migration,
+  run by the daemon on open (`migrate()` in
+  `crates/smartclockd/src/db.rs`) and tested.  Never a by-hand reshape.
 - Do not use `anyhow` in library crates at all; use typed errors via
   `thiserror` instead.  `anyhow` is for binaries only.
 - Do not use `unsafe` without asking.

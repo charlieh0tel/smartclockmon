@@ -342,9 +342,8 @@ log line, not a shared "unknown" file.  `smartclock-web` lists every
 `*.sqlite` in the log directory and keys everything by serial
 (`?receiver=`).
 
-Stored data is reshaped by hand with `sqlite3`, not by daemon migration
-code: there is no fleet, and a migration nobody else runs is code
-nobody tests.
+A schema change is migrated by the daemon on open, in `migrate()`, and
+tested: released logs live on hosts other than the bench.
 
 ### Exporter metrics keep their names and labels
 
@@ -537,8 +536,8 @@ view cannot drift apart.  The library, bottom up:
 - **Bench work:** the open items in `docs/hardware-investigations.md`,
   each with its TODO.
 - **Editing notes from the web view**, through the daemon socket.
-  Needs POST bodies in `smartclock-http`, and notes with ids rather
-  than append-only.
+  Needs POST bodies in `smartclock-http`, and edit requests keyed by
+  the note's existing `id`.
 
 ## Open questions
 
