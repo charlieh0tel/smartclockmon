@@ -112,6 +112,20 @@ test("a note is marked on the charts and named when the cursor is on it", async 
   await expect(page.locator("#note-tip")).toBeHidden();
 });
 
+for (const path of ["/", "/compare"]) {
+  test(`every chart in the ${path} stack plots the same time at the same x`, async ({ page }) => {
+    await open(page, twoUnits(), path, B);
+    await page.waitForFunction(() => charts.length > 1);
+    const edges = await page.evaluate(() =>
+      charts.map((c) => {
+        const box = c.over.getBoundingClientRect();
+        return [Math.round(box.left), Math.round(box.width)];
+      }),
+    );
+    expect(new Set(edges.map(String)).size, JSON.stringify(edges)).toBe(1);
+  });
+}
+
 test("a note clicked in the journal shows an hour either side of it", async ({ page }) => {
   await open(page, twoUnits(), "/", B);
   await page.locator('#journal-tabs button[data-stream="notes"]').click();
@@ -129,7 +143,7 @@ test("the compare page reads every receiver at one instant", async ({ page }) =>
   const fake = twoUnits();
   fake.unit(B).skew = 7;
   await open(page, fake, "/compare");
-  await page.waitForFunction(() => charts.length === 5);
+  await page.waitForFunction(() => charts.length === 2);
   // Hovered afresh on each look: the page may draw its charts again
   // after the first read, and a new chart sees the cursor only when it
   // moves.
@@ -146,19 +160,19 @@ test("the compare page reads every receiver at one instant", async ({ page }) =>
 test("the compare page offers a receiver that appears, and keeps its charts when a daemon goes", async ({ page }) => {
   const fake = new Fake([receiver(A, MODE[A], 111)]);
   await open(page, fake, "/compare");
-  await page.waitForFunction(() => charts.length === 5);
+  await page.waitForFunction(() => charts.length === 2);
   fake.units.push(receiver(B, MODE[B], 222));
   await expect(page.locator(`#compared input[data-serial="${B}"]`)).toBeVisible({ timeout: 12000 });
   await expect(page.locator(`#compared input[data-serial="${B}"]`)).not.toBeChecked();
   // Drawn from the logs, which a daemon going does not take away.
   fake.unit(A).up = false;
   await page.waitForTimeout(2500);
-  expect(await page.evaluate(() => charts.length)).toBe(5);
+  expect(await page.evaluate(() => charts.length)).toBe(2);
 });
 
 test("the compare page marks each receiver's notes over its whole range", async ({ page }) => {
   await open(page, twoUnits(), "/compare");
-  await page.waitForFunction(() => charts.length === 5 && marks.length === 2);
+  await page.waitForFunction(() => charts.length === 2 && marks.length === 2);
   const texts = await page.evaluate(() => marks.map((m) => m.text));
   expect(texts.map((t) => (t.includes(`note of ${A}`) ? A : t.includes(`note of ${B}`) ? B : t)).sort())
     .toEqual([A, B]);
@@ -166,13 +180,13 @@ test("the compare page marks each receiver's notes over its whole range", async 
 
 test("the compare page overlays every receiver with readings, and drops one unticked", async ({ page }) => {
   await open(page, twoUnits(), "/compare");
-  await page.waitForFunction(() => charts.length === 5 && deviationChart !== null);
+  await page.waitForFunction(() => charts.length === 2 && deviationChart !== null);
   expect(await page.evaluate(() => charts[0].series.length)).toBe(3);
   await expect(page.locator(`#compared input[data-serial="${A}"]`)).toBeChecked();
   await expect(page.locator(`#compared input[data-serial="${B}"]`)).toBeChecked();
   await page.locator(`#compared input[data-serial="${B}"]`).uncheck();
   await expect.poll(() => new URL(page.url()).searchParams.get("receivers")).toBe(A);
-  await page.waitForFunction(() => charts.length === 5 && charts[0].series.length === 2);
+  await page.waitForFunction(() => charts.length === 2 && charts[0].series.length === 2);
 });
 
 test("the range and the receiver go along to the next page", async ({ page }) => {

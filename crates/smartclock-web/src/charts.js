@@ -190,6 +190,15 @@ function yAxis(col, values, height) {
   };
 }
 
+// Charts in a stack share a time axis only if their plotting areas line
+// up: each gets the widest y axis of the stack, and the same right
+// padding, wide enough for the bottom chart's last time label, which
+// uPlot would otherwise make room for on that chart alone.
+const STACK_RIGHT = 32;
+
+// The y axis width a stack of fitted axes shares.
+const stackWidth = (fits) => Math.max(...fits.map((f) => f.axis.size));
+
 // ---------------------------------------------------------------- notes
 
 // How near the cursor must be to a note's line, in CSS pixels, for its

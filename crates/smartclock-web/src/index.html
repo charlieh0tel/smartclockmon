@@ -214,19 +214,23 @@ async function draw(signal) {
 
   const drawn = pairCounts(got.plots);
   const height = plotHeight(drawn.length);
+  // The scale has to cover the envelope, not just the mean: the min and
+  // max are drawn, and an axis that ends below them would clip the very
+  // excursions they exist to show.
+  const fits = drawn.map((plot) => {
+    const mate = plot.partner ? scaled(plot.partner.mean, plot.partner.column) : [];
+    const values = [plot.min, plot.max, plot.mean]
+      .flatMap((v) => scaled(v, plot.column))
+      .concat(mate)
+      .filter((v) => v != null && isFinite(v));
+    return yAxis(plot.column, values, height);
+  });
+  const ySize = stackWidth(fits);
   drawn.forEach((plot, n) => {
     const col = plot.column;
     const mean = scaled(plot.mean, col);
-    const low = scaled(plot.min, col);
-    const high = scaled(plot.max, col);
-    // The scale has to cover the envelope, not just the mean: the
-    // min and max are drawn, and an axis that ends below them would
-    // clip the very excursions they exist to show.
     const mate = plot.partner ? scaled(plot.partner.mean, plot.partner.column) : null;
-    const values = [...low, ...high, ...mean, ...(mate ?? [])].filter(
-      (v) => v != null && isFinite(v),
-    );
-    const fitted = yAxis(col, values, height);
+    const fitted = fits[n];
     // Only the bottom chart carries the time labels.  Repeating them
     // under every plot costs the height that makes the stack worth
     // having, and says the axes might differ when the whole point is
@@ -238,6 +242,7 @@ async function draw(signal) {
     const opts = {
       width: $("charts").clientWidth || 800,
       height,
+      padding: [null, STACK_RIGHT, null, null],
       title: plot.partner ? `${label(col)} and ${label(plot.partner.column)}` : label(col),
       series: [
         {},
@@ -265,6 +270,7 @@ async function draw(signal) {
           grid: { stroke: "#2b3038" },
           ticks: { stroke: "#2b3038" },
           ...fitted.axis,
+          size: ySize,
         },
       ],
       scales: {

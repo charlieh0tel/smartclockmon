@@ -224,17 +224,24 @@ function drawHistory(shown, got) {
     tables,
     tables.map((table) => table.map(() => NULL_EXPAND)),
   );
-  const height = plotHeight(COMPARED.length);
-  COMPARED.forEach((col, n) => {
-    const columns = shown.map((_, i) => joined[1 + i * COMPARED.length + n]);
-    const values = columns.flat().filter((v) => v != null && isFinite(v));
-    const fitted = yAxis(col, values, height);
+  const columnsOf = (n) => shown.map((_, i) => joined[1 + i * COMPARED.length + n]);
+  const finite = (n) => columnsOf(n).flat().filter((v) => v != null && isFinite(v));
+  // Only what some ticked receiver measured: a chart with no data has no
+  // y axis, which would shift its plot out of line with the rest.
+  const drawn = COMPARED.map((col, n) => ({ col, n })).filter(({ n }) => finite(n).length);
+  const height = plotHeight(drawn.length);
+  const fits = drawn.map(({ col, n }) => yAxis(col, finite(n), height));
+  const ySize = stackWidth(fits);
+  drawn.forEach(({ col, n }, place) => {
+    const columns = columnsOf(n);
+    const fitted = fits[place];
     const host = document.createElement("div");
     $("charts").appendChild(host);
     const chart = new uPlot(
       {
         width: $("charts").clientWidth || 800,
         height,
+        padding: [null, STACK_RIGHT, null, null],
         title: label(col),
         series: [
           {},
@@ -250,13 +257,14 @@ function drawHistory(shown, got) {
             stroke: "#8b929c",
             grid: { stroke: "#2b3038" },
             ticks: { stroke: "#2b3038" },
-            show: n === COMPARED.length - 1,
+            show: place === drawn.length - 1,
           },
           {
             stroke: "#8b929c",
             grid: { stroke: "#2b3038" },
             ticks: { stroke: "#2b3038" },
             ...fitted.axis,
+            size: ySize,
           },
         ],
         scales: {
