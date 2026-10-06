@@ -82,7 +82,7 @@ weeks in the past.  Time of day, 1 PPS and 10 MHz are unaffected; the
 tools correct the date rather than flag a fault.  Factory serial
 settings are 9600 8N1; the Z3801A's port is fixed at 19200 7O1.  When
 the configured settings get no answer, the daemon, monitor and CLI
-probe 19200 and 9600, 8N1 and 7O1.  [`BENCHNOTES.md`](BENCHNOTES.md)
+probe 19200 and 9600, 8N1 and 7O1.  [`docs/bench.md`](docs/bench.md)
 describes the bench.
 
 ## Documentation
