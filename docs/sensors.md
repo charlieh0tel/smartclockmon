@@ -54,8 +54,9 @@ for a name is a new row with a new `since`.
 
 Slots are sticky.  A new name takes the lowest slot never assigned; a
 name dropped from the configuration keeps its slot, which reads NULL
-from then on; a slot is given to another name only by editing the
-`sensor` table by hand.  With all twelve assigned, a new name is
+from then on; a slot is given to another name only by
+`smartclock-cli sensor reassign SLOT NAME`, which the daemon records as
+a new row.  With all twelve assigned, a new name is
 refused at startup.  So a chart of one name never changes sensors
 partway along.
 
