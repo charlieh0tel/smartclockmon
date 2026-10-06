@@ -126,10 +126,10 @@ Later results (`hardware-investigations.md`, item 11):
   NEO-M8T, with that gain ahead of it alone: 2.9 satellites on average, none held below 39 dB-Hz where
   the 58503A held 88% at 36 to 39
   ([bench-sky-2026-10-03.html](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/bench-sky-2026-10-03.html)).
-- The 24 hours to 21:00 UTC on 2026-10-05: lock 88.3% of the time, on
-  about 2.7 satellites on average while locked.
+- The 24 hours to 21:00 UTC on 2026-10-05, with the 20 dB LNA still in
+  place: lock 88.3% of the time, on about 2.7 satellites on average
+  while locked.
 
 In position hold at the 58503A's surveyed antenna position, which it
-read back on 2026-09-28.  Survey-on-powerup was turned off, set back
-to 1 by the `:SYSTem:PRESet` of 2026-09-27, and its state since is not
-recorded.
+read back on 2026-09-28, with survey-on-powerup off (read 0 on
+2026-10-05), so a power cycle keeps the position.
