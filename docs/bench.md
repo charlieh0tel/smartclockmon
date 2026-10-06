@@ -8,6 +8,11 @@ daemon is the better source: `smartclock-cli --socket ... diagnose`
 heads its report with the model, serial and firmware of whatever is
 attached, and every log row names its receiver.
 
+## HP Z3801A, serial 3542A01548
+
+On the bench but not connected.  Its history is in
+`docs/hardware-investigations.md`, items 11 and 12.
+
 ## HP 58503A, serial 3710A01056
 
     HEWLETT-PACKARD,58503A,3710A01056,3704-C
@@ -60,8 +65,11 @@ GPS receiver, as `:DIAGnostic:IDENtification:GPSystem?` reports it:
     MANUFACTUR DATE 6G09
     OPTIONS LIST    IB
 
-One digit and one year from the 58503A's, so both report the same
-1024-week offset and, on the same day, the same date.
+A different engine from the 58503A's B4121P1115: a six-channel B1
+(`bench-sky-2026-10-03.html`, from the VP Oncore Command Reference)
+with software a year older (`firmware/gps.md`, "The engines on the
+bench").  Both report the same 1024-week offset and, on the same day,
+the same date.
 
 Its diagnostic log held 225 entries, not the 222 the 58503A stops at.
 Copied out and cleared.
@@ -109,6 +117,19 @@ almanac download needs sustained data lock, which a deaf receiver
 cannot manage.  It is degraded, not broken, matching a time-nuts report
 of another Z3805A whose Oncore lost sensitivity over time.
 
-Left in position hold at the surveyed antenna position with
-survey-on-powerup off, so it serves time from its oscillator whether
-or not it ever tracks.
+Later results (`hardware-investigations.md`, item 11):
+
+- 2026-09-28, overnight after `master_reset`, a power cycle and 20 dB
+  of low-noise gain ahead of it: lock about 98% of nine hours on 2 to
+  4 satellites.
+- 2026-10-03, 24 hours on one splitter beside the 58503A and a u-blox
+  NEO-M8T, with that gain ahead of it alone: 2.9 satellites on average, none held below 39 dB-Hz where
+  the 58503A held 88% at 36 to 39
+  ([bench-sky-2026-10-03.html](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/bench-sky-2026-10-03.html)).
+- The 24 hours to 21:00 UTC on 2026-10-05: lock 88.3% of the time, on
+  about 2.7 satellites on average while locked.
+
+In position hold at the 58503A's surveyed antenna position, which it
+read back on 2026-09-28.  Survey-on-powerup was turned off, set back
+to 1 by the `:SYSTem:PRESet` of 2026-09-27, and its state since is not
+recorded.

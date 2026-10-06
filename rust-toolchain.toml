@@ -1,5 +1,5 @@
 # Pinned so a lint that fires in CI fires locally too.  This file, not
-# the CI workflow's inputs, is what decides: rustup honours it for every
+# the CI workflow's inputs, is what decides: rustup honors it for every
 # cargo invocation in the repo, overriding whatever the workflow
 # installed.
 #

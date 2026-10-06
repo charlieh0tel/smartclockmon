@@ -523,8 +523,9 @@ impl<T: Transport> Device<T> {
     /// The satellite counts, which the status screen also prints.
     ///
     /// Two short queries, about 80 ms, against the 1.5 s the screen
-    /// costs.  Reading them here is what lets the screen sit on the
-    /// slow tier without the counts going stale with it.
+    /// costs.  Reading them here is what lets the screen sit on no
+    /// tier -- it is read every `--sky` seconds (300 by default) and
+    /// on request -- without the counts going stale with it.
     fn poll_satellites(&mut self, into: &mut Snapshot) -> Result<()> {
         into.tracking = absent_if_unsupported(self.tracking_count())?.map(satellite_count);
         into.visible = absent_if_unsupported(self.visible_count())?.map(satellite_count);

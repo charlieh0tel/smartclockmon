@@ -745,7 +745,7 @@ fn record_strays(handle: &Handle, attached: &str, log: &mut db::Log) {
     for (from, entry) in handle.take_stray_errors() {
         if from != attached {
             eprintln!(
-                "smartclockd: not journalling {} {} from {from}, which is no longer attached",
+                "smartclockd: not journaling {} {} from {from}, which is no longer attached",
                 entry.code, entry.message
             );
             continue;

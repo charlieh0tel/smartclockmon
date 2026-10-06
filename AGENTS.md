@@ -4,7 +4,7 @@
 
 Rust library, logging daemon, and TUI for HP / Symmetricom SmartClock
 GPS time and frequency receivers, over RS-232.  See `README.md` for what
-the project is, `PLAN.md` for architecture, decisions and phases.
+the project is, `PLAN.md` for architecture, decisions and open work.
 
 - `PLAN.md` records why things are the way they are.  Read it before
   proposing architectural changes, and update it when a decision

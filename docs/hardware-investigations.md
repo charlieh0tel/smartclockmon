@@ -34,7 +34,8 @@ the two Z3816A gains get names.
 *Open item:* G is the sensitivity the firmware *assumes*, negative on
 the Z3816A and positive on the Z3801A; neither is measured.
 
-- [ ] TODO: measure G on the Z3801A and the Z3805A as on the 58503A.
+- [ ] TODO: measure G on the Z3801A and the Z3805A as on the 58503A;
+  the Z3816A needs a unit the bench lacks.
 
 - With the receiver in holdover or with the loop open (a `phase_off`
   setpoint is console-only; do not use it -- instead compare EFC
@@ -50,7 +51,8 @@ from a retrim that left the crystal on 10 MHz at 0 V and the receiver
 holding count 0, 4.568 V, with the output 2.840 × 10⁻⁷ low.  The
 58503A image, revision 3633, assumes G = +6.25 × 10⁻¹³: the sign
 agrees and the real gain is 0.63 of the assumed.  Still open for the
-Z3816A, whose image picks one of two negative values, and the Z3801A.
+Z3816A, whose image picks one of two negative values and of which the
+bench has no unit, the Z3801A and the Z3805A.
 
 *Changes:* whether the loop's poles sit where the derivation puts
 them (−1/(2τ)) or are scaled by the ratio of real to assumed G.
@@ -163,22 +165,8 @@ image and by 187 polls.
 
 ## 9. The console, on a spare unit only -- done
 
-*Done:* the console has been used on the bench units to read their
-ROM and EEPROM, and `halt` returns the port to SCPI (item 14).
-
-*Open item:* what the pForth console does once started, and whether
-anything short of a power cycle returns the port to SCPI.  Entering it
-needs `:SYSTem:LANGuage "PFORTH"`, which only `smartclock-cli
-read-memory` sends.
-
-- On a unit that is not the bench reference: send the language
-  command from a terminal, note the banner (`pForth $Revision:
-  1.2 $`), try `words`, and try whether any pSOS word (`spawn` of the
-  `sci` task's entry, `0x39706`) brings SCPI back.  Power-cycle to
-  recover.
-- While there, `302000 w@ .` prints the port word from item 1.
-
-*Changes:* closes the console items, and item 1 without a probe.
+The console has been used on the bench units to read their ROM and
+EEPROM, and `halt` returns the port to SCPI (item 14).
 
 ## 10. A 58503A image -- done for revision 3633
 
@@ -196,13 +184,20 @@ has the same term, on the same current renumbered as channel 6.
 *Still open:* why the bench receiver's record shows no response to
 the oven current when its firmware applies the term.
 
-## 11. The two Z380x units that track nothing
+- [ ] TODO: compare the bench record against the firmware's c·s term
+  (`efc.md`, "The regression").
 
-*Open item:* why the Z3801A (3542A01548) has tracked no satellite
-since it came to the bench, and the Z3805A (3625A01487) none since
-2026-09-23, when it held six.  Both have the same engine, a Motorola
-B1121P1114 with software 8.4 (`firmware/gps.md`, "The engines on the
-bench").
+## 11. The two Z380x units that track weakly or not at all
+
+*Open item:* why, as of 2026-09-27, the Z3801A (3542A01548) had
+tracked no satellite since it came to the bench, and the Z3805A
+(3625A01487) none since 2026-09-23, when it held six.  Both have the
+same engine, a Motorola B1121P1114 with software 8.4
+(`firmware/gps.md`, "The engines on the bench").  The Z3805A has since
+tracked weakly: lock about 98% of nine hours on 2 to 4 satellites
+(2026-09-28, below), 2.9 satellites on average in the 2026-10-03
+comparison (below), and lock 88.3% of the 24 hours to 21:00 UTC on
+2026-10-05, on about 2.7 satellites on average while locked.
 
 The Z3801A's own log dates it: it cycled between GPS lock and
 holdover from 2016-08-05 to its last lock on 2016-09-20, and every
@@ -273,9 +268,9 @@ u-blox NEO-M8T, the Z3805A held no satellite the NEO-M8T read below
 *Next:* one of these engines in the 58503A (3710A01056), whose
 firmware takes a six-channel engine (`firmware/gps.md`, "Six or eight
 channels").  If it tracks there, the fault is in the Z380x unit; if
-not, in the engine.  Waiting on a supply for the 58503A.
+not, in the engine.  The 58503A's power supply has been replaced.
 
-- [ ] TODO: fit a Z380x engine into the 58503A once its supply arrives.
+- [ ] TODO: fit a Z380x engine into the 58503A.
 
 ## 12. Field upgrades -- Z3801A reinstall verified
 
@@ -503,7 +498,7 @@ the Z3801A and Z3805A boards is unknown.
 
 ## 14. Leaving the console with `halt` -- done
 
-*Open item:* whether `halt` returns the port from the pForth console to
+*Question:* whether `halt` returns the port from the pForth console to
 SCPI as the images say, and what each visit costs (`firmware/console.md`,
 "Leaving it").
 
@@ -528,7 +523,7 @@ firmware with no known installer exit is no longer refused.
 
 ## 15. A receiver swapped under a running daemon -- done
 
-*Open item:* whether the slow tier's `*IDN?` check catches a cable
+*Question:* whether the slow tier's `*IDN?` check catches a cable
 moved between two units on the same line settings (PLAN.md, "Rows
 belong to a receiver, not to a file").
 

@@ -1,4 +1,4 @@
-# CI runs these same targets; the workflow only calls "make ci".
+# CI calls the shared rust-ci.yml; "make ci" runs the same checks locally.
 #
 # Every target says --workspace.  This is a virtual workspace, so that
 # is already the default; saying it keeps the targets honest if a

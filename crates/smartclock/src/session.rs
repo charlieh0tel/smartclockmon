@@ -504,7 +504,7 @@ mod tests {
     }
 
     #[test]
-    fn an_error_prompt_is_recognised_and_kept() {
+    fn an_error_prompt_is_recognized_and_kept() {
         let (_, prompt) = split_prompt("bogus\r\nE-113 > ").expect("prompt");
         assert_eq!(prompt, Prompt::Error("E-113 >".to_owned()));
     }
@@ -517,7 +517,7 @@ mod tests {
     }
 
     #[test]
-    fn the_prompt_is_recognised_however_it_is_spaced() {
+    fn the_prompt_is_recognized_however_it_is_spaced() {
         // The wire carries "scpi > "; the manuals print "scpi>".  Accept
         // both, and the form with no trailing space too.
         for form in ["scpi > ", "scpi >", "scpi> ", "scpi>"] {

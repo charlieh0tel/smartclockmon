@@ -73,7 +73,8 @@ pub const TABLES: &str = r#"
     CREATE INDEX IF NOT EXISTS snapshot_at ON snapshot(at);
 
     -- The satellite table, which exists only on the status
-    -- screen and so only on slow-tier polls.  The counts above
+    -- screen.  No tier reads the screen: it is read every --sky
+    -- seconds (300 by default) and on request.  The counts above
     -- are queried directly and move with the medium tier.
     CREATE TABLE IF NOT EXISTS satellite (
         snapshot_id INTEGER NOT NULL REFERENCES snapshot(id),
@@ -131,8 +132,7 @@ pub const TABLES: &str = r#"
     CREATE TABLE IF NOT EXISTS receiver_event (
         id      INTEGER PRIMARY KEY,
         at      TEXT    NOT NULL,
-        -- Which register, as the short names used in the code:
-        -- operation, questionable, hardware, holdover, powerup.
+        -- Which register: "alarm", the status byte *STB? reads.
         register TEXT   NOT NULL,
         bits    INTEGER NOT NULL,
         -- The bits named, so a row can be read without the

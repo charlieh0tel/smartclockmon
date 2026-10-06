@@ -190,7 +190,7 @@ pub struct TierState {
 /// a single freshness flag describe it badly.  The fast tier succeeding
 /// every second re-stamped the whole snapshot `Live` while the status
 /// screen underneath it went minutes stale, and after a link drop the
-/// first successful fast poll relabelled an hour-old sky as current.
+/// first successful fast poll relabeled an hour-old sky as current.
 /// Anything that shows or records a field has to be able to ask how old
 /// that particular field is.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -370,7 +370,7 @@ mod tests {
     #[test]
     fn one_tier_failing_makes_the_whole_snapshot_stale() {
         // The flag used to be whatever the last tier to run set, so a
-        // fast tier succeeding every second relabelled a snapshot whose
+        // fast tier succeeding every second relabeled a snapshot whose
         // status screen had been failing for minutes as Live, once a
         // second, for as long as it went on.
         let now = jiff::Timestamp::now();

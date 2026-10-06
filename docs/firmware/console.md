@@ -116,12 +116,10 @@ checksums the installer route costs, and needs no address.  It leaves
 two things undone.  The console's 4 KB dictionary, allocated with pSOS
 call 8 (Z3801A `0x1aa40`), is never returned -- the only callers of
 call 9 are the SCPI task's own parser buffer and the C library's
-`free` -- so each visit to the console probably leaks 4 KB of the
-region the task stacks share.  And the console does not close device
-0 before deleting itself, whereas the SCPI task frees its buffer and
-closes its stream before handing over (`0x28fac` to `0x28fbc`).  How
-many visits a unit survives, and whether the second open of the port
-matters, are for the bench; `mem_rep` reports free memory.
+`free`.  Yet two visits per unit on 2026-10-04 showed no loss in
+`mem_rep` (below).  And the console does not close device 0 before
+deleting itself, whereas the SCPI task frees its buffer and closes its
+stream before handing over (`0x28fac` to `0x28fbc`).
 
 On 2026-10-04 the bench Z3805A (3625A01487, 3543B-A, 19200 8N1) was
 taken into the console and out with `halt` twice.  Each time `halt`

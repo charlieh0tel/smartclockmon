@@ -1,5 +1,5 @@
 [Unit]
-Description=Browser view of a SmartClock GPS receiver
+Description=Browser view of SmartClock GPS receivers
 Documentation=https://github.com/charlieh0tel/smartclockmon
 
 [Service]

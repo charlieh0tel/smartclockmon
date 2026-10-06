@@ -253,8 +253,8 @@ data...` and `tempco = %f` (`0x2c803`, `0x2c82f`), the slope of EFC on
 current.  It stores nothing; the value is entered afterwards with the
 SCPI command.
 
-The 58503A images 3633 and 3704 apply the same term ("The 58503A
-image"), though the bench 58503A's DAC word does not jump at a step of
+The 58503A images 3633 and 3704 apply the same term (`console.md`,
+"The 58503A image"), though the bench 58503A's DAC word does not jump at a step of
 its reported oven current (`efc.md`, "The regression").  The Z3801A's
 image reads channel 3 of its own function, `FUN_00022fd2`; its report
 strings list Temperature, 5V, +15V, −15V, Oven, Double oven and Antenna

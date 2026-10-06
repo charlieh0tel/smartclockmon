@@ -913,7 +913,7 @@ mod tests {
     }
 
     #[test]
-    fn a_gps_engine_identity_is_summarised_by_its_labels() {
+    fn a_gps_engine_identity_is_summarized_by_its_labels() {
         let line = r#""COPYRIGHT 1991-1996 MOTOROLA INC.","SFTW P/N # 98-P36830P     ","SOFTWARE VER # 8          ","SOFTWARE REV # 8          ","SOFTWARE DATE  06 Aug 1996","MODEL #    B4121P1115     ","HDWR P/N # _              ","SERIAL #   SSG0220999     ","MANUFACTUR DATE 7D01      ","OPTIONS LIST    IB        ""#;
         assert_eq!(
             super::engine_summary(line),

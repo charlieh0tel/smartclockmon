@@ -179,9 +179,11 @@ is not a scheduled poll.
 `smartclock-cli` talking to the receiver directly has no such flags.
 Before it opens the port, it refuses to send `:SYSTem:PRESet`, the
 undocumented `:SYSTem:PON`, anything under `:SYSTem:COMMunicate`,
-`:DIAGnostic:ERASe`, or a `:SYSTem:LANGuage` setting.  The one
-exception is `read-memory`, with `read-flash` and `read-eeprom`, which
-enters the debug console with `:SYSTem:LANGuage "PFORTH"` and returns
+`:DIAGnostic:ERASe`, or a `:SYSTem:LANGuage` setting.  There are two
+exceptions.  `flash` sends `:SYSTem:LANGuage "INSTALL"` and
+`:DIAGnostic:ERASe` to install firmware, after its image and receiver
+checks ([the flasher](firmware/restart.md#the-flasher)).
+`read-memory`, with `read-flash` and `read-eeprom`, enters the debug console with `:SYSTem:LANGuage "PFORTH"` and returns
 with the console's `halt`, or failing that through the installer with
 `:SYSTem:LANGuage "PRIMARY"` (`firmware/console.md`, "Reading memory through
 it").
@@ -204,8 +206,9 @@ to log every receiver seen on the port into that one file instead.
 Every row names its receiver.  A `receiver` table holds one row per
 unit that has written to the file, keyed on the serial from `*IDN?` --
 the serial alone, since a firmware upgrade is not a different
-instrument -- and the snapshots, satellites, errors, diagnostic log
-entries and audit trail all carry its id, so a file that has logged
+instrument -- and the snapshots, alarm changes, transition filters,
+errors, diagnostic log entries, audit trail, notes and facts all carry
+its id, satellites through their snapshot, so a file that has logged
 two units keeps their rows apart.
 
 A log grows without bound, a few MB a day.  Nothing rotates it, so

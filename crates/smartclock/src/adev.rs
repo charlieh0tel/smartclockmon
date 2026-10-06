@@ -675,7 +675,7 @@ fn stride(readings: usize) -> usize {
 /// Left in, the repeats destroy the short end of the curve rather than
 /// merely padding it: the second difference of a held value is zero,
 /// so every triple inside one update reads as perfect stability and
-/// `sigma_y` at the shortest taus is dragged towards nothing.
+/// `sigma_y` at the shortest taus is dragged toward nothing.
 ///
 /// Two consecutive updates that happen to land on the same value are
 /// merged with them, which loses one sample and leaves a hole the

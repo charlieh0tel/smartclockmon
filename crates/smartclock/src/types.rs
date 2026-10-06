@@ -1013,7 +1013,7 @@ mod tests {
     }
 
     #[test]
-    fn a_rate_is_recognised_only_if_a_port_can_be_opened_at_it() {
+    fn a_rate_is_recognized_only_if_a_port_can_be_opened_at_it() {
         assert_eq!(BaudRate::new(19200), Some(BaudRate::B19200));
         assert_eq!(BaudRate::new(9600), Some(BaudRate::B9600));
         // Above what the 58503A's manual lists, and openable anyway: a

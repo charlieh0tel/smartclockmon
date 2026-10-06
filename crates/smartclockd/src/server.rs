@@ -1067,7 +1067,7 @@ mod tests {
     }
 
     #[test]
-    fn an_unrecognised_raw_command_is_guessed_generously() {
+    fn an_unrecognized_raw_command_is_guessed_generously() {
         // Guessing generously costs a client one more flag; guessing
         // kindly could erase the receiver.
         assert_eq!(raw_class(":WHATEVER:THIS:IS?"), Class::Query);

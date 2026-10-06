@@ -573,7 +573,7 @@ fn a_working_tier_does_not_relabel_a_failing_one_as_current() {
     assert_eq!(
         snapshot.polled.medium.at,
         Some(early),
-        "a fast poll relabelled the medium tier's fields as current"
+        "a fast poll relabeled the medium tier's fields as current"
     );
     let age = snapshot
         .polled

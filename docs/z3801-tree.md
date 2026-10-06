@@ -47,8 +47,9 @@ pointer and a query at +18.  A setter of zero means the command is
 read-only -- a fact about the firmware, not any manual.  Of the 513
 paths, 277 are writable and 236 are not.
 
-Of the 70 Z3801-dialect entries in `commands.toml`, 69 agree.  The
-ten apparent disagreements are not: the table gives a query and its
+Checked against `commands.toml` on 2026-09-26, 69 of its then 70
+Z3801-dialect entries agreed; it now has 82, not rechecked.  The ten
+apparent disagreements were not: the table gives a query and its
 setter separate ids where the firmware has one node with both slots.
 
 The one real gap is `:DIAGnostic:ROSCillator:TCOefficient`.  Its

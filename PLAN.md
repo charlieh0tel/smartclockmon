@@ -285,8 +285,8 @@ and 0.5 s of the receiver composing it, so it cannot be polled at 1 Hz
 beside anything else.  19200 is the ceiling: `097-59551-02` 5-101 lists
 four rates up to 19200, and the 58503A answers
 `:SYSTem:COMMunicate:SERial1:BAUD 38400` with `+0,"No error"` while
-keeping 19200.  `BaudRate` still knows 38400 and 115200, so a receiver
-another tool moved there can be moved back.
+keeping 19200.  `BaudRate` still knows 4800, 38400, 57600 and 115200,
+so a receiver another tool moved there can be moved back.
 
 On a 58503A a whole fast pass costs 0.38 s.  So the screen is on no
 tier: everything on it but per-satellite elevation, azimuth and signal
@@ -302,10 +302,10 @@ refresh moves deadlines, not step cursors, so no tier starves.
 
 | Tier  | Contents                                                    |
 | ----- | ----------------------------------------------------------- |
-| ~1 s  | `:SYNC:TINT?`, `:SYNC:TFOM?`, `:SYNC:FFOM?`, `:DIAG:ROSC:EFC:REL?`, `:STAT:OPER:HARD:COND?`, `:SYNC:STATE?`, `:PTIM:TIME?` |
+| ~1 s  | `:SYNC:TINT?`, `:SYNC:TFOM?`, `:SYNC:FFOM?`, `:DIAG:ROSC:EFC:REL?`, `:STAT:OPER:HARD:COND?`, `:SYNC:STATE?`, `:SYNC:HOLD:WAIT?`, `:PTIM:TIME?` |
 | ~10 s | satellite counts, oven temperature and current, the EFC DAC, `*STB?` and the operation and holdover condition registers, holdover duration and uncertainty |
 | ~60 s | `*IDN?`, position, date, diagnostic log count, the oscillator-current constant (`TCOefficient`), the powerup condition register |
-|       | `:SYST:STAT?` (satellite table, health line) is on no tier; it is read on request by the status view. |
+|       | `:SYST:STAT?` (satellite table, health line) is on no tier; it is read every `--sky` seconds and on request. |
 |       | The receiver's UTC is on the fast tier, not with the date: a clock read once a minute is wrong for the other fifty-nine seconds. |
 | ~10 s | the error queue and any new diagnostic log entries, off the schedule; see "The receiver's own records" |
 
@@ -346,6 +346,12 @@ Stored data is reshaped by hand with `sqlite3`, not by daemon migration
 code: there is no fleet, and a migration nobody else runs is code
 nobody tests.
 
+### Exporter metrics keep their names and labels
+
+Exporter metrics are not renamed and their labels are not changed:
+`oven_tempco` stays, and a stopped daemon's `up 0` carries only its
+instance label.
+
 ### Notes and facts live in the receiver's log
 
 Bench events and a unit's internals are invisible to the receiver, and
@@ -364,7 +370,7 @@ in turn.  `docs/running.md`, "Notes and facts", says where they show.
 
 `/compare` shows every receiver over the same range -- 1 PPS TI, EFC,
 temperature, TFOM and FFOM overlaid, and ADEV and MDEV curves on one
-plot -- from `/api/history`, `/api/adev` and `/api/journal`, asked once
+plot -- from `/api/history`, `/api/adev` and `/api/notes`, asked once
 per receiver and joined in the browser.  The live, status and stability
 pages stay one receiver each.
 
@@ -593,14 +599,3 @@ an attacker, so two things are not defended against:
   socket is shut both ways (Unix; `interprocess`'s portable stream has
   neither).  A client half-closing its sending side releases its slot
   and stops the push thread, and is tested.
-
-## Backlog
-
-Open findings of the October 2026 whole-codebase review, in the agreed
-order, kept here so any machine with the repo has the list.
-
-Decided against: renaming exporter metrics or changing their labels
-(`oven_tempco` stays; a stopped daemon's `up 0` carries only its
-instance label).
-
-**Web view.**  Host and Origin checks are open question 5.

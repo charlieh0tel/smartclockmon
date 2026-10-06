@@ -206,7 +206,7 @@ fn a_coarse_grid_keeps_the_reading_nearest_each_point() {
 }
 
 #[test]
-fn a_long_absence_does_not_desynchronise_the_caller() {
+fn a_long_absence_does_not_desynchronize_the_caller() {
     // The absence rule can split without asking, so a caller that
     // counted its own calls would be one behind for the rest of the
     // run and declare its breaks in the wrong places.  Here the

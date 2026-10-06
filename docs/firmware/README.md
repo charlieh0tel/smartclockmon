@@ -22,8 +22,8 @@ the GPT at $YFF900 with the port GP data register PORTGP at $YFF907
 (Table D-2, D.5) and the QSM at $YFFC00 (Table D-13), where this image
 finds them; bit 5 of PORTGP is the pin PGP5/OC3/OC1 (section 7.2).  An
 owner's description of the Z3801A's outer-oven circuit names the main
-CPU as "U33 / MC68331" and the oven's control line as PGP5 (see "The
-ovens").
+CPU as "U33 / MC68331" and the oven's control line as PGP5 (see
+`ovens.md`).
 
 The reset code at `0x2466e` sets the SIM up as follows (register
 names and encodings from MC68331UM appendix D; block sizes from Table

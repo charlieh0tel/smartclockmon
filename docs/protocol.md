@@ -3,7 +3,8 @@
 SCPI over RS-232, but not a VISA-style instrument.  The receiver
 behaves as an interactive terminal:
 
-- It echoes received characters, one at a time as they arrive.
+- The 58503A echoes received characters, one at a time as they
+  arrive.  The bench Z3801A (3543-A) does not echo.
 - It prompts with `scpi > ` while its error queue is empty, and with
   `E-nnn> ` while it holds anything, whatever the last command did
   ("The error prompt", below).  The manuals render the prompt `scpi>`,

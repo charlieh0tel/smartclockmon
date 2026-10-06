@@ -1302,7 +1302,7 @@ mod tests {
     #[test]
     fn a_database_from_a_newer_daemon_is_refused_not_restamped() {
         // The stamp was written with INSERT OR REPLACE and never read,
-        // so a database written by a later schema was silently relabelled
+        // so a database written by a later schema was silently relabeled
         // as this one's and written into.  Snapshots are the only record
         // of a receiver's history; there is no undoing that.
         let scratch = Scratch::new("newer");

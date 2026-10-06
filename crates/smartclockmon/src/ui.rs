@@ -388,7 +388,7 @@ fn header(frame: &mut Frame, area: Rect, app: &App) {
 /// A note for a pane heading when the tier behind it has gone quiet.
 ///
 /// The whole snapshot used to carry one timestamp, so the one-second
-/// tier succeeding kept relabelling a minutes-old status screen as
+/// tier succeeding kept relabeling a minutes-old status screen as
 /// current.  Each pane now says the age of the fields it is actually
 /// showing.
 fn staleness(app: &App, tier: Tier) -> Option<String> {

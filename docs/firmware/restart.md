@@ -51,8 +51,8 @@ and a function), are:
 The `:GPS:POSition` handler `FUN_0003c268` passes the list starting at
 `0x44c9a`, six bytes before `:SYSTem:PON`'s; what the parser does with
 a list and where it stops were not traced.  `PON` is a keyword of the
-Z3816A image (`0x5a280`) and both 58503A images (see "The 58503A
-image"); the Z3801A's image has the same `:SYSTem:PRESet` action,
+Z3816A image (`0x5a280`) and both 58503A images (`console.md`, "The
+58503A image"); the Z3801A's image has the same `:SYSTem:PRESet` action,
 `FUN_00045cca` (`0x2f66a` passes its list at `0x41392`), and no `PON`,
 nor has the Z3805A's.  Owners report that newer firmware accepts
 `:SYSTem:PON` and older refuses it, which matches: on 2026-09-27 the

@@ -53,8 +53,8 @@
 // How often a live status view re-reads, in milliseconds.
 //
 // Each read costs the receiver about 1.5 s of its serial link -- four
-// fast polls -- so this is deliberately slower than anything else the
-// daemon does, and off unless someone turns it on.
+// fast polls -- so this is deliberately slower than the fast and medium
+// tiers, and off unless someone turns it on.
 const LIVE_PERIOD = 15000;
 
 // Sizes below are for a plot this many pixels across, and scale with it.
@@ -212,7 +212,8 @@ content({
 $("cost").textContent =
   `Each read holds the receiver's link for about 1.5 s, leaving a gap in its ` +
   `once-a-second log; "live" reads every ${LIVE_PERIOD / 1000} s. ` +
-  `Leave this page for unbroken 1 Hz data.`;
+  `The daemon also reads the screen itself every --sky seconds (300 by ` +
+  `default). Leave this page for 1 Hz data with no other gaps.`;
 
 $("read").onclick = () => renew(true);
 window.addEventListener("resize", fit);

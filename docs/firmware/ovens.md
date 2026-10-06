@@ -63,7 +63,7 @@ The Z3801A also monitors a "Secondary oven voltage": state 1 of its
 supply monitor `FUN_00022c44` reads the `adc_doven` word
 (0.0743·ADC₁ − 0.0472·ADC₄), but only while `0x101b6f` is set -- once
 the outer oven is on -- and raises the alarm above 6.8, with no lower
-limit.  The Z3816A's monitor has no oven channel (see "s, the
+limit.  The Z3816A's monitor has no oven channel (`loop.md`, "s, the
 oscillator current").
 
 ## What others have measured

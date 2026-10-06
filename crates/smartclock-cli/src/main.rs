@@ -201,7 +201,7 @@ struct ReadTo {
     #[arg(long)]
     compare: Option<PathBuf>,
     /// Leave the port at the console instead of returning it to
-    /// SCPI.  Only a power cycle leaves it then.
+    /// SCPI.  Leave it with `halt` by hand, or power cycle.
     #[arg(long)]
     stay_in_console: bool,
 }

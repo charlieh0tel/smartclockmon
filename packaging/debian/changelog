@@ -663,7 +663,7 @@ smartclockmon (0.6.1-1) unstable; urgency=low
     than the rings inside it.
   * Fixed: short plots got too few y-axis labels.  1 PPS TI over a day
     spans about -70 to +120 ns, and the axis read 100, 0 and nothing,
-    leaving a third of the plot unlabelled below the zero line.
+    leaving a third of the plot unlabeled below the zero line.
   * Fixed: the history endpoint never URL-decoded its query values.
     Harmless while the only parameter was one column name with nothing
     to encode; a list broke it at once, since a browser writes the
