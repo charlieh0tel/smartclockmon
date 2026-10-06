@@ -955,6 +955,11 @@ Later: adding, editing and deleting notes from the web view, through
 the daemon socket.  Needs POST bodies in `smartclock-http`, and notes
 with ids rather than append-only.
 
+### Next: ambient temperature
+
+A file the daemon reads, written by whatever sensor is on hand, logged
+beside each receiver; `docs/AMBIENT.md`.
+
 ### Comparing receivers
 
 `/compare` shows every receiver over the same range: 1 PPS TI, EFC,
