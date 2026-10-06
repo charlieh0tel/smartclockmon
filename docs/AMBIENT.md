@@ -8,10 +8,18 @@ query with 0 or 1 count (`docs/firmware.md`).
 
 ## Design
 
-The daemon reads one file and knows nothing about the sensor behind it.
+The daemon reads files in the kernel's sensor forms and knows nothing
+about the sensor behind them.
 
-- `--ambient PATH` (`SMARTCLOCKD_AMBIENT`): a file holding a temperature
-  in millidegrees Celsius, the form of hwmon's `temp*_input`.
+- `--ambient PATH` (`SMARTCLOCKD_AMBIENT`), in one of two forms, chosen
+  by the file name and refused at startup otherwise:
+  - a file holding millidegrees Celsius: hwmon's `temp*_input`, an IIO
+    channel's `in_temp_input`, or a helper's file.  hwmon applies any
+    `temp*_offset` itself, so `_input` is already the temperature.
+  - an IIO channel's `in_temp_raw`: the temperature is (raw + offset) x
+    scale, millidegrees, from the sibling `in_temp_offset` (0 when
+    absent) and `in_temp_scale` (required).
+  The daemon logs the form it took and its first reading.
 - Read on the medium tier and logged as `ambient_c` in each snapshot
   (a schema bump).
 - A reading from a file not modified for three medium periods is logged
@@ -24,7 +32,21 @@ The daemon reads one file and knows nothing about the sensor behind it.
 
 ## Sensors
 
-Nothing below has been tried here.
+Nothing below has been tried here, and the figures are typical values
+as recalled, to be checked against each datasheet.
+
+The preferred route is a Qwiic or STEMMA QT sensor on an MCP2221A,
+whose kernel driver (`hid-mcp2221`) presents its I2C as `/dev/i2c-N`:
+
+| Sensor | Accuracy | Driver | Form |
+| ------ | -------- | ------ | ---- |
+| SHT41, SHT40 | +/- 0.2 C | hwmon `sht4x` | `temp1_input`; humidity too |
+| MCP9808 | +/- 0.25 C | hwmon `jc42` | `temp1_input` |
+| TMP117 | +/- 0.1 C | IIO `tmp117` | `in_temp_raw` and scale |
+| PCT2075 | +/- 1 C, 0.125 C steps | hwmon `lm75` | `temp1_input` |
+
+The SHT41 is the first choice: hwmon, no glue, and humidity for a
+second column later.
 
 - **A hwmon sensor.**  An I2C temperature sensor with a kernel driver
   (TMP102, LM75, SHT3x) on a USB-to-I2C bridge (CP2112, MCP2221,
