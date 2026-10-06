@@ -1685,7 +1685,7 @@ parser still runs.
 
 How S1, a flash-read fault or the CPU's background debug mode might
 reach the installer without a working primary is speculative; see
-[the recovery hypotheses](recovery-hypothesis.md).
+[the recovery hypotheses](hardware-investigations.md#recovery-hypotheses).
 
 ### The switch byte at `0x302000`
 
