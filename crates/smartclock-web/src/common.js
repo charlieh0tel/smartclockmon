@@ -732,6 +732,16 @@ function fixWhereItIs() {
   fixRange(from, to);
 }
 
+// The window shown, as times.  Always there, at one width, whichever the
+// range is: the control is right-aligned, so anything that came and went
+// with the range moved every button on the line, sometimes out from
+// under the pointer that had just pressed it.
+function shownSpan() {
+  if (range.last === "all") return "all";
+  const { from, to } = rangeBounds();
+  return `${shortTime(from)} – ${shortTime(to)}`;
+}
+
 function drawRangeControl() {
   const el = rangeEl;
   if (!el) return;
@@ -749,14 +759,12 @@ function drawRangeControl() {
     RANGE_UNITS.map(([name, s]) =>
       `<option value="${s}"${s === size ? " selected" : ""}>${name}</option>`).join("") +
     `</select></label>` +
-    (relative ? "" :
-      ` <span class="muted">${esc(shortTime(range.from))} – ${esc(shortTime(range.to))}</span>`) +
+    ` <span id="range-shown" class="muted">${esc(shownSpan())}</span>` +
     ` <span class="range-group">` +
     `<button id="range-back" title="earlier by half the window (t ←)"${disabled(all)}>&lsaquo;</button>` +
     `<button id="range-out" title="zoom out (t -, Ctrl+Z, double click)"${disabled(all)}>−</button>` +
     `<button id="range-forward" title="later by half the window (t →)"${disabled(all || relative)}>&rsaquo;</button>` +
-    (relative ? "" :
-      `<button id="range-now" title="the same length, up to now">now</button>`) +
+    `<button id="range-now" title="the same length, up to now"${disabled(relative)}>now</button>` +
     `</span> <span class="range-group">` +
     `<button id="range-reload" title="read again now">⟳</button>` +
     `<select id="range-refresh" title="${esc(refreshTitle())}"${disabled(!growing())}>` +
@@ -776,7 +784,7 @@ function drawRangeControl() {
   $("range-back").onclick = () => step(-1);
   $("range-out").onclick = () => zoomOut();
   $("range-forward").onclick = () => step(1);
-  if (!relative) $("range-now").onclick = liveAgain;
+  $("range-now").onclick = liveAgain;
   $("range-reload").onclick = () => {
     renew(true);
     readAt = Date.now();
@@ -940,6 +948,8 @@ function due() {
   readAt = Date.now();
   refresh();
   schedule();
+  const shownEl = $("range-shown");
+  if (shownEl) shownEl.textContent = shownSpan();
 }
 
 // A hidden tab is not read; on its return it is, once a read is due.

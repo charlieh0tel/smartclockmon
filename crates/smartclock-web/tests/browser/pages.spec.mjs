@@ -211,6 +211,21 @@ test("a moving range steps back to a fixed one, and forward to moving again", as
   await expect.poll(() => shown(page).last).toBe("7200");
 });
 
+test("the range buttons stay where they are as the range changes", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openAt(page, "/", "last=3600");
+  const places = () =>
+    page.locator("#ranges button").evaluateAll((bs) =>
+      bs.map((b) => `${b.id || b.textContent}@${Math.round(b.getBoundingClientRect().x)}`));
+  const live = await places();
+  await page.locator("#range-back").click();
+  await expect.poll(() => shown(page).last).toBeNull();
+  expect(await places()).toEqual(live);
+  await page.locator("#range-forward").click();
+  await expect.poll(() => shown(page).last).toBe("3600");
+  expect(await places()).toEqual(live);
+});
+
 test("Grafana's time keys move and zoom the range", async ({ page }) => {
   await openAt(page, "/", FIXED_HOUR);
   const chord = async (key) => {

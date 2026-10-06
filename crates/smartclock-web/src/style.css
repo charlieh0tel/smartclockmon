@@ -133,6 +133,10 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
 #ranges input[type=number] { width: 5em; }
 /* Buttons that act together stay on one line when the control wraps. */
 #ranges .range-group { display: inline-flex; gap: 4px; align-items: center; }
+/* Wide enough for two times whatever the range, so the line does not
+   change width as the range changes. */
+#range-shown { display: inline-block; min-width: 36ch; text-align: center;
+  font-variant-numeric: tabular-nums; }
 #ranges input, #ranges select { padding: 3px 6px; }
 
 /* The strip painted from the previous page's snapshot, before this
