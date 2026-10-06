@@ -14,7 +14,7 @@ attached, and every log row names its receiver.
 
 Option 001: front-panel display and keypad.  19200 8N1, its fastest:
 asked for 38400 it replies `+0,"No error"` and stays at 19200.
-Oscillator: HP 10811-60159; see `docs/OCXO.md` for the specification
+Oscillator: HP 10811-60159; see `docs/ocxo.md` for the specification
 and `docs/efc.md` for the EFC measurements taken on it.  Time zone
 offset `+0,+0` (`:PTIMe:TZONe?`, read 2026-09-23), so its dates and
 times are UTC.

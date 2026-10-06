@@ -201,4 +201,4 @@ error (`firmware.md`, "The engines on the bench").
 
 The firmware strings include `Double oven`.  The 58503A images carry it
 too (`firmware.md`, "The 58503A image"); the bench 58503A's oscillator
-is a 10811-60159 (`OCXO.md`).
+is a 10811-60159 (`ocxo.md`).

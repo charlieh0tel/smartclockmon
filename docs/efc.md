@@ -22,7 +22,7 @@ second-order filter.  It is not a 20-bit DAC.
 ## The oscillator
 
 An HP 10811-60159, whose electronic frequency control spans
-**+/- 2.0x10^-7 over a -5 V to +5 V input**.  See `OCXO.md` for the full
+**+/- 2.0x10^-7 over a -5 V to +5 V input**.  See `ocxo.md` for the full
 specification and its sources.
 
 ## The pin follows the count
@@ -336,7 +336,7 @@ voltage there nor the gain over that half is measured.
 
 Which way the crystal ages decides which half matters.  The measured
 downward half alone is 2.8 years at the -60159's specified maximum
-aging of 1x10^-7 per year (`OCXO.md`).
+aging of 1x10^-7 per year (`ocxo.md`).
 
 During the coarse adjustment that ran into count 0 the hardware
 condition register set both EFC bits, near full scale and at full

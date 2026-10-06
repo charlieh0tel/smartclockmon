@@ -966,7 +966,7 @@ with ids rather than append-only.
 
 Up to twelve named hwmon or IIO sensors, read on the medium tier into
 sticky snapshot columns beside each receiver's readings;
-`docs/SENSORS.md`.
+`docs/sensors.md`.
 
 ### Comparing receivers
 
