@@ -181,7 +181,7 @@ function resettable(u) {
 // The one-sigma interval on each curve, drawn as a shaded band between
 // its lower and upper bounds.  Painted by hand rather than as two more
 // uPlot series with a fill between them: series appear in the legend
-// and take a colour, and a band is not a curve.  `bands` maps a series
+// and take a color, and a band is not a curve.  `bands` maps a series
 // index to its [lower, upper] arrays; a point without an interval is a
 // break in the band, as it is in the line.
 function shadeBands(bands) {
@@ -251,7 +251,7 @@ function draw(points) {
   // a ten-second mean, which is the innermost block of the modified
   // form's own averaging; the plain Allan deviation is kept because
   // data sheets quote that one.  Both are measured curves and both
-  // are drawn at full strength, told apart by colour and legend: a
+  // are drawn at full strength, told apart by color and legend: a
   // dashed or dimmed line reads as a reference or a fit.  A point
   // the modified form lacks (it needs three whole windows) is a hole
   // in its series, which uPlot leaves as a break in the line.

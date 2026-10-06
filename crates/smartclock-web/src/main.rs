@@ -103,7 +103,7 @@ struct Cli {
     /// Address to serve on.
     ///
     /// Localhost by default.  The page shows where the receiver is to
-    /// within a few metres and has no authentication of its own, so
+    /// within a few meters and has no authentication of its own, so
     /// reaching it from elsewhere should mean an SSH tunnel or a
     /// deliberate change here, not an accident.
     #[arg(long, env = "SMARTCLOCK_WEB_LISTEN", default_value = "127.0.0.1:9980")]

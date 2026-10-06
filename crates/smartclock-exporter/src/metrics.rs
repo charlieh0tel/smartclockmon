@@ -504,7 +504,7 @@ mod tests {
     #[test]
     fn a_field_the_receiver_did_not_answer_is_absent_not_zero() {
         // Zero is a reading.  An EFC of zero means the oscillator is
-        // centred, which is a very different thing from not having
+        // centered, which is a very different thing from not having
         // asked, and Grafana cannot tell them apart after the fact.
         let empty = Reading::from(&Snapshot::new(jiff::Timestamp::now()));
         let out = render(&[Scrape {

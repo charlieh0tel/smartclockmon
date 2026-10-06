@@ -47,18 +47,18 @@ pub enum Error {
         message: String,
     },
 
-    /// The receiver signalled an error but its error queue was empty,
+    /// The receiver signaled an error but its error queue was empty,
     /// which means the two have drifted out of step.
-    #[error("receiver signalled error {prompt:?} but its error queue was empty")]
+    #[error("receiver signaled error {prompt:?} but its error queue was empty")]
     UnexplainedError {
         /// The error prompt that was seen.
         prompt: String,
     },
 
-    /// The receiver signalled an error, but its error queue had
+    /// The receiver signaled an error, but its error queue had
     /// overflowed and discarded it: the newest entry read was the
     /// overflow marker, not the command's own error.
-    #[error("receiver signalled error {prompt:?} but its full error queue discarded it")]
+    #[error("receiver signaled error {prompt:?} but its full error queue discarded it")]
     ErrorLost {
         /// The error prompt that was seen.
         prompt: String,

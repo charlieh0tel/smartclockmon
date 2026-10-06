@@ -163,8 +163,8 @@ struct Cli {
     #[arg(long, env = "SMARTCLOCKD_ADOPT_LOG")]
     adopt_log: bool,
 
-    /// Permit raw SCPI the command table does not recognise.  An
-    /// unrecognised command is treated as control, or as dangerous if
+    /// Permit raw SCPI the command table does not recognize.  An
+    /// unrecognized command is treated as control, or as dangerous if
     /// it resembles one that can strand the link.
     #[arg(long, env = "SMARTCLOCKD_ALLOW_RAW")]
     allow_raw: bool,

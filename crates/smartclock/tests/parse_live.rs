@@ -36,7 +36,7 @@ fn the_efc_reading_reports_how_much_range_is_used() {
     let efc = parse::efc("+3.60971E+001").expect("efc");
     assert!((efc.percent() - 36.0971).abs() < 1e-9);
     // A third of the way to the rail, which is the number that matters
-    // for an ageing oscillator.
+    // for an aging oscillator.
     assert!((efc.range_used() - 0.360971).abs() < 1e-6);
     // Outside the documented range is a parse failure, not a clamp.
     assert!(parse::efc("+1.5E+002").is_err());

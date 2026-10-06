@@ -91,7 +91,7 @@ pub struct Screen {
     /// The 1 PPS synchronization line, such as `Synchronized to UTC` or
     /// `Invalid: not tracking`.
     pub sync_status: Option<String>,
-    /// Whether position is labelled `AVG`, `INIT` or plain, which says
+    /// Whether position is labeled `AVG`, `INIT` or plain, which says
     /// whether the receiver is surveying, seeded, or in hold.
     pub position_label: Option<String>,
 }

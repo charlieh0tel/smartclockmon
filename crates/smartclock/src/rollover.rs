@@ -107,7 +107,7 @@ impl ReceiverDate {
     /// when none was detected.
     ///
     /// A rollover count this never produced can still arrive by
-    /// deserialisation, and `Span::days` panics rather than erroring
+    /// deserialization, and `Span::days` panics rather than erroring
     /// once the count exceeds what jiff can hold.  A reading from
     /// elsewhere must not be able to abort the process that renders it,
     /// so the span is built fallibly and an impossible one leaves the
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn an_impossible_rollover_count_does_not_panic() {
-        // Reachable only by deserialising a reading from elsewhere, but
+        // Reachable only by deserializing a reading from elsewhere, but
         // rendering one must not be able to abort the process.
         let absurd: ReceiverDate =
             serde_json::from_str(r#"{"raw":"2007-02-04","rollover":{"epochs":4294967295}}"#)

@@ -21,7 +21,7 @@ const MAX_RUN: usize = 8192;
 
 /// Wraps a transport and writes every read and write to a JSONL sink.
 ///
-/// Consecutive bytes travelling the same way are coalesced into one
+/// Consecutive bytes traveling the same way are coalesced into one
 /// record.  The receiver echoes a character at a time, so recording
 /// each read separately turned a single probe run into 17,500 records
 /// and 700 KB; coalescing brings that to a few hundred lines that can

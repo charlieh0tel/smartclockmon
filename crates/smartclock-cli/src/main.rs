@@ -586,7 +586,7 @@ fn sweep<T: Transport>(session: &mut Session<T>, candidates: &[String]) -> Resul
             Err(e) => {
                 failed += 1;
                 println!("FAILED   {scpi:<52} {e}");
-                session.sync().context("resynchronising after a failure")?;
+                session.sync().context("resynchronizing after a failure")?;
             }
         }
         std::io::stdout().flush().ok();
@@ -885,7 +885,7 @@ fn probe<T: Transport>(session: &mut Session<T>, dialect: Option<&str>) -> Resul
                 // A timeout leaves the receiver still sending.  sync()
                 // drains before provoking a prompt, so the next command
                 // is not read one reply behind.
-                session.sync().context("resynchronising after a failure")?;
+                session.sync().context("resynchronizing after a failure")?;
             }
         }
         std::io::stdout().flush().ok();

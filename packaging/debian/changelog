@@ -209,7 +209,7 @@ smartclockmon (0.6.29-1) unstable; urgency=low
 
 smartclockmon (0.6.28-1) unstable; urgency=low
 
-  * Recognise the prompt when the previous prompt's trailing space
+  * Recognize the prompt when the previous prompt's trailing space
     arrives in front of it with no newline between, as it does from
     the Z3801A, which does not echo.  Every poll of a Z3801A timed
     out on it, and its daemon logged no readings.
@@ -237,7 +237,7 @@ smartclockmon (0.6.26-1) unstable; urgency=low
 smartclockmon (0.6.25-1) unstable; urgency=low
 
   * End every stability axis on a named 1, 2 or 5 graduation just
-    beyond the data, so the top and bottom of an axis are labelled.
+    beyond the data, so the top and bottom of an axis are labeled.
 
  -- Christopher Hoover <ch@murgatroid.com>  Fri, 25 Sep 2026 20:24:57 -0700
 
@@ -284,7 +284,7 @@ smartclockmon (0.6.20-1) unstable; urgency=low
     host: both scan /run/smartclockd/*/socket as they scan the log
     directory, so SMARTCLOCK_WEB_SOCKET and SMARTCLOCK_EXPORTER_SOCKET
     are no longer required; delete them to get the host-wide
-    behaviour.  The web's selector lists every receiver, live or
+    behavior.  The web's selector lists every receiver, live or
     historical, and its live strip follows the selection to the
     daemon attached to it.  The exporter serves one /metrics with
     daemon, serial and model labels on every sample.
@@ -474,11 +474,11 @@ smartclockmon (0.6.11-1) unstable; urgency=low
     page, keep the last reading across page changes, and give the
     charts the full width of the window.
   * Show the satellite counts as one choice, "# sats", with the line
-    colours named in the chart title; lead the picker with the default
+    colors named in the chart title; lead the picker with the default
     set; add hover text for the figures of merit from the manual; keep
     the readout row from jumping.
   * Draw the stability curve with uPlot on decade axes with minor
-    graduations, labelled with tau, sigma and powers of ten, with a
+    graduations, labeled with tau, sigma and powers of ten, with a
     cursor readout and a reset.
   * Record both GPS receivers' identification in full, and add the
     Oncore command reference and related notes to third_party.
@@ -509,7 +509,7 @@ smartclockmon (0.6.10-1) unstable; urgency=low
     side incomparable, and only the second differences that exist are
     counted, so a record with gaps in it is measured rather than
     misread.
-  * Recognise 4800, 38400, 57600 and 115200 baud, so a receiver some
+  * Recognize 4800, 38400, 57600 and 115200 baud, so a receiver some
     other tool has moved to one can still be reached to move it back.
     The 58503A itself tops out at 19200: asked for 38400 it answers
     "No error" and keeps the rate it had.
@@ -657,7 +657,7 @@ smartclockmon (0.6.1-1) unstable; urgency=low
     all of them.
   * The two-series overlay is replaced by that rather than removed:
     tick both and they stack.
-  * The sky plot's grid was drawn in the colour used for 1px panel
+  * The sky plot's grid was drawn in the color used for 1px panel
     borders, far too dim for lines a bearing is read off.  The rings
     and the cardinal cross are legible now, with the horizon stronger
     than the rings inside it.
@@ -672,7 +672,7 @@ smartclockmon (0.6.1-1) unstable; urgency=low
     bottom plot only: with the cursor synced there is one instant being
     pointed at, so hovering any plot shows the time once and a value
     for every series.
-  * Y axes begin and end on a labelled gridline.  uPlot scales to the
+  * Y axes begin and end on a labeled gridline.  uPlot scales to the
     data and puts round ticks inside it, so the top and bottom lines
     fell short by a different amount on every plot; the scale is now
     snapped to the tick step.
@@ -689,7 +689,7 @@ smartclockmon (0.6.0-1) unstable; urgency=low
     resumed from the database each time one is made.
   * It watches the receiver's alarm without taking it.  Reading an
     event register clears it, which clears the alarm condition register
-    that summarises it, which puts out the front-panel Alarm LED and
+    that summarizes it, which puts out the front-panel Alarm LED and
     sets the BITE output inactive.  So no event register is read.  The
     daemon polls *STB? instead, which reports the same latched state in
     real time and changes nothing.  The lamp stays lit until you clear

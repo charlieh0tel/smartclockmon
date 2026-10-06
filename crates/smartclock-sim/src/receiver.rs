@@ -159,7 +159,7 @@ pub struct Receiver {
     log_unchanged: Option<i64>,
     /// Event registers, latched until read.
     ///
-    /// Modelled rather than answered from the conditions, because the
+    /// Modeled rather than answered from the conditions, because the
     /// difference is the whole character of an event register: it holds
     /// a transition until somebody takes it, and taking it is what
     /// clears it.  A simulator that answered these from the current
@@ -371,7 +371,7 @@ impl Receiver {
     /// The alarm condition register: which groups have something
     /// latched.
     ///
-    /// Summarises the event registers, so it goes out by itself when
+    /// Summarizes the event registers, so it goes out by itself when
     /// they are read -- which is the property that makes reading them
     /// take the operator's lamp away, and the reason the daemon polls
     /// this instead.
@@ -552,7 +552,7 @@ impl Receiver {
             // the front-panel lamp is showing, and a simulator that
             // always says zero cannot exercise an alarm at all.  Real
             // time and non-destructive, so reading it must not clear
-            // the events it summarises.
+            // the events it summarizes.
             "*STB?" => Answer::line(format!("{:+}", self.alarm_bits())),
             _ => return None,
         })

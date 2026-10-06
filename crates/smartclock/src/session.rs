@@ -165,7 +165,7 @@ impl<T: Transport> Session<T> {
     /// arriving; provoking a prompt without draining would match the
     /// prompt that ends the *abandoned* reply, and every exchange after
     /// that reads one reply behind.  Observed on a 58503A, where a
-    /// 222-entry log dump desynchronised the rest of a probe run.
+    /// 222-entry log dump desynchronized the rest of a probe run.
     pub fn sync(&mut self) -> Result<Prompt> {
         self.drain()?;
         self.transport.write_all(TERMINATOR.as_bytes())?;
@@ -405,7 +405,7 @@ impl<T: Transport> Session<T> {
 /// Remove the receiver's echo of the command it was sent.
 ///
 /// Leading whitespace is trimmed first because the prompt's trailing
-/// space often arrives after the prompt has already been recognised,
+/// space often arrives after the prompt has already been recognized,
 /// and so turns up at the head of the next reply.
 fn strip_echo<'a>(body: &'a str, command: &str) -> &'a str {
     let trimmed = body.trim_start();
@@ -524,7 +524,7 @@ mod tests {
             assert_eq!(
                 split_prompt(form).map(|(_, p)| p),
                 Some(Prompt::Ready),
-                "did not recognise {form:?}"
+                "did not recognize {form:?}"
             );
         }
     }
@@ -555,7 +555,7 @@ mod tests {
     #[test]
     fn the_prompts_orphaned_trailing_space_does_not_defeat_echo_removal() {
         // Observed on a 58503A: the prompt is "scpi > ", but the final
-        // space lands after the prompt has been recognised, so it heads
+        // space lands after the prompt has been recognized, so it heads
         // the next reply.
         assert_eq!(
             strip_echo(" *IDN?\r\nHEWLETT-PACKARD\r\n", "*IDN?"),

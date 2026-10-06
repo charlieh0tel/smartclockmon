@@ -108,7 +108,7 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
                        background: var(--bg); }
 
 /* Left, where the eye starts, and where the y axis label already is.
-   uPlot centres it over the plotting area by default, which leaves it
+   uPlot centers it over the plotting area by default, which leaves it
    floating above nothing in particular. */
 .u-title { text-align: left; padding-left: 2px; }
 #sky { width: 100%; aspect-ratio: 1; display: block; }

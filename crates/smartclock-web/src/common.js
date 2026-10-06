@@ -268,7 +268,7 @@ function render(s, cached) {
   // done against the host clock rather than anything the receiver said.
   //
   // Only claimed when the corrected date is actually to hand.  A
-  // daemon older than this page does not send one, and labelling its
+  // daemon older than this page does not send one, and labeling its
   // raw date as corrected would be the one thing worse than showing
   // the raw date: saying it has been fixed when it has not.
   const epochs = s.date_corrected ? (s.date?.rollover?.epochs ?? 0) : 0;

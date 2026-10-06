@@ -57,9 +57,13 @@ here, where they go stale unnoticed.
 - Read code before modifying it.  Understand existing patterns and
   context before proposing changes.
 - Always list unresolved questions at end.
-- Write US English -- behavior, center, analog, initialize, labeled
-  -- in docs, comments and anything a person reads.  Text quoted from
-  a manual or another source keeps its own spelling.
+- **US English only, everywhere**: docs, comments, identifiers, error
+  and log messages, UI text, commit messages, release notes.  Never UK
+  spelling.  -ize not -ise (recognize, synchronize, serialize), -or not
+  -our (color, behavior), -er not -re (center, meter), one l (labeled,
+  modeled, signaled, traveling), aging, analog, gray, defense, license.
+  Only text quoted from a manual or another source keeps its own
+  spelling.
 - Keep documentation (.md files) up to date with code changes, in the
   same commit as the change.  This means all of them: `README.md`,
   `PLAN.md` and everything in `docs/`.  A decision that is reversed, a

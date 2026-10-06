@@ -102,12 +102,12 @@ fn lag1(z: &[f64]) -> f64 {
 
 /// `z` with its least-squares quadratic in the index removed.
 ///
-/// Fitted about the centre of the index range, where the normal
+/// Fitted about the center of the index range, where the normal
 /// equations are best conditioned and the odd moments vanish.
 fn detrended(z: &[f64]) -> Vec<f64> {
     let n = z.len() as f64;
-    let centre = (n - 1.0) / 2.0;
-    let t: Vec<f64> = (0..z.len()).map(|i| i as f64 - centre).collect();
+    let center = (n - 1.0) / 2.0;
+    let t: Vec<f64> = (0..z.len()).map(|i| i as f64 - center).collect();
     let s2: f64 = t.iter().map(|t| t * t).sum();
     let s4: f64 = t.iter().map(|t| t * t * t * t).sum();
     let sy: f64 = z.iter().sum();

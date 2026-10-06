@@ -1077,7 +1077,7 @@ mod tests {
         // took a millisecond.
         //
         // This passes on rusqlite's default too, which is the same five
-        // seconds.  It is here to hold the behaviour still if that
+        // seconds.  It is here to hold the behavior still if that
         // default ever moves, not because the default is wrong.
         let scratch = Scratch::new("busy");
         let path = scratch.path();

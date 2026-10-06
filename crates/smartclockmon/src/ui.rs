@@ -99,7 +99,7 @@ fn journal(frame: &mut Frame, area: Rect, app: &App) {
         .journal
         .iter()
         .map(|line| {
-            let colour = match line.source {
+            let color = match line.source {
                 Source::Log => Color::Gray,
                 Source::Event => Color::Cyan,
                 Source::Error => Color::Yellow,
@@ -107,7 +107,7 @@ fn journal(frame: &mut Frame, area: Rect, app: &App) {
             };
             Row::new(vec![
                 Cell::from(stamp(&line.stamp)).style(Style::new().fg(Color::DarkGray)),
-                Cell::from(line.source.tag()).style(Style::new().fg(colour)),
+                Cell::from(line.source.tag()).style(Style::new().fg(color)),
                 Cell::from(line.text.clone()),
             ])
         })
@@ -195,7 +195,7 @@ fn history(frame: &mut Frame, area: Rect, app: &App) {
     // stretch its trace to the edge and put its last value under the
     // others' "now".
     let window = -(app.window.seconds() as f64);
-    for (area, title, trace, colour) in [
+    for (area, title, trace, color) in [
         (rows[1], "EFC percent", &app.history.efc, Color::Cyan),
         (
             rows[2],
@@ -215,7 +215,7 @@ fn history(frame: &mut Frame, area: Rect, app: &App) {
             area,
             &format!("{title}, {span}"),
             trace,
-            colour,
+            color,
             window,
         );
     }
@@ -228,7 +228,7 @@ fn history(frame: &mut Frame, area: Rect, app: &App) {
 /// reads as a single line.  Where they did not, the band shows how far
 /// apart they were, which is the only way a step survives being thinned
 /// into a column.
-fn graph(frame: &mut Frame, area: Rect, title: &str, trace: &Trace, colour: Color, since: f64) {
+fn graph(frame: &mut Frame, area: Rect, title: &str, trace: &Trace, color: Color, since: f64) {
     let Some(y) = trace.bounds() else {
         frame.render_widget(
             Paragraph::new("no readings in this window").block(block(title)),
@@ -243,7 +243,7 @@ fn graph(frame: &mut Frame, area: Rect, title: &str, trace: &Trace, colour: Colo
     // Braille packs four times the horizontal resolution of a cell, so
     // an hour of readings fits a terminal width.
     let marker = Marker::Braille;
-    let edge = Style::new().fg(colour).add_modifier(Modifier::DIM);
+    let edge = Style::new().fg(color).add_modifier(Modifier::DIM);
     // A dataset per run, so the line breaks where the record does.
     let datasets: Vec<Dataset> = trace
         .each_run()
@@ -255,7 +255,7 @@ fn graph(frame: &mut Frame, area: Rect, title: &str, trace: &Trace, colour: Colo
             } else {
                 GraphType::Line
             };
-            [(low, edge), (high, edge), (mean, Style::new().fg(colour))].map(|(data, style)| {
+            [(low, edge), (high, edge), (mean, Style::new().fg(color))].map(|(data, style)| {
                 Dataset::default()
                     .marker(marker)
                     .graph_type(kind)
@@ -539,7 +539,7 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(Paragraph::new(lines).block(block("Lock")), area);
 }
 
-/// The mode line, and how to colour it.
+/// The mode line, and how to color it.
 ///
 /// The state comes from `:SYNChronization:STATe?`, which is on the
 /// one-second tier, but that returns a bare `LOCK` with no detail.  The
@@ -586,7 +586,7 @@ fn oscillator(frame: &mut Frame, area: Rect, app: &App) {
     match app.snapshot.as_ref().and_then(|s| s.efc) {
         Some(efc) => {
             let used = efc.range_used();
-            // An ageing OCXO fails by walking to a rail, so how much of
+            // An aging OCXO fails by walking to a rail, so how much of
             // the range is gone matters more than the signed value.
             let style = if used > 0.9 {
                 Style::new().fg(Color::Red).add_modifier(Modifier::BOLD)

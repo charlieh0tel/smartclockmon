@@ -744,7 +744,7 @@ fn ask(handle: &Handle, dialect: Dialect, id: CommandId, argument: Option<i64>) 
 /// weeks early, and parsing that into a date would bury the evidence.
 ///
 /// Anything that does not fit the documented shape is kept whole as the
-/// message.  An entry whose text we do not recognise is still the
+/// message.  An entry whose text we do not recognize is still the
 /// receiver telling us something.
 fn split_entry(text: &str) -> (Option<&str>, &str) {
     /// `H` and eight hex digits.

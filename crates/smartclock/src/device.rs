@@ -49,7 +49,7 @@ pub struct Device<T: Transport> {
 impl<T: Transport> Device<T> {
     /// Identify the receiver and choose a dialect for it.
     ///
-    /// The session is synchronised first, since the receiver may be
+    /// The session is synchronized first, since the receiver may be
     /// mid-reply from whatever spoke to it last.
     pub fn open(mut session: Session<T>) -> Result<Self> {
         session.sync()?;
@@ -158,7 +158,7 @@ impl<T: Transport> Device<T> {
     /// Internal temperature, in degrees Celsius.
     ///
     /// Undocumented.  Worth having because an OCXO's control voltage
-    /// moves with temperature, so EFC drift cannot be read as ageing
+    /// moves with temperature, so EFC drift cannot be read as aging
     /// without it.
     pub fn temperature(&mut self) -> Result<Option<f64>> {
         self.ask_optional(CommandId::Temperature)?
@@ -386,7 +386,7 @@ fn satellite_count(n: i64) -> u32 {
 ///
 /// The 58503A and 59551A report height above mean sea level; the 58503B
 /// reports it above the GPS ellipsoid.  Getting this wrong misplaces a
-/// position by tens of metres vertically.
+/// position by tens of meters vertically.
 fn datum_for(model: &str) -> Datum {
     match model.to_ascii_uppercase().as_str() {
         "58503B" => Datum::Ellipsoid,

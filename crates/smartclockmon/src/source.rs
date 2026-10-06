@@ -118,7 +118,7 @@ pub(crate) struct Policy {
     pub(crate) control: bool,
     /// Whether commands that can strand the link are permitted.
     pub(crate) dangerous: bool,
-    /// Whether unrecognised SCPI is passed through.
+    /// Whether unrecognized SCPI is passed through.
     pub(crate) raw: bool,
 }
 

@@ -164,7 +164,7 @@ impl Receiver {
 /// Bucketed readings of several columns over one range.
 #[derive(Debug, Serialize)]
 pub struct Series {
-    /// The bucket centres in unix seconds, shared by every plot below.
+    /// The bucket centers in unix seconds, shared by every plot below.
     ///
     /// One array, not one per plot: it is what makes stacked charts
     /// line up, and sending it once says so.

@@ -43,7 +43,7 @@ function pointsFor(seconds) {
   return Math.min(5000, Math.max(1500, Math.round(seconds / 30)));
 }
 
-// A y scale that begins and ends on a labelled gridline.
+// A y scale that begins and ends on a labeled gridline.
 //
 // uPlot scales to the data and then places round ticks inside it, so
 // the top and bottom lines fall short by whatever the data happens to
@@ -197,7 +197,7 @@ function yAxis(col, values, height) {
 const NOTE_REACH = 6;
 
 // Each note's line, dashed across the plot area at its time, in its
-// own color.  `marks` is a list of `{ at, text, colour }`, `at` in
+// own color.  `marks` is a list of `{ at, text, color }`, `at` in
 // unix seconds.
 function drawNoteLines(u, marks) {
   const [lo, hi] = [u.scales.x.min, u.scales.x.max];
@@ -205,10 +205,10 @@ function drawNoteLines(u, marks) {
   ctx.save();
   ctx.lineWidth = devicePixelRatio;
   ctx.setLineDash([4 * devicePixelRatio, 4 * devicePixelRatio]);
-  for (const { at, colour } of marks) {
+  for (const { at, color } of marks) {
     if (at < lo || at > hi) continue;
     const x = Math.round(u.valToPos(at, "x", true));
-    ctx.strokeStyle = colour;
+    ctx.strokeStyle = color;
     ctx.beginPath();
     ctx.moveTo(x, u.bbox.top);
     ctx.lineTo(x, u.bbox.top + u.bbox.height);
@@ -247,7 +247,7 @@ function noteTip(chart, text) {
 const LOG = { distr: 3, log: 10 };
 
 // An axis ends on a named graduation -- 1, 2 or 5 in some decade --
-// at or beyond the data, so the ends of the axis are labelled and a
+// at or beyond the data, so the ends of the axis are labeled and a
 // curve that starts at 10.0004 s (the receiver's ten-second cadence
 // is not exactly ten) still gets its graduation at 10.  uPlot's own
 // log range rounds out to whole decades, which for a curve ending

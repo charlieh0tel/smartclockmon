@@ -92,7 +92,7 @@ pub(crate) struct Policy {
     pub(crate) control: bool,
     /// Allow commands the table marks `dangerous`.
     pub(crate) dangerous: bool,
-    /// Allow raw SCPI that the table does not recognise at all.
+    /// Allow raw SCPI that the table does not recognize at all.
     pub(crate) raw: bool,
 }
 
@@ -585,7 +585,7 @@ fn send(id: String, scpi: &str, handle: &Handle, info: &Info) -> Message {
 /// `:SYSTem:STATus? ;:SYSTem:COMMunicate:SERial1:BAUD 1200` classified
 /// as a query and ran on a daemon started with no flags at all,
 /// stranding the link across power cycles.  An embedded newline does
-/// the same on firmware that does not chain, and desynchronises the
+/// the same on firmware that does not chain, and desynchronizes the
 /// session besides, since the reply to the second command is left in
 /// the buffer for whatever asks next.
 ///
@@ -659,7 +659,7 @@ fn classify(scpi: &str, dialect: Dialect) -> Option<(&'static Spec, String)> {
 /// Check a command's argument against what the table permits.
 ///
 /// The receiver would refuse an out-of-range value itself, so this is
-/// defence in depth rather than a safety requirement.  What it buys is
+/// defense in depth rather than a safety requirement.  What it buys is
 /// a message naming the command and the bound, and an exchange that
 /// never happened rather than one recorded in the audit trail as a
 /// command that was sent and refused.
@@ -706,7 +706,7 @@ fn check_argument(scpi: &str, spec: &Spec) -> Result<(), String> {
 /// Guess a class for a command the table does not know.
 ///
 /// Raw passthrough is off by default and this only applies when it is
-/// on, but even then an unrecognised command is treated as at least
+/// on, but even then an unrecognized command is treated as at least
 /// control, and anything resembling the ones that can strand the link
 /// as dangerous.  Guessing generously costs a client one more flag;
 /// guessing kindly could erase the receiver.

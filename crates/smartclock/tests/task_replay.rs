@@ -192,7 +192,7 @@ fn a_command_sent_under_another_attachment_is_not_sent() {
 fn a_failed_command_does_not_misattribute_the_next_answer() {
     // TFOM's prompt arrives late, after the session has given up on it,
     // and would be read as the end of whatever is asked next: FFOM
-    // would come back as TFOM's +3.  The task has to resynchronise
+    // would come back as TFOM's +3.  The task has to resynchronize
     // after the failure, and the transcript is strict, so any other
     // order of writes fails the replay.
     let jsonl = transcript(&[

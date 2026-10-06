@@ -657,7 +657,7 @@ impl<T: Transport> DeviceTask<T> {
             // bound.  Draining without a bound inverted that -- a
             // handful of clients each holding one request outstanding
             // published no snapshots at all, logged nothing, and left
-            // the last one labelled Live.  A cap makes the two
+            // the last one labeled Live.  A cap makes the two
             // interleave: at worst one poll per REQUESTS_PER_POLL
             // commands, and at worst that many commands per poll.
             //
@@ -735,7 +735,7 @@ impl<T: Transport> DeviceTask<T> {
     }
 
     /// After any failed exchange -- a poll, a command, a screen.  A
-    /// failure that may have left the receiver's reply still travelling
+    /// failure that may have left the receiver's reply still traveling
     /// -- the link failing, a timeout, an error prompt nothing in the
     /// queue explains -- has the session resynchronized before anything
     /// reads again, or whatever read next would take that reply as its
@@ -785,7 +785,7 @@ impl<T: Transport> DeviceTask<T> {
         // Mid-pass the tier stays due, so the next turn continues it
         // unless something faster has come up meanwhile.  A pass that
         // failed is abandoned rather than resumed: its later steps
-        // would be read after a resynchronisation, and reporting them
+        // would be read after a resynchronization, and reporting them
         // as one pass would date the whole tier by the retry.
         let finished = outcome.is_err() || step + 1 >= step_count(tier);
         self.step[tier as usize] = if finished { 0 } else { step + 1 };
@@ -881,11 +881,11 @@ impl<T: Transport> DeviceTask<T> {
                 // this one's answer.
                 if let Some(stopped) = self.ensure_synced() {
                     let _ = answer.send(Err(Error::TaskStopped(
-                        "the link failed while resynchronising",
+                        "the link failed while resynchronizing",
                     )));
                     return Some(stopped);
                 }
-                // Again, because resynchronising talks to the receiver
+                // Again, because resynchronizing talks to the receiver
                 // and can take as long as a whole exchange.  The check
                 // has to hold at the moment of transmission, not just
                 // when the request was picked up.
@@ -913,7 +913,7 @@ impl<T: Transport> DeviceTask<T> {
                 }
                 if let Some(stopped) = self.ensure_synced() {
                     let _ = answer.send(Err(Error::TaskStopped(
-                        "the link failed while resynchronising",
+                        "the link failed while resynchronizing",
                     )));
                     return Some(stopped);
                 }

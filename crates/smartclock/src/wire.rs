@@ -1,6 +1,6 @@
 //! The reading as it crosses the socket.
 //!
-//! Deliberately not [`Snapshot`] itself.  Serialising the internal type
+//! Deliberately not [`Snapshot`] itself.  Serializing the internal type
 //! made the wire format track every rename inside the library, so a
 //! refactor nobody thought of as a protocol change would quietly break
 //! every client.  Converting into this type means such a rename is a

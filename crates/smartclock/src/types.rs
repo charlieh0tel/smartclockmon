@@ -59,7 +59,7 @@ bounded_u8!(Ffom, 0, 3, "frequency figure of merit");
 bounded_u8!(Prn, 1, 32, "PRN");
 
 /// Oscillator electronic frequency control, as a percentage of its
-/// range.  Drift toward either rail is how an ageing OCXO fails: once
+/// range.  Drift toward either rail is how an aging OCXO fails: once
 /// the control voltage saturates the receiver can no longer discipline
 /// it, which the hardware register reports as bits 6 and 7.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -76,7 +76,7 @@ impl EfcPercent {
         self.0
     }
 
-    /// How much of the control range is used, 0.0 at centre and 1.0 at
+    /// How much of the control range is used, 0.0 at center and 1.0 at
     /// either rail.  This, not the signed percentage, is what says how
     /// close the oscillator is to being untunable.
     pub fn range_used(self) -> f64 {
@@ -252,7 +252,7 @@ macro_rules! status_register {
 
 /// Bits of `:STATus:OPERation:HARDware:CONDition?`.
 ///
-/// Bits 6 and 7 are the ones that matter for an ageing oscillator: they
+/// Bits 6 and 7 are the ones that matter for an aging oscillator: they
 /// say the control voltage has reached, or nearly reached, the end of
 /// its range.  Bit 5 is unused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -537,7 +537,7 @@ pub struct Position {
     pub latitude: f64,
     /// Degrees east, negative for west.
     pub longitude: f64,
-    /// Height in metres.
+    /// Height in meters.
     pub height: f64,
     /// What the height is referenced to.  The 58503A reports mean sea
     /// level, the 58503B the ellipsoid.
@@ -854,7 +854,7 @@ impl BaudRate {
         Self::B115200,
     ];
 
-    /// Recognise a rate, rejecting any these tools cannot open.
+    /// Recognize a rate, rejecting any these tools cannot open.
     pub fn new(rate: u32) -> Option<Self> {
         Self::ALL.into_iter().find(|b| b.get() == rate)
     }
@@ -911,7 +911,7 @@ impl Framing {
     /// Every framing a port can be opened with.
     pub const ALL: [Framing; 2] = [Self::EightNone, Self::SevenOdd];
 
-    /// Recognise a framing by its usual name, `8N1` or `7O1`, in either
+    /// Recognize a framing by its usual name, `8N1` or `7O1`, in either
     /// case.
     pub fn new(name: &str) -> Option<Self> {
         Self::ALL

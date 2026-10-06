@@ -23,7 +23,7 @@ use crate::source::Policy;
 ///
 /// At the daemon's one-second fast tier this is about twenty minutes,
 /// which is enough to see the oscillator breathe with temperature but
-/// nowhere near enough to see it age.  Ageing is what the SQLite log is
+/// nowhere near enough to see it age.  Aging is what the SQLite log is
 /// for; this is the live view.
 const TREND_LEN: usize = 240;
 
@@ -415,7 +415,7 @@ impl App {
         self.snapshot = Some(snapshot);
     }
 
-    /// The span of the trend, for labelling the axis.
+    /// The span of the trend, for labeling the axis.
     pub(crate) fn efc_range(&self) -> Option<(f64, f64)> {
         let mut values = self.efc_trend.iter().map(|e| e.percent());
         let first = values.next()?;

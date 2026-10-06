@@ -106,7 +106,7 @@ let columns = (view.get("columns") ?? view.get("column") ?? DEFAULT_COLUMNS.join
 // cursor on all of them, which is most of what makes a stack readable.
 const SYNC = haveUplot ? uPlot.sync("smartclock") : null;
 
-// The two trace colours, named once.  Both the plot and the things
+// The two trace colors, named once.  Both the plot and the things
 // that say which line is which read them from here, because a key that
 // disagrees with the lines is worse than no key.
 const TRACE = "#38bdf8";
@@ -152,7 +152,7 @@ const PAIRED = ["tracking", "not_tracking"];
 // Split two labels into what they have in common and what each adds,
 // on a word boundary.  "# sats tracked" and "# sats not tracked"
 // become "# sats " with "tracked" and "not tracked", so the title
-// says the subject once and colours only the part that tells the two
+// says the subject once and colors only the part that tells the two
 // lines apart.
 function shareName(a, b) {
   const x = a.split(" ");
@@ -369,8 +369,8 @@ function readout() {
     v == null ? "--" : v.toLocaleString(undefined, { maximumFractionDigits: 3 });
   const at = idx == null ? null : new Date(charts[0].data[0][idx] * 1000);
   const cells = charts.flatMap((c) => {
-    const one = (col, v, colour) =>
-      `<span><span class="k"${colour ? ` style="color:${colour}"` : ""}>` +
+    const one = (col, v, color) =>
+      `<span><span class="k"${color ? ` style="color:${color}"` : ""}>` +
       `${esc(columnName(col))}</span> ` +
       `<span class="v">${esc(show(v))}</span></span>`;
     const value = (series) => (idx == null ? null : c.data[series][idx]);
@@ -550,7 +550,7 @@ async function loadJournal(signal) {
   if (from) q.set("from", Math.floor(from));
   if (to) q.set("to", Math.ceil(to));
   const ranged = await ask("/api/notes?" + q, signal);
-  notes = ranged.map((n) => ({ at: Date.parse(n.at) / 1000, text: n.text, colour: NOTE }));
+  notes = ranged.map((n) => ({ at: Date.parse(n.at) / 1000, text: n.text, color: NOTE }));
   for (const c of charts) c.redraw(false);
 }
 

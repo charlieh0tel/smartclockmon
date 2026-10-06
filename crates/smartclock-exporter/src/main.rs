@@ -52,7 +52,7 @@ struct Cli {
     /// Address to serve /metrics on.
     ///
     /// Localhost by default.  The readings say where a receiver is to
-    /// within a few metres, so exposing them further is a decision to
+    /// within a few meters, so exposing them further is a decision to
     /// take deliberately rather than by accepting a default.
     #[arg(
         long,
@@ -160,7 +160,7 @@ fn unanswered(instance: &str) -> Scrape {
     }
 }
 
-/// One daemon's last reading, labelled by who it is.
+/// One daemon's last reading, labeled by who it is.
 ///
 /// A daemon that cannot be asked is reported as `up 0` with no
 /// readings rather than as an HTTP error: Prometheus records the

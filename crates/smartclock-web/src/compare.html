@@ -204,7 +204,7 @@ async function notesOf(serial, win, signal) {
   return ranged.map((n) => ({
     at: Date.parse(n.at) / 1000,
     text: `${unitName(serial)}: ${n.text}`,
-    colour: colorOf(serial),
+    color: colorOf(serial),
   }));
 }
 

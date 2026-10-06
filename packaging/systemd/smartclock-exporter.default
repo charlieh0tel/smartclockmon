@@ -6,7 +6,7 @@
 #SMARTCLOCK_EXPORTER_LISTEN=127.0.0.1:9979
 
 # The daemons' sockets, one instance per subdirectory.  Every one is
-# scraped, each sample labelled daemon="<instance>" and by the
+# scraped, each sample labeled daemon="<instance>" and by the
 # receiver's serial and model.  Set SMARTCLOCK_EXPORTER_SOCKET to one
 # socket instead.
 #SMARTCLOCK_EXPORTER_RUN_DIR=/run/smartclockd

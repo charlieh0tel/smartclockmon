@@ -276,7 +276,7 @@ impl Run {
     /// makes the phase either side incomparable.  Indices rather than
     /// the readings themselves so the answer depends on nothing but
     /// its arguments: a closure counting its own calls would be
-    /// desynchronised by the long-absence rule below, which can split
+    /// desynchronized by the long-absence rule below, which can split
     /// without consulting it.
     ///
     /// A long absence splits a segment on its own, since the daemon was
@@ -770,7 +770,7 @@ fn spacing(samples: &[Sample]) -> Option<f64> {
 }
 
 /// Averaging times to offer, in seconds: 1, 2 and 5 in every decade,
-/// the sequence a log axis is labelled with, so the points sit on the
+/// the sequence a log axis is labeled with, so the points sit on the
 /// graduations.
 fn ladder() -> impl Iterator<Item = f64> {
     (0..8).flat_map(|decade| {

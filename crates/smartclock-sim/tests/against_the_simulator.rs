@@ -61,7 +61,7 @@ fn a_bad_command_becomes_a_typed_error_from_the_queue() {
         other => panic!("expected a device error, got {other:?}"),
     }
     // And the session recovers, which is the part that matters: an
-    // error prompt must not desynchronise everything after it.
+    // error prompt must not desynchronize everything after it.
     assert_eq!(device.tfom().expect("tfom").get(), 3);
 }
 
@@ -747,7 +747,7 @@ fn client_commands_cannot_starve_the_poll_schedule() {
     // The fix for polls starving requests overshot into the reverse:
     // an unbounded drain meant a few clients each keeping one request
     // outstanding published no snapshots at all, logged nothing, and
-    // left the last snapshot labelled Live.
+    // left the last snapshot labeled Live.
     let (handle, joiner) = task::spawn(
         device(Receiver::default()),
         Cadence {
