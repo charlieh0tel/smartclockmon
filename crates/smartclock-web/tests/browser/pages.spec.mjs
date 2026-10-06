@@ -218,6 +218,10 @@ test("the range buttons stay where they are as the range changes", async ({ page
     page.locator("#ranges button").evaluateAll((bs) =>
       bs.map((b) => `${b.id || b.textContent}@${Math.round(b.getBoundingClientRect().x)}`));
   const live = await places();
+  // One height and one top for every control, so their text lines up.
+  const boxes = await page.locator("#ranges button, #ranges select, #ranges input").evaluateAll((es) =>
+    es.map((e) => { const r = e.getBoundingClientRect(); return `${Math.round(r.top)}+${Math.round(r.height)}`; }));
+  expect(new Set(boxes).size, boxes.join(" ")).toBe(1);
   await page.locator("#range-back").click();
   await expect.poll(() => shown(page).last).toBeNull();
   expect(await places()).toEqual(live);
