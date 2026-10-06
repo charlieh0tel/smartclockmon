@@ -1,3 +1,26 @@
+smartclockmon (1.1.0-1) unstable; urgency=low
+
+  * The web view moves through time as Grafana's dashboards do.  The
+    < and > buttons step half the window, - and a double click on a
+    chart zoom out about its center, and Grafana's keys work: t Left,
+    t Right, t -, t +, t a, and Ctrl+Z.  Each change of range is a step
+    the browser's Back button undoes.  A double click used to return
+    to a moving range; "now" does that.
+  * A refresh picker replaces the fixed refresh periods: Off, Auto (the
+    default, about one pixel's worth of time across the window) or 5 s
+    to 1 d, never faster than a page's read can afford: 5 s on the
+    history, a minute where a read measures stability.  A button reads
+    at once.  A fixed range is not read again once its end has passed.
+  * A range stepped or zoomed out to end near now becomes the moving
+    range of its length, rather than sliding into the future.
+  * Grafana's address forms are read: from=now-6h&to=now, epoch
+    milliseconds, ISO times.  The history's columns are kept in the
+    address.
+  * Every series has short hover text, on the history and compare
+    pages.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Tue, 06 Oct 2026 16:48:50 -0700
+
 smartclockmon (1.0.5-1) unstable; urgency=low
 
   * The web view's stacked charts all take the width the page settles
