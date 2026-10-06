@@ -1716,7 +1716,7 @@ checksum = "ba467056f1b547ed52077911161fc86985becbc60e8e1857c8a144dab0def891"
 
 [[package]]
 name = "smartclock"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "interprocess",
  "jiff",
@@ -1730,7 +1730,7 @@ dependencies = [
 
 [[package]]
 name = "smartclock-cli"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1747,7 +1747,7 @@ dependencies = [
 
 [[package]]
 name = "smartclock-exporter"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1760,14 +1760,14 @@ dependencies = [
 
 [[package]]
 name = "smartclock-http"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "smartclock-log"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "jiff",
  "rusqlite",
@@ -1778,7 +1778,7 @@ dependencies = [
 
 [[package]]
 name = "smartclock-sim"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "clap",
  "jiff",
@@ -1788,7 +1788,7 @@ dependencies = [
 
 [[package]]
 name = "smartclock-web"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1802,7 +1802,7 @@ dependencies = [
 
 [[package]]
 name = "smartclockd"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1820,7 +1820,7 @@ dependencies = [
 
 [[package]]
 name = "smartclockmon"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "clap",
