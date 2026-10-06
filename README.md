@@ -13,10 +13,8 @@ receivers, over RS-232.
 
 ## Status
 
-Running as a service on a bench of three units, logging continuously.
-`PLAN.md` holds the design decisions, open questions and known
-defects; `docs/hardware-investigations.md` what the bench has yet to
-settle.
+In daily use, logging continuously.  `PLAN.md` holds the design,
+open questions and known defects.
 
 ## Parts
 
@@ -25,7 +23,7 @@ settle.
 | `smartclock` | the library: transports, SCPI framing, the command table, parsers, the status screen scraper, the polling task, and the Allan deviation |
 | `smartclockd` | holds the serial port, logs to SQLite, serves clients over a local socket |
 | `smartclockmon` | terminal monitor: a dashboard, history graphs, the journal, the status screen and stability |
-| `smartclock-cli` | one-shot queries, `diagnose`, transcript capture, sweeping for undocumented commands, reading a unit's ROM and EEPROM through its debug console, and loading firmware with model and image compatibility checks (see [firmware notes](docs/firmware.md#the-flasher)) |
+| `smartclock-cli` | queries, `diagnose`, notes and facts in a receiver's log, transcript capture, sweeping for undocumented commands, reading ROM and EEPROM through the debug console, and loading firmware ([firmware notes](docs/firmware.md#the-flasher)) |
 | `smartclock-exporter` | Prometheus metrics for every receiver on the host, from the daemons' own readings |
 | `smartclock-web` | a browser view: live state, history you can zoom, and pages for the status screen, for stability and for comparing receivers |
 | `smartclock-sim` | a simulated receiver, in process for tests and over TCP for driving the real daemon |
@@ -100,21 +98,20 @@ describes the bench.
 | `docs/SENSORS.md` | proposed: logging room sensors beside the receivers |
 | `docs/firmware.md` | what the firmware shows: the 1 PPS measurement, the disciplining loop, the GPS engine interface and the pForth console |
 | [`docs/loop.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/loop.html) | the disciplining loop as a block diagram, with its update law, constants and closed-loop poles |
-| [`docs/sky-comparison.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/sky-comparison.html) | a healthy 58503A against a half-deaf Z3805A, with a u-blox NEO-M8T as referee, on one antenna for 24 hours: the Z3805A hears nothing the NEO-M8T reads below 39 dB-Hz, 20 dB LNA and all |
+| [`docs/sky-comparison.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/sky-comparison.html) | a 58503A and a Z3805A against a u-blox NEO-M8T on one antenna for 24 hours |
 | `docs/hardware-investigations.md` | what the firmware leaves open that only a bench can settle |
 | `docs/recovery-hypothesis.md` | S1 and forced-recovery hypotheses, including modeled flash-read faults |
 | `docs/z3801-keywords.md`, `docs/z3801-tree.md`, `docs/58503a-tree.md` | the SCPI keywords and command paths read from the firmware |
 | `docs/screen-format-strings.md` | the status screen's printf templates |
 
-Vendor manuals are in `third_party/`; `097-59551-02` (59551A/58503A)
-and `097-z3801-01` (Z3801A) are the primary references, and
-`third_party/NOTICE` lists the rest.
+Vendor manuals and firmware images are in `third_party/`;
+`097-59551-02` (59551A/58503A) and `097-z3801-01` (Z3801A) are the
+primary references.
 
 ## License
 
 Copyright © 2026 Christopher Hoover.  GPL-3.0-or-later.  See
 `LICENSE`.
 
-The license does not cover the vendor manuals in `third_party/`; they
-remain the copyright of Symmetricom and its successors and are kept
-here as protocol documentation.  See `third_party/NOTICE`.
+The license does not cover anything under `third_party/`.  See
+`third_party/NOTICE`.
