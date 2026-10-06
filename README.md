@@ -104,9 +104,9 @@ describes the bench.
 | [`docs/z3801-keywords.md`](docs/z3801-keywords.md), [`docs/z3801-tree.md`](docs/z3801-tree.md), [`docs/58503a-tree.md`](docs/58503a-tree.md) | the SCPI keywords and command paths read from the firmware |
 | [`docs/screen-format-strings.md`](docs/screen-format-strings.md) | the status screen's printf templates |
 
-Vendor manuals and firmware images are in `third_party/`;
-`097-59551-02` (59551A/58503A) and `097-z3801-01` (Z3801A) are the
-primary references.
+Vendor manuals are in `third_party/`; `097-59551-02` (59551A/58503A)
+and `097-z3801-01` (Z3801A) are the primary references, and
+[`third_party/NOTICE`](third_party/NOTICE) lists the rest.
 
 ## License
 
