@@ -82,9 +82,7 @@ function placed(name) {
 }
 
 function rememberSeries() {
-  const q = new URLSearchParams(location.search);
-  q.set("series", SERIES.filter((name) => shown.has(name)).join(","));
-  history.replaceState(null, "", `${location.pathname}?${q}`);
+  remember({ series: SERIES.filter((name) => shown.has(name)).join(",") });
 }
 
 function picker() {
@@ -404,8 +402,9 @@ function table(d) {
 // How long one measurement may take: a long range is a lot of log to
 // read and a lot of arithmetic.
 const MEASURE_TIMEOUT = 60000;
-// How often a range that moves with the clock is measured again.
-const MEASURE_EVERY = 60000;
+// The shortest refresh the page offers, in seconds: each measures the
+// whole range again.
+const MEASURE_FLOOR = 60;
 
 // Everything the page shows for one measurement, or nothing.
 function measured(d) {
@@ -468,8 +467,7 @@ addEventListener("resize", () => {
 picker();
 content({
   daemon: false,
-  every: MEASURE_EVERY,
-  auto: () => range.last !== null,
+  floor: MEASURE_FLOOR,
   clear(why, bad) {
     measured(null);
     $("state").innerHTML = pill(why, bad);

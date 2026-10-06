@@ -566,10 +566,9 @@ const muted = (text) => `<span class="muted">${esc(text)}</span>`;
 
 // ------------------------------------------------------------------ boot
 
-// History moves slowly next to the live tiles; redrawing it every
-// second would fight with the cursor for no gain.  The journal comes
-// along: the receiver writes to its log in events per day.
-const HISTORY_EVERY = 30000;
+// The shortest refresh the history offers, in seconds, as Grafana's
+// minimum: a read is one bucketed query and the journal.
+const HISTORY_FLOOR = 5;
 
 (async function () {
   // One request before the first draw, to learn what may be plotted.
@@ -581,9 +580,8 @@ const HISTORY_EVERY = 30000;
   addEventListener("resize", load);
   content({
     daemon: false,
-    every: HISTORY_EVERY,
+    floor: HISTORY_FLOOR,
     chosen: () => pickers(plottable),
-    auto: () => range.last !== null,
     clear(why) {
       clearCharts(why);
       notes = [];

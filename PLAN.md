@@ -373,6 +373,16 @@ plot -- from `/api/history`, `/api/adev` and `/api/notes`, asked once
 per receiver and joined in the browser.  The live, status and stability
 pages stay one receiver each.
 
+### The time range follows Grafana
+
+The browser view's range control copies Grafana's dashboards -- half-
+window steps, zoom out about the center, the `t` keys, Back undoing a
+change of range, a refresh picker with Auto -- because people who read
+time series know them.  It departs twice: a range moved to end near now
+becomes the moving one rather than sliding into the future, and a range
+wholly past is not read again.  Each page sets its fastest refresh by
+what one read costs.  `docs/views.md` has the details.
+
 ### systemd unit
 
 - `Type=exec`: the daemon retries with no receiver attached, so no

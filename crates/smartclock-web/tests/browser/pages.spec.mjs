@@ -139,26 +139,161 @@ async function dragAcross(page) {
   await page.mouse.up();
 }
 
+// The range in the address: `last`, or the fixed pair.
+function shown(page) {
+  const q = new URL(page.url()).searchParams;
+  return { last: q.get("last"), from: Number(q.get("from")), to: Number(q.get("to")) };
+}
+
+// Open `path` with `query` in the address, once its control is drawn.
+async function openAt(page, path, query) {
+  await twoUnits().install(page);
+  await page.goto(`${path}?receiver=${B}&${query}`);
+  await expect(page.locator("#range-back")).toBeVisible();
+  await page.waitForFunction("page !== null && unit !== null");
+}
+
+// A fixed hour, a day ago, which no step or zoom below brings near now.
+const DAY_AGO = Math.round(Date.now() / 1000) - 86400;
+const FIXED_HOUR = `from=${DAY_AGO}&to=${DAY_AGO + 3600}`;
+
 for (const path of ["/", "/compare"]) {
-  test(`a drag on the ${path} charts fixes the range, and a double click moves it again`, async ({ page }) => {
-    await twoUnits().install(page);
-    await page.goto(`${path}?receiver=${B}&last=21600`);
+  test(`a drag on the ${path} charts fixes the range, and a double click zooms out`, async ({ page }) => {
+    await openAt(page, path, "last=21600");
     await page.waitForFunction(() => charts.length > 1);
     await dragAcross(page);
-    await expect.poll(() => new URL(page.url()).searchParams.get("from")).not.toBeNull();
-    const q = new URL(page.url()).searchParams;
-    const length = Number(q.get("to")) - Number(q.get("from"));
-    expect(q.get("last")).toBeNull();
-    expect(length).toBeGreaterThan(0);
-    expect(length).toBeLessThan(21600);
-    await expect(page.locator("#range-now")).toBeVisible();
+    await expect.poll(() => shown(page).last).toBeNull();
+    const dragged = shown(page);
+    expect(dragged.to - dragged.from).toBeGreaterThan(0);
     await page.waitForFunction(() => charts.length > 1);
     await page.evaluate(() => charts[0].over.dispatchEvent(new MouseEvent("dblclick")));
-    await expect.poll(() => new URL(page.url()).searchParams.get("last")).not.toBeNull();
-    expect(Math.abs(Number(new URL(page.url()).searchParams.get("last")) - length)).toBeLessThanOrEqual(1);
-    expect(new URL(page.url()).searchParams.get("from")).toBeNull();
+    // The recorded history is long past, so the zoomed window stays fixed.
+    await expect.poll(() => shown(page).to - shown(page).from).toBeGreaterThan(dragged.to - dragged.from + 1);
+    const out = shown(page);
+    expect(Math.abs(out.to - out.from - 2 * (dragged.to - dragged.from))).toBeLessThanOrEqual(2);
+    expect(Math.abs(out.from + out.to - dragged.from - dragged.to)).toBeLessThanOrEqual(2);
   });
 }
+
+test("‹ and › move a fixed range by half, − doubles it, and Back undoes each", async ({ page }) => {
+  await openAt(page, "/", FIXED_HOUR);
+  await page.locator("#range-back").click();
+  await expect.poll(() => shown(page).from).toBe(DAY_AGO - 1800);
+  await page.locator("#range-forward").click();
+  await expect.poll(() => shown(page).from).toBe(DAY_AGO);
+  await page.locator("#range-out").click();
+  await expect.poll(() => shown(page)).toEqual({ last: null, from: DAY_AGO - 1800, to: DAY_AGO + 5400 });
+  await page.goBack();
+  await expect.poll(() => shown(page).from).toBe(DAY_AGO);
+  await expect(page.locator(".u-over").first()).toBeVisible();
+  await page.goBack();
+  await expect.poll(() => shown(page).from).toBe(DAY_AGO - 1800);
+  await page.goForward();
+  await expect.poll(() => shown(page).from).toBe(DAY_AGO);
+  // The control is drawn for the range returned to.
+  await expect(page.locator("#ranges")).toContainText(
+    await page.evaluate((t) => shortTime(t), DAY_AGO),
+  );
+});
+
+test("a moving range steps back to a fixed one, and forward to moving again", async ({ page }) => {
+  await openAt(page, "/", "last=3600");
+  await expect(page.locator("#range-forward")).toBeDisabled();
+  await page.locator("#range-back").click();
+  await expect.poll(() => shown(page).last).toBeNull();
+  const back = shown(page);
+  expect(back.to - back.from).toBe(3600);
+  expect(Math.abs(back.to - (Date.now() / 1000 - 1800))).toBeLessThan(60);
+  await expect(page.locator("#range-refresh")).toBeDisabled();
+  await page.locator("#range-forward").click();
+  await expect.poll(() => shown(page).last).toBe("3600");
+  await page.locator("#range-out").click();
+  await expect.poll(() => shown(page).last).toBe("7200");
+});
+
+test("Grafana's time keys move and zoom the range", async ({ page }) => {
+  await openAt(page, "/", FIXED_HOUR);
+  const chord = async (key) => {
+    await page.keyboard.press("t");
+    await page.keyboard.press(key);
+  };
+  await chord("ArrowLeft");
+  await expect.poll(() => shown(page).from).toBe(DAY_AGO - 1800);
+  await chord("ArrowRight");
+  await expect.poll(() => shown(page).from).toBe(DAY_AGO);
+  await chord("-");
+  await expect.poll(() => shown(page).from).toBe(DAY_AGO - 1800);
+  // As typed: Shift, then the key, which must not end the chord.
+  await chord("Shift+Equal");
+  await expect.poll(() => shown(page).from).toBe(DAY_AGO);
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => shown(page).from).toBe(DAY_AGO - 1800);
+  // An arrow without the `t` first, or typed into a control, is not a
+  // step.
+  await page.keyboard.press("ArrowLeft");
+  await page.locator("#columns input").first().focus();
+  await chord("ArrowLeft");
+  await page.waitForTimeout(300);
+  expect(shown(page).from).toBe(DAY_AGO - 1800);
+  await page.locator("#columns input").first().blur();
+  await page.locator('#ranges button[data-last="21600"]').click();
+  await expect.poll(() => shown(page).last).toBe("21600");
+  await chord("a");
+  await expect.poll(() => shown(page).last).toBeNull();
+  expect(shown(page).to - shown(page).from).toBe(21600);
+});
+
+test("Grafana's forms of the range are read and rewritten", async ({ page }) => {
+  await openAt(page, "/", "from=now-6h&to=now");
+  expect(shown(page)).toEqual({ last: "21600", from: 0, to: 0 });
+  await page.goto(`/?receiver=${B}&from=${DAY_AGO * 1000}&to=${(DAY_AGO + 3600) * 1000}`);
+  await expect.poll(() => shown(page)).toEqual({ last: null, from: DAY_AGO, to: DAY_AGO + 3600 });
+  await page.goto(`/?receiver=${B}&from=${new Date(DAY_AGO * 1000).toISOString()}&to=now-1h`);
+  await expect.poll(() => shown(page).from).toBe(DAY_AGO);
+});
+
+test("Back keeps the receiver chosen since", async ({ page }) => {
+  await openAt(page, "/", "last=3600");
+  await page.locator('#ranges button[data-last="21600"]').click();
+  await expect.poll(() => shown(page).last).toBe("21600");
+  await page.locator("#unit").selectOption(A);
+  await expect.poll(() => new URL(page.url()).searchParams.get("receiver")).toBe(A);
+  await page.goBack();
+  await expect.poll(() => shown(page).last).toBe("3600");
+  await expect.poll(() => new URL(page.url()).searchParams.get("receiver")).toBe(A);
+});
+
+test("a moving range is read again on the refresh chosen, and not when off", async ({ page }) => {
+  const fake = twoUnits();
+  await fake.install(page);
+  await page.goto(`/?receiver=${B}&last=3600&refresh=5s`);
+  await expect.poll(() => fake.seen.history ?? 0).toBeGreaterThan(1);
+  const before = fake.seen.history;
+  await expect.poll(() => fake.seen.history, { timeout: 8000 }).toBeGreaterThan(before);
+  await page.locator("#range-refresh").selectOption("off");
+  expect(new URL(page.url()).searchParams.get("refresh")).toBe("off");
+  const stopped = fake.seen.history;
+  await page.waitForTimeout(6000);
+  expect(fake.seen.history).toBe(stopped);
+});
+
+test("the stability page offers no refresh faster than a minute, and shows one asked for as a minute", async ({ page }) => {
+  await openAt(page, "/adev", "last=3600&refresh=5s");
+  const offered = await page.locator("#range-refresh option").evaluateAll((o) => o.map((x) => x.value));
+  expect(offered.slice(0, 3)).toEqual(["off", "auto", "1m"]);
+  await expect(page.locator("#range-refresh")).toHaveValue("1m");
+  expect(new URL(page.url()).searchParams.get("refresh")).toBe("1m");
+});
+
+test("a fixed range that reaches past now is read again; one wholly past is not", async ({ page }) => {
+  const now = Math.round(Date.now() / 1000);
+  await openAt(page, "/", `from=${now - 600}&to=${now + 3000}&refresh=5s`);
+  await expect(page.locator("#range-refresh")).toBeEnabled();
+  expect(await page.evaluate("refreshEvery()")).toBe(5);
+  await page.goto(`/?receiver=${B}&${FIXED_HOUR}&refresh=5s`);
+  await expect(page.locator("#range-refresh")).toBeDisabled();
+  expect(await page.evaluate("refreshEvery()")).toBeNull();
+});
 
 test("a note clicked in the journal shows an hour either side of it", async ({ page }) => {
   await open(page, twoUnits(), "/", B);

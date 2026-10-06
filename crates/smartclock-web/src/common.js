@@ -103,16 +103,24 @@ function liveQuery() {
 // Merge `params` into the address without touching the rest of it: a
 // null value removes the key.  Every control that is worth keeping on
 // a reload or a shared link -- the receiver, the range, the columns --
-// goes through here, so none of them wipes another's setting.
-function remember(params) {
+// goes through here, so none of them wipes another's setting.  `push`
+// makes the change a step the browser's Back button undoes; only a
+// change of range is one.
+function remember(params, push = false) {
   const q = new URLSearchParams(location.search);
   for (const [k, v] of Object.entries(params)) {
     if (v === null || v === undefined) q.delete(k);
     else q.set(k, String(v));
   }
   const s = q.toString();
-  history.replaceState(null, "", location.pathname + (s ? `?${s}` : ""));
+  const url = location.pathname + (s ? `?${s}` : "");
+  if (push && url !== location.pathname + location.search) history.pushState(null, "", url);
+  else history.replaceState(null, "", url);
+  remembered = location.search;
 }
+// The address as this page last wrote it.  Back restores an older
+// address whole, and only its range is wanted from it.
+let remembered = location.search;
 
 // What the links between pages carry from this one's address: the
 // receiver and the range, which mean the same on every page.  The
@@ -354,7 +362,9 @@ function paintCached() {
 // is described once, to `content`, and read by this, so that every page
 // does the same thing at the same moments:
 //
-//   - at load, and every `every` ms while the page's `auto()` says so;
+//   - at load, and then on a timer: for a page with a range, as its
+//     refresh picker says (below); for one without, every `every` ms
+//     while its `auto()` says so;
 //   - on a change of receiver: cleared at once, then read;
 //   - on a change the page makes itself, like a new range: read, with
 //     any read in flight abandoned;
@@ -373,7 +383,10 @@ function paintCached() {
 //   load(signal)     read the chosen receiver's content with `ask` and
 //                    draw it; throws on failure
 //   daemon           the content comes from the daemon, not the logs
-//   every, auto()    the refresh period, and whether it applies now
+//   every, auto()    the refresh period, and whether it applies now,
+//                    for a page without a range
+//   floor            for a page with one, the shortest period its
+//                    refresh picker offers, in seconds
 //   chosen()         optional: set up anything that depends on which
 //                    receiver it is, such as what it measures; called
 //                    once the receiver is known and on every change
@@ -461,6 +474,10 @@ function switchTo(serial) {
 // once, last.
 async function content(spec) {
   page = spec;
+  // The refresh picker's choices depend on the page's floor.
+  refreshChoice = floored(refreshChoice);
+  if (rangeEl) remember({ refresh: refreshChoice === REFRESH_DEFAULT ? null : refreshChoice });
+  drawRangeControl();
   colophon();
   paintCached();
   await listReceivers();
@@ -476,6 +493,7 @@ async function content(spec) {
     }, page.every);
   }
   refresh();
+  schedule();
 }
 
 // ------------------------------------------------------------ colophon
@@ -498,40 +516,96 @@ async function colophon() {
 
 // ---------------------------------------------------------- time range
 //
-// A range is a pair (from, to), and most of the time it is "the last
-// N units up to now": relative, moving with the clock.  Dragging on a
-// chart makes it absolute -- a fixed pair -- and stepping it back and
-// forth keeps it so; "now" returns to relative with the same length.
-// The presets only fill the "last" box in.  The whole thing lives in
-// the address (`last=SECONDS`, `last=all`, or `from=..&to=..`) so a
-// reload or a shared link shows the same window; the older
-// `range=SECONDS` is still read.
+// The range control works as Grafana's dashboards do:
+//
+//   - a range is "the last N units" up to now, moving with the clock,
+//     or a fixed pair; a drag on a chart zooms to a fixed pair;
+//   - the back and forward buttons move it by half its length; zoom
+//     out doubles it about its center, as a double click on a chart
+//     does; the keys are `t Left`, `t Right`, `t -`, `t +` (halve it)
+//     and `t a` (fix it where it is), and Ctrl+Z zooms out too;
+//   - each change of range is a step the browser's Back button undoes;
+//   - a refresh picker, Auto unless chosen otherwise, says how often
+//     the range is read again.
+//
+// Two departures.  A range moved or zoomed out to end within half its
+// length of now becomes the moving range of its length, where Grafana's
+// dashboards slide on into a future with no readings.  And a range
+// wholly in the past is not read again, since its readings cannot
+// change.
+//
+// The range rides in the address (`last=SECONDS`, `last=all`, or
+// `from=..&to=..` in unix seconds) so a reload or a shared link shows
+// the same window.  Grafana's forms are read too -- `from=now-6h&to=now`,
+// epoch milliseconds, ISO times -- and rewritten as these, as is the
+// older `range=SECONDS`.
 
 const RANGE_UNITS = [["min", 60], ["h", 3600], ["d", 86400]];
 const RANGE_PRESETS = [
   ["1h", 3600], ["6h", 21600], ["24h", 86400], ["48h", 172800],
   ["7d", 604800], ["30d", 2592000],
 ];
+// The address keys that hold the range.
+const RANGE_KEYS = ["last", "from", "to", "range"];
+// The shortest window a zoom makes, in seconds.
+const SHORTEST_WINDOW = 60;
+// What a zoom out multiplies the window by, and a zoom in divides it by.
+const ZOOM = 2;
+// The fraction of the window a step moves it by, and how near now a
+// window must end to become the moving one.
+const STEP = 0.5;
 
 // `last`: seconds, or "all"; `from`/`to`: unix seconds when absolute.
 let range = { last: 3600, from: null, to: null };
 // The page's default length, in seconds.
 let rangeFallback = 3600;
 
+// Grafana's relative instants: "now", or "now-" a count and a unit.
+// Its calendar units (months, years) and rounding (`now/d`) are not
+// read.
+const RELATIVE = /^now(?:-(\d+)([smhdw]))?$/;
+const RELATIVE_UNITS = { s: 1, m: 60, h: 3600, d: 86400, w: 604800 };
+// A bare number above this is epoch milliseconds, as Grafana writes,
+// and below it unix seconds, as this page does: 1e11 seconds is the
+// year 5138, 1e11 milliseconds 1973.
+const MILLISECONDS_ABOVE = 1e11;
+
+// An instant from the address: `{ ago }` in seconds before now, or
+// `{ at }` in unix seconds; null if it is neither.
+function instant(text) {
+  if (text === null) return null;
+  const relative = RELATIVE.exec(text);
+  if (relative) {
+    return { ago: relative[1] ? Number(relative[1]) * RELATIVE_UNITS[relative[2]] : 0 };
+  }
+  if (/^\d+(\.\d+)?$/.test(text)) {
+    const n = Number(text);
+    return { at: n > MILLISECONDS_ABOVE ? n / 1000 : n };
+  }
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? { at: parsed / 1000 } : null;
+}
+
+// Read the range from the address, and write it back in this page's
+// own form.
 function readRange(fallback) {
   rangeFallback = fallback ?? rangeFallback;
-  const v = new URLSearchParams(location.search);
-  if (v.has("from") && v.has("to")) {
-    const from = Number(v.get("from")), to = Number(v.get("to"));
-    if (Number.isFinite(from) && Number.isFinite(to) && to > from) {
-      range = { last: null, from, to };
-      return;
-    }
+  range = rangeFrom(new URLSearchParams(location.search));
+  rememberRange();
+}
+
+function rangeFrom(v) {
+  const from = instant(v.get("from")), to = instant(v.get("to"));
+  if (from && to) {
+    if (to.ago === 0 && from.ago > 0) return { last: from.ago, from: null, to: null };
+    const now = Date.now() / 1000;
+    const start = from.at ?? now - from.ago, end = to.at ?? now - to.ago;
+    if (end > start) return { last: null, from: start, to: end };
   }
   const last = v.get("last") ?? v.get("range");
-  if (last === "all" || last === "null") range = { last: "all", from: null, to: null };
-  else if (last && Number(last) > 0) range = { last: Number(last), from: null, to: null };
-  else range = { last: rangeFallback, from: null, to: null };
+  if (last === "all" || last === "null") return { last: "all", from: null, to: null };
+  if (last && Number(last) > 0) return { last: Number(last), from: null, to: null };
+  return { last: rangeFallback, from: null, to: null };
 }
 
 // The bounds to ask the server for, in unix seconds; null is open.
@@ -544,9 +618,20 @@ function rangeBounds() {
   return { from: range.from, to: range.to, seconds: range.to - range.from };
 }
 
-function rememberRange() {
-  if (range.last !== null) remember({ last: range.last, from: null, to: null });
-  else remember({ last: null, from: Math.round(range.from), to: Math.round(range.to) });
+// Whether the range moves with the clock.
+const moving = () => range.last !== null;
+// Whether reading the range again can show anything new: it moves, or
+// a fixed one, such as a note's, reaches past now.
+const growing = () => moving() || range.to > Date.now() / 1000;
+
+function rememberRange(push = false) {
+  const fixed = !moving();
+  remember({
+    last: fixed ? null : range.last,
+    from: fixed ? Math.round(range.from) : null,
+    to: fixed ? Math.round(range.to) : null,
+    range: null,
+  }, push);
   carry();
 }
 
@@ -565,8 +650,8 @@ function shortTime(t) {
 }
 
 // The control's element and what the page does on a change, kept so
-// that a change from anywhere -- the control, a drag, a note -- is
-// drawn and read the same way.
+// that a change from anywhere -- the control, a drag, a key, Back --
+// is drawn and read the same way.
 let rangeEl = null;
 let rangeChanged = null;
 
@@ -574,50 +659,110 @@ let rangeChanged = null;
 function rangeControl(el, changed) {
   rangeEl = el;
   rangeChanged = changed;
+  refreshChoice = refreshFrom(new URLSearchParams(location.search));
   drawRangeControl();
 }
 
-// Make `next` the range: into the address, onto the control, and read.
-// Charts synced by cursor each report the same drag, so a range that is
-// already the one shown is not a change.
+// Make `next` the range: into the address as a step Back undoes, onto
+// the control, and read.  Charts synced by cursor each report the same
+// drag, so a range that is already the one shown is not a change.
 function setRange(next) {
   if (next.last === range.last && next.from === range.from && next.to === range.to) return;
   range = next;
-  rememberRange();
+  rememberRange(true);
+  rangeShown();
+}
+
+// Draw the control for the range now set, and read it.
+function rangeShown() {
   drawRangeControl();
+  schedule();
   rangeChanged?.();
 }
 
-// A fixed window, from a drag or a note.
+// A fixed window, from a drag, a note or a step.
 function fixRange(from, to) {
   if (to > from) setRange({ last: null, from, to });
 }
 
+// The moving window of `length` seconds.
+function moveWith(length) {
+  setRange({ last: Math.max(SHORTEST_WINDOW, Math.round(length)), from: null, to: null });
+}
+
 // Back to a window moving with the clock, of the length shown.
 function liveAgain() {
-  const { seconds } = rangeBounds();
-  setRange({ last: Math.max(60, Math.round(seconds || rangeFallback)), from: null, to: null });
+  moveWith(rangeBounds().seconds || rangeFallback);
+}
+
+// A window that would end within a step of now, or later, is the moving
+// window of its length; an earlier one stays fixed.
+function settle(from, to) {
+  const length = to - from;
+  if (to >= Date.now() / 1000 - length * STEP) moveWith(length);
+  else fixRange(from, to);
+}
+
+// Move by a step, earlier (-1) or later (1).
+function step(direction) {
+  if (range.last === "all") return;
+  const { from, to, seconds } = rangeBounds();
+  const by = direction * seconds * STEP;
+  if (direction > 0) settle(from + by, to + by);
+  else fixRange(from + by, to + by);
+}
+
+// Scale the window about its center: ZOOM zooms out, 1 / ZOOM in.
+function zoom(factor) {
+  if (range.last === "all") return;
+  const { from, to, seconds } = rangeBounds();
+  const half = Math.max(SHORTEST_WINDOW, seconds * factor) / 2;
+  const center = (from + to) / 2;
+  if (factor > 1) settle(center - half, center + half);
+  else fixRange(center - half, center + half);
+}
+
+const zoomOut = () => zoom(ZOOM);
+const zoomIn = () => zoom(1 / ZOOM);
+
+// Fix a moving window where it is now.
+function fixWhereItIs() {
+  if (!moving() || range.last === "all") return;
+  const { from, to } = rangeBounds();
+  fixRange(from, to);
 }
 
 function drawRangeControl() {
   const el = rangeEl;
-  const relative = range.last !== null;
-  const [n, size] = relative && range.last !== "all" ? splitLength(range.last) : [1, 3600];
+  if (!el) return;
+  const relative = moving();
+  const all = range.last === "all";
+  const [n, size] = relative && !all ? splitLength(range.last) : [1, 3600];
+  const disabled = (off) => (off ? " disabled" : "");
   el.innerHTML =
     RANGE_PRESETS.map(([label, secs]) =>
       `<button data-last="${secs}" aria-pressed="${range.last === secs}">${label}</button>`).join(" ") +
-    ` <button data-last="all" aria-pressed="${range.last === "all"}">all</button>` +
+    ` <button data-last="all" aria-pressed="${all}">all</button>` +
     ` <label>last <input id="range-n" type="number" min="1" step="1" value="${n}" ` +
-    `style="width:5em"${relative ? "" : " disabled"}> ` +
-    `<select id="range-unit"${relative ? "" : " disabled"}>` +
+    `style="width:5em"${disabled(!relative)}> ` +
+    `<select id="range-unit"${disabled(!relative)}>` +
     RANGE_UNITS.map(([name, s]) =>
       `<option value="${s}"${s === size ? " selected" : ""}>${name}</option>`).join("") +
     `</select></label>` +
     (relative ? "" :
-      ` <span class="muted">${esc(shortTime(range.from))} – ${esc(shortTime(range.to))}</span>` +
-      ` <button id="range-back" title="earlier by one window">&lsaquo;</button>` +
-      ` <button id="range-fwd" title="later by one window">&rsaquo;</button>` +
-      ` <button id="range-now" title="the same length, up to now">now</button>`);
+      ` <span class="muted">${esc(shortTime(range.from))} – ${esc(shortTime(range.to))}</span>`) +
+    ` <span class="range-group">` +
+    `<button id="range-back" title="earlier by half the window (t ←)"${disabled(all)}>&lsaquo;</button>` +
+    `<button id="range-out" title="zoom out (t -, Ctrl+Z, double click)"${disabled(all)}>−</button>` +
+    `<button id="range-forward" title="later by half the window (t →)"${disabled(all || relative)}>&rsaquo;</button>` +
+    (relative ? "" :
+      `<button id="range-now" title="the same length, up to now">now</button>`) +
+    `</span> <span class="range-group">` +
+    `<button id="range-reload" title="read again now">⟳</button>` +
+    `<select id="range-refresh" title="${esc(refreshTitle())}"${disabled(!growing())}>` +
+    refreshOptions().map(([value, label]) =>
+      `<option value="${value}"${value === refreshChoice ? " selected" : ""}>${label}</option>`).join("") +
+    `</select></span>`;
   for (const b of el.querySelectorAll("button[data-last]")) {
     b.onclick = () =>
       setRange({ last: b.dataset.last === "all" ? "all" : Number(b.dataset.last), from: null, to: null });
@@ -628,10 +773,179 @@ function drawRangeControl() {
   };
   $("range-n").onchange = setLast;
   $("range-unit").onchange = setLast;
-  if (!relative) {
-    const len = range.to - range.from;
-    $("range-back").onclick = () => fixRange(range.from - len, range.to - len);
-    $("range-fwd").onclick = () => fixRange(range.from + len, range.to + len);
-    $("range-now").onclick = liveAgain;
-  }
+  $("range-back").onclick = () => step(-1);
+  $("range-out").onclick = () => zoomOut();
+  $("range-forward").onclick = () => step(1);
+  if (!relative) $("range-now").onclick = liveAgain;
+  $("range-reload").onclick = () => {
+    renew(true);
+    readAt = Date.now();
+    schedule();
+  };
+  $("range-refresh").onchange = () => {
+    refreshChoice = $("range-refresh").value;
+    remember({ refresh: refreshChoice === REFRESH_DEFAULT ? null : refreshChoice });
+    drawRangeControl();
+    schedule();
+  };
 }
+
+// Grafana's time keys: `t`, then the second key within this many ms.
+const CHORD = 1000;
+// The second key, by its `key`, and what it does.
+const TIME_KEYS = {
+  ArrowLeft: () => step(-1),
+  ArrowRight: () => step(1),
+  "-": zoomOut,
+  "+": zoomIn,
+  // The + key unshifted, as Grafana takes it.
+  "=": zoomIn,
+  a: fixWhereItIs,
+};
+// Keys that only modify the next, and so neither start nor end a chord.
+const MODIFIERS = new Set(["Shift", "Control", "Alt", "Meta"]);
+// When `t` was pressed, as the event's timeStamp; -Infinity when no
+// chord is open.
+let chordAt = -Infinity;
+addEventListener("keydown", (e) => {
+  if (!rangeEl || e.defaultPrevented || MODIFIERS.has(e.key)) return;
+  // Keys typed into a control are the control's: arrows move a select
+  // and `t` is text.
+  if (e.target.closest?.("input, select, textarea, [contenteditable]")) return;
+  if (e.ctrlKey && !e.altKey && !e.metaKey && e.key === "z") {
+    e.preventDefault();
+    zoomOut();
+    return;
+  }
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
+  const action = TIME_KEYS[e.key];
+  if (action && e.timeStamp - chordAt <= CHORD) {
+    e.preventDefault();
+    chordAt = -Infinity;
+    action();
+    return;
+  }
+  chordAt = e.key === "t" ? e.timeStamp : -Infinity;
+});
+
+// Back and Forward: the range from the address returned to, and
+// everything else -- the receiver, the columns -- as it is now, since
+// only a change of range is a step.
+addEventListener("popstate", () => {
+  if (!rangeEl) return;
+  const returned = new URLSearchParams(location.search);
+  const q = new URLSearchParams(remembered);
+  for (const k of RANGE_KEYS) {
+    if (returned.has(k)) q.set(k, returned.get(k));
+    else q.delete(k);
+  }
+  range = rangeFrom(q);
+  const s = q.toString();
+  history.replaceState(null, "", location.pathname + (s ? `?${s}` : ""));
+  remembered = location.search;
+  rememberRange();
+  rangeShown();
+});
+
+// ------------------------------------------------------------- refresh
+//
+// How often the range is read again.  Auto, as Grafana's does, reads
+// about once per pixel's worth of time across the window, here rounded
+// up to the next of Grafana's intervals; never more often than the
+// page's floor, which is what one read of it costs.  Paused while the
+// tab is hidden, and put off while a read is still running or the
+// pointer is on a chart, since each read redraws the charts and would
+// take the cursor readout or a drag in progress with it.
+
+const REFRESH_INTERVALS = [
+  ["5s", 5], ["10s", 10], ["30s", 30], ["1m", 60], ["5m", 300], ["15m", 900],
+  ["30m", 1800], ["1h", 3600], ["2h", 7200], ["1d", 86400],
+];
+const REFRESH_DEFAULT = "auto";
+// The window Auto assumes for `all`, whose length the page does not
+// know: the longest preset.
+const ALL_SPAN = RANGE_PRESETS[RANGE_PRESETS.length - 1][1];
+// How long a refresh put off by the pointer waits to try again, in ms.
+const POINTER_WAIT = 1000;
+
+// "off", "auto", or one of REFRESH_INTERVALS' names.
+let refreshChoice = REFRESH_DEFAULT;
+// The pending timer for the next read, if any.
+let refreshTimer = null;
+// When the timer, the reload button or the tab's return last started a
+// read, in ms since the epoch.
+let readAt = Date.now();
+
+// The page's floor in seconds, or null on a page without a range.
+const refreshFloor = () => page?.floor ?? null;
+
+function refreshFrom(v) {
+  const asked = v.get("refresh");
+  const known = ["off", "auto", ...REFRESH_INTERVALS.map(([name]) => name)];
+  return known.includes(asked) ? asked : REFRESH_DEFAULT;
+}
+
+// A choice faster than the page's floor, from an address made on
+// another page, as the fastest it does offer: the picker cannot show
+// what it does not offer.
+function floored(choice) {
+  const floor = refreshFloor() ?? 0;
+  const secs = REFRESH_INTERVALS.find(([name]) => name === choice)?.[1];
+  if (secs === undefined || secs >= floor) return choice;
+  return REFRESH_INTERVALS.find(([, s]) => s >= floor)[0];
+}
+
+// The choices the picker offers: none faster than the page's floor.
+function refreshOptions() {
+  const floor = refreshFloor() ?? 0;
+  return [
+    ["off", "Off"],
+    ["auto", "Auto"],
+    ...REFRESH_INTERVALS.filter(([, secs]) => secs >= floor).map(([name]) => [name, name]),
+  ];
+}
+
+// The period in seconds the range is read again at, or null for never.
+function refreshEvery() {
+  const floor = refreshFloor();
+  if (floor === null || !growing() || refreshChoice === "off") return null;
+  if (refreshChoice !== "auto") {
+    return Math.max(floor, REFRESH_INTERVALS.find(([name]) => name === refreshChoice)[1]);
+  }
+  const span = rangeBounds().seconds ?? ALL_SPAN;
+  const wanted = Math.max(floor, span / Math.max(1, innerWidth));
+  return (REFRESH_INTERVALS.find(([, secs]) => secs >= wanted) ?? REFRESH_INTERVALS.at(-1))[1];
+}
+
+function refreshTitle() {
+  if (!growing()) return "a range wholly past is not read again";
+  const every = refreshEvery();
+  return every === null ? "not read again" : `read again every ${every} s`;
+}
+
+// Set the timer for the next read, replacing any set before.
+function schedule() {
+  clearTimeout(refreshTimer);
+  const every = refreshEvery();
+  if (every === null) return;
+  refreshTimer = setTimeout(due, every * 1000);
+}
+
+function due() {
+  if (document.hidden) return;
+  if (running || document.querySelector(".u-over:hover")) {
+    refreshTimer = setTimeout(due, POINTER_WAIT);
+    return;
+  }
+  readAt = Date.now();
+  refresh();
+  schedule();
+}
+
+// A hidden tab is not read; on its return it is, once a read is due.
+document.addEventListener("visibilitychange", () => {
+  const every = refreshEvery();
+  if (document.hidden || every === null) return;
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(due, Math.max(0, readAt + every * 1000 - Date.now()));
+});

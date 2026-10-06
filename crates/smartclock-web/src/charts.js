@@ -210,7 +210,7 @@ function settleWidths(charts, container) {
 const stackWidth = (fits) => Math.max(...fits.map((f) => f.axis.size));
 
 // Tie a time chart to the range: a drag fixes the range to the stretch
-// it covered, a double click goes back to a moving window.  The drag
+// it covered, a double click zooms out, as in Grafana.  The drag
 // is read from setSelect, not setScale: setScale also fires when uPlot
 // fits the scale to new data, on every draw, and taking that for a
 // zoom fixed the range and stopped the background refresh for the life
@@ -224,7 +224,7 @@ const TIME_HOOKS = {
   ],
 };
 function ranged(chart) {
-  chart.over.addEventListener("dblclick", liveAgain);
+  chart.over.addEventListener("dblclick", () => zoomOut());
   return chart;
 }
 

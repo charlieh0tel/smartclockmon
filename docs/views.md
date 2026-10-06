@@ -86,16 +86,37 @@ together and a drag on any plot zooms all of them.  EFC against
 internal temperature is the most useful pairing; `efc.md` has what
 that comparison showed.
 
-The time range is a pair of instants, chosen as in Grafana: "the
-last N units" up to now -- presets from an hour to thirty days and
-`all` fill the box in, and any other length can be typed -- or, once
-a drag has zoomed, a fixed pair, which steps earlier and later by its
-own length and returns to a moving window with `now`.  The choice
-rides in the address (`?last=172800`, `?last=all`, or `?from=…&to=…`)
-beside the receiver and the columns, so a reload or a shared link
-shows the same window, and links between pages carry the receiver and
-the range.  The stability page uses the same control; there the range
-is the record the estimator runs on, so changing it recomputes.
+The time range works as in Grafana's dashboards.  It is "the last N
+units" up to now -- presets from an hour to thirty days and `all` fill
+the box in, and any other length can be typed -- or a fixed pair, which
+a drag on a chart zooms to.  ‹ and › move it by half its length, −
+and a double click on a chart double it about its center, and `now`
+returns a fixed range to a moving one; with `all` there is nothing to
+move or zoom.  Grafana's keys work: `t ←` and `t →` move, `t -` (or
+Ctrl+Z) zooms out, `t +` zooms in, `t a` fixes a moving range where it
+is.  Each change of range is a step the browser's Back button undoes.
+A refresh picker sets how often the range is read again: Auto by
+default, about one pixel's worth of time across the window rounded up
+to the next of the fixed intervals, or one of those intervals, never
+faster than the page can afford (5 s for history, a minute where each
+read measures stability).  ⟳ reads at once.  Reading pauses while the
+tab is hidden, while a read is still running, and while the pointer is
+on a chart.
+
+Two things differ from Grafana.  A range moved or zoomed out to end
+within half its length of now becomes the moving range of that length,
+where Grafana would slide on into the future.  And a range wholly in
+the past is not read again, since its readings cannot change.
+
+The choice rides in the address (`?last=172800`, `?last=all`, or
+`?from=…&to=…` in unix seconds, plus `refresh=`) beside the receiver
+and the columns, so a reload or a shared link shows the same window,
+and links between pages carry the receiver and the range.  Grafana's
+forms are read too: `from=now-6h&to=now` (units s, m, h, d and w; not
+months, years or rounding such as `now/d`), epoch milliseconds, ISO
+times; so is the older `range=SECONDS`.  The stability page uses the
+same control; there the range is the record the estimator runs on, so
+changing it recomputes.
 
 The chart library comes from a CDN, pinned with an integrity hash, so
 the page needs internet though the daemon does not.  If the library
