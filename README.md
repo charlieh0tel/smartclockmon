@@ -98,7 +98,6 @@ describes the bench.
 | [`docs/SENSORS.md`](docs/SENSORS.md) | proposed: logging room sensors beside the receivers |
 | [`docs/firmware.md`](docs/firmware.md) | what the firmware shows: the 1 PPS measurement, the disciplining loop, the GPS engine interface and the pForth console |
 | [`docs/loop.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/loop.html) | the disciplining loop as a block diagram, with its update law, constants and closed-loop poles |
-| [`docs/sky-comparison.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/sky-comparison.html) | a 58503A and a Z3805A against a u-blox NEO-M8T on one antenna for 24 hours |
 | [`docs/hardware-investigations.md`](docs/hardware-investigations.md) | what the firmware leaves open that only a bench can settle |
 | [`docs/recovery-hypothesis.md`](docs/recovery-hypothesis.md) | S1 and forced-recovery hypotheses, including modeled flash-read faults |
 | [`docs/z3801-keywords.md`](docs/z3801-keywords.md), [`docs/z3801-tree.md`](docs/z3801-tree.md), [`docs/58503a-tree.md`](docs/58503a-tree.md) | the SCPI keywords and command paths read from the firmware |
