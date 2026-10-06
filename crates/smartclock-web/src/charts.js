@@ -19,14 +19,48 @@ const LABELS = {
   ffom: ["Frequency figure of merit", 1, "lower is better"],
   // The receiver's own words, said as counts because that is what is
   // plotted.  Nothing is added to them: "not tracked" is the count
-  // `:GPS:SATellite:VISible:PREDicted?` gives -- "the list of
-  // satellites (PRN) that the almanac predicts should be visible,
-  // given date, time, and position" (097-59551-02 5-6) -- less those
-  // being tracked.  Whether one is unusable or merely unneeded is not
-  // something the receiver says.
+  // `:GPS:SATellite:VISible:PREDicted?` gives less those being tracked;
+  // HINTS quotes the manual on it.
   tracking: ["# sats tracked", 1],
   not_tracking: ["# sats not tracked", 1],
 };
+// Hover text for every series, by column: what each is and where it
+// comes from, which a name and a unit cannot carry, and for the figures
+// of merit what their codes mean.  Taken from the manuals where they
+// document it, and from the command table
+// (crates/smartclock/commands.toml) for the undocumented queries.
+const HINTS = {
+  efc_percent: "Oscillator steering, percent of range (097-59551-02 5-28).",
+  efc_dac: "The EFC as a raw 20-bit value (undocumented query).",
+  time_interval_s:
+    "Oscillator 1 PPS against GPS 1 PPS, ten-second mean (097-59551-02 5-34).",
+  temperature_c: "Inside the receiver, not the oven (undocumented query).",
+  oven_current: "Rises while the oven heats (undocumented query).",
+  oven_tempco:
+    "Loop constant on the oscillator current; changes only when set "
+    + "(docs/firmware/loop.md).",
+  tfom:
+    "1 PPS error as a decade: 0 under 1 ns, 3 is 100 to 1000 ns, 9 over "
+    + "0.1 s (097-59551-02 5-24).",
+  ffom:
+    "0 stable, 1 stabilizing, 2 holdover, 3 unlocked: do not use "
+    + "(097-59551-02 5-23).",
+  tracking: "Satellites tracked (097-59551-02 5-22).",
+  not_tracking: "Predicted visible but not tracked (097-59551-02 5-6).",
+};
+
+// The hover text for a column, and its partner's when two share a chart.
+const hintText = (col, partner) => [col, partner].map((c) => HINTS[c]).filter(Boolean).join(" ");
+
+// Give a chart's title its hover text, underlined so it is found.
+function hint(chart, col, partner) {
+  const text = hintText(col, partner);
+  const heading = chart.root.querySelector(".u-title");
+  if (!text || !heading) return;
+  heading.title = text;
+  heading.classList.add("hinted");
+}
+
 const columnName = (c) => (LABELS[c] ?? [c, 1])[0];
 const label = (c) => {
   const qualifier = LABELS[c]?.[2];

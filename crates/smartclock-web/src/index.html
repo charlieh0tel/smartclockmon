@@ -65,41 +65,6 @@
 // than leaving an empty rectangle if it did not arrive.
 const haveUplot = typeof uPlot !== "undefined";
 
-// Hover text for every series whose title does not say what it is:
-// the figures of merit, whose numbers are codes, and the readings whose
-// source or meaning a name and a unit cannot carry.  Taken from the
-// manuals where they document it, and from the command table
-// (crates/smartclock/commands.toml) for the undocumented queries.
-const HINTS = {
-  time_interval_s:
-    "1 PPS time interval: between the 1 PPS divided down from the "
-    + "oscillator and the 1 PPS from the GPS receiver, the receiver's own "
-    + "mean over ten seconds (097-59551-02 5-34; docs/firmware/interval.md).",
-  temperature_c:
-    "Internal temperature, from an undocumented query: not the oven, which "
-    + "runs far hotter. The low byte of ADC channel 0 times 0.273 "
-    + "(docs/firmware/console.md).",
-  oven_current:
-    "Oscillator oven current, from an undocumented query. Rises when the "
-    + "oven is heating.",
-  efc_dac:
-    "The EFC as its raw 20-bit value, from an undocumented query; percent "
-    + "of range is value / 2^20 x 200 - 100.",
-  oven_tempco:
-    "The constant the loop multiplies the oscillator current by in the "
-    + "EFC, in EFC counts per unit of that current. A calibration value in "
-    + "EEPROM that changes only when set (docs/firmware/loop.md).",
-  tfom:
-    "Time figure of merit: the accuracy of the 1 PPS output, as a decade "
-    + "of time error. Lower is better -- 0 is under a nanosecond, 3 is "
-    + "100 to 1000 ns, 9 is over a tenth of a second (097-59551-02 5-24).",
-  ffom:
-    "Frequency figure of merit: the stability of the 10 MHz output, taken "
-    + "from the state of the phase-locked loop. 0 stabilized and within "
-    + "specification, 1 stabilizing, 2 unlocked in holdover, 3 unlocked "
-    + "and not in holdover -- do not use the output (097-59551-02 5-23).",
-};
-
 // The view is taken from the URL so a particular one can be kept: a
 // link to "EFC against temperature over the last day" is worth more
 // than a description of how to click to it.
@@ -322,13 +287,7 @@ async function draw(signal) {
     // without reaching back into the request that built it.
     chart.smartclockColumn = col;
     chart.smartclockPartner = plot.partner ? plot.partner.column : null;
-    if (HINTS[col]) {
-      const heading = chart.root.querySelector(".u-title");
-      if (heading) {
-        heading.title = HINTS[col];
-        heading.classList.add("hinted");
-      }
-    }
+    hint(chart, col, plot.partner?.column);
     // uPlot's title is plain text, and with the legend off a two-line
     // chart otherwise names both series without saying which is which.
     if (plot.partner) {
@@ -411,15 +370,16 @@ function pickers(plottable) {
   // a column ticked for another unit stays chosen for when it is back.
   const menu = order.filter((c) => c !== PAIRED[1] && measures(c));
   const shown = (c) => (c === PAIRED[0] ? "# sats" : columnName(c));
+  const hover = (c) => hintText(c, c === PAIRED[0] ? PAIRED[1] : null);
   $("columns").innerHTML = menu
     .map(
       (c) =>
-        `<label${HINTS[c] ? ` title="${esc(HINTS[c])}"` : ""}>` +
+        `<label${hover(c) ? ` title="${esc(hover(c))}"` : ""}>` +
         `<input type="checkbox" data-col="${c}"` +
         `${columns.includes(c) ? " checked" : ""}> ` +
         // Underlined where there is hover text, because a bare title
         // attribute is only found by someone who already suspects it.
-        `<span${HINTS[c] ? ' class="hinted"' : ""}>${esc(shown(c))}</span></label>`,
+        `<span${hover(c) ? ' class="hinted"' : ""}>${esc(shown(c))}</span></label>`,
     )
     .join(" ");
   for (const box of $("columns").querySelectorAll("input")) {

@@ -274,6 +274,19 @@ test("Grafana's forms of the range are read and rewritten", async ({ page }) => 
   expect(Math.abs(Number(shown(page).last) - 86400)).toBeLessThan(60);
 });
 
+test("every series has hover text, on the history and the compare page", async ({ page }) => {
+  await openAt(page, "/", "last=3600");
+  const labels = await page.locator("#columns label").evaluateAll((ls) => ls.map((l) => [l.textContent, l.title]));
+  expect(labels.filter(([, title]) => !title)).toEqual([]);
+  await page.waitForFunction(() => charts.length > 1);
+  const titles = await page.locator(".u-title").evaluateAll((ts) => ts.map((t) => [t.textContent, t.title]));
+  expect(titles.filter(([, title]) => !title)).toEqual([]);
+  await page.goto(`/compare?receiver=${B}&last=3600`);
+  await page.waitForFunction(() => charts.length > 1);
+  const compared = await page.locator("#charts .u-title").evaluateAll((ts) => ts.map((t) => [t.textContent, t.title]));
+  expect(compared.filter(([, title]) => !title)).toEqual([]);
+});
+
 test("the columns chosen ride in the address", async ({ page }) => {
   await openAt(page, "/", "last=3600");
   await page.locator('#columns input[data-col="efc_percent"]').uncheck();

@@ -288,6 +288,7 @@ function drawHistory(shown, got) {
       [joined[0], ...columns],
       host,
     ));
+    hint(chart, col);
     charts.push(chart);
   });
   settleWidths(charts, $("charts"));
