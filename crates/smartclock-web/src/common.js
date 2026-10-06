@@ -761,12 +761,12 @@ function drawRangeControl() {
     `</select></label>` +
     ` <span id="range-shown" class="muted">${esc(shownSpan())}</span>` +
     ` <span class="range-group">` +
-    `<button id="range-back" title="earlier by half the window (t ←)"${disabled(all)}>&lsaquo;</button>` +
-    `<button id="range-out" title="zoom out (t -, Ctrl+Z, double click)"${disabled(all)}>−</button>` +
-    `<button id="range-forward" title="later by half the window (t →)"${disabled(all || relative)}>&rsaquo;</button>` +
+    `<button id="range-back" class="glyph" title="earlier by half the window (t ←)"${disabled(all)}>&lsaquo;</button>` +
+    `<button id="range-out" class="glyph" title="zoom out (t -, Ctrl+Z, double click)"${disabled(all)}>−</button>` +
+    `<button id="range-forward" class="glyph" title="later by half the window (t →)"${disabled(all || relative)}>&rsaquo;</button>` +
     `<button id="range-now" title="the same length, up to now"${disabled(relative)}>now</button>` +
     `</span> <span class="range-group">` +
-    `<button id="range-reload" title="read again now">⟳</button>` +
+    `<button id="range-reload" class="glyph" title="read again now">⟳</button>` +
     `<select id="range-refresh" title="${esc(refreshTitle())}"${disabled(!growing())}>` +
     refreshOptions().map(([value, label]) =>
       `<option value="${value}"${value === refreshChoice ? " selected" : ""}>${label}</option>`).join("") +

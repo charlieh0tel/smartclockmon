@@ -132,7 +132,10 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
 #ranges { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 #ranges input[type=number] { width: 5em; }
 /* Buttons that act together stay on one line when the control wraps. */
-#ranges .range-group { display: inline-flex; gap: 4px; align-items: center; }
+#ranges .range-group { display: inline-flex; gap: 4px; align-items: stretch; }
+/* A one-glyph button: the glyph larger than text, the button no taller
+   than its group's text buttons. */
+#ranges button.glyph { font-size: 1.9em; line-height: 0; padding: 0 8px; min-width: 2em; }
 /* Wide enough for two times whatever the range, so the line does not
    change width as the range changes. */
 #range-shown { display: inline-block; min-width: 36ch; text-align: center;
