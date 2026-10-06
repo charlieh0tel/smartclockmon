@@ -326,6 +326,49 @@ The span column extrapolates each gain across the whole input; neither
 oscillator has been driven to both ends.  No source here documents the
 `-60161`, so its row is indicative.
 
+## Not the oscillator
+
+An OCXO aged past its EFC DAC's pull range presents as a unit stuck in
+holdover; the development unit was suspected of this.  It is not the
+oscillator, on this evidence:
+
+- Locked with a valid reference in every sample since the log began
+  carrying the condition registers.
+- The diagnostic log shows nineteen holdover-and-relock cycles across
+  two days in March 2025 and nothing since, which reads as GPS
+  reception; an oscillator drifting out of range does not recover
+  nineteen times.
+- The EFC measurement settles the mapping in favor of the
+  specification, leaving about a decade of tuning headroom.
+- On 2026-09-26 the crystal was retrimmed with the EFC input grounded;
+  the receiver now locks with the pin near 0 V, and the retrim measured
+  the pull, 3.94 × 10⁻¹³ per count, 0.63 of the loop's assumed G
+  ("The pull, measured").
+
+`:STATus:OPERation:HARDware:CONDition?` bits:
+
+| Bit | Condition                        |
+| --- | -------------------------------- |
+| 0   | Selftest Failure                 |
+| 1   | +15V Supply Exceeds Tolerance    |
+| 2   | -15V Supply Exceeds Tolerance    |
+| 3   | +5V Supply Exceeds Tolerance     |
+| 4   | Oven Supply Exceeds Tolerance    |
+| 6   | EFC Voltage Near Full-Scale      |
+| 7   | EFC Voltage Full-Scale           |
+| 8   | GPS 1 PPS Failure                |
+| 9   | GPS Failure                      |
+| 10  | TI Measurement Failed            |
+| 11  | EEPROM Write Failed              |
+| 12  | Internal Reference Failure       |
+
+`:STATus:OPERation:HOLDover:CONDition?` bits: 0 Holding, 1 Waiting to
+Recover, 2 Recovering, 3 Exceeding Threshold.
+
+Bits 6 and 7 plus `:SYNChronization:HOLDover:WAITing?`, which returns
+`HARDware | GPS | LIMit | NONE`, separate an oscillator fault from a
+GPS or antenna fault.
+
 ## Where the unit stands
 
 Since the retrim the receiver locks with the pin within millivolts of
