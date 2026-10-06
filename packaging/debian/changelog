@@ -1,3 +1,20 @@
+smartclockmon (1.0.4-1) unstable; urgency=low
+
+  * The web view's stacked charts line up: every chart takes the
+    stack's widest y axis and the same right padding, so one moment,
+    and a note's line, sits at the same place down the stack.  The
+    compare page leaves out a chart no ticked receiver has data for.
+  * Stability axes write the mantissa of every decade, 1x10^-9 beside
+    2x10^-9 and 5x10^-9.
+  * Messages use US spelling, such as "receiver signaled error" and
+    "resynchronizing after a failure"; a script matching the old text
+    needs updating.
+  * The packaged docs change: the firmware notes are now a directory,
+    /usr/share/doc/smartclockmon/firmware/, and OCXO.md is ocxo.md.
+  * A GitHub release's notes are now set from its changelog entry.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Mon, 05 Oct 2026 20:39:43 -0700
+
 smartclockmon (1.0.3-1) unstable; urgency=low
 
   * Upgrading: the log's schema is now 11.  A daemon refuses a log
