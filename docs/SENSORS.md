@@ -1,4 +1,4 @@
-# Ambient sensors
+# Sensors beside the receivers
 
 Proposed, not built.  An OCXO's EFC moves with the room, so the room's
 temperature, and perhaps its humidity, belong beside the receivers'

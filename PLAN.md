@@ -955,11 +955,11 @@ Later: adding, editing and deleting notes from the web view, through
 the daemon socket.  Needs POST bodies in `smartclock-http`, and notes
 with ids rather than append-only.
 
-### Next: ambient sensors
+### Next: sensors beside the receivers
 
 Up to twelve named hwmon or IIO sensors, read on the medium tier into
 sticky snapshot columns beside each receiver's readings;
-`docs/AMBIENT.md`.
+`docs/SENSORS.md`.
 
 ### Comparing receivers
 
