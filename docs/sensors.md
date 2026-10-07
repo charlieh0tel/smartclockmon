@@ -22,6 +22,10 @@ and knows nothing about the parts behind them.
     `bench=/sys/bus/iio/devices/iio:device0/in_temp`.  Its `_input` is
     read if there is one; otherwise (`_raw` + `_offset`) x `_scale`,
     with `_offset` 0 when absent and `_scale` required.
+    `iio:deviceN` numbers change across boots and replugs, so the
+    device may instead be named by its `label`, or failing that its
+    `name`, as `bench=label:shack/in_temp`.  This is looked up again
+    whenever a read fails.  Two matching devices are refused.
 
   The environment forms take a comma-separated list.  Names are short
   identifiers; a repeated name is refused at startup.
