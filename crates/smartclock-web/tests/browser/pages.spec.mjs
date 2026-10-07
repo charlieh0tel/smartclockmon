@@ -410,6 +410,24 @@ for (const path of ["/adev", "/compare"]) {
   });
 }
 
+for (const path of ["/", "/compare"]) {
+  test(`a redraw of ${path} keeps the page where it was scrolled to`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await withSensors().install(page);
+    await page.goto(`${path}?receiver=${B}&last=3600`);
+    await page.waitForFunction(() => charts.length >= 3);
+    await page.waitForTimeout(1500);
+    await page.mouse.move(5, 5);
+    await page.evaluate(() => window.scrollTo(0, 600));
+    // What the refresh timer and the reload button run.
+    const done = await page.evaluate(() => new Promise((resolve) => {
+      renew(true);
+      setTimeout(() => resolve(Math.round(window.scrollY)), 1500);
+    }));
+    expect(done).toBe(600);
+  });
+}
+
 test("a host without sensors offers none", async ({ page }) => {
   await openAt(page, "/", "last=3600");
   await page.waitForFunction(() => charts.length > 0);

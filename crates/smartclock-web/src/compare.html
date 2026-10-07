@@ -129,6 +129,8 @@ function pickers() {
 }
 
 function clearCharts(why) {
+  hold($("charts"), why === "");
+  hold($("chart-deviation"), why === "");
   for (const c of charts) c.destroy();
   charts = [];
   deviationChart?.destroy();
@@ -301,6 +303,7 @@ function drawHistory(shown, got, groups) {
     charts.push(chart);
   });
   settleWidths(charts, $("charts"));
+  release($("charts"));
 }
 
 function drawDeviation(shown, curves) {
@@ -421,6 +424,7 @@ async function load(signal) {
     await Promise.all(shown.map(async (s) => [s, await quietly(deviationOf(s, win, signal), null)])),
   );
   drawDeviation(shown, curves);
+  release($("chart-deviation"));
   // A curve from a range longer than one measurement reads covers only
   // its newest part; said, since the plot cannot show it.
   const unread = shown.filter((s) => curves[s] === null);

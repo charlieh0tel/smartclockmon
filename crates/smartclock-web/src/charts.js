@@ -265,6 +265,20 @@ const NULL_EXPAND = 2;
 // inside it, or the line would be drawn straight across the gap.
 const joinTables = (tables) => uPlot.join(tables, tables.map((t) => t.map(() => NULL_EXPAND)));
 
+// Hold a chart container at the height it has now, when charts are
+// about to be drawn in it again, until `release`.  Called before its
+// charts are taken down: emptied, the page would be too short for the
+// place it was scrolled to, and the browser would put it back at the
+// top on every refresh.
+function hold(container, holding) {
+  container.style.minHeight = holding ? `${container.offsetHeight}px` : "";
+}
+
+// Let a container held by `hold` take its own height again.
+function release(container) {
+  container.style.minHeight = "";
+}
+
 // The y axis width a stack of fitted axes shares.
 const stackWidth = (fits) => Math.max(...fits.map((f) => f.axis.size));
 

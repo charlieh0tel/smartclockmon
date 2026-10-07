@@ -208,6 +208,7 @@ function groupTitle(lines) {
 
 // Take the charts down, saying why in their place.
 function clearCharts(why) {
+  hold($("charts"), why === "");
   for (const c of charts) c.destroy();
   charts = [];
   $("charts").innerHTML = "";
@@ -439,6 +440,7 @@ async function draw(signal) {
     charts.push(chart);
   });
   settleWidths(charts, $("charts"));
+  release($("charts"));
   // Say what the row is for before anything has been hovered, rather
   // than leaving an empty strip that looks like a rendering fault.
   readout();
