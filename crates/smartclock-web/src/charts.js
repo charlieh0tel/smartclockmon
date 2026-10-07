@@ -23,6 +23,10 @@ const LABELS = {
   // HINTS quotes the manual on it.
   tracking: ["# sats tracked", 1],
   not_tracking: ["# sats not tracked", 1],
+  // The host's sensors, a chart per quantity.
+  "sensor:temperature": ["Sensors, temperature, C", 1],
+  "sensor:humidity": ["Sensors, relative humidity, %", 1],
+  "sensor:pressure": ["Sensors, pressure, kPa", 1],
 };
 // Hover text for every series, by column: what each is and where it
 // comes from, which a name and a unit cannot carry, and for the figures
@@ -52,9 +56,11 @@ const HINTS = {
 // The hover text for the columns a chart draws.
 const hintText = (...cols) => cols.map((c) => HINTS[c]).filter(Boolean).join(" ");
 
-// Give a chart's title its hover text, underlined so it is found.
-function hint(chart, ...cols) {
-  const text = hintText(...cols);
+// Give a chart's title the hover text for its columns, underlined so it
+// is found.
+const hint = (chart, ...cols) => hintAs(chart, hintText(...cols));
+
+function hintAs(chart, text) {
   const heading = chart.root.querySelector(".u-title");
   if (!text || !heading) return;
   heading.title = text;
@@ -245,7 +251,7 @@ function settleWidths(charts, container) {
 // readings in a bucket, which differs between logs that share it, so
 // series from two logs land on one grid only once snapped to it.
 function onGrid(at, win) {
-  const points = pointsFor(win.to - win.from);
+  const points = win.points ?? pointsFor(win.to - win.from);
   const width = (win.to - win.from + 1) / points;
   return at.map((t) => win.from + (Math.floor((t - win.from) / width) + 0.5) * width);
 }
@@ -277,6 +283,68 @@ const TIME_HOOKS = {
 function ranged(chart) {
   chart.over.addEventListener("dblclick", () => zoomOut());
   return chart;
+}
+
+// -------------------------------------------------------------- sensors
+//
+// The host's sensors, from the sensor service's log: a chart per
+// quantity, a line per sensor, joined onto the receivers' bucket grid
+// so a moment sits at the same place as on the receivers' charts.
+
+// The quantities, in the order their charts stack.
+const SENSOR_QUANTITIES = ["temperature", "humidity", "pressure"];
+// Sensor line colors, none of them a receiver's on the compare page or
+// a note's.
+const SENSOR_COLORS = ["#2dd4bf", "#fb923c", "#e2e8f0", "#84cc16"];
+
+// The sensor log's sensors; none when there is no log or it cannot be
+// read, since a host without sensors is not a fault.
+async function sensorsListed(signal) {
+  try {
+    return await ask("/api/sensors", signal);
+  } catch (e) {
+    if (e instanceof Superseded) throw e;
+    return { sensors: [], every_s: null, first: null, last: null };
+  }
+}
+
+// Each quantity the log holds, its sensors' lines over `win` snapped to
+// the grid: [{ quantity, lines: [{ name, at, values, source, device }] }].
+// A quantity whose read fails is left out rather than failing the page.
+async function sensorGroups(listed, win, signal) {
+  const quantities = SENSOR_QUANTITIES.filter((q) => listed.sensors.some((s) => s.quantity === q));
+  const groups = await Promise.all(
+    quantities.map(async (quantity) => {
+      const q = new URLSearchParams({
+        quantity,
+        from: win.from,
+        to: win.to,
+        points: win.points ?? pointsFor(win.to - win.from),
+      });
+      let lines;
+      try {
+        lines = await ask("/api/sensors/history?" + q, signal);
+      } catch (e) {
+        if (e instanceof Superseded) throw e;
+        return null;
+      }
+      return {
+        quantity,
+        lines: lines.map((line) => {
+          const sensor = listed.sensors.find((s) => s.name === line.name && s.quantity === quantity);
+          return { ...line, at: onGrid(line.at, win), source: sensor?.source, device: sensor?.device };
+        }),
+      };
+    }),
+  );
+  return groups.filter((g) => g && g.lines.length);
+}
+
+// A sensor chart's hover text: where each of its sensors is read from.
+function sensorHint(lines) {
+  return lines
+    .map((l) => `${l.name}: ${l.source ?? "unknown"}${l.device ? ` (${l.device})` : ""}`)
+    .join("; ");
 }
 
 // ---------------------------------------------------------------- notes

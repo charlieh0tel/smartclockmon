@@ -61,6 +61,9 @@ export class Fake {
     // Whether the history answers every column asked for, rather than
     // only the recorded ones.
     this.everyColumn = false;
+    // The host's sensors, [{ name, quantity, unit, value }], or null for
+    // a host without the sensor service.
+    this.sensors = null;
   }
 
   unit(serial) {
@@ -102,6 +105,45 @@ export class Fake {
           : body.plots;
         return { ...body, plots, at: skewed(body.at, u.skew, query) };
       }
+      case "sensors":
+        return {
+          sensors: (this.sensors ?? []).map((s) => ({
+            name: s.name,
+            quantity: s.quantity,
+            unit: s.unit,
+            source: `/sys/fake/${s.name}`,
+            device: "fake",
+          })),
+          every_s: 10,
+          first: this.sensors ? RECORDED.history.at[0] : null,
+          last: this.sensors ? RECORDED.history.at.at(-1) : null,
+        };
+      case "sensors/history":
+        // A line per sensor of the quantity, at the recorded history's
+        // times, so it shares their range.
+        // In name order, as the server gives them.
+        return (this.sensors ?? [])
+          .filter((s) => s.quantity === query.get("quantity"))
+          .toSorted((a, b) => a.name.localeCompare(b.name))
+          .map((s) => ({
+            name: s.name,
+            at: RECORDED.history.at,
+            values: RECORDED.history.at.map(() => s.value),
+          }));
+      case "sensors/latest":
+        if (!this.sensors) return { error: "no sensor service" };
+        return {
+          every_s: 10,
+          readings: this.sensors.map((s) => ({
+            name: s.name,
+            quantity: s.quantity,
+            unit: s.unit,
+            source: `/sys/fake/${s.name}`,
+            at: new Date().toISOString(),
+            value: s.value,
+            error: null,
+          })),
+        };
       case "notes":
         return this.answer("journal", u).notes;
       case "journal": {

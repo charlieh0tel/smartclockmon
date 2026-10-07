@@ -35,6 +35,7 @@ use smartclock_log::reader::MAX_PHASE_ROWS;
 use smartclock_log::reader::Receiver;
 use smartclock_log::schema::PLOTTABLE;
 use smartclock_log::schema::measured;
+use smartclock_log::sensors::SensorLog;
 
 /// The page, built in rather than read from disk: one file to install,
 /// and a running server cannot be made to serve something else by
@@ -108,6 +109,23 @@ struct Cli {
     /// deliberate change here, not an accident.
     #[arg(long, env = "SMARTCLOCK_WEB_LISTEN", default_value = "127.0.0.1:9980")]
     listen: String,
+
+    /// The sensor service's log, for the sensors' history.  Opened
+    /// read-only; a host without one shows no sensors.
+    #[arg(
+        long,
+        env = "SMARTCLOCK_WEB_SENSOR_LOG",
+        default_value = "/var/lib/smartclock-sensord/sensors.sqlite"
+    )]
+    sensor_log: PathBuf,
+
+    /// The sensor service's socket, for the sensors' latest readings.
+    #[arg(
+        long,
+        env = "SMARTCLOCK_WEB_SENSOR_SOCKET",
+        default_value = "/run/smartclock-sensord/socket"
+    )]
+    sensor_socket: PathBuf,
 }
 
 fn main() -> Result<()> {
@@ -122,6 +140,7 @@ fn main() -> Result<()> {
         None => Logs::Dir(cli.log_dir.clone()),
     };
     let cache = Cache::default();
+    let (sensor_log, sensor_socket) = (cli.sensor_log.clone(), cli.sensor_socket.clone());
     smartclock_http::serve(&cli.listen, move |target| {
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
         match path {
@@ -146,6 +165,9 @@ fn main() -> Result<()> {
             "/api/notes" => json(notes(&logs, query)),
             "/api/receivers" => json(receivers(&logs, &daemons, &cache)),
             "/api/adev" => json(deviation(&logs, query)),
+            "/api/sensors" => json(sensors(&sensor_log)),
+            "/api/sensors/history" => json(sensor_history(&sensor_log, query)),
+            "/api/sensors/latest" => json(sensors_latest(&sensor_socket)),
             _ => Response::not_found(),
         }
     })?;
@@ -376,6 +398,55 @@ fn notes(logs: &Logs, query: &str) -> Result<serde_json::Value> {
         None => Vec::new(),
     };
     Ok(serde_json::to_value(notes)?)
+}
+
+/// The sensor log, if there is one: a host without the sensor service
+/// has none, which is not an error.
+fn sensor_log(path: &Path) -> Result<Option<SensorLog>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    Ok(Some(SensorLog::open(path)?))
+}
+
+/// The sensors the log holds, how often they were read, and the span
+/// of their readings.
+fn sensors(path: &Path) -> Result<serde_json::Value> {
+    let Some(log) = sensor_log(path)? else {
+        return Ok(
+            serde_json::json!({ "sensors": [], "every_s": null, "first": null, "last": null }),
+        );
+    };
+    let extent = log.extent()?;
+    Ok(serde_json::json!({
+        "sensors": log.sensors()?,
+        "every_s": log.every().map(|every| every.as_secs_f64()),
+        "first": extent.map(|(first, _)| first),
+        "last": extent.map(|(_, last)| last),
+    }))
+}
+
+/// `?quantity=temperature&from=...&to=...&points=1500`: every sensor of
+/// one quantity, a line each, bucketed on the receivers' grid.
+fn sensor_history(path: &Path, query: &str) -> Result<serde_json::Value> {
+    let value = |key| smartclock_http::value(query, key);
+    let number = |key| value(key).and_then(|v: String| v.parse::<i64>().ok());
+    let quantity = value("quantity").ok_or_else(|| anyhow::anyhow!("which quantity?"))?;
+    let (Some(from), Some(to)) = (number("from"), number("to")) else {
+        anyhow::bail!("a range is from= and to=, in unix seconds");
+    };
+    let points = value("points").and_then(|v| v.parse().ok()).unwrap_or(1500);
+    let lines = match sensor_log(path)? {
+        Some(log) => log.series(&quantity, from, to, points)?,
+        None => Vec::new(),
+    };
+    Ok(serde_json::to_value(lines)?)
+}
+
+/// Every sensor's latest reading, from the sensor service.
+fn sensors_latest(socket: &Path) -> Result<serde_json::Value> {
+    let latest = Daemon::connect_within(socket, ASK_BUDGET)?.sensor_readings()?;
+    Ok(serde_json::to_value(latest)?)
 }
 
 /// An upper bound past any time a log holds: 2100-01-01, unix seconds.

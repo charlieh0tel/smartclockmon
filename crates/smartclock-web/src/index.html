@@ -87,6 +87,15 @@ let columns = (view.get("columns") ?? view.get("column") ?? DEFAULT_COLUMNS.join
   .split(",")
   .filter(Boolean);
 
+// Whether the host's sensors are drawn: unless the address says
+// `sensors=off`.  Kept apart from `columns=`, so an address from before
+// there were sensors shows them too.
+let withSensors = view.get("sensors") !== "off";
+// Whether the sensor log holds any, which decides whether the menu
+// offers them, and the columns the menu was last built from.
+let haveSensors = false;
+let offeredColumns = [];
+
 // uPlot ties charts together by a shared key: hovering one moves the
 // cursor on all of them, which is most of what makes a stack readable.
 const SYNC = haveUplot ? uPlot.sync("smartclock") : null;
@@ -174,6 +183,15 @@ function chartsOf(plots) {
 // A multi-line chart's title, each line's own words in its color, so
 // the title says which line is which with the legend off.
 function groupTitle(lines) {
+  if (lines.some((l) => l.name)) {
+    return (
+      esc(label(lines[0].column)) +
+      '<span class="muted">: </span>' +
+      lines
+        .map((l) => `<span style="color:${l.color}">${esc(l.name)}</span>`)
+        .join('<span class="muted">, </span>')
+    );
+  }
   if (lines.length === 2) {
     const [shared, mine, theirs] = shareName(label(lines[0].column), label(lines[1].column));
     return (
@@ -206,28 +224,93 @@ async function draw(signal) {
   }
   // What was asked for, less what this unit does not measure: the
   // choice is kept in the address, and comes back for a unit that does.
-  const wanted = columns.filter(measures);
-  if (!wanted.length) {
-    clearCharts("nothing selected");
+  // With no receiver logged at all there is nothing of the receiver's
+  // to ask for, and the sensors are drawn alone.
+  const wanted = receivers.length ? columns.filter(measures) : [];
+  const listing = await sensorsListed(signal);
+  if (Boolean(listing.sensors.length) !== haveSensors) {
+    haveSensors = Boolean(listing.sensors.length);
+    pickers(offeredColumns);
+  }
+  const listed = withSensors ? listing : { sensors: [] };
+  if (!wanted.length && !listed.sensors.length) {
+    clearCharts(receivers.length ? "nothing selected" : "no receiver is logged");
     return;
   }
   const bounds = rangeBounds();
   let { from, to } = bounds;
   if (from === 0) from = null;
+  let seconds = bounds.seconds;
 
-  let got = await fetchSeries(signal, wanted, from, to, bounds.seconds);
-
-  // How far back the log goes is only knowable once it has been asked,
-  // so "all" costs a second request: the first answers with the
-  // server's default hour and the extent, the second asks for the
-  // extent.  Without this the button quietly showed the last hour --
-  // the range it names is the one range it did not fetch.
-  if (range.last === "all" && got.first && got.last > got.first) {
-    got = await fetchSeries(signal, wanted, got.first, got.last, got.last - got.first);
+  let got;
+  if (wanted.length) {
+    got = await fetchSeries(signal, wanted, from, to, seconds);
+    // How far back the log goes is only knowable once it has been
+    // asked, so "all" costs a second request: the first answers with
+    // the server's default hour and the extent, the second asks for
+    // the extent.  Without this the button quietly showed the last
+    // hour -- the range it names is the one range it did not fetch.
+    if (range.last === "all" && got.first && got.last > got.first) {
+      seconds = got.last - got.first;
+      got = await fetchSeries(signal, wanted, got.first, got.last, seconds);
+    }
+  } else {
+    // The sensors alone: their own extent stands in for the receiver's.
+    if (range.last === "all" && listed.first != null) {
+      from = listed.first;
+      to = listed.last;
+      seconds = to - from;
+    }
+    got = { at: [], plots: [], from: Math.round(from ?? 0), to: Math.round(to ?? Date.now() / 1000) };
   }
-  clearCharts(got.at.length ? "" : "no readings in this range");
+  // The grid the server bucketed on, which the sensors are asked for
+  // and snapped to as well.
+  const win = { from: got.from, to: got.to, points: pointsFor(seconds) };
+  const groups = await sensorGroups(listed, win, signal);
+  const anything = got.at.length || groups.length;
+  clearCharts(anything ? "" : "no readings in this range");
+  if (!anything) return;
 
   const drawn = chartsOf(got.plots);
+  // One time axis for the receiver's charts and the sensors', joined
+  // on the grid; without sensors the receiver's own times are kept.
+  let x = got.at;
+  const sensorDrawings = groups.map((group) => ({
+    column: `sensor:${group.quantity}`,
+    envelope: null,
+    named: true,
+    hint: sensorHint(group.lines),
+    lines: group.lines.map((line, i) => ({
+      column: `sensor:${group.quantity}`,
+      name: line.name,
+      values: line.values,
+      color: SENSOR_COLORS[i % SENSOR_COLORS.length],
+      at: line.at,
+    })),
+  }));
+  if (sensorDrawings.length) {
+    const arrays = (d) => [
+      ...(d.envelope ? [d.envelope.min, d.envelope.max] : []),
+      ...d.lines.map((l) => l.values),
+    ];
+    const joined = joinTables([
+      [onGrid(got.at, win), ...drawn.flatMap(arrays)],
+      ...sensorDrawings.flatMap((d) => d.lines.map((l) => [l.at, l.values])),
+    ]);
+    x = joined[0];
+    let k = 1;
+    for (const d of [...drawn, ...sensorDrawings]) {
+      if (d.envelope) {
+        d.envelope.min = joined[k++];
+        d.envelope.max = joined[k++];
+      }
+      for (const l of d.lines) l.values = joined[k++];
+    }
+    // Right below the receiver's own temperature, which is what a room
+    // temperature is read against; at the end without it.
+    const after = drawn.findIndex((d) => d.column === "temperature_c");
+    drawn.splice(after < 0 ? drawn.length : after + 1, 0, ...sensorDrawings);
+  }
   const height = plotHeight(drawn.length);
   // The scale has to cover the envelope, not just the lines: the min
   // and max are drawn, and an axis that ends below them would clip the
@@ -244,7 +327,10 @@ async function draw(signal) {
   const ySize = stackWidth(fits);
   drawn.forEach((drawing, n) => {
     const fitted = fits[n];
-    const several = drawing.lines.length > 1;
+    // A chart of named lines, a sensor's, says the names whatever their
+    // number; a receiver's chart colors its lines only to tell several
+    // apart.
+    const several = drawing.lines.length > 1 || Boolean(drawing.named);
     // Only the bottom chart carries the time labels.  Repeating them
     // under every plot costs the height that makes the stack worth
     // having, and says the axes might differ when the whole point is
@@ -267,7 +353,7 @@ async function draw(signal) {
             ]
           : []),
         ...drawing.lines.map((l) => ({
-          label: label(l.column),
+          label: l.name ?? label(l.column),
           stroke: l.color,
           width: 1.5,
           points: { show: false },
@@ -313,7 +399,7 @@ async function draw(signal) {
     const chart = ranged(new uPlot(
       opts,
       [
-        got.at,
+        x,
         ...(drawing.envelope ? [drawing.envelope.min, drawing.envelope.max] : []),
         ...drawing.lines.map((l) => l.values),
       ],
@@ -325,10 +411,12 @@ async function draw(signal) {
     // are several to tell apart.
     chart.smartclockLines = drawing.lines.map((l, i) => ({
       column: l.column,
+      name: l.name,
       series: 1 + (drawing.envelope ? 2 : 0) + i,
       color: several ? l.color : null,
     }));
-    hint(chart, ...drawing.lines.map((l) => l.column));
+    if (drawing.hint) hintAs(chart, drawing.hint);
+    else hint(chart, ...drawing.lines.map((l) => l.column));
     // uPlot's title is plain text, and with the legend off a chart of
     // several lines otherwise names them without saying which is which.
     if (several) {
@@ -361,14 +449,14 @@ function readout() {
     v == null ? "--" : v.toLocaleString(undefined, { maximumFractionDigits: 3 });
   const at = idx == null ? null : new Date(charts[0].data[0][idx] * 1000);
   const cells = charts.flatMap((c) => {
-    const one = (col, v, color) =>
+    const one = (col, v, color, name) =>
       `<span><span class="k"${color ? ` style="color:${color}"` : ""}>` +
-      `${esc(columnName(col))}</span> ` +
+      `${esc(name ?? columnName(col))}</span> ` +
       `<span class="v">${esc(show(v))}</span></span>`;
     const value = (series) => (idx == null ? null : c.data[series][idx]);
     // A cell per line: one number under a chart of several lines would
     // leave the reader guessing which line it belonged to.
-    return c.smartclockLines.map((l) => one(l.column, value(l.series), l.color));
+    return c.smartclockLines.map((l) => one(l.column, value(l.series), l.color, l.name));
   });
   const note = charts.map(noteNear).find((n) => n != null);
   // Beside the pointer on the chart it is over; the others follow
@@ -382,6 +470,7 @@ function readout() {
 }
 
 function pickers(plottable) {
+  offeredColumns = plottable;
   // The pair is one choice.  Tracked and not tracked are one
   // measurement split two ways and share a chart, so offering them as
   // two ticks invited half of it.
@@ -406,8 +495,21 @@ function pickers(plottable) {
         // attribute is only found by someone who already suspects it.
         `<span${hover(c) ? ' class="hinted"' : ""}>${esc(shown(c))}</span></label>`,
     )
-    .join(" ");
-  for (const box of $("columns").querySelectorAll("input")) {
+    .join(" ") +
+    (haveSensors
+      ? ` <label title="The host's sensors, from smartclock-sensord">` +
+        `<input type="checkbox" data-sensors${withSensors ? " checked" : ""}> ` +
+        `<span class="hinted">Sensors</span></label>`
+      : "");
+  const sensorBox = $("columns").querySelector("input[data-sensors]");
+  if (sensorBox) {
+    sensorBox.onchange = () => {
+      withSensors = sensorBox.checked;
+      remember({ sensors: withSensors ? null : "off" });
+      load();
+    };
+  }
+  for (const box of $("columns").querySelectorAll("input[data-col]")) {
     box.onchange = () => {
       const col = box.dataset.col;
       const wanted = new Set(columns);

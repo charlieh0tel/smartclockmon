@@ -295,6 +295,68 @@ test("the satellite counts share a chart, each named in its own color", async ({
   expect(keys).toEqual(["# sats tracked", "# sats not tracked"]);
 });
 
+// A fake with a room thermometer and hygrometer, and the receiver's
+// temperature chart to sit them under.
+function withSensors() {
+  const fake = twoUnits();
+  fake.everyColumn = true;
+  fake.sensors = [
+    { name: "room", quantity: "temperature", unit: "C", value: 21.5 },
+    { name: "bench", quantity: "temperature", unit: "C", value: 23 },
+    { name: "room", quantity: "humidity", unit: "%RH", value: 41 },
+  ];
+  return fake;
+}
+
+test("the host's sensors are charted below the receiver's temperature, on its time axis", async ({ page }) => {
+  await withSensors().install(page);
+  await page.goto(`/?receiver=${B}&last=3600`);
+  await page.waitForFunction(() => charts.some((c) => c.smartclockLines[0].column.startsWith("sensor:")));
+  const stack = await page.evaluate(() => charts.map((c) => c.smartclockLines[0].column));
+  const at = stack.indexOf("temperature_c");
+  expect(stack.slice(at, at + 3)).toEqual(["temperature_c", "sensor:temperature", "sensor:humidity"]);
+  // One time axis for the whole stack.
+  const axes = await page.evaluate(() => new Set(charts.map((c) => c.data[0].join(","))).size);
+  expect(axes).toBe(1);
+  const heading = await page.evaluate(() => {
+    const chart = charts.find((c) => c.smartclockLines[0].column === "sensor:temperature");
+    const title = chart.root.querySelector(".u-title");
+    return { text: title.textContent, hover: title.title };
+  });
+  expect(heading.text).toBe("Sensors, temperature, C: bench, room");
+  expect(heading.hover).toContain("/sys/fake/room");
+});
+
+test("the sensors can be left out, and stay out across a reload", async ({ page }) => {
+  await withSensors().install(page);
+  await page.goto(`/?receiver=${B}&last=3600`);
+  await page.locator("#columns input[data-sensors]").uncheck();
+  await expect.poll(() => new URL(page.url()).searchParams.get("sensors")).toBe("off");
+  await page.waitForFunction(() => charts.length && !charts.some((c) => c.smartclockLines[0].column.startsWith("sensor:")));
+  await page.reload();
+  await expect(page.locator("#columns input[data-sensors]")).not.toBeChecked();
+});
+
+for (const path of ["/", "/status"]) {
+  test(`the strip on ${path} shows each sensor's current reading`, async ({ page }) => {
+    await withSensors().install(page);
+    await page.goto(`${path}?receiver=${B}`);
+    await expect(page.locator("#status .sensor")).toHaveText([
+      "21.5 Croom temp",
+      "23.0 Cbench temp",
+      "41 %RHroom humidity",
+    ]);
+  });
+}
+
+test("a host without sensors offers none", async ({ page }) => {
+  await openAt(page, "/", "last=3600");
+  await page.waitForFunction(() => charts.length > 0);
+  await expect(page.locator("#columns input[data-sensors]")).toHaveCount(0);
+  await expect(page.locator("#status .stat").first()).toBeVisible();
+  await expect(page.locator("#status .sensor")).toHaveCount(0);
+});
+
 test("every series has hover text, on the history and the compare page", async ({ page }) => {
   await openAt(page, "/", "last=3600");
   const labels = await page.locator("#columns label").evaluateAll((ls) => ls.map((l) => [l.textContent, l.title]));

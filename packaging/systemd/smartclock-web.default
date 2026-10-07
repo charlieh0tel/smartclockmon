@@ -13,3 +13,7 @@
 # The daemons' logs, one per receiver.  Set SMARTCLOCK_WEB_DATABASE to
 # a file instead to read one log.
 #SMARTCLOCK_WEB_LOG_DIR=/var/lib/smartclockd
+
+# The sensor service's log and socket.
+#SMARTCLOCK_WEB_SENSOR_LOG=/var/lib/smartclock-sensord/sensors.sqlite
+#SMARTCLOCK_WEB_SENSOR_SOCKET=/run/smartclock-sensord/socket

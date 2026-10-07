@@ -34,6 +34,10 @@ const QUICK_TIMEOUT = 5000;
 // shows in the picker without a reload.
 const STRIP_EVERY = 1000;
 const RECEIVERS_EVERY = 10000;
+// How often the host's sensors are asked for their latest readings:
+// they are read every ten seconds by default, so oftener shows nothing
+// new.
+const SENSORS_EVERY = 5000;
 
 // ------------------------------------------------------------- fetching
 
@@ -334,14 +338,63 @@ function render(s, cached) {
     (s.alarming && !s.time_reset
       ? `<span class="pill stale">receiver alarm: ${(s.alarm_summary ?? []).map(esc).join(", ")}</span>`
       : "") +
-    "";
+    sensorStrip();
 }
 
 // Nothing is known any more.
 function lost(what, why) {
   $("status").innerHTML =
     `<span class="pill down">${esc(what)}</span>` +
-    (why ? ` <span class="muted">${esc(why)}</span>` : "");
+    (why ? ` <span class="muted">${esc(why)}</span>` : "") +
+    sensorStrip();
+}
+
+// ---------------------------------------------------------- sensors
+//
+// The host's sensors, from the sensor service, at the end of the strip
+// on every page.  They are the host's, not the receiver's, so they stay
+// whichever receiver is chosen and whether or not its daemon answers.
+
+// The latest answer: { every_s, readings }, or null with no service.
+let sensorsLatest = null;
+
+// How many read periods old a reading may be and still be shown:
+// `smartclock::sensors::PERIODS_STALE`, as the exporter counts it.
+const SENSOR_PERIODS_STALE = 3;
+// Each quantity's word in the strip and its decimals.
+const SENSOR_SHOWN = {
+  temperature: ["temp", 1],
+  humidity: ["humidity", 0],
+  pressure: ["pressure", 2],
+};
+
+async function pollSensors() {
+  const latest = await getJson("/api/sensors/latest");
+  sensorsLatest = latest.error ? null : latest;
+}
+
+// A reading's value if it is current: its latest read succeeded, and
+// recently.  Otherwise "--", rather than a stopped sensor's last value
+// shown as though it still read.
+function sensorValue(r, every) {
+  const age = (Date.now() - Date.parse(r.at)) / 1000;
+  const current = r.at && r.value != null && !r.error && age <= SENSOR_PERIODS_STALE * every;
+  const [, digits] = SENSOR_SHOWN[r.quantity] ?? ["", 1];
+  return current ? `${fmt(r.value, digits)} ${r.unit}` : "--";
+}
+
+function sensorStrip() {
+  if (!sensorsLatest) return "";
+  return sensorsLatest.readings
+    .map((r) => {
+      const [word] = SENSOR_SHOWN[r.quantity] ?? [r.quantity];
+      return (
+        `<span class="stat sensor" title="${esc(r.error ?? r.source)}">` +
+        `<span class="v">${esc(sensorValue(r, sensorsLatest.every_s))}</span>` +
+        `<span class="k">${esc(r.name)} ${esc(word)}</span></span>`
+      );
+    })
+    .join("");
 }
 
 // Paint the strip for the cached snapshot of the receiver the address
@@ -488,6 +541,8 @@ async function content(spec) {
   tick();
   setInterval(tick, STRIP_EVERY);
   setInterval(listReceivers, RECEIVERS_EVERY);
+  pollSensors();
+  setInterval(pollSensors, SENSORS_EVERY);
   if (page.every) {
     setInterval(() => {
       if (page.auto()) refresh();

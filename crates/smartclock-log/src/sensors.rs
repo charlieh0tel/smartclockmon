@@ -134,6 +134,22 @@ impl SensorLog {
             .collect::<std::result::Result<_, _>>()?)
     }
 
+    /// The first and last reading's times in unix seconds, or `None`
+    /// for a log with none.
+    pub fn extent(&self) -> Result<Option<(f64, f64)>> {
+        let span = self.conn.query_row(
+            "SELECT unixepoch(MIN(at), 'subsec'), unixepoch(MAX(at), 'subsec') FROM reading",
+            [],
+            |row| Ok((row.get::<_, Option<f64>>(0)?, row.get::<_, Option<f64>>(1)?)),
+        );
+        match span {
+            Ok((Some(first), Some(last))) => Ok(Some((first, last))),
+            Ok(_) => Ok(None),
+            Err(e) if missing_table(&e) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
     /// How often the service read its sensors, as it recorded; `None`
     /// if it did not.
     pub fn every(&self) -> Option<Duration> {
@@ -316,6 +332,8 @@ mod tests {
             ]
         );
         assert_eq!(log.every(), Some(std::time::Duration::from_secs(10)));
+        let (first, last) = log.extent().expect("extent").expect("readings");
+        assert_eq!((first, last), ((T0) as f64, (T0 + 590) as f64));
     }
 
     #[test]
@@ -364,5 +382,6 @@ mod tests {
                 .is_empty()
         );
         assert_eq!(log.every(), None);
+        assert_eq!(log.extent().expect("extent"), None);
     }
 }

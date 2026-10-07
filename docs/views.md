@@ -120,6 +120,13 @@ times, with `to=now` keeping the range moving; so is the older
 same control; there the range is the record the estimator runs on, so
 changing it recomputes.
 
+The host's sensors, from `smartclock-sensord`, are charted a quantity
+apiece and a line per sensor, right below the receiver's internal
+temperature, on the same time axis; a sensors box in the column menu
+leaves them out (`sensors=off`).  Their current readings end the live
+strip on every page.  A host without the service shows neither, and
+with no receiver logged the sensors are charted alone.
+
 The chart library comes from a CDN, pinned with an integrity hash, so
 the page needs internet though the daemon does not.  If the library
 cannot be fetched, the page says so instead of showing an empty
