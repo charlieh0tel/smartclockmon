@@ -27,8 +27,8 @@ use crate::parse;
 use crate::parse::Identity;
 use crate::protocol::Message;
 use crate::protocol::Op;
+use crate::protocol::Protocol;
 use crate::protocol::Request;
-use crate::protocol::VERSION;
 use crate::screen::Screen;
 use crate::task::Cadence;
 use crate::wire::Reading;
@@ -128,8 +128,9 @@ impl Daemon {
     ///
     /// Snapshots arrive on the same stream whether or not anything was
     /// asked, so anything that is not this request's reply is skipped
-    /// rather than mistaken for one.
-    pub fn ask(&mut self, op: Op) -> Result<serde_json::Value> {
+    /// rather than mistaken for one.  Any service speaking this
+    /// framing can be asked, in its own requests.
+    pub fn ask<O: Protocol>(&mut self, op: O) -> Result<serde_json::Value> {
         // Wrapping rather than overflowing: a connection held open for
         // long enough would otherwise panic before sending anything,
         // and a repeated id is harmless here because a reply can only
@@ -137,7 +138,7 @@ impl Daemon {
         self.next_id = self.next_id.wrapping_add(1);
         let id = self.next_id.to_string();
         let request = Request {
-            v: VERSION,
+            v: O::VERSION,
             id: id.clone(),
             op,
         };

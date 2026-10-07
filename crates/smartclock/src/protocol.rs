@@ -7,9 +7,14 @@
 //! Debuggable with `socat`, and not tied to Rust on either end.  The
 //! stream is multiplexed -- snapshots arrive unsolicited while replies
 //! interleave -- so every request carries an id the reply echoes.
+//!
+//! The envelope -- a versioned request with an id, and a reply that
+//! echoes it -- is shared by every service that speaks this framing;
+//! each names its own requests and their version through [`Protocol`].
 
 use serde::Deserialize;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use crate::snapshot::Snapshot;
 use crate::wire::Reading;
@@ -22,15 +27,26 @@ use crate::wire::Reading;
 /// the daemon speaks rather than failing to parse a reply.
 pub const VERSION: u32 = 1;
 
+/// The requests one service answers, and the version of their shapes.
+pub trait Protocol: Serialize + DeserializeOwned {
+    /// Bumped when the shapes of these requests or their replies change.
+    const VERSION: u32;
+}
+
+impl Protocol for Op {
+    const VERSION: u32 = VERSION;
+}
+
 /// A message from a client.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Request {
+#[serde(bound(deserialize = "O: DeserializeOwned"))]
+pub struct Request<O = Op> {
     /// Protocol version the client speaks.
     pub v: u32,
     /// Correlates the reply.  Echoed back verbatim.
     pub id: String,
     /// What to do.
-    pub op: Op,
+    pub op: O,
 }
 
 /// What a client is asking for.
@@ -120,21 +136,66 @@ impl Message {
 
     /// A successful reply.
     pub fn ok(id: String, value: serde_json::Value) -> Self {
+        Self::ok_in(VERSION, id, value)
+    }
+
+    /// A failed reply.
+    pub fn err(id: String, why: impl std::fmt::Display) -> Self {
+        Self::err_in(VERSION, id, why)
+    }
+
+    /// A successful reply in protocol version `v`.
+    pub fn ok_in(v: u32, id: String, value: serde_json::Value) -> Self {
         Self::Reply {
-            v: VERSION,
+            v,
             id,
             ok: Some(value),
             err: None,
         }
     }
 
-    /// A failed reply.
-    pub fn err(id: String, why: impl std::fmt::Display) -> Self {
+    /// A failed reply in protocol version `v`.
+    pub fn err_in(v: u32, id: String, why: impl std::fmt::Display) -> Self {
         Self::Reply {
-            v: VERSION,
+            v,
             id,
             ok: None,
             err: Some(why.to_string()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Op;
+    use super::Protocol;
+    use super::Request;
+    use serde::Deserialize;
+    use serde::Serialize;
+
+    /// Another service's requests, in the same envelope.
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    #[serde(tag = "kind", rename_all = "lowercase")]
+    enum Other {
+        Ping,
+    }
+
+    impl Protocol for Other {
+        const VERSION: u32 = 7;
+    }
+
+    #[test]
+    fn another_services_requests_travel_in_the_same_envelope() {
+        let request = Request {
+            v: Other::VERSION,
+            id: "1".to_owned(),
+            op: Other::Ping,
+        };
+        let line = serde_json::to_string(&request).expect("encode");
+        assert_eq!(line, r#"{"v":7,"id":"1","op":{"kind":"ping"}}"#);
+        let back: Request<Other> = serde_json::from_str(&line).expect("decode");
+        assert_eq!(back.op, Other::Ping);
+        // And not as the receiver daemon's.
+        assert!(serde_json::from_str::<Request<Op>>(&line).is_err());
     }
 }
