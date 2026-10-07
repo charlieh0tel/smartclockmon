@@ -1,13 +1,13 @@
 #!/bin/sh
-# Leaves the logs alone on remove; purge takes them.
+# Leaves the logs alone on remove; purge takes them.  The smartclockd
+# user and group stay, as current Debian tooling leaves system users: a
+# file it owned outside these directories -- a copied log, a backup --
+# would otherwise pass to whatever system user next took its uid.
 set -e
 
 case "$1" in
 purge)
     rm -rf /var/lib/smartclockd /var/lib/smartclock-sensord
-    if getent passwd smartclockd >/dev/null; then
-        deluser --system smartclockd || true
-    fi
     ;;
 esac
 
