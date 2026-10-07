@@ -384,6 +384,17 @@ range is not read again once a read has started after its end.  Each
 page sets its fastest refresh by what one read costs.  `docs/views.md`
 has the details.
 
+### Sensors are the host's
+
+Room temperature and the like are read by `smartclock-sensord`, a
+service of its own with its own log and socket, not by smartclockd into
+the receivers' logs.  A sensor belongs to the host: in a receiver's log
+it would go dark with every outage and swap, a swap would start it
+afresh in another file, and two daemons would log it twice.  Reading
+it on the device thread would also put sysfs reads, which can block
+for seconds on a wedged bus, in the path of the serial link.
+`docs/sensors.md` has the design.
+
 ### systemd unit
 
 - `Type=exec`: the daemon retries with no receiver attached, so no
@@ -541,9 +552,12 @@ view cannot drift apart.  The library, bottom up:
 
 ## Next
 
-- **Sensors beside the receivers.**  Up to twelve named hwmon or IIO
-  sensors, read on the medium tier into sticky snapshot columns beside
-  each receiver's readings; `docs/sensors.md`.
+- **Sensors beside the receivers.**  `smartclock-sensord`, a service
+  of its own reading hwmon and IIO sensors into a log of its own, and
+  the readers that show it; `docs/sensors.md` has the design and the
+  order of work.
+- **Later: compacting old logs**, perhaps into Parquet.  The logs grow
+  without bound.
 - **Bench work:** the open items in `docs/hardware-investigations.md`,
   each with its TODO.
 - **Editing notes from the web view**, through the daemon socket.
