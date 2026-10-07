@@ -22,8 +22,6 @@ use crate::journal::Journal;
 use crate::journal::LOST_TO_OVERFLOW;
 use crate::server::Policy;
 
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -41,10 +39,6 @@ use std::time::Instant;
 use anyhow::Context as _;
 use anyhow::Result;
 use clap::Parser;
-use interprocess::local_socket::GenericFilePath;
-use interprocess::local_socket::Stream;
-use interprocess::local_socket::ToFsName as _;
-use interprocess::local_socket::traits::Stream as _;
 use jiff::Timestamp;
 use signal_hook::consts::SIGINT;
 use signal_hook::consts::SIGTERM;
@@ -1106,19 +1100,6 @@ impl Recorder {
     }
 }
 
-/// Give the socket owner and group access, and nobody else.
-#[cfg(unix)]
-fn set_socket_mode(socket: &Path) -> Result<()> {
-    std::fs::set_permissions(socket, std::fs::Permissions::from_mode(0o660))
-        .with_context(|| format!("setting permissions on {}", socket.display()))
-}
-
-/// Elsewhere the platform decides; there is no portable equivalent.
-#[cfg(not(unix))]
-fn set_socket_mode(_socket: &Path) -> Result<()> {
-    Ok(())
-}
-
 /// How often a log that would not open is tried again.  A failure that
 /// lasts -- a permission, a full disk, a newer schema -- would otherwise
 /// be retried and reported with every snapshot, once a second.
@@ -1171,45 +1152,17 @@ struct Listening<'a> {
 
 fn start_server(listening: Listening<'_>) -> Result<()> {
     let socket = listening.socket;
-    if let Some(parent) = socket.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("creating {}", parent.display()))?;
-    }
-    let name = socket
-        .to_fs_name::<GenericFilePath>()
-        .context("naming the socket")?
-        .into_owned();
-    // A socket left behind by a crash would otherwise block the bind,
-    // so it is removed -- but only if nothing answers on it.  Removing a
-    // live daemon's socket left that daemon running, logging and
-    // unreachable, and its clients reconnecting to this one.
-    if Stream::connect(name.clone()).is_ok() {
-        anyhow::bail!(
-            "another daemon is serving {}; stop it first",
-            socket.display()
-        );
-    }
-    let _ = std::fs::remove_file(socket);
-    // Bound here, not in the serving thread, so a failure is reported
-    // to whoever started the daemon rather than to a dying thread.
-    let listener = server::bind(name)?;
-    // Socket permissions are the whole of the authorization model, so
-    // they are set rather than inherited from whatever umask the daemon
-    // happened to start with.  Group access is deliberate: it is how an
-    // unprivileged operator runs the monitor.
-    set_socket_mode(socket)?;
-    let handle = Handle::new(listening.requests.clone(), listening.shared.clone());
-    let info = listening.info;
-    let where_to = socket.display().to_string();
+    let listener = smartclock::server::listen(socket)
+        .with_context(|| format!("listening on {}", socket.display()))?;
+    let daemon = Arc::new(server::Daemon {
+        handle: Handle::new(listening.requests.clone(), listening.shared.clone()),
+        info: listening.info,
+    });
     thread::Builder::new()
         .name("smartclockd-socket".to_owned())
-        .spawn(move || {
-            if let Err(e) = server::serve(listener, handle, info) {
-                eprintln!("smartclockd: socket server stopped: {e}");
-            }
-        })
+        .spawn(move || smartclock::server::serve(listener, "smartclockd", daemon))
         .context("spawning the socket server")?;
-    eprintln!("smartclockd: listening on {where_to}");
+    eprintln!("smartclockd: listening on {}", socket.display());
     Ok(())
 }
 
@@ -1491,7 +1444,10 @@ mod tests {
         };
         start_server(listening(info())).expect("the stale file is replaced");
         let refused = start_server(listening(info())).expect_err("the socket is live");
-        assert!(format!("{refused}").contains("another daemon"), "{refused}");
+        assert!(
+            format!("{refused:#}").contains("another service"),
+            "{refused:#}"
+        );
         let _ = std::fs::remove_file(&socket);
     }
 

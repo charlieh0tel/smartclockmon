@@ -1,4 +1,6 @@
-//! The local socket server.
+//! What the daemon answers on its socket, and what it permits.  The
+//! serving itself -- clients, request lines, the socket's mode -- is
+//! `smartclock::server`'s.
 //!
 //! Authorization is socket permissions and nothing else: systemd's
 //! `RuntimeDirectory` and its mode decide who can open the socket, and
@@ -8,61 +10,33 @@
 //! clients apart, so the audit trail records what was done but not by
 //! whom.
 
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::Read as _;
-use std::io::Write;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::mpsc::RecvTimeoutError;
 use std::thread;
 use std::time::Duration;
 
-use anyhow::Context as _;
-use anyhow::Result;
-use interprocess::local_socket::Listener;
-use interprocess::local_socket::ListenerOptions;
-use interprocess::local_socket::Name;
-use interprocess::local_socket::Stream;
-use interprocess::local_socket::prelude::*;
 use jiff::Timestamp;
-use smartclock::client;
 use smartclock::command::Argument;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
 use smartclock::command::Spec;
+use smartclock::protocol::Message;
+use smartclock::protocol::Op;
+use smartclock::server::Held;
+use smartclock::server::Service;
+use smartclock::server::Writer;
+use smartclock::server::write_line;
 use smartclock::task::Cadence;
 use smartclock::task::Handle;
+use smartclock::wire::Reading;
 
 use crate::inbox::Fact;
 use crate::inbox::Filed;
 use crate::inbox::LogInbox;
 use crate::inbox::Note;
-use smartclock::protocol::Message;
-use smartclock::protocol::Op;
-use smartclock::protocol::Request;
-use smartclock::protocol::VERSION;
-use smartclock::wire::Reading;
-
-/// Longest request line accepted.
-///
-/// A line is read until a newline, so without a cap a client that
-/// never sends one grows a single string in the daemon for as long as
-/// it keeps writing.  A status screen query is a few dozen bytes; this
-/// is generous.
-const MAX_REQUEST: u64 = 8192;
-
-/// How many clients may be connected at once.
-///
-/// Each takes two threads.  Socket permissions decide who may connect
-/// at all, but nothing stopped one mistaken loop from opening
-/// connections until the daemon ran out of threads, and the failure
-/// mode for that used to be a daemon that looked healthy and could
-/// never be reached again.
-const MAX_CLIENTS: usize = 16;
 
 /// How often a client's push thread wakes, with no snapshot to send,
 /// to see whether its client has gone.
@@ -74,11 +48,6 @@ const MAX_CLIENTS: usize = 16;
 /// sixteen within seconds -- refusing the monitor and the command line
 /// at exactly the moment they were wanted.
 const HANGUP_CHECK: Duration = Duration::from_secs(1);
-
-/// How long the accept loop waits after a failed accept.  Long enough
-/// that a persistent failure costs nothing, short next to a client's
-/// patience.
-const ACCEPT_BACKOFF: Duration = Duration::from_millis(200);
 
 /// What a client is permitted to do.
 ///
@@ -158,274 +127,83 @@ pub(crate) struct Info {
     pub inbox: LogInbox,
 }
 
-/// Bind the socket.
-///
-/// Separate from [`serve`] so a bind failure reaches the caller.  When
-/// the bind happened inside the serving thread, a daemon that could not
-/// bind printed one line from a dying thread and then ran forever
-/// claiming to listen.
-pub(crate) fn bind(name: Name<'static>) -> Result<Listener> {
-    ListenerOptions::new()
-        .name(name)
-        .create_sync()
-        .context("binding the local socket")
+/// The receiver daemon, as its socket's clients see it.
+pub(crate) struct Daemon {
+    /// The device task.
+    pub(crate) handle: Handle,
+    /// What to tell clients about the receiver and the policy.
+    pub(crate) info: SharedInfo,
 }
 
-/// Clears a flag when it goes, whatever ended the thread holding it.
-struct Hangup(Arc<AtomicBool>);
+impl Service for Daemon {
+    type Op = Op;
 
-/// A client's socket, held by the half of the connection that holds its
-/// slot: it bounds every write to [`client::DEADLINE`], and shuts the
-/// socket both ways when dropped.
-///
-/// Without the deadline a client that stopped reading filled its buffer
-/// and left the push thread blocked in a write for good, holding the
-/// slot, its subscription and both threads.  Without the shutdown a
-/// push thread that ended -- its subscription dropped for falling
-/// behind, a write failed -- left the request thread reading a socket
-/// nobody would close.  Unix only: `interprocess`'s portable stream has
-/// neither, and elsewhere this does nothing.
-struct Closer {
-    #[cfg(unix)]
-    socket: Option<socket2::Socket>,
-}
+    /// A copy of the shared state, taken and released before the
+    /// request runs.  A request can wait on the receiver for up to the
+    /// request timeout, and holding the lock meanwhile queued every
+    /// other client behind it -- and the reconnect path, which records
+    /// the new receiver here before it starts the task that would
+    /// answer the waiting request.  Taken per request rather than per
+    /// connection, so a reconnect to a different receiver takes effect
+    /// for the next command.
+    fn answer(&self, id: String, op: Op) -> Message {
+        let current = lock_or_poisoned(&self.info).clone();
+        handle_request(id, op, &self.handle, &current)
+    }
 
-impl Closer {
-    #[cfg(unix)]
-    fn new(fd: std::os::fd::BorrowedFd<'_>) -> Self {
-        let socket = fd.try_clone_to_owned().ok().map(socket2::Socket::from);
-        if let Some(socket) = &socket {
-            let _ = socket.set_write_timeout(Some(client::DEADLINE));
+    /// Snapshots are pushed from a thread of their own, so a client
+    /// slow to read cannot hold up its own requests.  It is the thread
+    /// that holds resources -- a subscription, a socket, a thread -- so
+    /// it holds the client's place.  Counting the request thread
+    /// instead let a client half-close its sending side, end its
+    /// requests, release its place, and leave the push thread running;
+    /// repeating that accumulated subscriptions and threads without
+    /// limit while the cap was never reached.
+    fn connected(
+        &self,
+        writer: &Writer,
+        serving: &Arc<AtomicBool>,
+        held: Held,
+    ) -> std::io::Result<Option<Held>> {
+        // A client gets the current state immediately, so it can render
+        // before the next poll rather than showing an empty screen.
+        if let Some(snapshot) = self.handle.latest() {
+            write_line(writer, &Message::event(&snapshot))?;
         }
-        Self { socket }
-    }
-
-    #[cfg(not(unix))]
-    fn new() -> Self {
-        Self {}
-    }
-
-    /// For a stream as the listener hands it over.
-    fn for_stream(stream: &Stream) -> Self {
-        #[cfg(unix)]
-        {
-            use std::os::fd::AsFd;
-            let Stream::UdSocket(stream) = stream;
-            Self::new(stream.as_fd())
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = stream;
-            Self::new()
-        }
-    }
-}
-
-impl Drop for Closer {
-    fn drop(&mut self) {
-        #[cfg(unix)]
-        if let Some(socket) = &self.socket {
-            let _ = socket.shutdown(std::net::Shutdown::Both);
-        }
-    }
-}
-
-impl Drop for Hangup {
-    fn drop(&mut self) {
-        self.0.store(false, Ordering::Relaxed);
-    }
-}
-
-/// One connected client, counted for as long as this is held.
-///
-/// The count is what `MAX_CLIENTS` is enforced against, so releasing it
-/// has to survive the serving thread panicking.
-struct Slot(Arc<AtomicUsize>);
-
-impl Slot {
-    fn take(clients: &Arc<AtomicUsize>) -> Self {
-        clients.fetch_add(1, Ordering::Relaxed);
-        Self(Arc::clone(clients))
-    }
-}
-
-impl Drop for Slot {
-    fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::Relaxed);
-    }
-}
-
-/// Listen for clients until the process ends.
-pub(crate) fn serve(listener: Listener, handle: Handle, info: SharedInfo) -> Result<()> {
-    let clients = Arc::new(AtomicUsize::new(0));
-    let mut failing = false;
-    for incoming in listener.incoming() {
-        let stream = match incoming {
-            Ok(stream) => {
-                failing = false;
-                stream
-            }
-            // One client failing to connect is not a reason to stop
-            // serving the others.  But an error that persists -- out of
-            // file descriptors, say -- comes straight back, so the loop
-            // pauses rather than spinning, and says so once.
-            Err(e) => {
-                if !failing {
-                    eprintln!("smartclockd: rejected a connection: {e}");
-                    failing = true;
-                }
-                thread::sleep(ACCEPT_BACKOFF);
-                continue;
-            }
-        };
-        if clients.load(Ordering::Relaxed) >= MAX_CLIENTS {
-            eprintln!("smartclockd: refusing a client, {MAX_CLIENTS} already connected");
-            // Say so rather than closing silently: a bare reset reads
-            // as the daemon having crashed, which is the wrong thing
-            // for an operator to go and investigate.
-            let writer = Arc::new(Mutex::new(stream));
-            let _ = write_line(
-                &writer,
-                &Message::err(
-                    String::new(),
-                    format!("{MAX_CLIENTS} clients are already connected"),
-                ),
-            );
-            continue;
-        }
-        let handle = handle.clone();
-        let info = Arc::clone(&info);
-        let slot = Slot::take(&clients);
-        // A spawn failure must not end the accept loop.  It used to
-        // propagate, so one transient EAGAIN under thread pressure left
-        // the daemon polling and logging, looking healthy, while no
-        // client could ever connect again.
-        let spawned = thread::Builder::new()
-            .name("smartclockd-client".to_owned())
+        let updates = self.handle.subscribe();
+        let pusher = Arc::clone(writer);
+        let serving = Arc::clone(serving);
+        thread::Builder::new()
+            .name("smartclockd-push".to_owned())
             .spawn(move || {
-                // The slot is released when this closure's frame goes,
-                // whether it returns or unwinds.  Decrementing on the
-                // way out by hand leaked a slot permanently on a panic,
-                // sixteen of which would have left the daemon accepting
-                // nobody.
-                if let Err(e) = talk(stream, &handle, &info, slot) {
-                    eprintln!("smartclockd: client ended: {e}");
-                }
-            });
-        if let Err(e) = spawned {
-            eprintln!("smartclockd: could not serve a client: {e}");
-        }
-    }
-    Ok(())
-}
-
-/// Serve one client until it goes away.
-///
-/// Snapshots are pushed from their own thread, so a client slow to read
-/// cannot hold up its own requests.  Both threads write to the same
-/// half behind a mutex; the messages are single short lines, so holding
-/// it is brief and it keeps them from interleaving mid-line.
-///
-/// The push thread is the half that holds resources -- a subscription,
-/// a socket, a thread -- so it is the half that holds the client's
-/// slot.  Counting the request thread instead let a client half-close
-/// its sending side, end `talk`, release the slot, and leave the push
-/// thread running; repeating that accumulated subscriptions and threads
-/// without limit while `MAX_CLIENTS` was never reached.
-fn talk(stream: Stream, handle: &Handle, info: &SharedInfo, slot: Slot) -> Result<()> {
-    let closer = Closer::for_stream(&stream);
-    let (recv, send_half) = stream.split();
-    let writer = Arc::new(Mutex::new(send_half));
-
-    // A client gets the current state immediately, so it can render
-    // before the next poll rather than showing an empty screen.
-    if let Some(snapshot) = handle.latest() {
-        write_line(&writer, &Message::event(&snapshot))?;
-    }
-
-    // Tells the push thread to stop when this one does.  It notices on
-    // its next snapshot or within `HANGUP_CHECK`, whichever is first.
-    let serving = Arc::new(AtomicBool::new(true));
-    let _hangup = Hangup(Arc::clone(&serving));
-
-    let updates = handle.subscribe();
-    let pusher = Arc::clone(&writer);
-    thread::Builder::new()
-        .name("smartclockd-push".to_owned())
-        .spawn(move || {
-            // The slot lives here, and is released when this thread
-            // ends rather than when the request thread does.  The
-            // socket is shut when it ends, too, so the request thread's
-            // read returns rather than waiting on a client nobody serves.
-            let _slot = slot;
-            let _closer = closer;
-            loop {
-                let next = updates.recv_timeout(HANGUP_CHECK);
-                if !serving.load(Ordering::Relaxed) {
-                    return;
-                }
-                match next {
-                    Ok(snapshot) => {
-                        if write_line(&pusher, &Message::event(&snapshot)).is_err() {
-                            return;
-                        }
+                // Released when this thread ends, and the socket shut
+                // with it, so the request thread's read returns rather
+                // than waiting on a client nobody serves.
+                let _held = held;
+                loop {
+                    // It notices the client has gone on its next
+                    // snapshot or within `HANGUP_CHECK`.
+                    let next = updates.recv_timeout(HANGUP_CHECK);
+                    if !serving.load(Ordering::Relaxed) {
+                        return;
                     }
-                    Err(RecvTimeoutError::Timeout) => {}
-                    Err(RecvTimeoutError::Disconnected) => return,
+                    match next {
+                        Ok(snapshot) => {
+                            if write_line(&pusher, &Message::event(&snapshot)).is_err() {
+                                return;
+                            }
+                        }
+                        Err(RecvTimeoutError::Timeout) => {}
+                        Err(RecvTimeoutError::Disconnected) => return,
+                    }
                 }
-            }
-        })
-        .context("spawning the push thread")?;
-
-    // Capped: an unterminated line would otherwise grow without limit.
-    let mut reader = BufReader::new(recv);
-    loop {
-        let mut line = String::new();
-        let read = (&mut reader).take(MAX_REQUEST + 1).read_line(&mut line)?;
-        if read == 0 {
-            return Ok(());
-        }
-        if read as u64 > MAX_REQUEST {
-            write_line(
-                &writer,
-                &Message::err(
-                    String::new(),
-                    format!("a request may not exceed {MAX_REQUEST} bytes"),
-                ),
-            )?;
-            return Ok(());
-        }
-        if line.trim().is_empty() {
-            continue;
-        }
-        // A copy, taken and released before the request runs.  A
-        // request can wait on the receiver for up to the request
-        // timeout, and holding the lock meanwhile queued every other
-        // client behind it -- and the reconnect path, which records the
-        // new receiver here before it starts the task that would answer
-        // the waiting request.  Taken per request rather than per
-        // connection, so a reconnect to a different receiver takes
-        // effect for the next command.
-        let reply = match serde_json::from_str::<Request>(&line) {
-            Ok(request) => {
-                let current = lock_or_poisoned(info).clone();
-                handle_request(request, handle, &current)
-            }
-            Err(e) => Message::err(String::new(), format!("malformed request: {e}")),
-        };
-        write_line(&writer, &reply)?;
+            })?;
+        Ok(None)
     }
 }
 
-fn handle_request(request: Request, handle: &Handle, info: &Info) -> Message {
-    if request.v != VERSION {
-        return Message::err(
-            request.id,
-            format!("this daemon speaks protocol {VERSION}, not {}", request.v),
-        );
-    }
-    let id = request.id;
-    match request.op {
+fn handle_request(id: String, op: Op, handle: &Handle, info: &Info) -> Message {
+    match op {
         Op::Latest => match handle.latest() {
             Some(snapshot) => match serde_json::to_value(Reading::from(&snapshot)) {
                 Ok(value) => Message::ok(id, value),
@@ -746,17 +524,6 @@ fn raw_class(scpi: &str) -> Class {
     } else {
         Class::Control
     }
-}
-
-fn write_line<W: Write>(writer: &Arc<Mutex<W>>, message: &Message) -> Result<()> {
-    let line = serde_json::to_string(message)?;
-    let mut writer = writer
-        .lock()
-        .map_err(|_| anyhow::anyhow!("poisoned writer"))?;
-    writer.write_all(line.as_bytes())?;
-    writer.write_all(b"\n")?;
-    writer.flush()?;
-    Ok(())
 }
 
 #[cfg(test)]
@@ -1085,15 +852,15 @@ mod tests {
 
 #[cfg(test)]
 mod socket_tests {
+    use super::Daemon as Served;
     use super::HANGUP_CHECK;
     use super::Info;
-    use super::MAX_CLIENTS;
-    use super::MAX_REQUEST;
     use super::Policy;
     use super::SharedInfo;
-    use super::bind;
-    use super::serve;
     use crate::inbox::LogInbox;
+    use smartclock::server::MAX_CLIENTS;
+    use smartclock::server::listen;
+    use smartclock::server::serve;
 
     use std::io::BufRead;
     use std::io::BufReader;
@@ -1106,8 +873,6 @@ mod socket_tests {
     use std::thread;
     use std::time::Duration;
 
-    use interprocess::local_socket::GenericFilePath;
-    use interprocess::local_socket::ToFsName as _;
     use smartclock::command::Dialect;
     use smartclock::task::Handle;
     use smartclock::task::Shared;
@@ -1145,21 +910,10 @@ mod socket_tests {
             }));
 
             let shared_info = Arc::clone(&info);
-            let name_owned = socket.clone();
-            let listener = bind(
-                name_owned
-                    .clone()
-                    .to_fs_name::<GenericFilePath>()
-                    .expect("a socket name")
-                    .into_owned(),
-            )
-            .expect("bind");
-            crate::set_socket_mode(&socket).expect("mode");
+            let listener = listen(&socket).expect("listen");
             thread::Builder::new()
                 .name("test-serve".to_owned())
-                .spawn(move || {
-                    let _ = serve(listener, handle, info);
-                })
+                .spawn(move || serve(listener, "test", Arc::new(Served { handle, info })))
                 .expect("serve thread");
 
             Self {
@@ -1182,26 +936,6 @@ mod socket_tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_file(&self.socket);
         }
-    }
-
-    #[test]
-    fn a_client_socket_has_a_write_deadline_and_is_shut_when_its_closer_goes() {
-        use std::io::Read as _;
-        use std::os::fd::AsFd as _;
-        let (daemon_side, mut client_side) = UnixStream::pair().expect("a socket pair");
-        let closer = super::Closer::new(daemon_side.as_fd());
-        assert_eq!(
-            daemon_side.write_timeout().expect("the write timeout"),
-            Some(smartclock::client::DEADLINE)
-        );
-        client_side
-            .set_read_timeout(Some(Duration::from_secs(5)))
-            .expect("timeout");
-        drop(closer);
-        // End of stream, not a timeout: the socket was shut, though the
-        // daemon side's own descriptor is still open.
-        let mut byte = [0u8; 1];
-        assert_eq!(client_side.read(&mut byte).expect("end of stream"), 0);
     }
 
     #[test]
@@ -1248,65 +982,6 @@ mod socket_tests {
             }
         }
         panic!("no reply to {id}");
-    }
-
-    #[test]
-    fn the_socket_is_not_world_accessible() {
-        use std::os::unix::fs::PermissionsExt as _;
-        let daemon = Daemon::start("mode");
-        let mode = std::fs::metadata(&daemon.socket)
-            .expect("stat the socket")
-            .permissions()
-            .mode()
-            & 0o777;
-        assert_eq!(mode, 0o660, "the socket is {mode:o}, not 0660");
-    }
-
-    #[test]
-    fn a_request_longer_than_the_cap_is_refused_and_the_client_closed() {
-        // Deliberately unterminated.  A long line that does end is
-        // caught by the length check afterwards, but a line that never
-        // ends is caught only by the read being capped -- without that
-        // the daemon buffers whatever a client sends, forever, and this
-        // test hangs instead of failing.
-        let daemon = Daemon::start("cap");
-        let mut stream = daemon.connect();
-        let huge = "x".repeat(MAX_REQUEST as usize + 100);
-        write!(stream, "{huge}").expect("write");
-        stream.flush().expect("flush");
-
-        let mut reader = BufReader::new(stream.try_clone().expect("clone"));
-        let mut saw_refusal = false;
-        for _ in 0..50 {
-            let mut line = String::new();
-            match reader.read_line(&mut line) {
-                Ok(0) => break,
-                Ok(_) => {
-                    if line.contains("may not exceed") {
-                        saw_refusal = true;
-                    }
-                }
-                Err(_) => break,
-            }
-        }
-        assert!(saw_refusal, "an oversized request was not refused");
-    }
-
-    #[test]
-    fn the_seventeenth_client_is_turned_away_with_a_reason() {
-        let daemon = Daemon::start("clients");
-        // Held open, so the slots stay taken.
-        let held: Vec<_> = (0..MAX_CLIENTS).map(|_| daemon.connect()).collect();
-        assert_eq!(held.len(), MAX_CLIENTS);
-
-        let extra = daemon.connect();
-        let mut reader = BufReader::new(extra.try_clone().expect("clone"));
-        let mut line = String::new();
-        reader.read_line(&mut line).expect("read the refusal");
-        assert!(
-            line.contains("already connected"),
-            "expected a refusal, got {line:?}"
-        );
     }
 
     #[test]
@@ -1417,8 +1092,6 @@ mod note_tests {
     use smartclock::command::Dialect;
     use smartclock::protocol::Message;
     use smartclock::protocol::Op;
-    use smartclock::protocol::Request;
-    use smartclock::protocol::VERSION;
     use smartclock::task::Handle;
     use smartclock::task::Shared;
 
@@ -1445,12 +1118,12 @@ mod note_tests {
             inbox: LogInbox::new(inbox_tx),
             cadence: smartclock::task::Cadence::default(),
         };
-        let request = Request {
-            v: VERSION,
-            id: "1".to_owned(),
+        handle_request(
+            "1".to_owned(),
             op,
-        };
-        handle_request(request, &Handle::new(requests, Shared::new()), &info)
+            &Handle::new(requests, Shared::new()),
+            &info,
+        )
     }
 
     fn error(message: Message) -> Option<String> {
