@@ -197,26 +197,52 @@ async function notesOf(serial, win, signal) {
   }));
 }
 
-function drawHistory(shown, got) {
-  // One table per receiver, joined on time.
-  const tables = shown.map((serial) => [
+function drawHistory(shown, got, groups) {
+  // One table per receiver, and one per sensor, joined on time.
+  const tables = [
+    ...shown.map((serial) => [
       got[serial].at,
       ...COMPARED.map((col) => {
         const plot = got[serial].plots.find((p) => p.column === col);
         return plot ? scaled(plot.mean, col) : got[serial].at.map(() => null);
       }),
-  ]);
+    ]),
+    ...groups.flatMap((g) => g.lines.map((l) => [l.at, l.values])),
+  ];
   const joined = joinTables(tables);
   const columnsOf = (n) => shown.map((_, i) => joined[1 + i * COMPARED.length + n]);
-  const finite = (n) => columnsOf(n).flat().filter((v) => v != null && isFinite(v));
-  // Only what some ticked receiver measured: a chart with no data has no
-  // y axis, which would shift its plot out of line with the rest.
-  const drawn = COMPARED.map((col, n) => ({ col, n })).filter(({ n }) => finite(n).length);
+  // A chart per compared column, a line per receiver; then a chart per
+  // sensor quantity, a line per sensor, below them.
+  let next = 1 + shown.length * COMPARED.length;
+  const charted = [
+    ...COMPARED.map((col, n) => ({
+      col,
+      lines: shown.map((serial, i) => ({
+        label: unitName(serial),
+        color: colorOf(serial),
+        values: columnsOf(n)[i],
+      })),
+    })),
+    ...groups.map((g) => ({
+      col: `sensor:${g.quantity}`,
+      hint: sensorHint(g.lines),
+      lines: g.lines.map((l, i) => ({
+        label: l.name,
+        color: SENSOR_COLORS[i % SENSOR_COLORS.length],
+        values: joined[next++],
+      })),
+    })),
+  ];
+  const finite = (c) => c.lines.flatMap((l) => l.values).filter((v) => v != null && isFinite(v));
+  // Only what some ticked receiver or sensor measured: a chart with no
+  // data has no y axis, which would shift its plot out of line with the
+  // rest.
+  const drawn = charted.filter((c) => finite(c).length);
   const height = plotHeight(drawn.length);
-  const fits = drawn.map(({ col, n }) => yAxis(col, finite(n), height));
+  const fits = drawn.map((c) => yAxis(c.col, finite(c), height));
   const ySize = stackWidth(fits);
-  drawn.forEach(({ col, n }, place) => {
-    const columns = columnsOf(n);
+  drawn.forEach((drawing, place) => {
+    const col = drawing.col;
     const fitted = fits[place];
     const host = document.createElement("div");
     $("charts").appendChild(host);
@@ -228,9 +254,9 @@ function drawHistory(shown, got) {
         title: label(col),
         series: [
           {},
-          ...shown.map((serial) => ({
-            label: unitName(serial),
-            stroke: colorOf(serial),
+          ...drawing.lines.map((l) => ({
+            label: l.label,
+            stroke: l.color,
             width: 1.5,
             points: { show: false },
           })),
@@ -267,10 +293,11 @@ function drawHistory(shown, got) {
           ...TIME_HOOKS,
         },
       },
-      [joined[0], ...columns],
+      [joined[0], ...drawing.lines.map((l) => l.values)],
       host,
     ));
-    hint(chart, col);
+    if (drawing.hint) hintAs(chart, drawing.hint);
+    else hint(chart, col);
     charts.push(chart);
   });
   settleWidths(charts, $("charts"));
@@ -386,7 +413,8 @@ async function load(signal) {
   );
   if (!shown.length) return;
   marks = (await Promise.all(shown.map((s) => quietly(notesOf(s, win, signal), [])))).flat();
-  drawHistory(shown, got);
+  const groups = await sensorGroups(await sensorsListed(signal), win, signal);
+  drawHistory(shown, got, groups);
   const curves = Object.fromEntries(
     await Promise.all(shown.map(async (s) => [s, await quietly(deviationOf(s, win, signal), null)])),
   );

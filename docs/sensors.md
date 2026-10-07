@@ -1,9 +1,8 @@
 # Sensors beside the receivers
 
 Under way: the service logs its sensors and answers on its socket, the
-exporter exports them, and the web view's history page and live strip
-show them; the compare page, the command line tool and the monitor do
-not yet.
+exporter exports them, and the web view shows them; the command line
+tool and the monitor do not yet.
 An OCXO's EFC moves with the room, so the room's
 temperature, and perhaps its humidity and pressure, belong beside the
 receivers' readings.  None of the receivers reports them: the 58503A's

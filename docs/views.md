@@ -134,7 +134,8 @@ frame.
 
 `/compare` overlays every receiver the logs hold over one range: 1 PPS
 TI, EFC, temperature, TFOM and FFOM a chart each with a line per
-receiver, and their MDEV (solid) and ADEV (dashed) curves on one plot.
+receiver, the host's sensors below them a chart per quantity, and the
+receivers' MDEV (solid) and ADEV (dashed) curves on one plot.
 A checkbox per receiver chooses which are drawn, ticked at first for
 every one with readings in the range, and each receiver keeps one
 color.  Each 1 PPS TI is against that receiver's own GPS solution, so

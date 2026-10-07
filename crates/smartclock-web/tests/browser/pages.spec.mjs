@@ -349,6 +349,16 @@ for (const path of ["/", "/status"]) {
   });
 }
 
+test("the compare page charts the sensors below the receivers, on their time axis", async ({ page }) => {
+  await withSensors().install(page);
+  await page.goto(`/compare?receiver=${B}&last=86400`);
+  await page.waitForFunction(() => charts.some((c) => c.root.querySelector(".u-title").textContent.startsWith("Sensors")));
+  const titles = await page.evaluate(() => charts.map((c) => c.root.querySelector(".u-title").textContent));
+  const first = titles.findIndex((t) => t.startsWith("Sensors"));
+  expect(titles.slice(first)).toEqual(["Sensors, temperature, C", "Sensors, relative humidity, %"]);
+  expect(await page.evaluate(() => new Set(charts.map((c) => c.data[0].join(","))).size)).toBe(1);
+});
+
 test("with no receiver logged, the sensors are charted alone", async ({ page }) => {
   const fake = new Fake([]);
   fake.sensors = [{ name: "room", quantity: "temperature", unit: "C", value: 21.5 }];
