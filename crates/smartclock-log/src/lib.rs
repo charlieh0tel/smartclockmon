@@ -16,4 +16,5 @@
 pub mod error;
 pub mod reader;
 pub mod schema;
+pub mod sensors;
 pub mod writer;

@@ -53,8 +53,8 @@ const MAX_SERIES: usize = PLOTTABLE.len();
 /// The upper bound is about three times the pixels across a wide
 /// screen, so asking for more cannot make the picture better and can
 /// make the query slow.
-const MIN_POINTS: usize = 16;
-const MAX_POINTS: usize = 5000;
+pub(crate) const MIN_POINTS: usize = 16;
+pub(crate) const MAX_POINTS: usize = 5000;
 
 /// How many empty buckets in a row make a gap worth breaking a line at.
 ///
@@ -72,7 +72,7 @@ const MAX_POINTS: usize = 5000;
 /// rhythm.  The threshold scales with the view: a few buckets is
 /// seconds at an hour and hours at a month, which is the right shape,
 /// because what counts as a gap is relative to what is being looked at.
-const GAP_BUCKETS: i64 = 4;
+pub(crate) const GAP_BUCKETS: i64 = 4;
 
 /// The most of each journal stream one read returns.
 const MAX_JOURNAL: usize = 500;
@@ -95,7 +95,7 @@ const MEASURED: &str = "(fast_at = at OR (fast_at IS NULL AND freshness = 'live'
 /// stored form is RFC 3339 with fractional seconds and a Z, so a bound
 /// truncated to the second sorts before every row within that second,
 /// which is what an inclusive lower and an exclusive upper bound want.
-fn text_bound(seconds: &str) -> String {
+pub(crate) fn text_bound(seconds: &str) -> String {
     format!("strftime('%Y-%m-%dT%H:%M:%S', {seconds}, 'unixepoch')")
 }
 
@@ -282,45 +282,50 @@ fn immutable_uri(path: &str) -> String {
 }
 
 /// Whether a failure is a table this log predates.
-fn missing_table(e: &rusqlite::Error) -> bool {
+pub(crate) fn missing_table(e: &rusqlite::Error) -> bool {
     matches!(e, rusqlite::Error::SqliteFailure(_, Some(why)) if why.contains("no such table"))
+}
+
+/// Open a log without taking a write lock on it.
+///
+/// A WAL log whose `-shm` is gone, in a directory this reader may not
+/// write, cannot be read normally: SQLite would have to create the
+/// file.  Such a log has no writer -- a service holding it keeps
+/// `-shm` -- so it is opened immutable instead, which reads the file as
+/// it stands.
+pub(crate) fn open_read_only(path: &Path) -> Result<Connection> {
+    let opened = |target: &Path| {
+        Connection::open_with_flags(
+            target,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
+        )
+        .map_err(|source| Error::Open {
+            path: path.to_path_buf(),
+            source,
+        })
+    };
+    let conn = opened(path)?;
+    let unreadable = matches!(
+        conn.query_row("SELECT count(*) FROM sqlite_master", [], |_| Ok(())),
+        Err(rusqlite::Error::SqliteFailure(e, _))
+            if e.code == rusqlite::ErrorCode::ReadOnly
+                || e.code == rusqlite::ErrorCode::CannotOpen
+    );
+    match path.to_str() {
+        Some(name) if unreadable => {
+            drop(conn);
+            opened(Path::new(&immutable_uri(name)))
+        }
+        _ => Ok(conn),
+    }
 }
 
 impl Log {
     /// Open the log without taking a write lock on it.
-    ///
-    /// A WAL log whose `-shm` is gone, in a directory this reader may not
-    /// write, cannot be read normally: SQLite would have to create the
-    /// file.  Such a log has no writer -- a daemon holding it keeps
-    /// `-shm` -- so it is opened immutable instead, which reads the file
-    /// as it stands.
     pub fn open(path: &Path) -> Result<Self> {
-        let opened = |target: &Path| {
-            Connection::open_with_flags(
-                target,
-                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
-            )
-            .map_err(|source| Error::Open {
-                path: path.to_path_buf(),
-                source,
-            })
-        };
-        let conn = opened(path)?;
-        let unreadable = matches!(
-            conn.query_row("SELECT count(*) FROM sqlite_master", [], |_| Ok(())),
-            Err(rusqlite::Error::SqliteFailure(e, _))
-                if e.code == rusqlite::ErrorCode::ReadOnly
-                    || e.code == rusqlite::ErrorCode::CannotOpen
-        );
-        match path.to_str() {
-            Some(name) if unreadable => {
-                drop(conn);
-                Ok(Self {
-                    conn: opened(Path::new(&immutable_uri(name)))?,
-                })
-            }
-            _ => Ok(Self { conn }),
-        }
+        Ok(Self {
+            conn: open_read_only(path)?,
+        })
     }
 
     /// Every receiver this log holds, most recently seen first.
