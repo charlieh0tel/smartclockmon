@@ -49,8 +49,8 @@ has answered `*IDN?`.
 Room temperature and the like come from a service of their own,
 `smartclock-sensord`, one per host and also not enabled.  Name the
 sensors in `/etc/default/smartclock-sensord` first, then
-`sudo systemctl enable --now smartclock-sensord`; `docs/sensors.md`
-has the details.
+`sudo systemctl enable --now smartclock-sensord`, and check it with
+`smartclock-cli sensors`; `docs/sensors.md` has the details.
 
 ### Upgrading
 

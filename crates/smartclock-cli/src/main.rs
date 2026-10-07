@@ -187,6 +187,13 @@ enum Command {
         #[arg(long)]
         since: Option<Timestamp>,
     },
+    /// List the host's sensors and their latest readings, from
+    /// smartclock-sensord.  Needs neither a receiver nor its daemon.
+    Sensors {
+        /// The sensor service's socket.
+        #[arg(long, default_value = "/run/smartclock-sensord/socket")]
+        sensor_socket: PathBuf,
+    },
 }
 
 /// Where a console read goes and what happens after it, shared by the
@@ -276,6 +283,9 @@ fn main() -> Result<()> {
     if matches!(cli.command, Command::Commands) {
         print!("{}", smartclock::matrix::markdown());
         return Ok(());
+    }
+    if let Command::Sensors { sensor_socket } = &cli.command {
+        return sensors(sensor_socket);
     }
 
     if let Some(socket) = cli.socket.clone() {
@@ -507,6 +517,7 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command, checked: &[Stri
         }
         // Handled before the port is opened.
         Command::Commands => Ok(()),
+        Command::Sensors { .. } => unreachable!("handled before the port is opened"),
     };
     // Errors read off the queue so that no command was judged by them
     // (docs/protocol.md, "The error prompt"): the receiver raised them,
@@ -534,7 +545,8 @@ fn typed(command: &Command) -> Result<Vec<String>> {
         | Command::ReadEeprom { .. }
         | Command::Flash(_)
         | Command::Note { .. }
-        | Command::Fact { .. } => Vec::new(),
+        | Command::Fact { .. }
+        | Command::Sensors { .. } => Vec::new(),
     })
 }
 
@@ -931,6 +943,7 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
             print!("{}", smartclock::matrix::markdown());
             Ok(())
         }
+        Command::Sensors { sensor_socket } => sensors(sensor_socket),
         Command::Probe { .. } | Command::Sweep { .. } => anyhow::bail!(
             "probe and sweep send hundreds of commands and need the port to themselves; \
              stop smartclockd and use --device"
@@ -946,6 +959,43 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
             )
         }
     }
+}
+
+/// Print every sensor and its latest reading, one line each: the value
+/// while it is current, and otherwise what is known of why not.
+fn sensors(socket: &Path) -> Result<()> {
+    let latest = Daemon::connect(socket)
+        .and_then(|mut service| service.sensor_readings())
+        .with_context(|| {
+            format!(
+                "asking {}; is smartclock-sensord running, and are you in its group?",
+                socket.display()
+            )
+        })?;
+    let now = Timestamp::now();
+    for reading in &latest.readings {
+        let name = format!("{} {}", reading.name, reading.quantity);
+        let age = |at: Timestamp| now.duration_since(at).as_secs_f64().round();
+        match (reading.current(latest.every_s, now), reading.at) {
+            (Some(value), Some(at)) => {
+                println!("{name}: {value} {}, {} s ago", reading.unit, age(at));
+            }
+            (_, at) => {
+                let last = match (reading.value, at) {
+                    (Some(value), Some(at)) => {
+                        format!("last {value} {}, {} s ago", reading.unit, age(at))
+                    }
+                    _ => "never read".to_owned(),
+                };
+                let why = reading
+                    .error
+                    .as_deref()
+                    .map_or(String::new(), |e| format!("; {e}"));
+                println!("{name}: no current reading ({last}{why})");
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Say where a note or fact went.
