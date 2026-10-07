@@ -349,6 +349,15 @@ for (const path of ["/", "/status"]) {
   });
 }
 
+test("with no receiver logged, the sensors are charted alone", async ({ page }) => {
+  const fake = new Fake([]);
+  fake.sensors = [{ name: "room", quantity: "temperature", unit: "C", value: 21.5 }];
+  await fake.install(page);
+  await page.goto("/?last=3600");
+  await page.waitForFunction(() => charts.length === 1);
+  expect(await page.evaluate(() => charts[0].smartclockLines[0].column)).toBe("sensor:temperature");
+});
+
 test("a host without sensors offers none", async ({ page }) => {
   await openAt(page, "/", "last=3600");
   await page.waitForFunction(() => charts.length > 0);

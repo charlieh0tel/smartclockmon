@@ -167,7 +167,13 @@ export class Fake {
       const endpoint = url.pathname.replace("/api/", "");
       this.seen[endpoint] = (this.seen[endpoint] ?? 0) + 1;
       const u = this.unit(url.searchParams.get("receiver"));
-      const wait = endpoint === "receivers" ? 0 : (u.delay[endpoint] ?? 0);
+      // With no receiver at all, only the host's own endpoints answer.
+      const host = endpoint === "receivers" || endpoint.startsWith("sensors");
+      if (!u && !host) {
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify({ error: "no receiver" }) });
+        return;
+      }
+      const wait = host ? 0 : (u.delay[endpoint] ?? 0);
       if (wait) await new Promise((r) => setTimeout(r, wait));
       // The page may have gone on without this answer.
       await route
