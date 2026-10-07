@@ -56,11 +56,6 @@
 <script src="/charts.js"></script>
 <script>
 
-// The plot fills what the pane has left after the table, between these
-// bounds.  uPlot draws its text at a fixed size however wide the plot
-// is, so width buys plotting area rather than magnifying everything --
-// which is the difference between this and scaling a drawing to fit.
-const PLOT = { min: 360, ratio: 2.5, shortest: 300, tallest: 560 };
 
 // Which curves are drawn, as the history page's column picker does it:
 // checkboxes on the controls row, the choice kept in the address so a
@@ -145,7 +140,7 @@ const SYNC = "stability";
 // moment collapses it to its min-content width -- which is how a 720
 // pixel plot came out at 165.
 function width() {
-  return Math.max(PLOT.min, $("pane").clientWidth || 800);
+  return Math.max(DEVIATION_PLOT.min, $("pane").clientWidth || 800);
 }
 
 // Height follows width rather than being fixed, so the curve keeps its
@@ -155,7 +150,7 @@ function width() {
 // ratio alone would make a very wide window very tall.
 function height(w) {
   return Math.round(
-    Math.max(PLOT.shortest, Math.min(PLOT.tallest, w / PLOT.ratio)),
+    Math.max(DEVIATION_PLOT.shortest, Math.min(DEVIATION_PLOT.tallest, w / DEVIATION_PLOT.ratio)),
   );
 }
 

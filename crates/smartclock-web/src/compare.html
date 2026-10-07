@@ -319,11 +319,13 @@ function drawDeviation(shown, curves) {
       ];
     }),
   );
-  const wide = Math.max(360, $("pane").clientWidth || 800);
+  const wide = Math.max(DEVIATION_PLOT.min, $("pane").clientWidth || 800);
   deviationChart = new uPlot(
     {
       width: wide,
-      height: Math.round(Math.max(300, Math.min(560, wide / 2.5))),
+      height: Math.round(
+        Math.max(DEVIATION_PLOT.shortest, Math.min(DEVIATION_PLOT.tallest, wide / DEVIATION_PLOT.ratio)),
+      ),
       scales: { x: TAU_SCALE, y: sigmaScale({}) },
       axes: [tauAxis(), sigmaAxis("deviation σy")],
       series: [

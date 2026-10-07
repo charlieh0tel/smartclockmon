@@ -395,6 +395,21 @@ test("with no receiver logged, the sensors are charted alone", async ({ page }) 
   expect(await page.evaluate(() => charts[0].smartclockLines[0].column)).toBe("sensor:temperature");
 });
 
+for (const path of ["/adev", "/compare"]) {
+  test(`the ${path} page fits a phone's width`, async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await twoUnits().install(page);
+    await page.goto(`${path}?receiver=${B}&last=86400`);
+    await page.waitForFunction(() => document.querySelectorAll(".uplot").length > 0);
+    await page.waitForTimeout(300);
+    const [scroll, client] = await page.evaluate(() => [
+      document.documentElement.scrollWidth,
+      document.documentElement.clientWidth,
+    ]);
+    expect(scroll).toBeLessThanOrEqual(client);
+  });
+}
+
 test("a host without sensors offers none", async ({ page }) => {
   await openAt(page, "/", "last=3600");
   await page.waitForFunction(() => charts.length > 0);

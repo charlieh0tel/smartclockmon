@@ -285,6 +285,14 @@ function ranged(chart) {
   return chart;
 }
 
+// A deviation plot's size: its width is the pane's, no narrower than
+// `min`, which a phone's pane can hold; its height follows the width by
+// `ratio`, between `shortest` and `tallest`.  uPlot draws its text at a
+// fixed size however wide the plot is, so width buys plotting area
+// rather than magnifying everything -- which is the difference between
+// this and scaling a drawing to fit.
+const DEVIATION_PLOT = { min: 240, ratio: 2.5, shortest: 300, tallest: 560 };
+
 // -------------------------------------------------------------- sensors
 //
 // The host's sensors, from the sensor service's log: a chart per
