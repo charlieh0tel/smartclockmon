@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use rusqlite::Connection;
 use serde::Serialize;
+use smartclock::sensors::PERIODS_STALE;
 
 use crate::error::Result;
 use crate::reader::GAP_BUCKETS;
@@ -26,10 +27,6 @@ pub const VERSION: i64 = 1;
 /// The `meta` key the service records its read period under, in
 /// seconds.
 pub const EVERY_KEY: &str = "every";
-
-/// How many read periods without a reading make a gap worth breaking a
-/// line at, and make a reading too old to report as current.
-pub const PERIODS_STALE: u32 = 3;
 
 /// The tables, as of [`VERSION`], each `IF NOT EXISTS`.
 pub const TABLES: &str = r#"

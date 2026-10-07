@@ -180,3 +180,12 @@ Restarting the exporter forgets a unit retired on purpose.  The
 receiver's identity is asked before and after its reading, and a
 scrape in which it changed is skipped, so a swap never labels one
 unit's reading with the other's serial.
+
+The host's sensors, from `smartclock-sensord`'s socket, are
+`smartclock_sensor_temperature_celsius`,
+`smartclock_sensor_humidity_percent` and
+`smartclock_sensor_pressure_pascals`, labeled `sensor`, beside
+`smartclock_sensord_up`.  A reading is left out once its sensor has
+not read for three read periods.  A host without the service exports
+none of these; once it has answered, a service that stops is
+`smartclock_sensord_up 0`.

@@ -15,6 +15,11 @@ use crate::protocol::Protocol;
 /// Bumped when the shapes below change.
 pub const VERSION: u32 = 1;
 
+/// How many read periods without a reading make a sensor's last
+/// reading too old to show as current, and a gap in its history worth
+/// breaking a line at.
+pub const PERIODS_STALE: u32 = 3;
+
 /// What a client asks the sensor service.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
@@ -69,4 +74,51 @@ pub struct Reading {
     /// Why its latest read failed, if it did; `at` and `value` are then
     /// the last read that did not.
     pub error: Option<String>,
+}
+
+impl Reading {
+    /// The value, if it is current at `now`: the latest read succeeded,
+    /// and no more than [`PERIODS_STALE`] read periods of `every_s`
+    /// seconds ago.  An older value is the last one read, and shown as
+    /// current it would draw a sensor that has stopped as steady.
+    pub fn current(&self, every_s: f64, now: Timestamp) -> Option<f64> {
+        let at = self.at?;
+        let age = now.duration_since(at).as_secs_f64();
+        let fresh = age <= f64::from(PERIODS_STALE) * every_s;
+        self.value.filter(|_| self.error.is_none() && fresh)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Reading;
+    use jiff::Timestamp;
+
+    #[test]
+    fn a_value_is_current_only_while_reads_succeed_and_are_recent() {
+        let t0 = Timestamp::from_second(1_791_000_000).expect("a time");
+        let later = |s: i64| Timestamp::from_second(1_791_000_000 + s).expect("a time");
+        let reading = Reading {
+            name: "room".to_owned(),
+            quantity: "temperature".to_owned(),
+            unit: "C".to_owned(),
+            source: "/x".to_owned(),
+            at: Some(t0),
+            value: Some(21.0),
+            error: None,
+        };
+        assert_eq!(reading.current(10.0, later(30)), Some(21.0));
+        assert_eq!(reading.current(10.0, later(31)), None);
+        let failing = Reading {
+            error: Some("gone".to_owned()),
+            ..reading.clone()
+        };
+        assert_eq!(failing.current(10.0, later(5)), None);
+        let never = Reading {
+            at: None,
+            value: None,
+            ..reading
+        };
+        assert_eq!(never.current(10.0, later(5)), None);
+    }
 }

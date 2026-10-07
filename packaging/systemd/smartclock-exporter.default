@@ -10,3 +10,6 @@
 # receiver's serial and model.  Set SMARTCLOCK_EXPORTER_SOCKET to one
 # socket instead.
 #SMARTCLOCK_EXPORTER_RUN_DIR=/run/smartclockd
+
+# The sensor service's socket.
+#SMARTCLOCK_EXPORTER_SENSOR_SOCKET=/run/smartclock-sensord/socket

@@ -19,6 +19,8 @@ use std::fmt::Write as _;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
 
@@ -32,6 +34,7 @@ use smartclock::task::Cadence;
 use smartclock_http::Response;
 
 use crate::metrics::Scrape;
+use crate::metrics::SensorScrape;
 
 #[derive(Parser)]
 #[command(about, version = smartclock::VERSION)]
@@ -60,6 +63,15 @@ struct Cli {
         default_value = "127.0.0.1:9979"
     )]
     listen: String,
+
+    /// The sensor service's socket.  Its sensors are exported once it
+    /// has answered; a host without one exports none.
+    #[arg(
+        long,
+        env = "SMARTCLOCK_EXPORTER_SENSOR_SOCKET",
+        default_value = "/run/smartclock-sensord/socket"
+    )]
+    sensor_socket: PathBuf,
 }
 
 fn main() -> Result<()> {
@@ -77,11 +89,26 @@ fn main() -> Result<()> {
         }
     );
     let seen = Mutex::new(BTreeSet::new());
+    let sensord_seen = AtomicBool::new(false);
+    let sensor_socket = cli.sensor_socket.clone();
     smartclock_http::serve(&cli.listen, move |path| match path {
-        "/metrics" => Response::ok(
-            "text/plain; version=0.0.4; charset=utf-8",
-            metrics::render(&scrape_all(&daemons, &seen)),
-        ),
+        "/metrics" => {
+            let (scrapes, sensors) = thread::scope(|scope| {
+                let sensors = scope.spawn(|| scrape_sensors(&sensor_socket, &sensord_seen));
+                let scrapes = scrape_all(&daemons, &seen);
+                (
+                    scrapes,
+                    sensors.join().unwrap_or(SensorScrape {
+                        seen: true,
+                        latest: None,
+                    }),
+                )
+            });
+            Response::ok(
+                "text/plain; version=0.0.4; charset=utf-8",
+                metrics::render(&scrapes) + &metrics::render_sensors(&sensors),
+            )
+        }
         "/" => Response::ok(
             "text/plain; charset=utf-8",
             "smartclock-exporter\n\nMetrics are at /metrics.\n".to_owned(),
@@ -139,6 +166,29 @@ fn scrape_all(daemons: &Daemons, seen: &Mutex<BTreeSet<String>>) -> Vec<Scrape> 
     }
     scrapes.sort_by(|a, b| a.0.cmp(&b.0));
     scrapes.into_iter().map(|(_, scrape)| scrape).collect()
+}
+
+/// The sensor service's latest readings, if it answers within the
+/// scrape's budget, and whether it ever has.
+fn scrape_sensors(socket: &Path, seen: &AtomicBool) -> SensorScrape {
+    let latest =
+        Daemon::connect_within(socket, SCRAPE_BUDGET).and_then(|mut d| d.sensor_readings());
+    match latest {
+        Ok(latest) => {
+            seen.store(true, Ordering::Relaxed);
+            SensorScrape {
+                seen: true,
+                latest: Some(latest),
+            }
+        }
+        Err(e) => {
+            let seen = seen.load(Ordering::Relaxed);
+            if seen {
+                eprintln!("smartclock-exporter: {}: {e}", socket.display());
+            }
+            SensorScrape { seen, latest: None }
+        }
+    }
 }
 
 /// The labels naming one daemon instance, before anything is known of
@@ -208,7 +258,7 @@ fn scrape(instance: &str, socket: &Path) -> Scrape {
 }
 
 /// A label value as the exposition format wants it quoted.
-fn escape(value: &str) -> String {
+pub(crate) fn escape(value: &str) -> String {
     value
         .replace('\\', "\\\\")
         .replace('"', "\\\"")

@@ -13,6 +13,7 @@
 
 use std::fmt::Write as _;
 
+use smartclock::sensors::Latest;
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Tier;
 use smartclock::task::Cadence;
@@ -117,6 +118,76 @@ pub(crate) fn render(scrapes: &[Scrape]) -> String {
         one(&mut families, scrape);
     }
     families.render()
+}
+
+/// The sensor service's part of a scrape.
+pub(crate) struct SensorScrape {
+    /// Whether the service has answered since the exporter started.
+    /// Until then nothing is said about it, so a host without one
+    /// exports no `sensord_up` at all; once it has, a service that stops
+    /// is `sensord_up 0` rather than gone.
+    pub(crate) seen: bool,
+    /// Its latest readings, or nothing if it could not be asked.
+    pub(crate) latest: Option<Latest>,
+}
+
+/// Each quantity's metric: its name, its help, and what the service's
+/// unit is multiplied by to give the metric's.  Pressure in pascals,
+/// Prometheus' base unit, though the service reports kilopascals.
+const SENSOR_METRICS: [(&str, &str, &str, f64); 3] = [
+    (
+        "temperature",
+        "sensor_temperature_celsius",
+        "A host sensor's temperature",
+        1.0,
+    ),
+    (
+        "humidity",
+        "sensor_humidity_percent",
+        "A host sensor's relative humidity",
+        1.0,
+    ),
+    (
+        "pressure",
+        "sensor_pressure_pascals",
+        "A host sensor's pressure",
+        1000.0,
+    ),
+];
+
+/// Render the sensor service's metrics.  A reading is exported only
+/// while it is current: a sensor that has stopped reading is left out,
+/// not drawn as steady at its last value.
+pub(crate) fn render_sensors(sensors: &SensorScrape) -> String {
+    let mut out = Families::default();
+    if !sensors.seen {
+        return String::new();
+    }
+    out.gauge(
+        "sensord_up",
+        "1 when the sensor service answered this scrape",
+        "",
+        f64::from(u8::from(sensors.latest.is_some())),
+    );
+    let Some(latest) = &sensors.latest else {
+        return out.render();
+    };
+    let now = jiff::Timestamp::now();
+    for reading in &latest.readings {
+        let Some((_, name, help, factor)) = SENSOR_METRICS
+            .iter()
+            .find(|(quantity, ..)| *quantity == reading.quantity)
+        else {
+            continue;
+        };
+        out.maybe(
+            name,
+            help,
+            &with("", "sensor", &crate::escape(&reading.name)),
+            reading.current(latest.every_s, now).map(|v| v * factor),
+        );
+    }
+    out.render()
 }
 
 /// One daemon's samples.
@@ -379,7 +450,10 @@ fn one(out: &mut Families, scrape: &Scrape) {
 #[cfg(test)]
 mod tests {
     use super::Scrape;
+    use super::SensorScrape;
     use super::render;
+    use super::render_sensors;
+    use smartclock::sensors::Latest;
     use smartclock::snapshot::Freshness;
     use smartclock::snapshot::Snapshot;
     use smartclock::snapshot::Tier;
@@ -527,5 +601,67 @@ mod tests {
         }
         // The tiers still report, since "never read" is itself a fact.
         assert!(out.contains(r#"smartclock_tier_failing{tier="fast"}"#));
+    }
+
+    fn sensor(
+        name: &str,
+        quantity: &str,
+        unit: &str,
+        value: f64,
+        age_s: i64,
+    ) -> smartclock::sensors::Reading {
+        smartclock::sensors::Reading {
+            name: name.to_owned(),
+            quantity: quantity.to_owned(),
+            unit: unit.to_owned(),
+            source: "/x".to_owned(),
+            at: Some(
+                jiff::Timestamp::now()
+                    .checked_sub(jiff::SignedDuration::from_secs(age_s))
+                    .expect("a time"),
+            ),
+            value: Some(value),
+            error: None,
+        }
+    }
+
+    #[test]
+    fn a_host_without_a_sensor_service_says_nothing_about_one() {
+        let out = render_sensors(&SensorScrape {
+            seen: false,
+            latest: None,
+        });
+        assert_eq!(out, "");
+        let out = render_sensors(&SensorScrape {
+            seen: true,
+            latest: None,
+        });
+        assert!(out.contains("smartclock_sensord_up 0"), "{out}");
+    }
+
+    #[test]
+    fn current_sensor_readings_are_exported_by_quantity_in_base_units() {
+        let out = render_sensors(&SensorScrape {
+            seen: true,
+            latest: Some(Latest {
+                every_s: 10.0,
+                readings: vec![
+                    sensor("room", "temperature", "C", 21.5, 5),
+                    sensor("room", "pressure", "kPa", 101.325, 5),
+                    sensor("bench", "temperature", "C", 30.0, 60),
+                ],
+            }),
+        });
+        assert!(out.contains("smartclock_sensord_up 1"), "{out}");
+        assert!(
+            out.contains(r#"smartclock_sensor_temperature_celsius{sensor="room"} 21.5"#),
+            "{out}"
+        );
+        assert!(
+            out.contains(r#"smartclock_sensor_pressure_pascals{sensor="room"} 101325"#),
+            "{out}"
+        );
+        // A minute old at a ten-second period: stopped, so left out.
+        assert!(!out.contains("bench"), "{out}");
     }
 }
