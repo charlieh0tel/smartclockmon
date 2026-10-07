@@ -1,13 +1,13 @@
 # Sensors beside the receivers
 
-Built: the service, its log and socket, and every reader below except
-the monitor's sensor history, which is later.
 An OCXO's EFC moves with the room, so the room's
 temperature, and perhaps its humidity and pressure, belong beside the
 receivers' readings.  None of the receivers reports them: the 58503A's
 `:DIAGnostic:TEMPerature?` is an internal reading of 34 to 38 C, and
 the z3801 receivers answer the same query with 0 or 1 count
 (`docs/firmware/console.md`).
+
+Built as below, except the monitor's sensor history, which is later.
 
 ## Design
 
@@ -91,11 +91,14 @@ service.
 - `reading`: `sensor_id`, `at`, `value`, one row per successful read,
   keyed on `sensor_id` and `at`, with `at` stored as the receivers'
   logs store times.
-- `meta`: the schema version, the writer, and `every`, which readers use
-  to tell a gap from the space between reads.
+- `period`: `since`, `every`, a new row whenever the service starts
+  with another read period.  Readers judge a gap after a reading by the
+  period it was read at, so a changed period does not break older
+  history apart.
+- `meta`: the schema version and the writer.
 
-Growth is unbounded, like the receivers' logs: about 1 MB a day per
-sensor at 10 s.
+Growth is unbounded, like the receivers' logs: a year of three sensors
+read every 10 s measured 408 MB, about 0.4 MB a day per sensor.
 
 ## Readers
 
@@ -116,8 +119,8 @@ sensor at 10 s.
 - **Exporter.**  `smartclock_sensor_temperature_celsius`,
   `smartclock_sensor_humidity_percent` and
   `smartclock_sensor_pressure_pascals`, labeled `sensor`, and
-  `smartclock_sensord_up`.  A reading older than three read periods is
-  not exported.
+  `smartclock_sensord_up`.  A reading is not exported once its latest
+  read failed or is older than three read periods.
 - **CLI.**  `smartclock-cli sensors` lists sensors and their latest
   readings.
 - **TUI.**  Current values in the header.  Sensor history later.
@@ -128,31 +131,6 @@ sensor at 10 s.
 The web view takes `--sensor-log` and `--sensor-socket`
 (`SMARTCLOCK_WEB_SENSOR_LOG`, `SMARTCLOCK_WEB_SENSOR_SOCKET`), defaulting
 to the paths above; the exporter and the TUI take `--sensor-socket`.
-
-## Order of work
-
-One commit each.
-
-1. Refactor: the socket protocol's envelope generic over its requests,
-   and the client's `ask` with it.
-2. Refactor: the socket server's scaffolding out of smartclockd into a
-   library.
-3. Refactor: the log writer's shared parts (persistent WAL, the version
-   check and stamp) out of smartclockd, keeping one `unsafe` site.
-4. Refactor: the compare page's grid snapping and join into
-   `charts.js`, and the history page's paired chart into general
-   multi-line chart groups.
-5. Reading sensors: configuration, classification, conversion, IIO
-   attribute fallback, globs.  Tested against a fake sysfs tree.
-6. The sensor log's schema and reader, in `smartclock-log`.
-7. `smartclock-sensord` logging, with its unit, settings, packaging and
-   docs.
-8. Its socket.
-9. The exporter.
-10. The history page and the live strip.
-11. The compare page.
-12. `smartclock-cli sensors`.
-13. The TUI's current values.
 
 ## Sensors
 

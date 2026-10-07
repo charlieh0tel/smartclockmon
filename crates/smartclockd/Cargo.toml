@@ -84,10 +84,11 @@ maintainer-scripts = "../../packaging/debian/"
 changelog = "../../packaging/debian/changelog"
 # All three ship disabled: the exporter and the web view each need a
 # socket named first, the exporter is only wanted where something
-# scrapes it, and the sensor service needs its sensors named.  The daemon is a template
-# unit, smartclockd@.service, installed as a plain asset above, since
-# cargo-deb's unit handling is for units enabled by name; an instance
-# is enabled by hand once its environment file exists.
+# scrapes it, and the sensor service needs its sensors named.  The
+# daemon is a template unit, smartclockd@.service, installed as a
+# plain asset above, since cargo-deb's unit handling is for units
+# enabled by name; an instance is enabled by hand once its environment
+# file exists.
 systemd-units = [
     { unit-name = "smartclock-exporter", unit-scripts = "../../packaging/systemd", enable = false, start = false },
     { unit-name = "smartclock-web", unit-scripts = "../../packaging/systemd", enable = false, start = false },

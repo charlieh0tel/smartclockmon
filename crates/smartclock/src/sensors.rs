@@ -15,20 +15,29 @@ use crate::protocol::Protocol;
 /// Bumped when the shapes below change.
 pub const VERSION: u32 = 1;
 
+/// How often the service reads its sensors unless told otherwise, in
+/// seconds: the receivers' medium tier.
+pub const DEFAULT_EVERY_S: f64 = 10.0;
+
+/// Where the service answers unless told otherwise.
+pub const DEFAULT_SOCKET: &str = "/run/smartclock-sensord/socket";
+
 /// How many read periods without a reading make a sensor's last
 /// reading too old to show as current, and a gap in its history worth
 /// breaking a line at.
 pub const PERIODS_STALE: u32 = 3;
 
-/// What a client asks the sensor service.
+/// What a client asks the sensor service.  Named apart from the
+/// receiver daemon's requests, so a client pointed at the wrong socket
+/// is refused rather than answered in the other service's terms.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "lowercase")]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Op {
     /// The service itself: answers [`Info`].
-    Info,
+    SensorInfo,
     /// Every configured sensor and its latest reading: answers
     /// [`Latest`].
-    Latest,
+    SensorLatest,
 }
 
 impl Protocol for Op {

@@ -29,6 +29,7 @@ use smartclock::client::Daemon;
 use smartclock::client::Daemons;
 use smartclock::parse::Identity;
 use smartclock::protocol::Op;
+use smartclock::sensors::DEFAULT_SOCKET;
 use smartclock_http::Response;
 use smartclock_log::reader::Journal;
 use smartclock_log::reader::Log;
@@ -36,6 +37,7 @@ use smartclock_log::reader::MAX_PHASE_ROWS;
 use smartclock_log::reader::Receiver;
 use smartclock_log::schema::PLOTTABLE;
 use smartclock_log::schema::measured;
+use smartclock_log::sensors::DEFAULT_LOG;
 use smartclock_log::sensors::SensorLog;
 
 /// The page, built in rather than read from disk: one file to install,
@@ -113,19 +115,11 @@ struct Cli {
 
     /// The sensor service's log, for the sensors' history.  Opened
     /// read-only; a host without one shows no sensors.
-    #[arg(
-        long,
-        env = "SMARTCLOCK_WEB_SENSOR_LOG",
-        default_value = "/var/lib/smartclock-sensord/sensors.sqlite"
-    )]
+    #[arg(long, env = "SMARTCLOCK_WEB_SENSOR_LOG", default_value = DEFAULT_LOG)]
     sensor_log: PathBuf,
 
     /// The sensor service's socket, for the sensors' latest readings.
-    #[arg(
-        long,
-        env = "SMARTCLOCK_WEB_SENSOR_SOCKET",
-        default_value = "/run/smartclock-sensord/socket"
-    )]
+    #[arg(long, env = "SMARTCLOCK_WEB_SENSOR_SOCKET", default_value = DEFAULT_SOCKET)]
     sensor_socket: PathBuf,
 }
 
@@ -436,7 +430,9 @@ fn sensor_history(path: &Path, query: &str) -> Result<serde_json::Value> {
     let (Some(from), Some(to)) = (number("from"), number("to")) else {
         anyhow::bail!("a range is from= and to=, in unix seconds");
     };
-    let points = value("points").and_then(|v| v.parse().ok()).unwrap_or(1500);
+    let points = value("points")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_POINTS);
     let lines = match sensor_log(path)? {
         Some(log) => log.series(&quantity, from, to, points)?,
         None => Vec::new(),
@@ -668,6 +664,9 @@ impl Listed {
     }
 }
 
+/// How many buckets a history request that does not say is given.
+const DEFAULT_POINTS: usize = 1500;
+
 /// How much history a request that does not say gets.
 const DEFAULT_WINDOW: i64 = 3600;
 
@@ -680,7 +679,7 @@ const DEFAULT_WINDOW: i64 = 3600;
 /// before this predates the plural.
 fn series(logs: &Logs, query: &str) -> Result<serde_json::Value> {
     let mut columns: Vec<String> = Vec::new();
-    let (mut from, mut to, mut points) = (None, None, 1500usize);
+    let (mut from, mut to, mut points) = (None, None, DEFAULT_POINTS);
     for (key, value) in smartclock_http::pairs(query) {
         match key {
             // Split after decoding, not before: a `+` is a space by
@@ -694,7 +693,7 @@ fn series(logs: &Logs, query: &str) -> Result<serde_json::Value> {
             ),
             "from" => from = value.parse::<i64>().ok(),
             "to" => to = value.parse::<i64>().ok(),
-            "points" => points = value.parse().unwrap_or(1500),
+            "points" => points = value.parse().unwrap_or(DEFAULT_POINTS),
             _ => {}
         }
     }

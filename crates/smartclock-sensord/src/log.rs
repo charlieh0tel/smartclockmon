@@ -13,7 +13,6 @@ use rusqlite::OptionalExtension as _;
 use rusqlite::params;
 use smartclock_log::error::Result;
 use smartclock_log::schema::stored;
-use smartclock_log::sensors::EVERY_KEY;
 use smartclock_log::sensors::TABLES;
 use smartclock_log::sensors::VERSION;
 use smartclock_log::writer;
@@ -28,16 +27,26 @@ pub struct Log {
 
 impl Log {
     /// Open or create the log, refusing one a newer service wrote, and
-    /// record how often the sensors are read.
+    /// record how often the sensors are read from now, if that is not
+    /// what was last recorded.
     pub fn open(path: &Path, every: Duration) -> Result<Self> {
         let conn = writer::open(path)?;
         // Nothing to migrate from yet: schema 1 is the first.
         writer::stamped_version(&conn, VERSION, "smartclock-sensord")?;
         conn.execute_batch(TABLES)?;
-        conn.execute(
-            "INSERT OR REPLACE INTO meta (key, value) VALUES (?1, ?2)",
-            params![EVERY_KEY, every.as_secs_f64().to_string()],
-        )?;
+        let last: Option<f64> = conn
+            .query_row(
+                "SELECT every FROM period ORDER BY since DESC LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if last != Some(every.as_secs_f64()) {
+            conn.execute(
+                "INSERT INTO period (since, every) VALUES (?1, ?2)",
+                params![stored(Timestamp::now()), every.as_secs_f64()],
+            )?;
+        }
         writer::stamp(&conn, VERSION)?;
         Ok(Self { conn })
     }

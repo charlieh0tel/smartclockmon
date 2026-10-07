@@ -4,6 +4,7 @@ use std::collections::VecDeque;
 
 use jiff::Timestamp;
 use smartclock::screen::Screen;
+use smartclock::sensors::Latest;
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Tier;
 use smartclock::task::Cadence;
@@ -87,7 +88,7 @@ pub(crate) struct App {
     pub(crate) attachment: Attachment,
     /// The host's sensors and their latest readings, from the sensor
     /// service; `None` without one.
-    pub(crate) sensors: Option<smartclock::sensors::Latest>,
+    pub(crate) sensors: Option<Latest>,
     /// Set when the operator has asked to leave.
     pub(crate) quitting: bool,
     /// Recent 1 PPS intervals in nanoseconds, oldest first.

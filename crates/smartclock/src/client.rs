@@ -283,7 +283,7 @@ impl Daemon {
     /// The sensor service's account of itself, from a connection to its
     /// socket.
     pub fn sensor_info(&mut self) -> Result<sensors::Info> {
-        let value = self.ask(sensors::Op::Info)?;
+        let value = self.ask(sensors::Op::SensorInfo)?;
         serde_json::from_value(value)
             .map_err(|e| Error::Daemon(format!("its account of itself did not parse: {e}")))
     }
@@ -291,7 +291,7 @@ impl Daemon {
     /// Every sensor and its latest reading, from a connection to the
     /// sensor service's socket.
     pub fn sensor_readings(&mut self) -> Result<sensors::Latest> {
-        let value = self.ask(sensors::Op::Latest)?;
+        let value = self.ask(sensors::Op::SensorLatest)?;
         serde_json::from_value(value)
             .map_err(|e| Error::Daemon(format!("its readings did not parse: {e}")))
     }

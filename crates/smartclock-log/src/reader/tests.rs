@@ -10,49 +10,15 @@ use super::Series;
 use crate::schema::META;
 use crate::schema::TABLES;
 use crate::schema::stored;
+use crate::scratch::Scratch;
 
-/// A database path that deletes itself, and the `-wal` and `-shm`
-/// SQLite writes beside it, on drop.  Drop also runs on a panicking
-/// test, where a line at the end of the test body would not.
-struct Scratch(std::path::PathBuf);
-
-impl Scratch {
-    /// A new log holding the empty tables.
-    fn new(name: &str) -> Self {
-        let path = std::env::temp_dir().join(format!(
-            "smartclock-log-{name}-{}.sqlite",
-            std::process::id()
-        ));
-        let guard = Self(path);
-        guard.wipe();
-        let conn = guard.connect();
-        conn.execute_batch(META).expect("meta");
-        conn.execute_batch(TABLES).expect("the tables");
-        guard
-    }
-
-    fn path(&self) -> &std::path::Path {
-        &self.0
-    }
-
-    /// A write connection, as the daemon would hold.
-    fn connect(&self) -> Connection {
-        Connection::open(&self.0).expect("open the log for writing")
-    }
-
-    fn wipe(&self) {
-        for suffix in ["", "-wal", "-shm"] {
-            let mut name = self.0.clone().into_os_string();
-            name.push(suffix);
-            let _ = std::fs::remove_file(std::path::PathBuf::from(name));
-        }
-    }
-}
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        self.wipe();
-    }
+/// A new log holding the empty tables.
+fn fresh(name: &str) -> Scratch {
+    let scratch = Scratch::new(name);
+    let conn = scratch.connect();
+    conn.execute_batch(META).expect("meta");
+    conn.execute_batch(TABLES).expect("the tables");
+    scratch
 }
 
 /// A timestamp `second` unix seconds in, as the daemon stores it.
@@ -64,7 +30,7 @@ fn at(second: i64) -> String {
 /// them: a row per publish, so the steps of the slower tiers repeat the
 /// fast tier's last reading under a later `at`.
 fn phase_log(name: &str, rows: &[(i64, f64, &str, i64)]) -> Scratch {
-    let scratch = Scratch::new(name);
+    let scratch = fresh(name);
     let conn = scratch.connect();
     conn.execute_batch(
         "INSERT INTO receiver (id, serial, model, first_seen, last_seen)
@@ -272,7 +238,7 @@ fn a_range_with_too_little_in_it_yields_no_curve() {
 /// A log holding two receivers, each with its own snapshots, log
 /// entries, events and errors.
 fn two_units(name: &str) -> Scratch {
-    let scratch = Scratch::new(name);
+    let scratch = fresh(name);
     scratch
         .connect()
         .execute_batch(
@@ -360,7 +326,7 @@ fn a_slower_tier_that_stops_reading_stops_being_plotted() {
     // 0 s and 10 s and then fails.  Its value is current for three of
     // its intervals after the last read, to 40 s, and is not a
     // measurement after that.
-    let scratch = Scratch::new("stale-tier");
+    let scratch = fresh("stale-tier");
     let conn = scratch.connect();
     conn.execute_batch(
         "INSERT INTO meta VALUES ('cadence_medium', '10');

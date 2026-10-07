@@ -18,3 +18,6 @@ pub mod reader;
 pub mod schema;
 pub mod sensors;
 pub mod writer;
+
+#[cfg(test)]
+mod scratch;

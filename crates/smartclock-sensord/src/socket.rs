@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::PoisonError;
 
 use smartclock::protocol::Message;
 use smartclock::sensors::Info;
@@ -28,13 +29,13 @@ impl Service for Answers {
 
     fn answer(&self, id: String, op: Op) -> Message {
         let value = match op {
-            Op::Info => serde_json::to_value(&self.info),
-            Op::Latest => {
+            Op::SensorInfo => serde_json::to_value(&self.info),
+            Op::SensorLatest => {
                 // A copy, so the lock is not held while it is written out.
                 let latest = self
                     .latest
                     .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .unwrap_or_else(PoisonError::into_inner)
                     .clone();
                 serde_json::to_value(latest)
             }
@@ -89,7 +90,9 @@ mod tests {
         assert_eq!(client.sensor_info().expect("info"), info);
         let got = client.sensor_readings().expect("readings");
         assert_eq!(got.readings[0].value, Some(21.5));
-        // A request only the receiver daemon has is refused.
+        // The receiver daemon's requests are refused, not answered in
+        // this service's terms.
+        assert!(client.info().is_err());
         assert!(client.status().is_err());
         let _ = std::fs::remove_file(&socket);
     }

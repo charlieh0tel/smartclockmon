@@ -35,6 +35,7 @@ use smartclock::device::dialect_for;
 use smartclock::error::Error;
 use smartclock::parse;
 use smartclock::rollover::ReceiverDate;
+use smartclock::sensors::DEFAULT_SOCKET;
 use smartclock::session::Config;
 use smartclock::session::Session;
 use smartclock::transport;
@@ -191,7 +192,7 @@ enum Command {
     /// smartclock-sensord.  Needs neither a receiver nor its daemon.
     Sensors {
         /// The sensor service's socket.
-        #[arg(long, default_value = "/run/smartclock-sensord/socket")]
+        #[arg(long, default_value = DEFAULT_SOCKET)]
         sensor_socket: PathBuf,
     },
 }
@@ -517,7 +518,7 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command, checked: &[Stri
         }
         // Handled before the port is opened.
         Command::Commands => Ok(()),
-        Command::Sensors { .. } => unreachable!("handled before the port is opened"),
+        Command::Sensors { .. } => Ok(()),
     };
     // Errors read off the queue so that no command was judged by them
     // (docs/protocol.md, "The error prompt"): the receiver raised them,

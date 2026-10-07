@@ -131,38 +131,52 @@ pub(crate) struct SensorScrape {
     pub(crate) latest: Option<Latest>,
 }
 
-/// Each quantity's metric: its name, its help, and what the service's
-/// unit is multiplied by to give the metric's.  Pressure in pascals,
+/// One quantity's metric family.
+struct SensorMetric {
+    /// The quantity, as the sensor service names it.
+    quantity: &'static str,
+    /// The metric's name, less the prefix.
+    name: &'static str,
+    /// Its help line.
+    help: &'static str,
+    /// What the service's unit is multiplied by to give the metric's.
+    factor: f64,
+}
+
+/// Pascals in a kilopascal: pressure is exported in pascals,
 /// Prometheus' base unit, though the service reports kilopascals.
-const SENSOR_METRICS: [(&str, &str, &str, f64); 3] = [
-    (
-        "temperature",
-        "sensor_temperature_celsius",
-        "A host sensor's temperature",
-        1.0,
-    ),
-    (
-        "humidity",
-        "sensor_humidity_percent",
-        "A host sensor's relative humidity",
-        1.0,
-    ),
-    (
-        "pressure",
-        "sensor_pressure_pascals",
-        "A host sensor's pressure",
-        1000.0,
-    ),
+const PASCALS_PER_KILOPASCAL: f64 = 1000.0;
+
+/// Each quantity's metric family.
+const SENSOR_METRICS: [SensorMetric; 3] = [
+    SensorMetric {
+        quantity: "temperature",
+        name: "sensor_temperature_celsius",
+        help: "A host sensor's temperature",
+        factor: 1.0,
+    },
+    SensorMetric {
+        quantity: "humidity",
+        name: "sensor_humidity_percent",
+        help: "A host sensor's relative humidity",
+        factor: 1.0,
+    },
+    SensorMetric {
+        quantity: "pressure",
+        name: "sensor_pressure_pascals",
+        help: "A host sensor's pressure",
+        factor: PASCALS_PER_KILOPASCAL,
+    },
 ];
 
 /// Render the sensor service's metrics.  A reading is exported only
 /// while it is current: a sensor that has stopped reading is left out,
 /// not drawn as steady at its last value.
 pub(crate) fn render_sensors(sensors: &SensorScrape) -> String {
-    let mut out = Families::default();
     if !sensors.seen {
         return String::new();
     }
+    let mut out = Families::default();
     out.gauge(
         "sensord_up",
         "1 when the sensor service answered this scrape",
@@ -174,17 +188,19 @@ pub(crate) fn render_sensors(sensors: &SensorScrape) -> String {
     };
     let now = jiff::Timestamp::now();
     for reading in &latest.readings {
-        let Some((_, name, help, factor)) = SENSOR_METRICS
+        let Some(metric) = SENSOR_METRICS
             .iter()
-            .find(|(quantity, ..)| *quantity == reading.quantity)
+            .find(|m| m.quantity == reading.quantity)
         else {
             continue;
         };
         out.maybe(
-            name,
-            help,
+            metric.name,
+            metric.help,
             &with("", "sensor", &crate::escape(&reading.name)),
-            reading.current(latest.every_s, now).map(|v| v * factor),
+            reading
+                .current(latest.every_s, now)
+                .map(|v| v * metric.factor),
         );
     }
     out.render()

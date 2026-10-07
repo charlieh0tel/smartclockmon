@@ -2,9 +2,12 @@
 //! period of its own and logs them, whether or not any receiver is
 //! attached.  `docs/sensors.md` has the design.
 
+use std::fmt::Display;
 use std::path::PathBuf;
+use std::process::exit;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::PoisonError;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -12,10 +15,13 @@ use anyhow::Context as _;
 use anyhow::Result;
 use clap::Parser;
 use jiff::Timestamp;
+use smartclock::sensors::DEFAULT_EVERY_S;
+use smartclock::sensors::DEFAULT_SOCKET;
 use smartclock::sensors::Info;
 use smartclock::sensors::Latest;
 use smartclock::sensors::Reading;
 use smartclock_log::error::Error as LogError;
+use smartclock_log::sensors::DEFAULT_LOG;
 use smartclock_sensord::log::Log;
 use smartclock_sensord::sensor;
 use smartclock_sensord::sensor::Interface;
@@ -29,7 +35,7 @@ use smartclock_sensord::socket::Shared;
 /// too.
 const CONFIGURATION_ERROR: i32 = 2;
 
-/// The longest read period worth accepting, in seconds.
+/// The longest read period worth accepting, in seconds: one day.
 const LONGEST_EVERY: f64 = 86_400.0;
 
 /// Reads the host's sensors into a log beside the SmartClock receivers'.
@@ -60,23 +66,15 @@ struct Cli {
     iio: Vec<String>,
 
     /// How often every sensor is read, in seconds.
-    #[arg(long, env = "SMARTCLOCK_SENSORD_EVERY", default_value_t = 10.0)]
+    #[arg(long, env = "SMARTCLOCK_SENSORD_EVERY", default_value_t = DEFAULT_EVERY_S)]
     every: f64,
 
     /// The log.
-    #[arg(
-        long,
-        env = "SMARTCLOCK_SENSORD_LOG",
-        default_value = "/var/lib/smartclock-sensord/sensors.sqlite"
-    )]
+    #[arg(long, env = "SMARTCLOCK_SENSORD_LOG", default_value = DEFAULT_LOG)]
     log: PathBuf,
 
     /// Where clients connect.
-    #[arg(
-        long,
-        env = "SMARTCLOCK_SENSORD_SOCKET",
-        default_value = "/run/smartclock-sensord/socket"
-    )]
+    #[arg(long, env = "SMARTCLOCK_SENSORD_SOCKET", default_value = DEFAULT_SOCKET)]
     socket: PathBuf,
 }
 
@@ -94,14 +92,14 @@ fn main() {
     let cli = Cli::parse();
     if let Err(e) = run(cli) {
         eprintln!("smartclock-sensord: {e:#}");
-        std::process::exit(1);
+        exit(1);
     }
 }
 
 /// Exit, saying why, with the status the unit does not restart on.
-fn refuse(why: impl std::fmt::Display) -> ! {
+fn refuse(why: impl Display) -> ! {
     eprintln!("smartclock-sensord: {why}");
-    std::process::exit(CONFIGURATION_ERROR);
+    exit(CONFIGURATION_ERROR);
 }
 
 fn run(cli: Cli) -> Result<()> {
@@ -216,9 +214,7 @@ fn pass(log: &Log, kept: &mut [Kept], latest: &Shared) {
         let at = Timestamp::now();
         let read = sensor::read(&one.sensor);
         {
-            let mut latest = latest
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut latest = latest.lock().unwrap_or_else(PoisonError::into_inner);
             let shown = &mut latest.readings[n];
             match &read {
                 Ok(value) => {

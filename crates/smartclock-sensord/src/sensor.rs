@@ -7,6 +7,8 @@
 //! and a reading is converted to the unit stored: degrees C, percent
 //! relative humidity, kilopascals.
 
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -83,7 +85,7 @@ pub struct Name(String);
 
 impl Name {
     /// The name, if it is one: `[a-z][a-z0-9_]{0,31}`.
-    pub fn new(name: &str) -> Result<Self, ConfigError> {
+    fn new(name: &str) -> Result<Self, ConfigError> {
         let mut chars = name.chars();
         let first_ok = chars.next().is_some_and(|c| c.is_ascii_lowercase());
         let rest_ok = chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
@@ -100,8 +102,8 @@ impl Name {
     }
 }
 
-impl std::fmt::Display for Name {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Name {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
     }
 }
@@ -135,6 +137,9 @@ pub enum ConfigError {
     /// A last component that is a glob, which would hide the quantity.
     #[error("{0}: the last part of the path must be literal, since it says what is measured")]
     GlobbedLast(String),
+    /// An IIO channel given with one of its attributes' suffixes.
+    #[error("{0}: name the channel without its _input, _raw, _offset or _scale")]
+    Suffix(String),
     /// A file of a kind this does not read.
     #[error("{0}: not a temperature, humidity or pressure reading this can read")]
     Kind(String),
@@ -196,6 +201,9 @@ pub fn parse(interface: Interface, spec: &str) -> Result<Sensor, ConfigError> {
     if last.contains(GLOB) {
         return Err(ConfigError::GlobbedLast(source));
     }
+    if interface == Interface::Iio && IIO_SUFFIXES.iter().any(|s| last.ends_with(s)) {
+        return Err(ConfigError::Suffix(source));
+    }
     let quantity = match interface {
         Interface::Hwmon => hwmon_quantity(last),
         Interface::Iio => iio_quantity(last),
@@ -254,9 +262,6 @@ const IIO_SUFFIXES: [&str; 4] = ["_input", "_raw", "_offset", "_scale"];
 /// What an IIO channel measures: `in_<type>[index][_modifier]`, such as
 /// `in_temp`, `in_temp0` or `in_temp_ambient`.
 fn iio_quantity(channel: &str) -> Option<Quantity> {
-    if IIO_SUFFIXES.iter().any(|s| channel.ends_with(s)) {
-        return None;
-    }
     let rest = channel.strip_prefix("in_")?;
     // Longest type first: `humidityrelative` would otherwise be no
     // match at all, and no type is a prefix of another today.
@@ -453,7 +458,6 @@ mod tests {
             (Interface::Hwmon, "/h/fan1_input"),
             (Interface::Hwmon, "/h/temp1_max"),
             (Interface::Iio, "/d/in_voltage0"),
-            (Interface::Iio, "/d/in_temp_raw"),
             (Interface::Iio, "/d/in_tempx"),
         ] {
             assert!(
@@ -464,6 +468,10 @@ mod tests {
         assert!(matches!(
             quantity(Interface::Hwmon, "/h/temp*_input"),
             Err(ConfigError::GlobbedLast(_))
+        ));
+        assert!(matches!(
+            quantity(Interface::Iio, "/d/in_temp0_input"),
+            Err(ConfigError::Suffix(_))
         ));
     }
 

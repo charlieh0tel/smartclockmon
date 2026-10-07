@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use rusqlite::Connection;
 use serde::Serialize;
+use smartclock::sensors::DEFAULT_EVERY_S;
 use smartclock::sensors::PERIODS_STALE;
 
 use crate::error::Result;
@@ -24,9 +25,8 @@ use crate::reader::text_bound;
 /// service refuses a log of a later version; the readers accept any.
 pub const VERSION: i64 = 1;
 
-/// The `meta` key the service records its read period under, in
-/// seconds.
-pub const EVERY_KEY: &str = "every";
+/// Where the service keeps its log unless told otherwise.
+pub const DEFAULT_LOG: &str = "/var/lib/smartclock-sensord/sensors.sqlite";
 
 /// The tables, as of [`VERSION`], each `IF NOT EXISTS`.
 pub const TABLES: &str = r#"
@@ -51,6 +51,14 @@ pub const TABLES: &str = r#"
         device    TEXT
     );
     CREATE INDEX IF NOT EXISTS source_sensor ON source(sensor_id, since);
+
+    -- How often the service read its sensors, from when: a new row
+    -- whenever it is started with another period, so older readings
+    -- are judged by the period they were read at.
+    CREATE TABLE IF NOT EXISTS period (
+        since TEXT NOT NULL,
+        every REAL NOT NULL
+    );
 
     -- One row per reading that succeeded.  A read that failed writes
     -- nothing: a gap in the readings is the record of it.
@@ -135,10 +143,15 @@ impl SensorLog {
     }
 
     /// The first and last reading's times in unix seconds, or `None`
-    /// for a log with none.
+    /// for a log with none.  Each sensor's through the reading table's
+    /// key, rather than a scan of every reading, which on a year's log
+    /// is long enough to hold up a page.
     pub fn extent(&self) -> Result<Option<(f64, f64)>> {
         let span = self.conn.query_row(
-            "SELECT unixepoch(MIN(at), 'subsec'), unixepoch(MAX(at), 'subsec') FROM reading",
+            "SELECT unixepoch(MIN(first), 'subsec'), unixepoch(MAX(last), 'subsec')
+             FROM (SELECT (SELECT MIN(at) FROM reading WHERE sensor_id = s.id) AS first,
+                          (SELECT MAX(at) FROM reading WHERE sensor_id = s.id) AS last
+                   FROM sensor s)",
             [],
             |row| Ok((row.get::<_, Option<f64>>(0)?, row.get::<_, Option<f64>>(1)?)),
         );
@@ -150,18 +163,27 @@ impl SensorLog {
         }
     }
 
-    /// How often the service read its sensors, as it recorded; `None`
-    /// if it did not.
+    /// How often the service reads its sensors now, as it last
+    /// recorded; `None` if it did not.
     pub fn every(&self) -> Option<Duration> {
-        let value: String = self
+        let every = self.periods().ok()?.last()?.1;
+        Duration::try_from_secs_f64(every).ok()
+    }
+
+    /// Every read period recorded, oldest first: from when, in unix
+    /// seconds, and the period in seconds.
+    fn periods(&self) -> Result<Vec<(f64, f64)>> {
+        let mut statement = match self
             .conn
-            .query_row(
-                "SELECT value FROM meta WHERE key = ?1",
-                [EVERY_KEY],
-                |row| row.get(0),
-            )
-            .ok()?;
-        Duration::try_from_secs_f64(value.parse().ok()?).ok()
+            .prepare("SELECT unixepoch(since, 'subsec'), every FROM period ORDER BY since")
+        {
+            Ok(statement) => statement,
+            Err(e) if missing_table(&e) => return Ok(Vec::new()),
+            Err(e) => return Err(e.into()),
+        };
+        Ok(statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<std::result::Result<_, _>>()?)
     }
 
     /// Every sensor of `quantity`, its readings between two unix times
@@ -169,19 +191,32 @@ impl SensorLog {
     /// receivers' history uses for the same range.
     ///
     /// A run of empty buckets is a gap, and breaks the line, only when
-    /// it is longer than [`PERIODS_STALE`] read periods: at an hour's
-    /// zoom a bucket is a few seconds, and every bucket between two
-    /// readings ten seconds apart would otherwise break it.
+    /// it is longer than [`PERIODS_STALE`] read periods, the period the
+    /// reading before it was read at, which is when the next was due:
+    /// at an hour's zoom a bucket is a few seconds, and every bucket
+    /// between two readings ten seconds apart would otherwise break it.
     pub fn series(&self, quantity: &str, from: i64, to: i64, points: usize) -> Result<Vec<Line>> {
         let points = points.clamp(MIN_POINTS, MAX_POINTS) as i64;
         let span = to.saturating_sub(from).max(1);
         let width = (span as f64 + 1.0) / points as f64;
-        let every = self.every().unwrap_or(DEFAULT_EVERY).as_secs_f64();
+        let periods = self.periods()?;
+        // The period a reading at `at` was read at: the latest recorded
+        // by then, or the first for a reading before any.
+        let every_at = |at: f64| {
+            periods
+                .iter()
+                .rev()
+                .find(|(since, _)| *since <= at)
+                .or(periods.first())
+                .map_or(DEFAULT_EVERY_S, |(_, every)| *every)
+        };
         #[expect(
             clippy::cast_possible_truncation,
             reason = "a count of buckets fits an i64"
         )]
-        let gap = GAP_BUCKETS.max((f64::from(PERIODS_STALE) * every / width).ceil() as i64);
+        let gap = |at: f64| {
+            GAP_BUCKETS.max((f64::from(PERIODS_STALE) * every_at(at) / width).ceil() as i64)
+        };
         let (lower, upper) = (text_bound("?1"), text_bound("?2 + 1"));
         let sql = format!(
             // As the receivers' history buckets: divided by the span
@@ -203,7 +238,8 @@ impl SensorLog {
         };
         let mut rows = statement.query((from, to, points, span, quantity))?;
         let mut lines: Vec<Line> = Vec::new();
-        let mut previous: Option<i64> = None;
+        // The previous bucket of the same line, and its time.
+        let mut previous: Option<(i64, f64)> = None;
         while let Some(row) = rows.next()? {
             let name: String = row.get(0)?;
             let bucket: i64 = row.get(1)?;
@@ -218,11 +254,11 @@ impl SensorLog {
                 previous = None;
             }
             let line = lines.last_mut().expect("a line was just pushed");
-            if previous.is_some_and(|last| bucket > last + gap) {
+            if previous.is_some_and(|(last, last_at)| bucket > last + gap(last_at)) {
                 line.at.push(at - width);
                 line.values.push(None);
             }
-            previous = Some(bucket);
+            previous = Some((bucket, at));
             line.at.push(at);
             line.values.push(Some(value));
         }
@@ -230,46 +266,13 @@ impl SensorLog {
     }
 }
 
-/// The read period a log that did not record one is taken to have: the
-/// service's default.
-pub const DEFAULT_EVERY: Duration = Duration::from_secs(10);
-
 #[cfg(test)]
 mod tests {
-    use super::EVERY_KEY;
     use super::SensorLog;
     use super::TABLES;
     use crate::schema::META;
     use crate::schema::stored;
-    use rusqlite::Connection;
-    use std::path::PathBuf;
-
-    /// A sensor log file, removed with its WAL files when this goes.
-    struct Scratch(PathBuf);
-
-    impl Scratch {
-        fn new(name: &str) -> Self {
-            let path = std::env::temp_dir().join(format!(
-                "smartclock-log-sensors-{name}-{}.sqlite",
-                std::process::id()
-            ));
-            let scratch = Self(path);
-            scratch.wipe();
-            scratch
-        }
-
-        fn wipe(&self) {
-            for suffix in ["", "-wal", "-shm"] {
-                let _ = std::fs::remove_file(format!("{}{suffix}", self.0.display()));
-            }
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            self.wipe();
-        }
-    }
+    use crate::scratch::Scratch;
 
     const T0: i64 = 1_791_000_000;
 
@@ -280,10 +283,10 @@ mod tests {
     /// A log of two temperature sensors and one humidity, read every
     /// ten seconds, `room` silent for a minute in the middle.
     fn written(scratch: &Scratch) {
-        let conn = Connection::open(&scratch.0).expect("open");
+        let conn = scratch.connect();
         conn.execute_batch(META).expect("meta");
         conn.execute_batch(TABLES).expect("tables");
-        conn.execute("INSERT INTO meta VALUES (?1, '10')", [EVERY_KEY])
+        conn.execute("INSERT INTO period VALUES (?1, 10)", [at(-3600)])
             .expect("every");
         conn.execute_batch(
             "INSERT INTO sensor VALUES (1, 'room', 'temperature', 'C');
@@ -317,7 +320,7 @@ mod tests {
     fn sensors_are_listed_with_their_latest_source() {
         let scratch = Scratch::new("list");
         written(&scratch);
-        let log = SensorLog::open(&scratch.0).expect("open");
+        let log = SensorLog::open(scratch.path()).expect("open");
         let sensors = log.sensors().expect("sensors");
         let named: Vec<_> = sensors
             .iter()
@@ -340,7 +343,7 @@ mod tests {
     fn a_quantity_is_one_line_per_sensor_broken_only_at_a_real_gap() {
         let scratch = Scratch::new("series");
         written(&scratch);
-        let log = SensorLog::open(&scratch.0).expect("open");
+        let log = SensorLog::open(scratch.path()).expect("open");
         // Buckets of about two seconds: four or five empty between any
         // two readings, which must not break a line.
         let lines = log
@@ -370,11 +373,8 @@ mod tests {
     #[test]
     fn a_log_with_no_tables_reads_as_empty() {
         let scratch = Scratch::new("empty");
-        Connection::open(&scratch.0)
-            .expect("open")
-            .execute_batch(META)
-            .expect("meta");
-        let log = SensorLog::open(&scratch.0).expect("open");
+        scratch.connect().execute_batch(META).expect("meta");
+        let log = SensorLog::open(scratch.path()).expect("open");
         assert!(log.sensors().expect("sensors").is_empty());
         assert!(
             log.series("temperature", T0, T0 + 600, 300)
@@ -383,5 +383,34 @@ mod tests {
         );
         assert_eq!(log.every(), None);
         assert_eq!(log.extent().expect("extent"), None);
+    }
+
+    #[test]
+    fn older_readings_are_judged_by_the_period_they_were_read_at() {
+        let scratch = Scratch::new("periods");
+        let conn = scratch.connect();
+        conn.execute_batch(META).expect("meta");
+        conn.execute_batch(TABLES).expect("tables");
+        conn.execute(
+            "INSERT INTO sensor VALUES (1, 'room', 'temperature', 'C')",
+            [],
+        )
+        .expect("a sensor");
+        // A minute apart for half an hour, then every ten seconds.
+        conn.execute("INSERT INTO period VALUES (?1, 60)", [at(0)])
+            .expect("a period");
+        conn.execute("INSERT INTO period VALUES (?1, 10)", [at(1800)])
+            .expect("a later period");
+        for t in (0..1800).step_by(60).chain((1800..3600).step_by(10)) {
+            conn.execute("INSERT INTO reading VALUES (1, ?1, 21.0)", [at(t)])
+                .expect("a reading");
+        }
+        let log = SensorLog::open(scratch.path()).expect("open");
+        assert_eq!(log.every(), Some(std::time::Duration::from_secs(10)));
+        let lines = log
+            .series("temperature", T0, T0 + 3600, 1500)
+            .expect("series");
+        let breaks = lines[0].values.iter().filter(|v| v.is_none()).count();
+        assert_eq!(breaks, 0, "the minute-apart readings were broken apart");
     }
 }

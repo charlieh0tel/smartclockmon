@@ -197,7 +197,7 @@ The host's sensors, from `smartclock-sensord`'s socket, are
 `smartclock_sensor_temperature_celsius`,
 `smartclock_sensor_humidity_percent` and
 `smartclock_sensor_pressure_pascals`, labeled `sensor`, beside
-`smartclock_sensord_up`.  A reading is left out once its sensor has
-not read for three read periods.  A host without the service exports
+`smartclock_sensord_up`.  A reading is left out once its latest read
+failed or is older than three read periods.  A host without the service exports
 none of these; once it has answered, a service that stops is
 `smartclock_sensord_up 0`.

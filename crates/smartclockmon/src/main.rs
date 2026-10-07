@@ -26,6 +26,7 @@ use crossterm::event::KeyModifiers;
 
 use crate::app::App;
 use smartclock::client::Daemon;
+use smartclock::sensors::DEFAULT_SOCKET;
 use smartclock::types::Framing;
 
 use crate::app::View;
@@ -56,7 +57,7 @@ struct Cli {
 
     /// The sensor service's socket, for the host's sensors in the
     /// header.  A host without the service shows none.
-    #[arg(long, default_value = "/run/smartclock-sensord/socket")]
+    #[arg(long, default_value = DEFAULT_SOCKET)]
     sensor_socket: PathBuf,
 }
 
@@ -83,9 +84,9 @@ const STATUS_REFRESH: Duration = Duration::from_secs(15);
 /// seconds by default, so oftener shows nothing new.
 const SENSORS_REFRESH: Duration = Duration::from_secs(5);
 
-/// How long the sensor service may take to answer.  Asked from the
-/// drawing loop, so kept short: a service that does not answer in this
-/// time costs one stalled frame, and its sensors are shown as unknown.
+/// How long the sensor service may take to answer.  Short, since it is
+/// asked from the drawing loop; a service that does not answer in time
+/// leaves the header without sensors until the next ask.
 const SENSORS_BUDGET: Duration = Duration::from_millis(250);
 
 fn main() -> Result<()> {
