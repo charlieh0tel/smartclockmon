@@ -127,9 +127,8 @@ const fetchSeries = (signal, ...args) => ask(seriesQuery(...args), signal);
 
 // Tracked and not tracked are one measurement split two ways: their
 // sum is the satellites the receiver knows about, so a chart apiece
-// hides the relationship that matters.  Drawn together, and only these
-// two -- a general grouping would have to answer what happens when a
-// temperature is paired with a count, and nothing needs that.
+// hides the relationship that matters.  Drawn together, the only
+// columns that are.
 const PAIRED = ["tracking", "not_tracking"];
 
 // Split two labels into what they have in common and what each adds,
@@ -146,14 +145,47 @@ function shareName(a, b) {
   return [x.slice(0, n).join(" ") + " ", x.slice(n).join(" "), y.slice(n).join(" ")];
 }
 
-function pairCounts(plots) {
-  const first = plots.findIndex((p) => p.column === PAIRED[0]);
-  const second = plots.findIndex((p) => p.column === PAIRED[1]);
-  if (first < 0 || second < 0) return plots;
-  const partner = plots[second];
+// The colors of a chart's lines, in order.  A chart of one line draws
+// it in the first.
+const LINE_COLORS = [TRACE, MATE];
+
+// The charts of the stack, from the server's plots: a chart per
+// column, with the paired columns sharing one.  Each chart is
+//   column    what its y axis is fitted to and its hover text is for
+//   envelope  { min, max }, drawn behind the first line, or null
+//   lines     [{ column, values, color }] on one y axis, in order
+function chartsOf(plots) {
+  const line = (plot, n) => ({
+    column: plot.column,
+    values: scaled(plot.mean, plot.column),
+    color: LINE_COLORS[n],
+  });
+  const partner = plots.find((p) => p.column === PAIRED[1]);
+  const paired = plots.some((p) => p.column === PAIRED[0]) && partner;
   return plots
-    .filter((_, i) => i !== second)
-    .map((p) => (p.column === PAIRED[0] ? { ...p, partner } : p));
+    .filter((p) => !(paired && p.column === PAIRED[1]))
+    .map((plot) => ({
+      column: plot.column,
+      envelope: { min: scaled(plot.min, plot.column), max: scaled(plot.max, plot.column) },
+      lines: [line(plot, 0), ...(paired && plot.column === PAIRED[0] ? [line(partner, 1)] : [])],
+    }));
+}
+
+// A multi-line chart's title, each line's own words in its color, so
+// the title says which line is which with the legend off.
+function groupTitle(lines) {
+  if (lines.length === 2) {
+    const [shared, mine, theirs] = shareName(label(lines[0].column), label(lines[1].column));
+    return (
+      esc(shared) +
+      `<span style="color:${lines[0].color}">${esc(mine)}</span>` +
+      `<span class="muted"> and </span>` +
+      `<span style="color:${lines[1].color}">${esc(theirs)}</span>`
+    );
+  }
+  return lines
+    .map((l) => `<span style="color:${l.color}">${esc(label(l.column))}</span>`)
+    .join('<span class="muted">, </span>');
 }
 
 // Take the charts down, saying why in their place.
@@ -195,25 +227,24 @@ async function draw(signal) {
   }
   clearCharts(got.at.length ? "" : "no readings in this range");
 
-  const drawn = pairCounts(got.plots);
+  const drawn = chartsOf(got.plots);
   const height = plotHeight(drawn.length);
-  // The scale has to cover the envelope, not just the mean: the min and
-  // max are drawn, and an axis that ends below them would clip the very
-  // excursions they exist to show.
-  const fits = drawn.map((plot) => {
-    const mate = plot.partner ? scaled(plot.partner.mean, plot.partner.column) : [];
-    const values = [plot.min, plot.max, plot.mean]
-      .flatMap((v) => scaled(v, plot.column))
-      .concat(mate)
+  // The scale has to cover the envelope, not just the lines: the min
+  // and max are drawn, and an axis that ends below them would clip the
+  // very excursions they exist to show.
+  const fits = drawn.map((chart) => {
+    const values = [
+      ...(chart.envelope ? [chart.envelope.min, chart.envelope.max] : []),
+      ...chart.lines.map((l) => l.values),
+    ]
+      .flat()
       .filter((v) => v != null && isFinite(v));
-    return yAxis(plot.column, values, height);
+    return yAxis(chart.column, values, height);
   });
   const ySize = stackWidth(fits);
-  drawn.forEach((plot, n) => {
-    const col = plot.column;
-    const mean = scaled(plot.mean, col);
-    const mate = plot.partner ? scaled(plot.partner.mean, plot.partner.column) : null;
+  drawn.forEach((drawing, n) => {
     const fitted = fits[n];
+    const several = drawing.lines.length > 1;
     // Only the bottom chart carries the time labels.  Repeating them
     // under every plot costs the height that makes the stack worth
     // having, and says the axes might differ when the whole point is
@@ -226,20 +257,21 @@ async function draw(signal) {
       width: $("charts").clientWidth || 800,
       height,
       padding: [null, STACK_RIGHT, null, null],
-      title: plot.partner ? `${label(col)} and ${label(plot.partner.column)}` : label(col),
+      title: drawing.lines.map((l) => label(l.column)).join(" and "),
       series: [
         {},
-        { label: "min", stroke: "#0e7490", width: 1, points: { show: false } },
-        { label: "max", stroke: "#0e7490", width: 1, points: { show: false } },
-        { label: label(col), stroke: TRACE, width: 1.5, points: { show: false } },
-        ...(plot.partner
-          ? [{
-              label: label(plot.partner.column),
-              stroke: MATE,
-              width: 1.5,
-              points: { show: false },
-            }]
+        ...(drawing.envelope
+          ? [
+              { label: "min", stroke: "#0e7490", width: 1, points: { show: false } },
+              { label: "max", stroke: "#0e7490", width: 1, points: { show: false } },
+            ]
           : []),
+        ...drawing.lines.map((l) => ({
+          label: label(l.column),
+          stroke: l.color,
+          width: 1.5,
+          points: { show: false },
+        })),
       ],
       axes: [
         {
@@ -280,29 +312,28 @@ async function draw(signal) {
     };
     const chart = ranged(new uPlot(
       opts,
-      [got.at, scaled(plot.min, col), scaled(plot.max, col), mean, ...(mate ? [mate] : [])],
+      [
+        got.at,
+        ...(drawing.envelope ? [drawing.envelope.min, drawing.envelope.max] : []),
+        ...drawing.lines.map((l) => l.values),
+      ],
       host,
     ));
-    // Which column this chart is, so the shared readout can label it
-    // without reaching back into the request that built it.
-    chart.smartclockColumn = col;
-    chart.smartclockPartner = plot.partner ? plot.partner.column : null;
-    hint(chart, col, plot.partner?.column);
-    // uPlot's title is plain text, and with the legend off a two-line
-    // chart otherwise names both series without saying which is which.
-    if (plot.partner) {
+    // Which lines this chart draws, and from which series, so the
+    // shared readout can label them without reaching back into the
+    // request that built it.  A line's color is said only where there
+    // are several to tell apart.
+    chart.smartclockLines = drawing.lines.map((l, i) => ({
+      column: l.column,
+      series: 1 + (drawing.envelope ? 2 : 0) + i,
+      color: several ? l.color : null,
+    }));
+    hint(chart, ...drawing.lines.map((l) => l.column));
+    // uPlot's title is plain text, and with the legend off a chart of
+    // several lines otherwise names them without saying which is which.
+    if (several) {
       const heading = chart.root.querySelector(".u-title");
-      if (heading) {
-        const [shared, mine, theirs] = shareName(
-          label(col),
-          label(plot.partner.column),
-        );
-        heading.innerHTML =
-          esc(shared) +
-          `<span style="color:${TRACE}">${esc(mine)}</span>` +
-          `<span class="muted"> and </span>` +
-          `<span style="color:${MATE}">${esc(theirs)}</span>`;
-      }
+      if (heading) heading.innerHTML = groupTitle(drawing.lines);
     }
     charts.push(chart);
   });
@@ -335,15 +366,9 @@ function readout() {
       `${esc(columnName(col))}</span> ` +
       `<span class="v">${esc(show(v))}</span></span>`;
     const value = (series) => (idx == null ? null : c.data[series][idx]);
-    // A paired chart carries its partner in the fifth series, and it
-    // needs its own cell: one number under a two-line plot would leave
-    // the reader guessing which line it belonged to.
-    return c.smartclockPartner
-      ? [
-          one(c.smartclockColumn, value(3), TRACE),
-          one(c.smartclockPartner, value(4), MATE),
-        ]
-      : [one(c.smartclockColumn, value(3))];
+    // A cell per line: one number under a chart of several lines would
+    // leave the reader guessing which line it belonged to.
+    return c.smartclockLines.map((l) => one(l.column, value(l.series), l.color));
   });
   const note = charts.map(noteNear).find((n) => n != null);
   // Beside the pointer on the chart it is over; the others follow
@@ -370,7 +395,7 @@ function pickers(plottable) {
   // a column ticked for another unit stays chosen for when it is back.
   const menu = order.filter((c) => c !== PAIRED[1] && measures(c));
   const shown = (c) => (c === PAIRED[0] ? "# sats" : columnName(c));
-  const hover = (c) => hintText(c, c === PAIRED[0] ? PAIRED[1] : null);
+  const hover = (c) => hintText(...(c === PAIRED[0] ? PAIRED : [c]));
   $("columns").innerHTML = menu
     .map(
       (c) =>

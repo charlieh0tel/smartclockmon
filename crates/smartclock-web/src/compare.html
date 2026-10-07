@@ -81,9 +81,6 @@ const colorOf = (serial) => {
 };
 
 const SYNC = haveUplot ? uPlot.sync("compare") : null;
-// uPlot.join's mode that widens a null over the alignment points next
-// to it, so a gap stays a gap after joining.
-const NULL_EXPAND = 2;
 // How long one stability measurement may take, as on its own page.
 const MEASURE_TIMEOUT = 60000;
 // The shortest refresh the page offers, in seconds: each measures every
@@ -176,15 +173,6 @@ function historyQuery(serial, win) {
   return "/api/history?" + q;
 }
 
-// Each time moved to the center of its bucket, as the server numbers
-// them for `win`: the server reports the mean time of the readings in
-// a bucket, which differs between receivers that share it.
-function onGrid(at, win) {
-  const points = pointsFor(win.to - win.from);
-  const width = (win.to - win.from + 1) / points;
-  return at.map((t) => win.from + (Math.floor((t - win.from) / width) + 0.5) * width);
-}
-
 async function historyOf(serial, win, signal) {
   const got = await ask(historyQuery(serial, win), signal);
   return { ...got, at: onGrid(got.at, win) };
@@ -210,10 +198,7 @@ async function notesOf(serial, win, signal) {
 }
 
 function drawHistory(shown, got) {
-  // One table per receiver, joined on time: their buckets need not
-  // line up.  A gap one receiver marks with a null is widened over the
-  // other receivers' times inside it, or the line would be drawn
-  // straight across the gap.
+  // One table per receiver, joined on time.
   const tables = shown.map((serial) => [
       got[serial].at,
       ...COMPARED.map((col) => {
@@ -221,10 +206,7 @@ function drawHistory(shown, got) {
         return plot ? scaled(plot.mean, col) : got[serial].at.map(() => null);
       }),
   ]);
-  const joined = uPlot.join(
-    tables,
-    tables.map((table) => table.map(() => NULL_EXPAND)),
-  );
+  const joined = joinTables(tables);
   const columnsOf = (n) => shown.map((_, i) => joined[1 + i * COMPARED.length + n]);
   const finite = (n) => columnsOf(n).flat().filter((v) => v != null && isFinite(v));
   // Only what some ticked receiver measured: a chart with no data has no

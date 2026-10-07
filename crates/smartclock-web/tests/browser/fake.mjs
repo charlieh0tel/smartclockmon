@@ -58,6 +58,9 @@ export class Fake {
     this.units = units;
     // Requests seen, by endpoint, for counting.
     this.seen = {};
+    // Whether the history answers every column asked for, rather than
+    // only the recorded ones.
+    this.everyColumn = false;
   }
 
   unit(serial) {
@@ -88,8 +91,17 @@ export class Fake {
         return body;
       case "adev":
         return { ...body, present: u.present };
-      case "history":
-        return { ...body, at: skewed(body.at, u.skew, query) };
+      case "history": {
+        // With `everyColumn`, every column asked for: the recorded ones
+        // as recorded, any other in the first recorded one's shape, so
+        // a page asking for a column the recording lacks still gets a
+        // chart.  Otherwise only what was recorded.
+        const asked = (query.get("columns") ?? "").split(",").filter(Boolean);
+        const plots = this.everyColumn && asked.length
+          ? asked.map((column) => body.plots.find((p) => p.column === column) ?? { ...body.plots[0], column })
+          : body.plots;
+        return { ...body, plots, at: skewed(body.at, u.skew, query) };
+      }
       case "notes":
         return this.answer("journal", u).notes;
       case "journal": {

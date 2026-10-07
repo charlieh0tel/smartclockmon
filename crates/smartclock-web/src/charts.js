@@ -49,12 +49,12 @@ const HINTS = {
   not_tracking: "Predicted visible but not tracked (097-59551-02 5-6).",
 };
 
-// The hover text for a column, and its partner's when two share a chart.
-const hintText = (col, partner) => [col, partner].map((c) => HINTS[c]).filter(Boolean).join(" ");
+// The hover text for the columns a chart draws.
+const hintText = (...cols) => cols.map((c) => HINTS[c]).filter(Boolean).join(" ");
 
 // Give a chart's title its hover text, underlined so it is found.
-function hint(chart, col, partner) {
-  const text = hintText(col, partner);
+function hint(chart, ...cols) {
+  const text = hintText(...cols);
   const heading = chart.root.querySelector(".u-title");
   if (!text || !heading) return;
   heading.title = text;
@@ -239,6 +239,25 @@ function settleWidths(charts, container) {
     if (width && c.width !== width) c.setSize({ width, height: c.height });
   }
 }
+
+// Each time moved to the center of its bucket, as the server numbers
+// them for the window `win`: the server reports the mean time of the
+// readings in a bucket, which differs between logs that share it, so
+// series from two logs land on one grid only once snapped to it.
+function onGrid(at, win) {
+  const points = pointsFor(win.to - win.from);
+  const width = (win.to - win.from + 1) / points;
+  return at.map((t) => win.from + (Math.floor((t - win.from) / width) + 0.5) * width);
+}
+
+// uPlot.join's mode that widens a null over the alignment points next
+// to it, so a gap stays a gap after joining.
+const NULL_EXPAND = 2;
+
+// Tables of [times, ...values], joined on their times into one.  A gap
+// one table marks with a null is widened over the other tables' times
+// inside it, or the line would be drawn straight across the gap.
+const joinTables = (tables) => uPlot.join(tables, tables.map((t) => t.map(() => NULL_EXPAND)));
 
 // The y axis width a stack of fitted axes shares.
 const stackWidth = (fits) => Math.max(...fits.map((f) => f.axis.size));

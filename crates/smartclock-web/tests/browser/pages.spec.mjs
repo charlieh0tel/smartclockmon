@@ -274,6 +274,27 @@ test("Grafana's forms of the range are read and rewritten", async ({ page }) => 
   expect(Math.abs(Number(shown(page).last) - 86400)).toBeLessThan(60);
 });
 
+test("the satellite counts share a chart, each named in its own color", async ({ page }) => {
+  const fake = twoUnits();
+  fake.everyColumn = true;
+  await fake.install(page);
+  await page.goto(`/?receiver=${B}&last=3600`);
+  await page.waitForFunction(() => charts.some((c) => c.smartclockLines.length === 2));
+  const pair = await page.evaluate(() => {
+    const chart = charts.find((c) => c.smartclockLines.length === 2);
+    const heading = chart.root.querySelector(".u-title");
+    return {
+      columns: chart.smartclockLines.map((l) => l.column),
+      colored: [...heading.querySelectorAll("span[style]")].map((s) => s.textContent),
+    };
+  });
+  expect(pair.columns).toEqual(["tracking", "not_tracking"]);
+  expect(pair.colored).toEqual(["tracked", "not tracked"]);
+  // A cell apiece in the readout, colored as the lines are.
+  const keys = await page.locator("#readout .k[style]").allTextContents();
+  expect(keys).toEqual(["# sats tracked", "# sats not tracked"]);
+});
+
 test("every series has hover text, on the history and the compare page", async ({ page }) => {
   await openAt(page, "/", "last=3600");
   const labels = await page.locator("#columns label").evaluateAll((ls) => ls.map((l) => [l.textContent, l.title]));
