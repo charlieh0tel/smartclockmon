@@ -358,9 +358,6 @@ function lost(what, why) {
 // The latest answer: { every_s, readings }, or null with no service.
 let sensorsLatest = null;
 
-// How many read periods old a reading may be and still be shown:
-// `smartclock::sensors::PERIODS_STALE`, as the exporter counts it.
-const SENSOR_PERIODS_STALE = 3;
 // Each quantity's word in the strip and its decimals.
 const SENSOR_SHOWN = {
   temperature: ["temp", 1],
@@ -373,14 +370,12 @@ async function pollSensors() {
   sensorsLatest = latest.error ? null : latest;
 }
 
-// A reading's value if it is current: its latest read succeeded, and
-// recently.  Otherwise "--", rather than a stopped sensor's last value
-// shown as though it still read.
-function sensorValue(r, every) {
-  const age = (Date.now() - Date.parse(r.at)) / 1000;
-  const current = r.at && r.value != null && !r.error && age <= SENSOR_PERIODS_STALE * every;
+// A reading's value if the server says it is current, by the rule the
+// exporter and the command line use.  Otherwise "--", rather than a
+// stopped sensor's last value shown as though it still read.
+function sensorValue(r) {
   const [, digits] = SENSOR_SHOWN[r.quantity] ?? ["", 1];
-  return current ? `${fmt(r.value, digits)} ${r.unit}` : "--";
+  return r.current ? `${fmt(r.value, digits)} ${r.unit}` : "--";
 }
 
 function sensorStrip() {
@@ -390,7 +385,7 @@ function sensorStrip() {
       const [word] = SENSOR_SHOWN[r.quantity] ?? [r.quantity];
       return (
         `<span class="stat sensor" title="${esc(r.error ?? r.source)}">` +
-        `<span class="v">${esc(sensorValue(r, sensorsLatest.every_s))}</span>` +
+        `<span class="v">${esc(sensorValue(r))}</span>` +
         `<span class="k">${esc(r.name)} ${esc(word)}</span></span>`
       );
     })

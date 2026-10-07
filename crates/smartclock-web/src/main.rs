@@ -23,6 +23,7 @@ use std::time::Instant;
 use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
+use jiff::Timestamp;
 use smartclock::client;
 use smartclock::client::Daemon;
 use smartclock::client::Daemons;
@@ -443,10 +444,26 @@ fn sensor_history(path: &Path, query: &str) -> Result<serde_json::Value> {
     Ok(serde_json::to_value(lines)?)
 }
 
-/// Every sensor's latest reading, from the sensor service.
+/// Every sensor's latest reading, from the sensor service, each with
+/// whether it is current, so the page applies the one rule the exporter
+/// and the command line do rather than a copy of it.
 fn sensors_latest(socket: &Path) -> Result<serde_json::Value> {
     let latest = Daemon::connect_within(socket, ASK_BUDGET)?.sensor_readings()?;
-    Ok(serde_json::to_value(latest)?)
+    let now = Timestamp::now();
+    let current: Vec<bool> = latest
+        .readings
+        .iter()
+        .map(|r| r.current(latest.every_s, now).is_some())
+        .collect();
+    let mut value = serde_json::to_value(latest)?;
+    if let Some(readings) = value.get_mut("readings").and_then(|r| r.as_array_mut()) {
+        for (reading, current) in readings.iter_mut().zip(current) {
+            if let Some(fields) = reading.as_object_mut() {
+                fields.insert("current".to_owned(), current.into());
+            }
+        }
+    }
+    Ok(value)
 }
 
 /// An upper bound past any time a log holds: 2100-01-01, unix seconds.

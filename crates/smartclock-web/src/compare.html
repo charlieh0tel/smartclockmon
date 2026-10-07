@@ -228,7 +228,7 @@ function drawHistory(shown, got, groups) {
       hint: sensorHint(g.lines),
       lines: g.lines.map((l, i) => ({
         label: l.name,
-        color: SENSOR_COLORS[i % SENSOR_COLORS.length],
+        color: l.color,
         values: joined[next++],
       })),
     })),

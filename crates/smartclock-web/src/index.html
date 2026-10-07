@@ -268,7 +268,11 @@ async function draw(signal) {
   const win = { from: got.from, to: got.to, points: pointsFor(seconds) };
   const groups = await sensorGroups(listed, win, signal);
   const anything = got.at.length || groups.length;
-  clearCharts(anything ? "" : "no readings in this range");
+  clearCharts(
+    !anything ? "no readings in this range"
+      : wanted.length && !got.at.length ? "no readings from the receiver in this range"
+      : "",
+  );
   if (!anything) return;
 
   const drawn = chartsOf(got.plots);
@@ -284,7 +288,7 @@ async function draw(signal) {
       column: `sensor:${group.quantity}`,
       name: line.name,
       values: line.values,
-      color: SENSOR_COLORS[i % SENSOR_COLORS.length],
+      color: line.color,
       at: line.at,
     })),
   }));
@@ -311,6 +315,15 @@ async function draw(signal) {
     const after = drawn.findIndex((d) => d.column === "temperature_c");
     drawn.splice(after < 0 ? drawn.length : after + 1, 0, ...sensorDrawings);
   }
+  // Only charts with something to draw: one with no data has no y axis,
+  // which would shift its plot out of line with the rest, as the
+  // receiver's charts are beside sensors in a range it has no readings
+  // in.
+  const filled = (d) =>
+    [...(d.envelope ? [d.envelope.min, d.envelope.max] : []), ...d.lines.map((l) => l.values)]
+      .flat()
+      .some((v) => v != null && isFinite(v));
+  drawn.splice(0, drawn.length, ...drawn.filter(filled));
   const height = plotHeight(drawn.length);
   // The scale has to cover the envelope, not just the lines: the min
   // and max are drawn, and an axis that ends below them would clip the
@@ -453,7 +466,19 @@ function readout() {
       `<span><span class="k"${color ? ` style="color:${color}"` : ""}>` +
       `${esc(name ?? columnName(col))}</span> ` +
       `<span class="v">${esc(show(v))}</span></span>`;
-    const value = (series) => (idx == null ? null : c.data[series][idx]);
+    // A series joined with another log's has no point at the other's
+    // times, `undefined` there, so the nearest point either side is
+    // taken; a gap, `null`, is not looked across.
+    const value = (series) => {
+      if (idx == null) return null;
+      const data = c.data[series];
+      for (let d = 0; d < data.length; d++) {
+        for (const i of [idx - d, idx + d]) {
+          if (i >= 0 && i < data.length && data[i] !== undefined) return data[i];
+        }
+      }
+      return null;
+    };
     // A cell per line: one number under a chart of several lines would
     // leave the reader guessing which line it belonged to.
     return c.smartclockLines.map((l) => one(l.column, value(l.series), l.color, l.name));

@@ -119,17 +119,18 @@ export class Fake {
           last: this.sensors ? RECORDED.history.at.at(-1) : null,
         };
       case "sensors/history":
-        // A line per sensor of the quantity, at the recorded history's
-        // times, so it shares their range.
+        // A line per sensor of the quantity over the recorded history's
+        // range, at a reading every fourth of its times moved seven
+        // seconds on, so they fall in buckets of their own, as a
+        // sensor's ten-second readings do beside the receiver's.
         // In name order, as the server gives them.
         return (this.sensors ?? [])
           .filter((s) => s.quantity === query.get("quantity"))
           .toSorted((a, b) => a.name.localeCompare(b.name))
-          .map((s) => ({
-            name: s.name,
-            at: RECORDED.history.at,
-            values: RECORDED.history.at.map(() => s.value),
-          }));
+          .map((s) => {
+            const at = RECORDED.history.at.filter((_, i) => i % 4 === 0).map((t) => t + 7);
+            return { name: s.name, at, values: at.map(() => s.value) };
+          });
       case "sensors/latest":
         if (!this.sensors) return { error: "no sensor service" };
         return {
@@ -142,6 +143,7 @@ export class Fake {
             at: new Date().toISOString(),
             value: s.value,
             error: null,
+            current: true,
           })),
         };
       case "notes":

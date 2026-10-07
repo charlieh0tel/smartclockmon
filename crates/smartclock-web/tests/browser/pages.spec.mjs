@@ -327,6 +327,33 @@ test("the host's sensors are charted below the receiver's temperature, on its ti
   expect(heading.hover).toContain("/sys/fake/room");
 });
 
+test("with sensors joined in, the readout has a value for every line wherever the cursor is", async ({ page }) => {
+  await withSensors().install(page);
+  await page.goto(`/?receiver=${B}&last=3600`);
+  await page.waitForFunction(() => charts.some((c) => c.smartclockLines[0].column === "sensor:temperature"));
+  const box = await page.evaluate(() => charts[0].over.getBoundingClientRect().toJSON());
+  for (const at of [0.2, 0.3, 0.31, 0.32]) {
+    await page.mouse.move(box.x + box.width * at, box.y + box.height / 2);
+    const cells = await page.locator("#readout .v").allTextContents();
+    // The time, then a value per line: none dashed.
+    expect(cells.slice(1).filter((v) => v === "--"), cells.join(" ")).toEqual([]);
+  }
+});
+
+test("a sensor keeps its color on every chart", async ({ page }) => {
+  await withSensors().install(page);
+  await page.goto(`/?receiver=${B}&last=3600`);
+  await page.waitForFunction(() => charts.some((c) => c.smartclockLines[0].column === "sensor:humidity"));
+  const colors = await page.evaluate(() =>
+    charts
+      .flatMap((c) => c.smartclockLines)
+      .filter((l) => l.name === "room")
+      .map((l) => l.color),
+  );
+  expect(colors.length).toBe(2);
+  expect(colors[0]).toBe(colors[1]);
+});
+
 test("the sensors can be left out, and stay out across a reload", async ({ page }) => {
   await withSensors().install(page);
   await page.goto(`/?receiver=${B}&last=3600`);

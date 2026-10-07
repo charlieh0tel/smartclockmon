@@ -332,12 +332,25 @@ async function sensorGroups(listed, win, signal) {
         quantity,
         lines: lines.map((line) => {
           const sensor = listed.sensors.find((s) => s.name === line.name && s.quantity === quantity);
-          return { ...line, at: onGrid(line.at, win), source: sensor?.source, device: sensor?.device };
+          return {
+            ...line,
+            at: onGrid(line.at, win),
+            source: sensor?.source,
+            device: sensor?.device,
+            color: sensorColor(listed, line.name),
+          };
         }),
       };
     }),
   );
   return groups.filter((g) => g && g.lines.length);
+}
+
+// A sensor's color, by its name among every sensor's, so one name is one
+// color on every chart it is on.
+function sensorColor(listed, name) {
+  const names = [...new Set(listed.sensors.map((s) => s.name))].sort();
+  return SENSOR_COLORS[Math.max(0, names.indexOf(name)) % SENSOR_COLORS.length];
 }
 
 // A sensor chart's hover text: where each of its sensors is read from.
