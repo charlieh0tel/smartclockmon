@@ -552,8 +552,6 @@ view cannot drift apart.  The library, bottom up:
 
 ## Next
 
-- **Sensor history in the monitor.**  The monitor shows the host's
-  sensors' current readings but not their history; `docs/sensors.md`.
 - **Later: compacting old logs**, perhaps into Parquet.  The logs grow
   without bound.
 - **Bench work:** the open items in `docs/hardware-investigations.md`,

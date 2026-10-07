@@ -7,7 +7,7 @@ receivers' readings.  None of the receivers reports them: the 58503A's
 the z3801 receivers answer the same query with 0 or 1 count
 (`docs/firmware/console.md`).
 
-Built as below, except the monitor's sensor history, which is later.
+Built as below.
 
 ## Design
 
@@ -123,7 +123,9 @@ read every 10 s measured 408 MB, about 0.4 MB a day per sensor.
   read failed or is older than three read periods.
 - **CLI.**  `smartclock-cli sensors` lists sensors and their latest
   readings.
-- **TUI.**  Current values in the header.  Sensor history later.
+- **TUI.**  Current values in the header, and in the history view a
+  pane per quantity below the receiver's, a line per sensor, read from
+  the log the service names.
 - **Absent.**  With no sensor log, pages show no sensor charts and say
   nothing; with no socket, no live values.  The exporter reports
   `smartclock_sensord_up 0` once it has seen the service.

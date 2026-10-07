@@ -142,9 +142,15 @@ fn run(
             due = Instant::now() + STATUS_REFRESH;
         }
         if Instant::now() >= sensors_due {
-            app.sensors = Daemon::connect_within(sensor_socket, SENSORS_BUDGET)
-                .and_then(|mut service| service.sensor_readings())
-                .ok();
+            let mut service = Daemon::connect_within(sensor_socket, SENSORS_BUDGET).ok();
+            app.sensors = service.as_mut().and_then(|s| s.sensor_readings().ok());
+            // Where its log is, asked once it answers, for the
+            // sensors' history.
+            if app.sensor_log.is_none()
+                && let Some(info) = service.as_mut().and_then(|s| s.sensor_info().ok())
+            {
+                app.open_sensor_log(&info.log);
+            }
             sensors_due = Instant::now() + SENSORS_REFRESH;
             dirty = true;
         }

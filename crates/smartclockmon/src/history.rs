@@ -12,6 +12,7 @@ use smartclock::adev::Curve;
 use smartclock_log::reader;
 use smartclock_log::reader::MAX_PHASE_ROWS;
 use smartclock_log::reader::Receiver;
+use smartclock_log::sensors::SensorLog;
 
 /// How far back a graph looks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,7 +112,13 @@ impl Trace {
         })
     }
 
-    fn push(&mut self, ago: f64, mean: Option<f64>, low: Option<f64>, high: Option<f64>) {
+    pub(crate) fn push(
+        &mut self,
+        ago: f64,
+        mean: Option<f64>,
+        low: Option<f64>,
+        high: Option<f64>,
+    ) {
         let (Some(mean), Some(low), Some(high)) = (mean, low, high) else {
             self.broken = true;
             return;
@@ -144,6 +151,60 @@ pub(crate) struct History {
     pub(crate) temperature: Trace,
     /// 1 PPS interval against GPS, nanoseconds.
     pub(crate) time_interval: Trace,
+}
+
+/// One quantity's sensors over a window, from the sensor service's log.
+#[derive(Debug, Default)]
+pub(crate) struct SensorChart {
+    /// What they measure.
+    pub(crate) quantity: String,
+    /// The unit of their values.
+    pub(crate) unit: String,
+    /// Each sensor's name and line, in name order.  A sensor's line is
+    /// its means alone: its readings are seconds apart, so a column
+    /// holds a few at most and has no spread worth a band.
+    pub(crate) lines: Vec<(String, Trace)>,
+}
+
+/// The quantities, in the order their panes stack.
+const SENSOR_QUANTITIES: [&str; 3] = ["temperature", "humidity", "pressure"];
+
+/// Each quantity the sensor log holds, its sensors over the window,
+/// thinned to at most `columns` points.
+pub(crate) fn sensor_charts(
+    log: &SensorLog,
+    window: Window,
+    columns: usize,
+) -> Result<Vec<SensorChart>> {
+    let now = jiff::Timestamp::now().as_second();
+    let sensors = log.sensors()?;
+    let mut charts = Vec::new();
+    for quantity in SENSOR_QUANTITIES {
+        let Some(unit) = sensors
+            .iter()
+            .find(|s| s.quantity == quantity)
+            .map(|s| s.unit.clone())
+        else {
+            continue;
+        };
+        let lines = log
+            .series(quantity, now - window.seconds(), now, columns)?
+            .into_iter()
+            .map(|line| {
+                let mut trace = Trace::default();
+                for (at, value) in line.at.iter().zip(&line.values) {
+                    trace.push(at - now as f64, *value, *value, *value);
+                }
+                (line.name, trace)
+            })
+            .collect();
+        charts.push(SensorChart {
+            quantity: quantity.to_owned(),
+            unit,
+            lines,
+        });
+    }
+    Ok(charts)
 }
 
 /// Which of the receiver's records a line came from.
@@ -453,5 +514,35 @@ mod tests {
         // read; one it did keeps its own stamp.
         assert_eq!(lines[3].stamp, "2026-09-01T00:00:01.000000000Z");
         assert_eq!(lines[4].stamp, "20050528.00:01:00");
+    }
+
+    #[test]
+    fn each_sensor_quantity_is_a_chart_with_a_line_per_sensor() {
+        // A receiver log's scratch file, used as a sensor log: only its
+        // path and cleanup are wanted.
+        let scratch = Scratch::new("sensors");
+        let conn = scratch.connect();
+        conn.execute_batch(smartclock_log::sensors::TABLES)
+            .expect("the sensor tables");
+        conn.execute_batch(
+            "INSERT INTO sensor VALUES (1, 'nvme', 'temperature', 'C');
+             INSERT INTO sensor VALUES (2, 'cpu', 'temperature', 'C');",
+        )
+        .expect("sensors");
+        let now = jiff::Timestamp::now().as_second();
+        for ago in [600, 300, 10] {
+            let at = stored(jiff::Timestamp::from_second(now - ago).expect("a time"));
+            for id in [1, 2] {
+                conn.execute("INSERT INTO reading VALUES (?1, ?2, 40.0)", (id, &at))
+                    .expect("a reading");
+            }
+        }
+        let log = smartclock_log::sensors::SensorLog::open(&scratch.0).expect("open");
+        let charts = super::sensor_charts(&log, Window::Hour, 200).expect("charts");
+        assert_eq!(charts.len(), 1);
+        assert_eq!(charts[0].quantity, "temperature");
+        let names: Vec<_> = charts[0].lines.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["cpu", "nvme"]);
+        assert!(charts[0].lines.iter().all(|(_, t)| t.mean.len() == 3));
     }
 }

@@ -1,6 +1,7 @@
 //! What the monitor is showing.
 
 use std::collections::VecDeque;
+use std::path::Path;
 
 use jiff::Timestamp;
 use smartclock::screen::Screen;
@@ -11,10 +12,13 @@ use smartclock::task::Cadence;
 use smartclock::types::EfcPercent;
 use smartclock::wire::Reading;
 use smartclock_log::reader::Receiver;
+use smartclock_log::sensors::SensorLog;
 
 use crate::history::History;
 use crate::history::Log;
+use crate::history::SensorChart;
 use crate::history::Window;
+use crate::history::sensor_charts;
 use crate::source::Answer;
 use crate::source::Attachment;
 use crate::source::Console;
@@ -89,6 +93,10 @@ pub(crate) struct App {
     /// The host's sensors and their latest readings, from the sensor
     /// service; `None` without one.
     pub(crate) sensors: Option<Latest>,
+    /// The sensor service's log, once the service has said where it is.
+    pub(crate) sensor_log: Option<SensorLog>,
+    /// The sensors' history over the window, a chart per quantity.
+    pub(crate) sensor_history: Vec<SensorChart>,
     /// Set when the operator has asked to leave.
     pub(crate) quitting: bool,
     /// Recent 1 PPS intervals in nanoseconds, oldest first.
@@ -155,6 +163,8 @@ impl App {
             efc_trend: VecDeque::with_capacity(TREND_LEN),
             attachment,
             sensors: None,
+            sensor_log: None,
+            sensor_history: Vec::new(),
             quitting: false,
             ti_trend: VecDeque::with_capacity(TREND_LEN),
             last_fast: None,
@@ -290,6 +300,14 @@ impl App {
     /// Re-read the graphs.  Called on a timer, not every frame.
     pub(crate) fn refresh_history(&mut self, columns: usize) {
         let window = self.window;
+        // The host's, so read whichever receiver is chosen, and none
+        // shown rather than an error if its log cannot be read: the
+        // receiver's history is what the view is for.
+        self.sensor_history = self
+            .sensor_log
+            .as_ref()
+            .and_then(|log| sensor_charts(log, window, columns).ok())
+            .unwrap_or_default();
         let Some((log, receiver)) = self.chosen() else {
             return;
         };
@@ -300,6 +318,11 @@ impl App {
             }
             Err(e) => self.history_error = Some(e.to_string()),
         }
+    }
+
+    /// Open the sensor service's log, from the path it gave.
+    pub(crate) fn open_sensor_log(&mut self, path: &str) {
+        self.sensor_log = SensorLog::open(Path::new(path)).ok();
     }
 
     /// Recompute the deviation for the current window.

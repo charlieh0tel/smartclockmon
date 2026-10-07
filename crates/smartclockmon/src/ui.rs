@@ -3,6 +3,9 @@
 //! Laid out for an 80 by 24 terminal and growing from there, since that
 //! is what a serial console on the bench is likely to be.
 
+use std::iter::once;
+use std::iter::repeat_n;
+
 use ratatui::Frame;
 use ratatui::layout::Constraint;
 use ratatui::layout::Direction;
@@ -34,6 +37,7 @@ use smartclock::wire::Reading;
 
 use crate::app::App;
 use crate::app::View;
+use crate::history::SensorChart;
 use crate::history::Source;
 use crate::history::Trace;
 use crate::source::Attachment;
@@ -170,14 +174,12 @@ const STAMP_WIDTH: usize = 19;
 /// whether they move together: EFC following temperature is the room,
 /// EFC moving without it is the oscillator.
 fn history(frame: &mut Frame, area: Rect, app: &App) {
+    // The receiver's three panes, then a pane per sensor quantity the
+    // host logs, all on the one time axis.
+    let panes = 3 + app.sensor_history.len();
     let rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Fill(1),
-            Constraint::Fill(1),
-            Constraint::Fill(1),
-        ])
+        .constraints(once(Constraint::Length(3)).chain(repeat_n(Constraint::Fill(1), panes)))
         .split(area);
     header(frame, rows[0], app);
 
@@ -219,6 +221,86 @@ fn history(frame: &mut Frame, area: Rect, app: &App) {
             window,
         );
     }
+    for (area, chart) in rows[4..].iter().zip(&app.sensor_history) {
+        sensor_graph(frame, *area, chart, span, window);
+    }
+}
+
+/// Sensor line colors, none of them a receiver pane's.
+const SENSOR_COLORS: [Color; 4] = [
+    Color::Magenta,
+    Color::LightBlue,
+    Color::LightRed,
+    Color::White,
+];
+
+/// One quantity's sensors against time, a line each, named in the
+/// pane's title in their colors.
+fn sensor_graph(frame: &mut Frame, area: Rect, chart: &SensorChart, span: &str, since: f64) {
+    let title = format!("Sensors, {} {}, {span}", chart.quantity, chart.unit);
+    let bounds = chart
+        .lines
+        .iter()
+        .filter_map(|(_, trace)| trace.bounds())
+        .reduce(|a, b| [a[0].min(b[0]), a[1].max(b[1])]);
+    let Some(y) = bounds else {
+        frame.render_widget(
+            Paragraph::new("no readings in this window").block(block(&title)),
+            area,
+        );
+        return;
+    };
+    let colored = |n: usize| SENSOR_COLORS[n % SENSOR_COLORS.len()];
+    let mut heading = vec![Span::raw(format!(" {title} "))];
+    for (n, (name, _)) in chart.lines.iter().enumerate() {
+        heading.push(Span::styled(
+            format!(" {name}"),
+            Style::new().fg(colored(n)),
+        ));
+    }
+    heading.push(Span::raw(" "));
+    let datasets: Vec<Dataset> = chart
+        .lines
+        .iter()
+        .enumerate()
+        .flat_map(|(n, (_, trace))| {
+            trace.each_run().map(move |[mean, _, _]| {
+                // A line between fewer than two points draws nothing.
+                let kind = if mean.len() < 2 {
+                    GraphType::Scatter
+                } else {
+                    GraphType::Line
+                };
+                Dataset::default()
+                    .marker(Marker::Braille)
+                    .graph_type(kind)
+                    .style(Style::new().fg(colored(n)))
+                    .data(mean)
+            })
+        })
+        .collect();
+    let x = [since, 0.0];
+    let axis = Style::new().fg(Color::DarkGray);
+    let graph = Chart::new(datasets)
+        .block(
+            Block::bordered()
+                .border_set(border::ROUNDED)
+                .title(Line::from(heading)),
+        )
+        .legend_position(None)
+        .x_axis(
+            Axis::default()
+                .style(axis)
+                .bounds(x)
+                .labels([oldest(x[0]), "now".to_owned()]),
+        )
+        .y_axis(
+            Axis::default()
+                .style(axis)
+                .bounds(y)
+                .labels([format(y[0], y), format(y[1], y)]),
+        );
+    frame.render_widget(graph, area);
 }
 
 /// One metric against time, drawn as a band between its extremes with
@@ -1433,5 +1515,28 @@ mod tests {
         let text = drawn(&mut app, View::Dashboard);
         assert!(text.contains("room temperature: 21.5 C"), "{text}");
         assert!(text.contains("bench temperature: --"), "{text}");
+    }
+
+    #[test]
+    fn the_history_shows_the_hosts_sensors_below_the_receiver() {
+        let mut app = app();
+        let line = |value: f64| {
+            let mut trace = crate::history::Trace::default();
+            for ago in [-3000.0, -2000.0, -1000.0] {
+                trace.push(ago, Some(value), Some(value), Some(value));
+            }
+            trace
+        };
+        app.sensor_history = vec![crate::history::SensorChart {
+            quantity: "temperature".to_owned(),
+            unit: "C".to_owned(),
+            lines: vec![
+                ("cpu".to_owned(), line(57.0)),
+                ("nvme".to_owned(), line(48.0)),
+            ],
+        }];
+        let text = drawn(&mut app, View::History);
+        assert!(text.contains("Sensors, temperature C, 1 hour"), "{text}");
+        assert!(text.contains("cpu") && text.contains("nvme"), "{text}");
     }
 }
