@@ -15,3 +15,6 @@
 /crates/smartclock-web/tests/browser/test-results
 /crates/smartclock-web/tests/browser/playwright-report
 
+
+# Local scratch that should outlive a reboot, unlike /tmp.
+/tmp
