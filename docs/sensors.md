@@ -24,7 +24,7 @@ and knows nothing about the parts behind them.
     with `_offset` 0 when absent and `_scale` required.
     `iio:deviceN` numbers change across boots and replugs, so the path
     may go through a symlink kept by whatever creates the device, such
-    as `room=/run/temper/room/in_temp`; it is followed on every read.
+    as `room=/run/sensors/room/in_temp`; it is followed on every read.
 
   The environment forms take a comma-separated list.  Names are short
   identifiers; a repeated name is refused at startup.
@@ -90,9 +90,8 @@ has to redo it.
 
 The SHT41 is the first choice: hwmon, no glue, and humidity too.
 
-## Not covered
+## Sources with no kernel driver
 
-A source with no kernel driver, such as a TEMPer USB thermometer,
-would need a helper writing a file and a check on that file's age,
-since nothing else would show it had stopped.  Neither is designed
-until such a source is chosen.
+A helper outside this project can present one as an IIO device through
+`/dev/uhid`, and keep a symlink to it under `/run`.  The daemon reads
+it like any other IIO sensor.
