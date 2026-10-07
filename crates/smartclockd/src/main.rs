@@ -942,7 +942,7 @@ impl Recorder {
             // No retry fixes this: the installed smartclockd is older than
             // the one that last wrote the log.  Stopped, with the status
             // the unit does not restart on, as a fixed --database does.
-            Err(e) if e.downcast_ref::<db::NewerSchema>().is_some() => {
+            Err(e) if db::newer_schema(&e) => {
                 eprintln!("smartclockd: {}: {e:#}", path.display());
                 std::process::exit(CONFIGURATION_ERROR);
             }

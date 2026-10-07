@@ -10,15 +10,11 @@
 
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::ffi::c_int;
 use std::path::Path;
-use std::time::Duration;
 
-use anyhow::Context as _;
 use anyhow::Result;
 use rusqlite::Connection;
 use rusqlite::OptionalExtension as _;
-use rusqlite::ffi;
 use rusqlite::params;
 use smartclock::snapshot::Freshness;
 use smartclock::snapshot::Snapshot;
@@ -27,43 +23,19 @@ use smartclock::task::Cadence;
 use smartclock_log::schema;
 use smartclock_log::schema::cadence_key;
 use smartclock_log::schema::stored;
+use smartclock_log::writer;
 
-/// A log written by a newer smartclockd than this one, which it refuses
-/// rather than write into.  Typed so the daemon can tell it from a log
-/// that merely failed to open, since no retry fixes it.
-#[derive(Debug)]
-pub(crate) struct NewerSchema {
-    /// The schema the log is stamped with.
-    found: i64,
+/// Whether opening a log failed because a newer smartclockd wrote it.
+/// No retry fixes that, so the daemon stops rather than retrying.
+pub(crate) fn newer_schema(e: &anyhow::Error) -> bool {
+    matches!(
+        e.downcast_ref::<smartclock_log::error::Error>(),
+        Some(smartclock_log::error::Error::NewerSchema { .. })
+    )
 }
-
-impl std::fmt::Display for NewerSchema {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "this database is schema {} and this smartclockd understands {}; \
-             it was written by a newer version",
-            self.found,
-            schema::VERSION
-        )
-    }
-}
-
-impl std::error::Error for NewerSchema {}
 
 /// The first schema whose timestamps all carry nine fractional digits.
 const FIXED_WIDTH_STAMPS: i64 = 8;
-
-/// How long to wait for another writer before giving up on a statement.
-///
-/// The same five seconds rusqlite already sets on every connection it
-/// opens, stated here because the daemon depends on it and a default
-/// is somebody else's to change.  It matters only when a second writer
-/// exists -- a maintenance `sqlite3` at the prompt, a repair, an
-/// operator deleting a row -- since the daemon is otherwise the only
-/// one and WAL readers never block it.  Without the wait, such a write
-/// costs the daemon whichever snapshot it collided with.
-const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The daemon's write connection.
 #[derive(Debug)]
@@ -106,48 +78,10 @@ pub(crate) fn file_name(identity: &str, device: &str) -> String {
     }
 }
 
-/// Keep the `-wal` and `-shm` files when the log is closed.
-///
-/// A reader opening a WAL log read-only needs `-shm` to exist and cannot
-/// create it in a directory it may not write, which is how the viewers
-/// see `/var/lib/smartclockd`.  By default the last connection to close
-/// deletes both, leaving a log no daemon holds open unreadable to them.
-fn persist_wal(conn: &Connection) -> Result<()> {
-    let mut on: c_int = 1;
-    #[expect(
-        unsafe_code,
-        reason = "rusqlite has no safe call for SQLITE_FCNTL_PERSIST_WAL"
-    )]
-    // SAFETY: the handle is valid while `conn` is borrowed, the schema
-    // name is a NUL-terminated literal, and PERSIST_WAL reads and writes
-    // one int through the pointer, which outlives the call.
-    let code = unsafe {
-        ffi::sqlite3_file_control(
-            conn.handle(),
-            c"main".as_ptr(),
-            ffi::SQLITE_FCNTL_PERSIST_WAL,
-            (&raw mut on).cast(),
-        )
-    };
-    anyhow::ensure!(
-        code == ffi::SQLITE_OK,
-        "keeping the log's WAL files failed with SQLite code {code}"
-    );
-    Ok(())
-}
-
 impl Log {
     /// Open or create the log.
     pub(crate) fn open(path: &Path) -> Result<Self> {
-        let conn = Connection::open(path)
-            .with_context(|| format!("opening the log at {}", path.display()))?;
-        // WAL lets readers run against the file while the daemon writes.
-        // NORMAL rather than FULL: a snapshot lost to a power cut costs
-        // one poll interval, which is not worth an fsync per row.
-        conn.pragma_update(None, "journal_mode", "WAL")?;
-        persist_wal(&conn)?;
-        conn.pragma_update(None, "synchronous", "NORMAL")?;
-        conn.busy_timeout(BUSY_TIMEOUT)?;
+        let conn = writer::open(path)?;
         let mut log = Self {
             conn,
             current: None,
@@ -157,38 +91,7 @@ impl Log {
     }
 
     fn migrate(&mut self) -> Result<()> {
-        // The metadata table first and alone, because the version it
-        // holds decides whether this database may be touched at all.
-        // Creating the rest before reading it meant a database from a
-        // newer daemon had three tables and seven columns added to it
-        // and was then refused, which is the opposite of what the
-        // refusal is for: a future schema that renamed one of these
-        // would find it silently resurrected.
-        self.conn.execute_batch(schema::META)?;
-        // Refuse a database this binary is too old to understand
-        // rather than writing into it and restamping it as ours.  A
-        // newer daemon may have added columns or changed what a column
-        // means, and the rows are the only record of a receiver's
-        // history: there is no undoing a bad write to them.
-        let found: Option<String> = self
-            .conn
-            .query_row("SELECT value FROM meta WHERE key = 'schema'", [], |row| {
-                row.get(0)
-            })
-            .optional()?;
-        let found: Option<i64> = found
-            .map(|found| {
-                found
-                    .parse()
-                    .with_context(|| format!("meta.schema is {found:?}, which is not a version"))
-            })
-            .transpose()?;
-        if let Some(found) = found
-            && found > schema::VERSION
-        {
-            return Err(NewerSchema { found }.into());
-        }
-
+        let found = writer::stamped_version(&self.conn, schema::VERSION, "smartclockd")?;
         self.conn.execute_batch(schema::TABLES)?;
         // Databases written before the per-tier columns existed keep
         // their rows; the new columns read NULL there, which says
@@ -228,17 +131,7 @@ impl Log {
         if found.is_some_and(|found| found < FIXED_WIDTH_STAMPS) {
             self.widen_stamps()?;
         }
-        self.conn.execute(
-            "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema', ?1)",
-            params![schema::VERSION.to_string()],
-        )?;
-        // Which build last wrote here.  A row that looks wrong is worth
-        // little without knowing what produced it, and the database
-        // outlives any number of upgrades.
-        self.conn.execute(
-            "INSERT OR REPLACE INTO meta (key, value) VALUES ('writer', ?1)",
-            params![smartclock::VERSION],
-        )?;
+        writer::stamp(&self.conn, schema::VERSION)?;
         Ok(())
     }
 
@@ -1317,7 +1210,7 @@ mod tests {
 
         let refused = Log::open(path).expect_err("a newer schema must be refused");
         assert!(
-            refused.downcast_ref::<super::NewerSchema>().is_some(),
+            super::newer_schema(&refused),
             "typed, so the daemon stops rather than retrying: {refused:#}"
         );
         let why = format!("{refused:#}");
