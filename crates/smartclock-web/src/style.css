@@ -159,4 +159,4 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
 
 /* Something to hover.  A title attribute announces itself to nobody,
    so anything carrying one is underlined the way a footnote is. */
-.hinted { border-bottom: 1px dotted var(--dim); cursor: help; }
+.hinted { border-bottom: 1px dotted var(--dim); }
