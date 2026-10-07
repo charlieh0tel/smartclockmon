@@ -30,6 +30,7 @@ use crate::protocol::Op;
 use crate::protocol::Protocol;
 use crate::protocol::Request;
 use crate::screen::Screen;
+use crate::sensors;
 use crate::task::Cadence;
 use crate::wire::Reading;
 
@@ -277,6 +278,22 @@ impl Daemon {
             since,
         })?;
         filed_under(&value)
+    }
+
+    /// The sensor service's account of itself, from a connection to its
+    /// socket.
+    pub fn sensor_info(&mut self) -> Result<sensors::Info> {
+        let value = self.ask(sensors::Op::Info)?;
+        serde_json::from_value(value)
+            .map_err(|e| Error::Daemon(format!("its account of itself did not parse: {e}")))
+    }
+
+    /// Every sensor and its latest reading, from a connection to the
+    /// sensor service's socket.
+    pub fn sensor_readings(&mut self) -> Result<sensors::Latest> {
+        let value = self.ask(sensors::Op::Latest)?;
+        serde_json::from_value(value)
+            .map_err(|e| Error::Daemon(format!("its readings did not parse: {e}")))
     }
 }
 

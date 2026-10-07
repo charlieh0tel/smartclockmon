@@ -204,6 +204,7 @@ it").
 | `/run/smartclockd/<port>/socket`                 | where clients connect      |
 | `/etc/default/smartclock-sensord`                | the sensors to log          |
 | `/var/lib/smartclock-sensord/sensors.sqlite`     | the host's sensor log       |
+| `/run/smartclock-sensord/socket`                 | the sensors' latest readings |
 
 A log is named after the receiver that answered on the port and is
 opened only once one has: a unit moved to another port or another

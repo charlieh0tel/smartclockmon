@@ -1791,6 +1791,7 @@ dependencies = [
  "glob",
  "jiff",
  "rusqlite",
+ "serde_json",
  "smartclock",
  "smartclock-log",
  "thiserror 2.0.21",

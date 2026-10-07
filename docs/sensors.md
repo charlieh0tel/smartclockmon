@@ -1,6 +1,7 @@
 # Sensors beside the receivers
 
-Under way: the service logs its sensors; nothing reads its log yet.
+Under way: the service logs its sensors and answers on its socket;
+nothing reads either yet.
 An OCXO's EFC moves with the room, so the room's
 temperature, and perhaps its humidity and pressure, belong beside the
 receivers' readings.  None of the receivers reports them: the 58503A's

@@ -3,6 +3,8 @@
 //! attached.  `docs/sensors.md` has the design.
 
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -10,11 +12,16 @@ use anyhow::Context as _;
 use anyhow::Result;
 use clap::Parser;
 use jiff::Timestamp;
+use smartclock::sensors::Info;
+use smartclock::sensors::Latest;
+use smartclock::sensors::Reading;
 use smartclock_log::error::Error as LogError;
 use smartclock_sensord::log::Log;
 use smartclock_sensord::sensor;
 use smartclock_sensord::sensor::Interface;
 use smartclock_sensord::sensor::Sensor;
+use smartclock_sensord::socket::Answers;
+use smartclock_sensord::socket::Shared;
 
 /// The exit status for a configuration no retry can fix, which the unit
 /// does not restart on: a sensor that cannot be one, no sensors at all,
@@ -63,6 +70,14 @@ struct Cli {
         default_value = "/var/lib/smartclock-sensord/sensors.sqlite"
     )]
     log: PathBuf,
+
+    /// Where clients connect.
+    #[arg(
+        long,
+        env = "SMARTCLOCK_SENSORD_SOCKET",
+        default_value = "/run/smartclock-sensord/socket"
+    )]
+    socket: PathBuf,
 }
 
 /// One sensor as the loop keeps it.
@@ -126,12 +141,44 @@ fn run(cli: Cli) -> Result<()> {
         Err(e) => return Err(e).with_context(|| format!("opening {}", cli.log.display())),
     };
     eprintln!(
-        "smartclock-sensord {}: logging {} sensors every {} s to {}",
+        "smartclock-sensord {}: logging {} sensor{} every {} s to {}",
         smartclock::VERSION,
         sensors.len(),
+        if sensors.len() == 1 { "" } else { "s" },
         cli.every,
         cli.log.display()
     );
+    let latest: Shared = Arc::new(Mutex::new(Latest {
+        every_s: cli.every,
+        readings: sensors
+            .iter()
+            .map(|sensor| Reading {
+                name: sensor.name.to_string(),
+                quantity: sensor.quantity.name().to_owned(),
+                unit: sensor.quantity.unit().to_owned(),
+                source: sensor.source.clone(),
+                at: None,
+                value: None,
+                error: None,
+            })
+            .collect(),
+    }));
+    let listener = smartclock::server::listen(&cli.socket)
+        .with_context(|| format!("listening on {}", cli.socket.display()))?;
+    let answers = Arc::new(Answers {
+        info: Info {
+            version: smartclock::VERSION.to_owned(),
+            every_s: cli.every,
+            log: cli.log.display().to_string(),
+        },
+        latest: Arc::clone(&latest),
+    });
+    std::thread::Builder::new()
+        .name("smartclock-sensord-socket".to_owned())
+        .spawn(move || smartclock::server::serve(listener, "smartclock-sensord", answers))
+        .context("spawning the socket server")?;
+    eprintln!("smartclock-sensord: listening on {}", cli.socket.display());
+
     let mut kept = Vec::with_capacity(sensors.len());
     for sensor in sensors {
         let id = log.sensor_id(&sensor)?;
@@ -150,7 +197,7 @@ fn run(cli: Cli) -> Result<()> {
 
     let mut next = Instant::now();
     loop {
-        pass(&log, &mut kept);
+        pass(&log, &mut kept, &latest);
         next += every;
         let now = Instant::now();
         // A pass that ran past its slot -- a suspended host, a bus that
@@ -163,12 +210,27 @@ fn run(cli: Cli) -> Result<()> {
     }
 }
 
-/// Read every sensor once and log what read.
-fn pass(log: &Log, kept: &mut [Kept]) {
-    for one in kept {
+/// Read every sensor once, log what read, and tell clients.
+fn pass(log: &Log, kept: &mut [Kept], latest: &Shared) {
+    for (n, one) in kept.iter_mut().enumerate() {
         let at = Timestamp::now();
+        let read = sensor::read(&one.sensor);
+        {
+            let mut latest = latest
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let shown = &mut latest.readings[n];
+            match &read {
+                Ok(value) => {
+                    shown.at = Some(at);
+                    shown.value = Some(*value);
+                    shown.error = None;
+                }
+                Err(e) => shown.error = Some(e.to_string()),
+            }
+        }
         let name = format!("{} {}", one.sensor.name, one.sensor.quantity.name());
-        match sensor::read(&one.sensor) {
+        match read {
             Ok(value) => {
                 if one.reading != Some(true) {
                     eprintln!(

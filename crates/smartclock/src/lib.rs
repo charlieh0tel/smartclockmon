@@ -25,6 +25,7 @@ pub mod parse;
 pub mod protocol;
 pub mod rollover;
 pub mod screen;
+pub mod sensors;
 pub mod server;
 pub mod session;
 pub mod snapshot;
