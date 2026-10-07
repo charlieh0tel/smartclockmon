@@ -113,7 +113,9 @@ impl SensorLog {
         })
     }
 
-    /// Every sensor the log holds, with where it was last read from.
+    /// Every sensor the log holds a reading of, with where it was last
+    /// read from.  One configured but never read -- a path that named
+    /// nothing -- is left out, since there is nothing of it to show.
     /// Empty for a log with no tables yet.
     pub fn sensors(&self) -> Result<Vec<Sensor>> {
         let mut statement = match self.conn.prepare(
@@ -122,7 +124,9 @@ impl SensorLog {
                      ORDER BY since DESC LIMIT 1),
                     (SELECT device FROM source WHERE sensor_id = s.id
                      ORDER BY since DESC LIMIT 1)
-             FROM sensor s ORDER BY s.quantity, s.name",
+             FROM sensor s
+             WHERE EXISTS (SELECT 1 FROM reading WHERE sensor_id = s.id)
+             ORDER BY s.quantity, s.name",
         ) {
             Ok(statement) => statement,
             Err(e) if missing_table(&e) => return Ok(Vec::new()),
@@ -337,6 +341,28 @@ mod tests {
         assert_eq!(log.every(), Some(std::time::Duration::from_secs(10)));
         let (first, last) = log.extent().expect("extent").expect("readings");
         assert_eq!((first, last), ((T0) as f64, (T0 + 590) as f64));
+    }
+
+    #[test]
+    fn a_sensor_never_read_is_not_listed() {
+        let scratch = Scratch::new("unread");
+        written(&scratch);
+        scratch
+            .connect()
+            .execute(
+                "INSERT INTO sensor VALUES (4, 'nowhere', 'temperature', 'C')",
+                [],
+            )
+            .expect("a sensor never read");
+        let log = SensorLog::open(scratch.path()).expect("open");
+        let names: Vec<_> = log
+            .sensors()
+            .expect("sensors")
+            .into_iter()
+            .map(|s| s.name)
+            .collect();
+        assert!(!names.contains(&"nowhere".to_owned()), "{names:?}");
+        assert_eq!(names.len(), 3);
     }
 
     #[test]
