@@ -552,10 +552,8 @@ view cannot drift apart.  The library, bottom up:
 
 ## Next
 
-- **Sensors beside the receivers.**  `smartclock-sensord` logs its
-  sensors and answers on its socket; the exporter, the web view and
-  the command line tool show them.  The monitor is next.
-  `docs/sensors.md` has the design and the order of work.
+- **Sensor history in the monitor.**  The monitor shows the host's
+  sensors' current readings but not their history; `docs/sensors.md`.
 - **Later: compacting old logs**, perhaps into Parquet.  The logs grow
   without bound.
 - **Bench work:** the open items in `docs/hardware-investigations.md`,

@@ -379,6 +379,20 @@ fn header(frame: &mut Frame, area: Rect, app: &App) {
             ));
         }
     }
+    // The host's sensors, after everything about the receiver: they
+    // belong to the host, so they stay whichever receiver is shown.
+    if let Some(latest) = &app.sensors {
+        let now = jiff::Timestamp::now();
+        for reading in &latest.readings {
+            let value = reading
+                .current(latest.every_s, now)
+                .map_or_else(|| "--".to_owned(), |v| format!("{v:.1} {}", reading.unit));
+            spans.push(Span::styled(
+                format!("  {} {}: {value}", reading.name, reading.quantity),
+                Style::new().fg(Color::Cyan),
+            ));
+        }
+    }
     frame.render_widget(
         Paragraph::new(Line::from(spans)).block(block("smartclockmon")),
         area,
@@ -1394,5 +1408,30 @@ mod tests {
         ] {
             assert!(drawn(&mut app, view).contains("scpi> *IDN?"), "{view:?}");
         }
+    }
+
+    #[test]
+    fn the_header_shows_the_hosts_current_sensors_and_dashes_a_stopped_one() {
+        let mut app = app();
+        let reading = |name: &str, age_s: i64| smartclock::sensors::Reading {
+            name: name.to_owned(),
+            quantity: "temperature".to_owned(),
+            unit: "C".to_owned(),
+            source: "/x".to_owned(),
+            at: Some(
+                Timestamp::now()
+                    .checked_sub(jiff::SignedDuration::from_secs(age_s))
+                    .expect("a time"),
+            ),
+            value: Some(21.54),
+            error: None,
+        };
+        app.sensors = Some(smartclock::sensors::Latest {
+            every_s: 10.0,
+            readings: vec![reading("room", 2), reading("bench", 600)],
+        });
+        let text = drawn(&mut app, View::Dashboard);
+        assert!(text.contains("room temperature: 21.5 C"), "{text}");
+        assert!(text.contains("bench temperature: --"), "{text}");
     }
 }

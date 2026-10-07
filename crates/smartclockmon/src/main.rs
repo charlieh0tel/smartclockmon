@@ -9,6 +9,8 @@ mod history;
 mod source;
 mod ui;
 
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::mpsc::TryRecvError;
 use std::time::Duration;
 use std::time::Instant;
@@ -23,6 +25,7 @@ use crossterm::event::KeyEventKind;
 use crossterm::event::KeyModifiers;
 
 use crate::app::App;
+use smartclock::client::Daemon;
 use smartclock::types::Framing;
 
 use crate::app::View;
@@ -50,6 +53,11 @@ struct Cli {
     /// is fixed at 7O1.
     #[arg(long, default_value = "8N1")]
     framing: Framing,
+
+    /// The sensor service's socket, for the host's sensors in the
+    /// header.  A host without the service shows none.
+    #[arg(long, default_value = "/run/smartclock-sensord/socket")]
+    sensor_socket: PathBuf,
 }
 
 /// How often to redraw when nothing has arrived, so the clock in the
@@ -71,6 +79,15 @@ const HISTORY_REFRESH: Duration = Duration::from_secs(5);
 /// does not move appreciably in fifteen seconds.
 const STATUS_REFRESH: Duration = Duration::from_secs(15);
 
+/// How often the host's sensors are asked for: they are read every ten
+/// seconds by default, so oftener shows nothing new.
+const SENSORS_REFRESH: Duration = Duration::from_secs(5);
+
+/// How long the sensor service may take to answer.  Asked from the
+/// drawing loop, so kept short: a service that does not answer in this
+/// time costs one stalled frame, and its sensors are shown as unknown.
+const SENSORS_BUDGET: Duration = Duration::from_millis(250);
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let (updates, attachment, console, policy, cadence) = match (&cli.device, &cli.socket) {
@@ -84,7 +101,7 @@ fn main() -> Result<()> {
     app.open_log();
 
     let mut terminal = ratatui::init();
-    let outcome = run(&mut terminal, app, &updates);
+    let outcome = run(&mut terminal, app, &updates, &cli.sensor_socket);
     // Restore the terminal whatever happened, or a failure leaves the
     // operator with no echo and no cursor.
     ratatui::restore();
@@ -95,8 +112,10 @@ fn run(
     terminal: &mut ratatui::DefaultTerminal,
     mut app: App,
     updates: &std::sync::mpsc::Receiver<crate::source::Update>,
+    sensor_socket: &Path,
 ) -> Result<()> {
     let mut due = Instant::now();
+    let mut sensors_due = Instant::now();
     let mut last_draw = Instant::now();
     let mut dirty = true;
     while !app.quitting {
@@ -120,6 +139,13 @@ fn run(
         if app.view == View::Status && Instant::now() >= due {
             let _ = app.console.status();
             due = Instant::now() + STATUS_REFRESH;
+        }
+        if Instant::now() >= sensors_due {
+            app.sensors = Daemon::connect_within(sensor_socket, SENSORS_BUDGET)
+                .and_then(|mut service| service.sensor_readings())
+                .ok();
+            sensors_due = Instant::now() + SENSORS_REFRESH;
+            dirty = true;
         }
         if dirty || last_draw.elapsed() >= TICK {
             terminal.draw(|frame| ui::draw(frame, &app))?;

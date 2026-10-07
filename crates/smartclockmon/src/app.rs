@@ -85,6 +85,9 @@ pub(crate) struct App {
     pub(crate) efc_trend: VecDeque<EfcPercent>,
     /// How the monitor is attached.
     pub(crate) attachment: Attachment,
+    /// The host's sensors and their latest readings, from the sensor
+    /// service; `None` without one.
+    pub(crate) sensors: Option<smartclock::sensors::Latest>,
     /// Set when the operator has asked to leave.
     pub(crate) quitting: bool,
     /// Recent 1 PPS intervals in nanoseconds, oldest first.
@@ -150,6 +153,7 @@ impl App {
             last_screen: None,
             efc_trend: VecDeque::with_capacity(TREND_LEN),
             attachment,
+            sensors: None,
             quitting: false,
             ti_trend: VecDeque::with_capacity(TREND_LEN),
             last_fast: None,

@@ -16,6 +16,10 @@ error queue and its alarm changes -- and the notes written about it
 `smartclockmon --device ...` talks to the receiver directly, which
 needs the daemon stopped and records no history; the header says so.
 
+The header ends with the host's sensors and their current readings,
+from `smartclock-sensord` (`--sensor-socket`), or `--` for one that
+has stopped reading.
+
 ## Dates
 
 Firmware predating the 2019 GPS week rollover reports a date 1024
