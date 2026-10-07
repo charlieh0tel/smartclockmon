@@ -1,3 +1,26 @@
+smartclockmon (1.2.0-1) unstable; urgency=low
+
+  * New smartclock-sensord, off until enabled: logs the host's hwmon
+    and IIO sensors -- temperature, humidity, pressure -- to its own
+    log, /var/lib/smartclock-sensord/sensors.sqlite, and answers on
+    /run/smartclock-sensord/socket.  Name the sensors in
+    /etc/default/smartclock-sensord; see docs/sensors.md.
+  * The sensors are shown on the web view's history page, below the
+    receiver's internal temperature, on the compare page and in every
+    page's strip; by the exporter as smartclock_sensor_* and
+    smartclock_sensord_up; by smartclock-cli sensors; and in the
+    monitor's header and history view.
+  * The web view keeps its place when the charts refresh, and the
+    stability plots fit a phone's width.  A chart title's hover text is
+    over its words only, without the help cursor.
+  * Purge keeps the smartclockd user and group, as current Debian
+    tooling leaves system users; it still removes the logs.
+  * A request in the wrong protocol version is refused with "this
+    service speaks protocol ..." rather than "this daemon speaks
+    protocol ..."; a script matching the old text needs updating.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Wed, 07 Oct 2026 00:40:56 -0700
+
 smartclockmon (1.1.0-1) unstable; urgency=low
 
   * The web view moves through time as Grafana's dashboards do.  The
