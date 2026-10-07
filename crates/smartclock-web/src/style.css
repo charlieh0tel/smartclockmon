@@ -110,7 +110,9 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
 /* Left, where the eye starts, and where the y axis label already is.
    uPlot centers it over the plotting area by default, which leaves it
    floating above nothing in particular. */
-.u-title { text-align: left; padding-left: 2px; }
+/* As wide as its words, so a title's hover text and its underline are
+   over the title, not across the whole chart. */
+.u-title { text-align: left; padding-left: 2px; width: fit-content; }
 #sky { width: 100%; aspect-ratio: 1; display: block; }
 
 /* The stability page.  Chart and table side by side where there is

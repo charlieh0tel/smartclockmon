@@ -387,6 +387,11 @@ test("every series has hover text, on the history and the compare page", async (
   await page.waitForFunction(() => charts.length > 1);
   const compared = await page.locator("#charts .u-title").evaluateAll((ts) => ts.map((t) => [t.textContent, t.title]));
   expect(compared.filter(([, title]) => !title)).toEqual([]);
+  // The hover area is the title's words, not the chart's width.
+  const widths = await page.locator("#charts .u-title").evaluateAll((ts) =>
+    ts.map((t) => [t.getBoundingClientRect().width, t.parentElement.getBoundingClientRect().width]),
+  );
+  expect(widths.filter(([title, chart]) => title > chart / 2)).toEqual([]);
 });
 
 test("the columns chosen ride in the address", async ({ page }) => {
