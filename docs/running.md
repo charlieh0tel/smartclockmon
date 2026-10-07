@@ -46,6 +46,12 @@ Check the install:
 The log file, named after the receiver, appears once the receiver
 has answered `*IDN?`.
 
+Room temperature and the like come from a service of their own,
+`smartclock-sensord`, one per host and also not enabled.  Name the
+sensors in `/etc/default/smartclock-sensord` first, then
+`sudo systemctl enable --now smartclock-sensord`; `docs/sensors.md`
+has the details.
+
 ### Upgrading
 
 On opening a log written by an earlier version, the daemon upgrades it
@@ -196,6 +202,8 @@ it").
 | `/etc/systemd/system/smartclockd@<port>.service.d/` | one instance's settings |
 | `/var/lib/smartclockd/<model>-<serial>.sqlite`   | one log per receiver       |
 | `/run/smartclockd/<port>/socket`                 | where clients connect      |
+| `/etc/default/smartclock-sensord`                | the sensors to log          |
+| `/var/lib/smartclock-sensord/sensors.sqlite`     | the host's sensor log       |
 
 A log is named after the receiver that answered on the port and is
 opened only once one has: a unit moved to another port or another

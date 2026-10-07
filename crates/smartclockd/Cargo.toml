@@ -52,10 +52,12 @@ assets = [
     ["target/release/smartclockmon", "usr/bin/", "755"],
     ["target/release/smartclock-exporter", "usr/bin/", "755"],
     ["target/release/smartclock-web", "usr/bin/", "755"],
+    ["target/release/smartclock-sensord", "usr/bin/", "755"],
     ["../../packaging/systemd/smartclockd@.service", "usr/lib/systemd/system/smartclockd@.service", "644"],
     ["../../packaging/systemd/smartclockd.default", "etc/default/smartclockd", "644"],
     ["../../packaging/systemd/smartclock-exporter.default", "etc/default/smartclock-exporter", "644"],
     ["../../packaging/systemd/smartclock-web.default", "etc/default/smartclock-web", "644"],
+    ["../../packaging/systemd/smartclock-sensord.default", "etc/default/smartclock-sensord", "644"],
     ["../../README.md", "usr/share/doc/smartclockmon/README.md", "644"],
     ["../../docs/screen-format-strings.md", "usr/share/doc/smartclockmon/screen-format-strings.md", "644"],
     ["../../docs/z3801-keywords.md", "usr/share/doc/smartclockmon/z3801-keywords.md", "644"],
@@ -70,20 +72,24 @@ assets = [
     ["../../docs/firmware/restart.md", "usr/share/doc/smartclockmon/firmware/restart.md", "644"],
     ["../../docs/efc.md", "usr/share/doc/smartclockmon/efc.md", "644"],
     ["../../docs/ocxo.md", "usr/share/doc/smartclockmon/ocxo.md", "644"],
+    ["../../docs/sensors.md", "usr/share/doc/smartclockmon/sensors.md", "644"],
 ]
 conf-files = [
     "/etc/default/smartclockd",
     "/etc/default/smartclock-exporter",
     "/etc/default/smartclock-web",
+    "/etc/default/smartclock-sensord",
 ]
 maintainer-scripts = "../../packaging/debian/"
 changelog = "../../packaging/debian/changelog"
-# Both ship disabled: each needs a socket named first, and the exporter
-# is only wanted where something scrapes it.  The daemon is a template
+# All three ship disabled: the exporter and the web view each need a
+# socket named first, the exporter is only wanted where something
+# scrapes it, and the sensor service needs its sensors named.  The daemon is a template
 # unit, smartclockd@.service, installed as a plain asset above, since
 # cargo-deb's unit handling is for units enabled by name; an instance
 # is enabled by hand once its environment file exists.
 systemd-units = [
     { unit-name = "smartclock-exporter", unit-scripts = "../../packaging/systemd", enable = false, start = false },
     { unit-name = "smartclock-web", unit-scripts = "../../packaging/systemd", enable = false, start = false },
+    { unit-name = "smartclock-sensord", unit-scripts = "../../packaging/systemd", enable = false, start = false },
 ]

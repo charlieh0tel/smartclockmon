@@ -1,6 +1,7 @@
 # Sensors beside the receivers
 
-Proposed, not built.  An OCXO's EFC moves with the room, so the room's
+Under way: the service logs its sensors; nothing reads its log yet.
+An OCXO's EFC moves with the room, so the room's
 temperature, and perhaps its humidity and pressure, belong beside the
 receivers' readings.  None of the receivers reports them: the 58503A's
 `:DIAGnostic:TEMPerature?` is an internal reading of 34 to 38 C, and

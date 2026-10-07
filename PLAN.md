@@ -552,10 +552,9 @@ view cannot drift apart.  The library, bottom up:
 
 ## Next
 
-- **Sensors beside the receivers.**  `smartclock-sensord`, a service
-  of its own reading hwmon and IIO sensors into a log of its own, and
-  the readers that show it; `docs/sensors.md` has the design and the
-  order of work.
+- **Sensors beside the receivers.**  `smartclock-sensord` logs its
+  sensors; its socket and the readers that show them are next.
+  `docs/sensors.md` has the design and the order of work.
 - **Later: compacting old logs**, perhaps into Parquet.  The logs grow
   without bound.
 - **Bench work:** the open items in `docs/hardware-investigations.md`,

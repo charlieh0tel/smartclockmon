@@ -26,6 +26,7 @@ design, open questions and known defects.
 | `smartclock-cli` | queries, `diagnose`, notes and facts in a receiver's log, transcript capture, sweeping for undocumented commands, reading ROM and EEPROM through the debug console, and loading firmware ([firmware notes](docs/firmware/restart.md#the-flasher)) |
 | `smartclock-exporter` | Prometheus metrics for every receiver on the host, from the daemons' own readings |
 | `smartclock-web` | a browser view: live state, history you can zoom, and pages for the status screen, for stability and for comparing receivers |
+| `smartclock-sensord` | logs the host's hwmon and IIO sensors -- room temperature, humidity, pressure -- beside the receivers ([design](docs/sensors.md)) |
 | `smartclock-log` | the log's schema and the readers the web view and the monitor share |
 | `smartclock-http` | the small HTTP server the exporter and the web view share |
 | `smartclock-sim` | a simulated receiver, in process for tests and over TCP for driving the real daemon |

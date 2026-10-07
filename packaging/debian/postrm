@@ -1,10 +1,10 @@
 #!/bin/sh
-# Leaves the snapshot log alone on remove; purge takes it.
+# Leaves the logs alone on remove; purge takes them.
 set -e
 
 case "$1" in
 purge)
-    rm -rf /var/lib/smartclockd
+    rm -rf /var/lib/smartclockd /var/lib/smartclock-sensord
     if getent passwd smartclockd >/dev/null; then
         deluser --system smartclockd || true
     fi

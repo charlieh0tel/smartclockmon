@@ -1,0 +1,16 @@
+# Settings for smartclock-sensord.  See `smartclock-sensord --help` and
+# docs/sensors.md.
+#
+# Every line below is commented out.  Name at least one sensor before
+# enabling the service.
+
+# hwmon sensors, NAME=PATH, comma-separated.  hwmonN numbers can change
+# across boots, so a glob matching one directory, or a symlink, is
+# safer than a numbered path.
+#SMARTCLOCK_SENSORD_HWMON=room=/sys/bus/i2c/devices/*-0044/hwmon/hwmon*/temp1_input,room=/sys/bus/i2c/devices/*-0044/hwmon/hwmon*/humidity1_input
+
+# IIO sensors, NAME=CHANNEL: the channel's path less its suffix.
+#SMARTCLOCK_SENSORD_IIO=bench=/run/sensors/bench/in_temp
+
+#SMARTCLOCK_SENSORD_EVERY=10
+#SMARTCLOCK_SENSORD_LOG=/var/lib/smartclock-sensord/sensors.sqlite

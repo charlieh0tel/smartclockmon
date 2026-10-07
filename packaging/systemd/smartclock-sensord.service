@@ -1,0 +1,51 @@
+[Unit]
+Description=Sensors beside SmartClock GPS receivers
+Documentation=https://github.com/charlieh0tel/smartclockmon
+# One per host: sensors belong to the host, not to a receiver, so this
+# logs them whether or not any receiver is attached.  It reads hwmon
+# and IIO files in /sys, or the symlinks a helper keeps under /run, and
+# needs no device access of its own.  Name the sensors in
+# /etc/default/smartclock-sensord before enabling it; with none it
+# exits 2 and stays failed.  See docs/sensors.md.
+
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=exec
+EnvironmentFile=-/etc/default/smartclock-sensord
+ExecStart=/usr/bin/smartclock-sensord
+# As smartclockd's: a bad setting exits 2 and is not retried; a runtime
+# failure exits 1 and is.
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2
+
+# The same user as the other services, so the web view and the
+# exporter can read its log.
+User=smartclockd
+Group=smartclockd
+
+StateDirectory=smartclock-sensord
+StateDirectoryMode=0750
+RuntimeDirectory=smartclock-sensord
+RuntimeDirectoryMode=0750
+
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+SystemCallFilter=@system-service
+
+[Install]
+WantedBy=multi-user.target
