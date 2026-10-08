@@ -818,10 +818,14 @@ function drawRangeControl() {
     `<button id="range-now" title="the same length, up to now"${disabled(relative)}>now</button>` +
     `</span> <span class="range-group">` +
     `<button id="range-reload" class="glyph" title="read again now">⟳</button>` +
-    `<select id="range-refresh" title="${esc(refreshTitle())}"${disabled(!growing())}>` +
-    refreshOptions().map(([value, label]) =>
-      `<option value="${value}"${value === refreshChoice ? " selected" : ""}>${label}</option>`).join("") +
-    `</select></span>`;
+    // A page with no floor is read only when asked, so it offers no
+    // interval to read at.
+    (refreshFloor() === null ? "" :
+      `<select id="range-refresh" title="${esc(refreshTitle())}"${disabled(!growing())}>` +
+      refreshOptions().map(([value, label]) =>
+        `<option value="${value}"${value === refreshChoice ? " selected" : ""}>${label}</option>`).join("") +
+      `</select>`) +
+    `</span>`;
   for (const b of el.querySelectorAll("button[data-last]")) {
     b.onclick = () =>
       setRange({ last: b.dataset.last === "all" ? "all" : Number(b.dataset.last), from: null, to: null });
@@ -837,7 +841,7 @@ function drawRangeControl() {
   $("range-forward").onclick = () => step(1);
   $("range-now").onclick = liveAgain;
   $("range-reload").onclick = () => renew(true);
-  $("range-refresh").onchange = () => {
+  if ($("range-refresh")) $("range-refresh").onchange = () => {
     refreshChoice = $("range-refresh").value;
     rememberRefresh();
     drawRangeControl();

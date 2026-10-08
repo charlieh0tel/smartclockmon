@@ -105,7 +105,8 @@ A refresh picker sets how often the range is read again: Auto by
 default, about one pixel's worth of time across the window rounded up
 to the next of the fixed intervals, or one of those intervals, never
 faster than the page can afford (5 s for history, a minute where each
-read measures stability).  ⟳ reads at once.  Reading pauses while the
+read measures stability).  The correlation page has no picker: it is
+read when its range or measures change.  ⟳ reads at once.  Reading pauses while the
 tab is hidden, while a read is still running, while the pointer is on
 a chart, and while text is selected.
 
