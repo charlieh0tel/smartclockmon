@@ -93,6 +93,8 @@ const AXIS = { stroke: "#8b929c", grid: { stroke: "#2b3038" }, ticks: { stroke: 
 // much.
 const LAG_REACH = 7200;
 const LAG_SHARE = 4;
+// The lag axis's tick spacings, in whole minutes.
+const LAG_TICKS = [1, 2, 5, 10, 15, 30, 60, 120];
 // The nearest dot the scatter's cursor picks, in CSS pixels.
 const SCATTER_REACH = 24;
 const SYNC = haveUplot ? uPlot.sync("correlation") : null;
@@ -396,7 +398,14 @@ function drawLag(curve, win, peak) {
       height: Math.round(Math.max(DEVIATION_PLOT.shortest, Math.min(DEVIATION_PLOT.tallest, width / DEVIATION_PLOT.ratio))),
       scales: { x: { time: false } },
       axes: [
-        { ...AXIS, label: "lag, minutes: positive when X leads Y", labelFont: AXIS_FONT, font: AXIS_FONT },
+        {
+          ...AXIS,
+          label: "lag, minutes: positive when X leads Y",
+          labelFont: AXIS_FONT,
+          font: AXIS_FONT,
+          incrs: LAG_TICKS,
+          values: (_, splits) => splits.map((v) => v.toFixed(0)),
+        },
         { ...AXIS, label: "r", labelFont: AXIS_FONT, font: AXIS_FONT },
       ],
       series: [
