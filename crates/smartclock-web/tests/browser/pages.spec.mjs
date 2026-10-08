@@ -731,3 +731,15 @@ test("the correlation page sets two measures against each other, over locked rea
   expect(asked.some((q) => q.has("locked"))).toBe(false);
   expect(new URL(page.url()).searchParams.get("locked")).toBe("0");
 });
+
+test("a length typed over a fixed range makes it the moving range of that length", async ({ page }) => {
+  await twoUnits().install(page);
+  await page.goto(`/?receiver=${A}&from=1790539803&to=1790554203`);
+  const box = page.locator("#range-n");
+  await expect(box).toBeEnabled();
+  await expect(box).toHaveValue("4");
+  await box.fill("6");
+  await box.press("Enter");
+  await expect.poll(() => new URL(page.url()).searchParams.get("last")).toBe("21600");
+  expect(new URL(page.url()).searchParams.has("from")).toBe(false);
+});

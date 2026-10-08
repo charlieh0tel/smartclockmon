@@ -798,15 +798,19 @@ function drawRangeControl() {
   if (!el) return;
   const relative = moving();
   const all = range.last === "all";
-  const [n, size] = relative && !all ? splitLength(range.last) : [1, 3600];
+  // A fixed range shows its own length, so typing over it starts from
+  // what is on screen; typing makes it the moving range of that length.
+  const [n, size] = all ? [1, 3600]
+    : relative ? splitLength(range.last)
+    : splitLength(Math.round(range.to - range.from));
   const disabled = (off) => (off ? " disabled" : "");
   el.innerHTML =
     RANGE_PRESETS.map(([label, secs]) =>
       `<button data-last="${secs}" aria-pressed="${range.last === secs}">${label}</button>`).join(" ") +
     ` <button data-last="all" aria-pressed="${all}">all</button>` +
     ` <label>last <input id="range-n" type="number" min="1" step="1" value="${n}" ` +
-    `style="width:5em"${disabled(!relative)}> ` +
-    `<select id="range-unit"${disabled(!relative)}>` +
+    `style="width:5em"> ` +
+    `<select id="range-unit">` +
     RANGE_UNITS.map(([name, s]) =>
       `<option value="${s}"${s === size ? " selected" : ""}>${name}</option>`).join("") +
     `</select></label>` +

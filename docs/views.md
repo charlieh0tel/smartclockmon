@@ -97,8 +97,8 @@ units" up to now -- presets from an hour to thirty days and `all` fill
 the box in, and any other length can be typed -- or a fixed pair, which
 a drag on a chart zooms to.  ‹ and › move it by half its length, −
 and a double click on a chart double it about its center, and `now`
-returns a fixed range to a moving one; with `all` there is nothing to
-move or zoom.  Grafana's keys work: `t ←` and `t →` move, `t -` (or
+returns a fixed range to a moving one, as does typing a length over a
+fixed range's own; with `all` there is nothing to move or zoom.  Grafana's keys work: `t ←` and `t →` move, `t -` (or
 Ctrl+Z) zooms out, `t +` zooms in, `t a` fixes a moving range where it
 is.  Each change of range is a step the browser's Back button undoes.
 A refresh picker sets how often the range is read again: Auto by
