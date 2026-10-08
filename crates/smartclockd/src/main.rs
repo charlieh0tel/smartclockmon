@@ -101,18 +101,19 @@ struct Cli {
     #[arg(long, env = "SMARTCLOCKD_DATABASE")]
     database: Option<PathBuf>,
 
-    /// Where to listen for clients.  No default: the socket is per
-    /// instance, and the unit sets it from the instance name.
-    #[arg(long, env = "SMARTCLOCKD_SOCKET")]
-    socket: PathBuf,
+    /// The Unix socket to listen on.  No default: the socket is per
+    /// instance, and the unit sets it from the instance name.  Needed
+    /// unless `--listen` is given.
+    #[arg(long, env = "SMARTCLOCKD_SOCKET", required_unless_present = "listen")]
+    socket: Option<PathBuf>,
 
-    /// Also listen here, named as `--socket` is: `tcp://HOST:PORT` for
-    /// clients on other hosts, which connect with `--daemon` the same.
+    /// Also listen on TCP at this address, `HOST:PORT`, for clients on
+    /// other hosts, which name it `--daemon` `tcp://HOST:PORT`.
     ///
     /// Nothing decides who may connect over TCP: anyone who can reach
     /// the address may issue whatever this service allows.
-    #[arg(long, env = "SMARTCLOCKD_LISTEN")]
-    listen: Option<PathBuf>,
+    #[arg(long, env = "SMARTCLOCKD_LISTEN", value_parser = smartclock::link::listening_address)]
+    listen: Option<String>,
 
     /// Seconds between fast-tier polls.
     #[arg(long, env = "SMARTCLOCKD_FAST", default_value_t = 1.0)]
@@ -654,8 +655,8 @@ fn supervise(supervisor: Supervisor) -> Result<()> {
         // reconnects reuse the listener already running.
         if !serving {
             start_server(Listening {
-                socket: &cli.socket,
-                also: cli.listen.as_deref(),
+                socket: cli.socket.as_deref(),
+                tcp: cli.listen.as_deref(),
                 shared: &shared,
                 requests: &requests_tx,
                 info: Arc::clone(&info),
@@ -1150,10 +1151,10 @@ fn open(settings: &Settings) -> Result<Device<Box<dyn Transport + Send>>> {
 
 /// What the socket server needs to start.
 struct Listening<'a> {
-    /// Where to bind.
-    socket: &'a Path,
-    /// Where to listen as well, if anywhere.
-    also: Option<&'a Path>,
+    /// The Unix socket to bind, if any.
+    socket: Option<&'a Path>,
+    /// The TCP address to listen on, if any.
+    tcp: Option<&'a str>,
     /// State to serve to clients.
     shared: &'a Shared,
     /// Where client commands go.
@@ -1163,8 +1164,7 @@ struct Listening<'a> {
 }
 
 fn start_server(listening: Listening<'_>) -> Result<()> {
-    let socket = listening.socket;
-    let listeners = smartclock::server::listen_all(socket, listening.also)?;
+    let listeners = smartclock::server::listen_all(listening.socket, listening.tcp)?;
     let daemon = Arc::new(server::Daemon {
         handle: Handle::new(listening.requests.clone(), listening.shared.clone()),
         info: listening.info,
@@ -1173,9 +1173,11 @@ fn start_server(listening: Listening<'_>) -> Result<()> {
         .name("smartclockd-socket".to_owned())
         .spawn(move || smartclock::server::serve(listeners, "smartclockd", daemon))
         .context("spawning the socket server")?;
-    eprintln!("smartclockd: listening on {}", socket.display());
-    if let Some(also) = listening.also {
-        eprintln!("smartclockd: listening on {}", also.display());
+    if let Some(socket) = listening.socket {
+        eprintln!("smartclockd: listening on {}", socket.display());
+    }
+    if let Some(address) = listening.tcp {
+        eprintln!("smartclockd: listening on {address}");
     }
     Ok(())
 }
@@ -1451,8 +1453,8 @@ mod tests {
             }))
         };
         let listening = |info| Listening {
-            socket: &socket,
-            also: None,
+            socket: Some(&socket),
+            tcp: None,
             shared: &shared,
             requests: &requests,
             info,

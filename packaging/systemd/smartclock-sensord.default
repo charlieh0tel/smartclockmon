@@ -21,7 +21,7 @@
 #SMARTCLOCK_SENSORD_LOG=/var/lib/smartclock-sensord/sensors.sqlite
 #SMARTCLOCK_SENSORD_SOCKET=/run/smartclock-sensord/socket
 
-# Also listen here, tcp://HOST:PORT, for clients on other hosts, which
-# use --sensord tcp://HOST:PORT.  Nothing decides who may connect
+# Also listen on TCP, HOST:PORT, for clients on other hosts, which use
+# --sensord tcp://HOST:PORT.  Nothing decides who may connect
 # there.
 #SMARTCLOCK_SENSORD_LISTEN=

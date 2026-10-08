@@ -133,18 +133,18 @@ not change the wire format.
 
 - **A socket, via `smartclock::link`**, for the live snapshot stream
   and commands, newline-delimited JSON.  A client gets the current
-  snapshot on connect, then updates.  On Unix it is an AF_UNIX socket;
-  elsewhere a loopback TCP port the system picks, written as
-  `tcp://ADDRESS:PORT` in a file where the socket would be.  Both ends
-  name a service the same way, `tcp://HOST:PORT` or a path, bare or as
-  `unix://PATH`; a bare `HOST:PORT` is refused rather than made a file
-  of that name.  A service listens at `--listen` as well, for clients on
-  other hosts; its sixteen clients are counted across both.  Windows named
-  pipes were tried and dropped: they have no read or write timeout,
-  and a daemon that accepts and then wedges must not hold its client.
-  The name is a filesystem path either way, so systemd's
-  `RuntimeDirectory` owns its lifetime and file permissions gate
-  access.
+  snapshot on connect, then updates.  A daemon binds an AF_UNIX
+  socket at `--socket PATH`, and listens on TCP at `--listen
+  HOST:PORT`, either or both; its sixteen clients are counted across
+  both.  A client names the daemon it asks with `--daemon` (or
+  `--sensord`): the socket's path, or `tcp://HOST:PORT`.  A bare
+  `HOST:PORT` there is refused rather than looked for as a file.  The
+  socket is a filesystem path, so systemd's `RuntimeDirectory` owns its
+  lifetime and file permissions gate access; over TCP nothing does.
+  Where there are no Unix sockets, Windows, TCP is all there is.
+  Windows named pipes were tried and dropped: they have no read or
+  write timeout, and a daemon that accepts and then wedges must not
+  hold its client.
 - **SQLite file, opened read-only**, for history.  `journal_mode=WAL`
   lets readers run beside the daemon's single writer.  A read-only
   reader needs `-shm` and cannot create it in `/var/lib/smartclockd`,
@@ -427,7 +427,7 @@ for seconds on a wedged bus, in the path of the serial link.
   `PrivateDevices`: it would hide the serial port.
 
 systemd is the only Linux-specific piece; `serialport` and `rusqlite`
-are portable, and the socket falls back to TCP where there is no
+are portable, and a daemon listens on TCP alone where there is no
 AF_UNIX.  Porting means a launchd plist or a Windows service wrapper,
 not touching the protocol.
 
@@ -624,8 +624,8 @@ Known and unfixed, each because the fix is not yet worth its cost.  The
 threat model is a careless operator on a single-operator machine, not
 an attacker, so two things are not defended against:
 
-- Socket permissions are the whole of the authorization, and where
-  the socket is TCP there is none: anything on the host may connect.
+- Socket permissions are the whole of the authorization, and over TCP
+  there is none: anyone who can reach the port may connect.
   A connection ends at its first line that is not a request, so a web
   page posting to the port does not have the request in its body
   answered.

@@ -1,30 +1,23 @@
 //! The connection between a service and its clients: a Unix socket, or
 //! TCP.
 //!
-//! A daemon's `--socket` and `--listen`, and a client's `--daemon` and
-//! `--sensord`, name where a service is the same way: `tcp://HOST:PORT`, or a path, bare or as `unix://PATH`.
-//! A path is a Unix socket, or a file naming the TCP address the
-//! service listens on.  The file stands where the socket would, in the
-//! service's run directory, so either way systemd's `RuntimeDirectory`
-//! decides how long it is there.
+//! A daemon binds a Unix socket at `--socket PATH`, and listens on TCP
+//! at `--listen HOST:PORT`, either or both.  A client names the daemon
+//! it asks, with `--daemon` or `--sensord`, by the socket's path or as
+//! `tcp://HOST:PORT`.
 //!
-//! Unix sockets are the default where there are any: file permissions
-//! decide who may connect.  Elsewhere a service listens on a loopback
-//! port the system picks, and anything on the host may connect.
+//! The socket is what a host's own clients use: file permissions decide
+//! who may connect, and systemd's `RuntimeDirectory` decides how long it
+//! is there.  Over TCP nothing decides who may connect.  Where there are
+//! no Unix sockets, TCP is all there is.
 
 use std::io;
 use std::io::Read;
 use std::io::Write;
-#[cfg(any(not(unix), test))]
-use std::net::Ipv4Addr;
 use std::net::Shutdown;
-#[cfg(any(not(unix), test))]
-use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::net::TcpStream;
 use std::net::ToSocketAddrs as _;
-#[cfg(unix)]
-use std::os::unix::fs::FileTypeExt as _;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt as _;
 #[cfg(unix)]
@@ -36,47 +29,39 @@ use std::time::Duration;
 
 use crate::client::DEADLINE;
 
-/// How a TCP address is written, in a socket file or in place of one.
+/// How a client names a TCP address.
 const TCP_SCHEME: &str = "tcp://";
 
-/// How a path may be written, for symmetry with [`TCP_SCHEME`].
-const UNIX_SCHEME: &str = "unix://";
-
-/// Where a service is, as the flags that name one take it.
+/// Where a client is told a service is.
 #[derive(Debug, PartialEq, Eq)]
 enum Endpoint<'a> {
     /// `tcp://HOST:PORT`.
     Tcp(&'a str),
-    /// A Unix socket, or a file naming a TCP address.
-    Path(&'a Path),
+    /// A Unix socket.
+    Socket(&'a Path),
 }
 
 /// Read where `named` says a service is.
 ///
-/// A bare `HOST:PORT` is refused rather than taken as a file of that
-/// name, which listening would create in the working directory.
+/// A bare `HOST:PORT` is refused rather than looked for as a socket of
+/// that name, so the mistake is named rather than reported as a missing
+/// file.
 fn endpoint(named: &Path) -> io::Result<Endpoint<'_>> {
     let Some(text) = named.to_str() else {
-        return Ok(Endpoint::Path(named));
+        return Ok(Endpoint::Socket(named));
     };
     if let Some(address) = text.strip_prefix(TCP_SCHEME) {
         return Ok(Endpoint::Tcp(address));
     }
-    if let Some(path) = text.strip_prefix(UNIX_SCHEME) {
-        return Ok(Endpoint::Path(Path::new(path)));
-    }
-    let refuse = |why: String| Err(io::Error::new(io::ErrorKind::InvalidInput, why));
     if let Some((scheme, _)) = text.split_once("://") {
-        return refuse(format!(
-            "{text}: {scheme}:// is not {TCP_SCHEME} or {UNIX_SCHEME}"
-        ));
+        return Err(invalid(format!("{text}: {scheme}:// is not {TCP_SCHEME}")));
     }
     if looks_like_an_address(text) {
-        return refuse(format!(
-            "{text} would be a file name; a TCP address is {TCP_SCHEME}{text}"
-        ));
+        return Err(invalid(format!(
+            "{text} would be a socket's path; a TCP address is {TCP_SCHEME}{text}"
+        )));
     }
-    Ok(Endpoint::Path(named))
+    Ok(Endpoint::Socket(named))
 }
 
 /// Whether `text` reads as `HOST:PORT` rather than as a path.
@@ -85,6 +70,11 @@ fn looks_like_an_address(text: &str) -> bool {
         && text
             .rsplit_once(':')
             .is_some_and(|(host, port)| !host.is_empty() && port.parse::<u16>().is_ok())
+}
+
+/// An error in how something was named.
+fn invalid(why: String) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput, why)
 }
 
 /// A connection to a service, from either end.
@@ -185,36 +175,35 @@ impl Listener {
     }
 }
 
-/// Connect to the service at `socket`, with every read and write
-/// bounded by [`DEADLINE`].
+/// Connect to the service `named`, its socket or `tcp://HOST:PORT`,
+/// with every read and write bounded by [`DEADLINE`].
 ///
 /// A daemon that has accepted and then wedged would otherwise hold its
 /// caller for good.
-pub fn connect(socket: &Path) -> io::Result<Stream> {
-    let stream = match endpoint(socket)? {
+pub fn connect(named: &Path) -> io::Result<Stream> {
+    let stream = match endpoint(named)? {
         Endpoint::Tcp(address) => Stream::Tcp(connect_tcp(address)?),
-        Endpoint::Path(path) => connect_file(path)?,
+        Endpoint::Socket(socket) => connect_socket(socket)?,
     };
     stream.prepare()
 }
 
-/// Connect to the service whose socket, or whose address, is in a file.
-fn connect_file(socket: &Path) -> io::Result<Stream> {
-    #[cfg(unix)]
-    if std::fs::metadata(socket)?.file_type().is_socket() {
-        return Ok(Stream::Unix(UnixStream::connect(socket)?));
-    }
-    let text = std::fs::read_to_string(socket)?;
-    let address = text.trim().strip_prefix(TCP_SCHEME).ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!(
-                "{} is neither a socket nor a {TCP_SCHEME} address",
-                socket.display()
-            ),
-        )
-    })?;
-    Ok(Stream::Tcp(connect_tcp(address)?))
+/// Connect to a Unix socket.
+#[cfg(unix)]
+fn connect_socket(socket: &Path) -> io::Result<Stream> {
+    Ok(Stream::Unix(UnixStream::connect(socket)?))
+}
+
+/// There are no Unix sockets here.
+#[cfg(not(unix))]
+fn connect_socket(socket: &Path) -> io::Result<Stream> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        format!(
+            "{}: there are no Unix sockets here; name the service as {TCP_SCHEME}HOST:PORT",
+            socket.display()
+        ),
+    ))
 }
 
 /// Connect to `HOST:PORT`, trying each address it resolves to.
@@ -234,30 +223,27 @@ fn connect_tcp(address: &str) -> io::Result<TcpStream> {
     }))
 }
 
-/// Listen where `named` says: on TCP at a `tcp://` address, and at a
-/// path on a Unix socket, owner and group only, where there are any,
-/// and elsewhere on a loopback port named in the file.
-///
-/// Over TCP nothing decides who may connect: anyone who can reach the
-/// address may issue whatever the service allows.
-pub fn listen(named: &Path) -> io::Result<Listener> {
-    match endpoint(named)? {
-        Endpoint::Tcp(address) => Ok(Listener::Tcp(TcpListener::bind(address)?)),
-        Endpoint::Path(path) => listen_at(path),
-    }
-}
-
-/// Listen at a path.
+/// Bind a Unix socket at `socket`, owner and group only.
 ///
 /// A socket left behind by a crash would otherwise block the bind, so
 /// it is replaced -- but only if nothing answers on it.  Replacing a
 /// live service's left that service running and unreachable, and its
 /// clients reconnecting to this one.
-fn listen_at(socket: &Path) -> io::Result<Listener> {
+pub fn listen(socket: &Path) -> io::Result<Listener> {
+    if let Endpoint::Tcp(_) = endpoint(socket)? {
+        return Err(invalid(
+            "a socket is a path; listen on TCP with --listen HOST:PORT".to_owned(),
+        ));
+    }
+    bind_socket(socket)
+}
+
+#[cfg(unix)]
+fn bind_socket(socket: &Path) -> io::Result<Listener> {
     if let Some(parent) = socket.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    if connect_file(socket).is_ok() {
+    if connect_socket(socket).is_ok() {
         return Err(io::Error::new(
             io::ErrorKind::AddrInUse,
             format!(
@@ -266,61 +252,62 @@ fn listen_at(socket: &Path) -> io::Result<Listener> {
             ),
         ));
     }
-    #[cfg(unix)]
-    {
-        let _ = std::fs::remove_file(socket);
-        let listener = UnixListener::bind(socket)?;
-        // Socket permissions are the whole of the authorization model
-        // here, so they are set rather than inherited from whatever
-        // umask the service happened to start with.  Group access is
-        // deliberate: it is how an unprivileged operator runs the
-        // monitor.
-        std::fs::set_permissions(socket, std::fs::Permissions::from_mode(0o660))?;
-        Ok(Listener::Unix(listener))
+    let _ = std::fs::remove_file(socket);
+    let listener = UnixListener::bind(socket)?;
+    // Socket permissions are the whole of the authorization model, so
+    // they are set rather than inherited from whatever umask the
+    // service happened to start with.  Group access is deliberate: it
+    // is how an unprivileged operator runs the monitor.
+    std::fs::set_permissions(socket, std::fs::Permissions::from_mode(0o660))?;
+    Ok(Listener::Unix(listener))
+}
+
+#[cfg(not(unix))]
+fn bind_socket(socket: &Path) -> io::Result<Listener> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        format!(
+            "{}: there are no Unix sockets here; listen on TCP with --listen HOST:PORT",
+            socket.display()
+        ),
+    ))
+}
+
+/// Listen on TCP at `address`, `HOST:PORT`.
+///
+/// Nothing decides who may connect: anyone who can reach the address
+/// may issue whatever the service allows.
+pub fn listen_tcp(address: &str) -> io::Result<Listener> {
+    let address = listening_address(address).map_err(invalid)?;
+    Ok(Listener::Tcp(TcpListener::bind(address)?))
+}
+
+/// `text` if it is written as a listening address is, `HOST:PORT`.
+///
+/// For a command line to check when it is parsed: a daemon listens only
+/// once its receiver has answered, which may be long after it started.
+pub fn listening_address(text: &str) -> Result<String, String> {
+    if text.contains("://") {
+        return Err("a listening address is HOST:PORT, with no scheme".to_owned());
     }
-    #[cfg(not(unix))]
-    listen_loopback(socket)
-}
-
-/// Listen on a loopback port the system picks, and name it in `socket`.
-#[cfg(any(not(unix), test))]
-fn listen_loopback(socket: &Path) -> io::Result<Listener> {
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?;
-    publish(socket, listener.local_addr()?)?;
-    Ok(Listener::Tcp(listener))
-}
-
-/// Name `address` in `file`, replacing it whole: a client reading while
-/// it is written sees the old address or the new one, never part of
-/// either.
-#[cfg(any(not(unix), test))]
-fn publish(file: &Path, address: SocketAddr) -> io::Result<()> {
-    let mut staged = file.as_os_str().to_owned();
-    staged.push(".new");
-    std::fs::write(&staged, format!("{TCP_SCHEME}{address}\n"))?;
-    std::fs::rename(&staged, file)
+    Ok(text.to_owned())
 }
 
 #[cfg(test)]
 mod tests {
     use super::Endpoint;
-    use super::Stream;
+    use super::Listener;
     use super::connect;
     use super::endpoint;
     use super::listen;
-    use super::listen_loopback;
+    use super::listen_tcp;
     use std::io::BufRead as _;
     use std::io::BufReader;
     use std::io::Write as _;
     use std::path::Path;
-    use std::path::PathBuf;
-
-    fn scratch(name: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("smartclock-link-{name}-{}", std::process::id()))
-    }
 
     /// Accept one client and echo one line back to it.
-    fn echo_once(listener: super::Listener) {
+    fn echo_once(listener: Listener) {
         std::thread::spawn(move || {
             let Ok(stream) = listener.accept() else {
                 return;
@@ -333,65 +320,63 @@ mod tests {
         });
     }
 
-    fn round_trip(socket: &Path) -> String {
-        let mut stream = connect(socket).expect("connect");
+    fn round_trip(named: &Path) -> String {
+        let mut stream = connect(named).expect("connect");
         stream.write_all(b"hello\n").expect("send");
         let mut line = String::new();
         BufReader::new(stream).read_line(&mut line).expect("read");
         line
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_service_is_reached_through_its_socket() {
-        let socket = scratch("socket");
+        let socket =
+            std::env::temp_dir().join(format!("smartclock-link-socket-{}", std::process::id()));
         echo_once(listen(&socket).expect("listen"));
         let line = round_trip(&socket);
         let _ = std::fs::remove_file(&socket);
         assert_eq!(line, "hello\n");
     }
 
-    #[test]
-    fn a_service_is_reached_through_the_address_in_its_file() {
-        let socket = scratch("file");
-        echo_once(listen_loopback(&socket).expect("listen"));
-        let line = round_trip(&socket);
-        let _ = std::fs::remove_file(&socket);
-        assert_eq!(line, "hello\n");
-    }
-
-    #[test]
-    fn a_service_is_reached_by_address_outright() {
-        let socket = scratch("outright");
-        echo_once(listen_loopback(&socket).expect("listen"));
-        let named = std::fs::read_to_string(&socket).expect("the address");
-        let _ = std::fs::remove_file(&socket);
-        assert_eq!(round_trip(Path::new(named.trim())), "hello\n");
-    }
-
+    #[cfg(unix)]
     #[test]
     fn a_live_service_is_not_replaced() {
-        let socket = scratch("live");
-        let _listener = listen_loopback(&socket).expect("listen");
+        let socket =
+            std::env::temp_dir().join(format!("smartclock-link-live-{}", std::process::id()));
+        let _listener = listen(&socket).expect("listen");
         let refused = listen(&socket).expect_err("a second listener");
         let _ = std::fs::remove_file(&socket);
         assert_eq!(refused.kind(), std::io::ErrorKind::AddrInUse);
     }
 
     #[test]
-    fn an_endpoint_is_a_tcp_address_or_a_path() {
+    fn a_service_is_reached_over_tcp() {
+        let listener = listen_tcp("127.0.0.1:0").expect("listen");
+        let Listener::Tcp(tcp) = &listener else {
+            panic!("not TCP");
+        };
+        let named = format!("tcp://{}", tcp.local_addr().expect("an address"));
+        echo_once(listener);
+        assert_eq!(round_trip(Path::new(&named)), "hello\n");
+    }
+
+    #[test]
+    fn a_client_names_a_socket_or_a_tcp_address() {
         assert_eq!(
             endpoint(Path::new("tcp://host:9000")).expect("tcp"),
             Endpoint::Tcp("host:9000")
         );
         assert_eq!(
-            endpoint(Path::new("unix:///run/x/socket")).expect("unix"),
-            Endpoint::Path(Path::new("/run/x/socket"))
-        );
-        assert_eq!(
             endpoint(Path::new("/run/x/socket")).expect("a path"),
-            Endpoint::Path(Path::new("/run/x/socket"))
+            Endpoint::Socket(Path::new("/run/x/socket"))
         );
-        for refused in ["host:9000", "0.0.0.0:9000", "tls://host:9000"] {
+        for refused in [
+            "host:9000",
+            "0.0.0.0:9000",
+            "unix:///run/x",
+            "tls://host:9000",
+        ] {
             assert_eq!(
                 endpoint(Path::new(refused)).expect_err(refused).kind(),
                 std::io::ErrorKind::InvalidInput,
@@ -401,23 +386,10 @@ mod tests {
     }
 
     #[test]
-    fn a_service_listens_on_a_tcp_address_it_is_given() {
-        let probe = std::net::TcpListener::bind("127.0.0.1:0").expect("a free port");
-        let named = format!("tcp://{}", probe.local_addr().expect("an address"));
-        drop(probe);
-        echo_once(listen(Path::new(&named)).expect("listen"));
-        assert_eq!(round_trip(Path::new(&named)), "hello\n");
-    }
-
-    #[test]
-    fn a_file_naming_no_address_says_so() {
-        let socket = scratch("garbled");
-        std::fs::write(&socket, b"nonsense\n").expect("write");
-        let got = connect(&socket).map(|_: Stream| ());
-        let _ = std::fs::remove_file(&socket);
-        assert_eq!(
-            got.expect_err("no address").kind(),
-            std::io::ErrorKind::InvalidData
-        );
+    fn a_socket_is_a_path_and_a_listening_address_has_no_scheme() {
+        let refused = listen(Path::new("tcp://127.0.0.1:0")).expect_err("a TCP socket");
+        assert_eq!(refused.kind(), std::io::ErrorKind::InvalidInput);
+        let refused = listen_tcp("tcp://127.0.0.1:0").expect_err("a scheme");
+        assert_eq!(refused.kind(), std::io::ErrorKind::InvalidInput);
     }
 }

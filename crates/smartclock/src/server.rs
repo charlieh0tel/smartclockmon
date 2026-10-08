@@ -101,17 +101,26 @@ pub fn listen(socket: &Path) -> std::io::Result<Listener> {
     link::listen(socket)
 }
 
-/// Listen at `socket`, and at `also` if given, each named as
-/// [`link::listen`] takes it.
-pub fn listen_all(socket: &Path, also: Option<&Path>) -> std::io::Result<Vec<Listener>> {
-    std::iter::once(socket)
-        .chain(also)
-        .map(|named| {
-            listen(named).map_err(|e| {
-                std::io::Error::new(e.kind(), format!("listening on {}: {e}", named.display()))
-            })
-        })
-        .collect()
+/// Bind a Unix socket at `socket` and listen on TCP at `tcp`, `HOST:PORT`,
+/// whichever are given, as [`link`] does.
+pub fn listen_all(socket: Option<&Path>, tcp: Option<&str>) -> std::io::Result<Vec<Listener>> {
+    let at = |place: String| {
+        move |e: std::io::Error| std::io::Error::new(e.kind(), format!("listening on {place}: {e}"))
+    };
+    let mut listeners = Vec::new();
+    if let Some(socket) = socket {
+        listeners.push(listen(socket).map_err(at(socket.display().to_string()))?);
+    }
+    if let Some(address) = tcp {
+        listeners.push(link::listen_tcp(address).map_err(at(address.to_owned()))?);
+    }
+    if listeners.is_empty() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "nowhere to listen: give a socket, a TCP address or both",
+        ));
+    }
+    Ok(listeners)
 }
 
 /// Listen for clients on every listener until the process ends.
@@ -432,10 +441,9 @@ mod tests {
         let probe = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a free port");
         let address = probe.local_addr().expect("an address").to_string();
         drop(probe);
-        let tcp = PathBuf::from(format!("tcp://{address}"));
-        let listeners = listen_all(&socket, Some(&tcp)).expect("listen");
+        let listeners = listen_all(Some(&socket), Some(&address)).expect("listen");
         thread::spawn(move || serve(listeners, "test", Arc::new(Echo)));
-        for path in [socket.clone(), tcp] {
+        for path in [socket.clone(), PathBuf::from(format!("tcp://{address}"))] {
             let mut client = crate::link::connect(&path).expect("connect");
             writeln!(client, r#"{{"v":3,"id":"a","op":{{"kind":"ping"}}}}"#).expect("send");
             let line = first_line(&client);
