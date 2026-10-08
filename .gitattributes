@@ -1,0 +1,3 @@
+# Text checks out with LF everywhere, Windows included: the tests compare
+# generated files with the checked-in ones byte for byte.
+* text=auto eol=lf
