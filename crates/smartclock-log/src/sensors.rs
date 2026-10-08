@@ -19,7 +19,9 @@ use crate::reader::MAX_POINTS;
 use crate::reader::MIN_POINTS;
 use crate::reader::missing_table;
 use crate::reader::open_read_only;
-use crate::reader::text_bound;
+use crate::timestamp::bound;
+use crate::timestamp::seconds;
+use crate::timestamp::whole_seconds;
 
 /// Bumped when the tables change shape, or what a column holds.  The
 /// service refuses a log of a later version; the readers accept any.
@@ -149,10 +151,14 @@ impl SensorLog {
     /// is long enough to hold up a page.
     pub fn extent(&self) -> Result<Option<(f64, f64)>> {
         let span = self.conn.query_row(
-            "SELECT unixepoch(MIN(first), 'subsec'), unixepoch(MAX(last), 'subsec')
-             FROM (SELECT (SELECT MIN(at) FROM reading WHERE sensor_id = s.id) AS first,
-                          (SELECT MAX(at) FROM reading WHERE sensor_id = s.id) AS last
-                   FROM sensor s)",
+            &format!(
+                "SELECT {}, {}
+                 FROM (SELECT (SELECT MIN(at) FROM reading WHERE sensor_id = s.id) AS first,
+                              (SELECT MAX(at) FROM reading WHERE sensor_id = s.id) AS last
+                       FROM sensor s)",
+                seconds("MIN(first)"),
+                seconds("MAX(last)"),
+            ),
             [],
             |row| Ok((row.get::<_, Option<f64>>(0)?, row.get::<_, Option<f64>>(1)?)),
         );
@@ -174,10 +180,10 @@ impl SensorLog {
     /// Every read period recorded, oldest first: from when, in unix
     /// seconds, and the period in seconds.
     fn periods(&self) -> Result<Vec<(f64, f64)>> {
-        let mut statement = match self
-            .conn
-            .prepare("SELECT unixepoch(since, 'subsec'), every FROM period ORDER BY since")
-        {
+        let mut statement = match self.conn.prepare(&format!(
+            "SELECT {}, every FROM period ORDER BY since",
+            seconds("since")
+        )) {
             Ok(statement) => statement,
             Err(e) if missing_table(&e) => return Ok(Vec::new()),
             Err(e) => return Err(e.into()),
@@ -218,14 +224,15 @@ impl SensorLog {
         let gap = |at: f64| {
             GAP_BUCKETS.max((f64::from(PERIODS_STALE) * every_at(at) / width).ceil() as i64)
         };
-        let (lower, upper) = (text_bound("?1"), text_bound("?2 + 1"));
+        let (lower, upper) = (bound("?1"), bound("?2 + 1"));
+        let (whole, at) = (whole_seconds("r.at"), seconds("r.at"));
         let sql = format!(
             // As the receivers' history buckets: divided by the span
             // plus one, so a reading exactly on `to` falls in the last
             // bucket.
             "SELECT s.name,
-                    CAST((unixepoch(r.at) - ?1) * ?3 / (?4 + 1) AS INTEGER) AS bucket,
-                    AVG(unixepoch(r.at, 'subsec')),
+                    CAST(({whole} - ?1) * ?3 / (?4 + 1) AS INTEGER) AS bucket,
+                    AVG({at}),
                     AVG(r.value)
              FROM reading r JOIN sensor s ON s.id = r.sensor_id
              WHERE s.quantity = ?5 AND r.at >= {lower} AND r.at < {upper}
@@ -272,13 +279,13 @@ mod tests {
     use super::SensorLog;
     use super::TABLES;
     use crate::schema::META;
-    use crate::schema::stored;
     use crate::scratch::Scratch;
+    use crate::timestamp::Stored;
 
     const T0: i64 = 1_791_000_000;
 
-    fn at(seconds: i64) -> String {
-        stored(jiff::Timestamp::from_second(T0 + seconds).expect("a time"))
+    fn at(seconds: i64) -> Stored {
+        Stored(jiff::Timestamp::from_second(T0 + seconds).expect("a time"))
     }
 
     /// A log of two temperature sensors and one humidity, read every

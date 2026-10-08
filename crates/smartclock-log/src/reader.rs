@@ -33,6 +33,10 @@ use crate::error::Result;
 use crate::schema::PLOTTABLE;
 use crate::schema::cadence_key;
 use crate::schema::has_column;
+use crate::timestamp::Stored;
+use crate::timestamp::bound;
+use crate::timestamp::seconds;
+use crate::timestamp::whole_seconds;
 
 /// The most rows one Allan deviation reads, after held readings are
 /// thinned out.
@@ -100,18 +104,6 @@ const MAX_JOURNAL: usize = 500;
 /// existed fall back to the flag.
 const MEASURED: &str = "(fast_at = at OR (fast_at IS NULL AND freshness = 'live'))";
 
-/// A bound of a range, `seconds` an SQL expression in unix seconds, as
-/// text comparable with `at`.
-///
-/// Compared as text, against the column itself, so the index on `at`
-/// can be used; `unixepoch(at) >= ?` reads every row in the table.  The
-/// stored form is RFC 3339 with fractional seconds and a Z, so a bound
-/// truncated to the second sorts before every row within that second,
-/// which is what an inclusive lower and an exclusive upper bound want.
-pub(crate) fn text_bound(seconds: &str) -> String {
-    format!("strftime('%Y-%m-%dT%H:%M:%S', {seconds}, 'unixepoch')")
-}
-
 /// A snapshot column as an SQL expression that is null where its value
 /// is not current.
 ///
@@ -129,8 +121,10 @@ fn current(column: &str, tier: Tier, cadence: &Cadence) -> String {
     let read = tier.name();
     format!(
         "CASE WHEN fast_at IS NULL
-                OR unixepoch({read}_at, 'subsec') >= unixepoch(at, 'subsec') - {window}
-              THEN {column} END"
+                OR {read_at} >= {at} - {window}
+              THEN {column} END",
+        read_at = seconds(&format!("{read}_at")),
+        at = seconds("at"),
     )
 }
 
@@ -355,7 +349,7 @@ impl Log {
         };
         let mut statement = match self.conn.prepare(&format!(
             "SELECT id, serial, COALESCE(model, ''), COALESCE(firmware, ''),
-                    COALESCE(first_seen, ''), COALESCE(last_seen, ''), {engine}
+                    first_seen, last_seen, {engine}
              FROM receiver ORDER BY last_seen DESC"
         )) {
             Ok(statement) => statement,
@@ -369,8 +363,8 @@ impl Log {
                     serial: row.get(1)?,
                     model: row.get(2)?,
                     firmware: row.get(3)?,
-                    first_seen: row.get(4)?,
-                    last_seen: row.get(5)?,
+                    first_seen: row.get::<_, Stored>(4)?.to_string(),
+                    last_seen: row.get::<_, Stored>(5)?.to_string(),
                     gps_engine: row.get(6)?,
                 })
             })?
@@ -462,14 +456,15 @@ impl Log {
             })
             .collect::<Vec<_>>()
             .join(", ");
-        let (lower, upper) = (text_bound("?1"), text_bound("?2 + 1"));
+        let (lower, upper) = (bound("?1"), bound("?2 + 1"));
+        let whole = whole_seconds("at");
         let sql = format!(
             // Divided by the span plus one so that a row landing exactly
             // on `to` falls in the last bucket rather than in one past
             // it: the inclusive range would otherwise return points + 1
             // buckets, which is not what the caller asked for.
-            "SELECT CAST((unixepoch(at) - ?1) * ?3 / (?4 + 1) AS INTEGER) AS bucket,
-                    AVG(unixepoch(at)) AS at,
+            "SELECT CAST(({whole} - ?1) * ?3 / (?4 + 1) AS INTEGER) AS bucket,
+                    AVG({whole}) AS at,
                     {aggregates}
              FROM snapshot
              WHERE at >= {lower}
@@ -545,11 +540,10 @@ impl Log {
         if from > to {
             return Err(Error::Request("the range ends before it starts".to_owned()));
         }
-        let (lower, upper) = (text_bound("?2"), text_bound("?3 + 1"));
+        let (lower, upper) = (bound("?2"), bound("?3 + 1"));
         let mut statement = self.conn.prepare(&format!(
-            // `at` as stored, not `unixepoch(at)`: that truncates to
-            // the second, and the sub-second part is what decides which
-            // grid point a reading belongs to.
+            // `at` as stored, not in whole seconds: the sub-second part
+            // is what decides which grid point a reading belongs to.
             //
             // A row is kept only where the interval or the state differs
             // from the row before.  The receiver updates the interval
@@ -586,7 +580,7 @@ impl Log {
         let asked = i64::try_from(limit.saturating_add(1)).unwrap_or(i64::MAX);
         let rows = statement.query_map(rusqlite::params![receiver, from, to, asked], |row| {
             Ok((
-                row.get::<_, String>(0)?,
+                row.get::<_, Stored>(0).ok(),
                 row.get::<_, Option<f64>>(1)?,
                 row.get::<_, String>(2)?,
                 row.get::<_, i64>(3)? != 0,
@@ -598,7 +592,7 @@ impl Log {
         let mut logged = Vec::new();
         for row in rows {
             let (at, interval, mode, holdover) = row?;
-            let Ok(at) = at.parse::<jiff::Timestamp>() else {
+            let Some(Stored(at)) = at else {
                 continue;
             };
             logged.push((at, interval, (mode, holdover)));
@@ -614,8 +608,11 @@ impl Log {
     /// offer a range that exists rather than one that might not.
     pub fn extent(&self, receiver: i64) -> Result<(f64, f64)> {
         let extent = self.conn.query_row(
-            "SELECT unixepoch(MIN(at)), unixepoch(MAX(at)) FROM snapshot
-             WHERE receiver_id = ?1",
+            &format!(
+                "SELECT {}, {} FROM snapshot WHERE receiver_id = ?1",
+                whole_seconds("MIN(at)"),
+                whole_seconds("MAX(at)"),
+            ),
             [receiver],
             |row| Ok((row.get::<_, Option<f64>>(0)?, row.get::<_, Option<f64>>(1)?)),
         )?;
@@ -650,7 +647,7 @@ impl Log {
                 limit,
                 |row| {
                     Ok(Entry {
-                        at: row.get(0)?,
+                        at: row.get::<_, Stored>(0)?.to_string(),
                         entry: row.get(1)?,
                         stamp: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
                         message: row.get(3)?,
@@ -664,7 +661,7 @@ impl Log {
                 limit,
                 |row| {
                     Ok(Event {
-                        at: row.get(0)?,
+                        at: row.get::<_, Stored>(0)?.to_string(),
                         register: row.get(1)?,
                         bits: row.get(2)?,
                         decoded: row.get(3)?,
@@ -678,7 +675,7 @@ impl Log {
                 limit,
                 |row| {
                     Ok(ReceiverError {
-                        at: row.get(0)?,
+                        at: row.get::<_, Stored>(0)?.to_string(),
                         code: row.get(1)?,
                         message: row.get(2)?,
                     })
@@ -691,7 +688,7 @@ impl Log {
                 limit,
                 |row| {
                     Ok(Note {
-                        at: row.get(0)?,
+                        at: row.get::<_, Stored>(0)?.to_string(),
                         text: row.get(1)?,
                     })
                 },
@@ -708,8 +705,8 @@ impl Log {
             "SELECT at, text FROM note
              WHERE receiver_id = ?1 AND at >= {} AND at < {}
              ORDER BY at, id LIMIT ?4",
-            text_bound("?2"),
-            text_bound("?3 + 1"),
+            bound("?2"),
+            bound("?3 + 1"),
         );
         let mut statement = match self.conn.prepare(&sql) {
             Ok(statement) => statement,
@@ -719,7 +716,7 @@ impl Log {
         Ok(statement
             .query_map((receiver, from, to, MAX_JOURNAL as i64), |row| {
                 Ok(Note {
-                    at: row.get(0)?,
+                    at: row.get::<_, Stored>(0)?.to_string(),
                     text: row.get(1)?,
                 })
             })?
@@ -741,7 +738,7 @@ impl Log {
             MAX_JOURNAL as i64,
             |row| {
                 Ok(Fact {
-                    since: row.get(0)?,
+                    since: row.get::<_, Stored>(0)?.to_string(),
                     key: row.get(1)?,
                     value: row.get(2)?,
                 })

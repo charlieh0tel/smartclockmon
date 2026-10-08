@@ -12,9 +12,9 @@ use rusqlite::Connection;
 use rusqlite::OptionalExtension as _;
 use rusqlite::params;
 use smartclock_log::error::Result;
-use smartclock_log::schema::stored;
 use smartclock_log::sensors::TABLES;
 use smartclock_log::sensors::VERSION;
+use smartclock_log::timestamp::Stored;
 use smartclock_log::writer;
 
 use crate::sensor::Name;
@@ -45,7 +45,7 @@ impl Log {
         if last != Some(every.as_secs_f64()) {
             conn.execute(
                 "INSERT INTO period (since, every) VALUES (?1, ?2)",
-                params![stored(Timestamp::now()), every.as_secs_f64()],
+                params![Stored(Timestamp::now()), every.as_secs_f64()],
             )?;
         }
         writer::stamp(&conn, VERSION)?;
@@ -91,7 +91,7 @@ impl Log {
         }
         self.conn.execute(
             "INSERT INTO source (sensor_id, since, source, device) VALUES (?1, ?2, ?3, ?4)",
-            params![id, stored(at), source, device],
+            params![id, Stored(at), source, device],
         )?;
         Ok(())
     }
@@ -100,7 +100,7 @@ impl Log {
     pub fn record(&self, id: i64, at: Timestamp, value: f64) -> Result<()> {
         self.conn.execute(
             "INSERT OR IGNORE INTO reading (sensor_id, at, value) VALUES (?1, ?2, ?3)",
-            params![id, stored(at), value],
+            params![id, Stored(at), value],
         )?;
         Ok(())
     }

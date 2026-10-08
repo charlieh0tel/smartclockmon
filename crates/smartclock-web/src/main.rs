@@ -771,6 +771,7 @@ mod tests {
     use super::Logs;
     use super::PAGE;
     use super::STATUS_PAGE;
+    use smartclock_log::timestamp::Stored;
     use std::path::Path;
     use std::sync::Arc;
     use std::sync::atomic::AtomicUsize;
@@ -842,10 +843,11 @@ mod tests {
         // with Y seen in between: sorted by when seen, the two X are
         // not neighbors.
         for (file, serial, seen) in [
-            ("a.sqlite", "X", "2026-09-03"),
-            ("b.sqlite", "Y", "2026-09-02"),
-            ("c.sqlite", "X", "2026-09-01"),
+            ("a.sqlite", "X", "2026-09-03T00:00:00Z"),
+            ("b.sqlite", "Y", "2026-09-02T00:00:00Z"),
+            ("c.sqlite", "X", "2026-09-01T00:00:00Z"),
         ] {
+            let seen = Stored(seen.parse().expect("a time"));
             let conn = rusqlite::Connection::open(dir.join(file)).expect("a log");
             conn.execute_batch(smartclock_log::schema::META)
                 .expect("meta");
@@ -853,7 +855,7 @@ mod tests {
                 .expect("the tables");
             conn.execute(
                 "INSERT INTO receiver (serial, first_seen, last_seen) VALUES (?1, ?2, ?2)",
-                [serial, seen],
+                rusqlite::params![serial, seen],
             )
             .expect("a receiver");
         }

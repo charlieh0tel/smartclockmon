@@ -387,7 +387,7 @@ mod tests {
     use rusqlite::Connection;
     use smartclock_log::schema::META;
     use smartclock_log::schema::TABLES;
-    use smartclock_log::schema::stored;
+    use smartclock_log::timestamp::Stored;
 
     /// A log path that deletes itself, and the `-wal` and `-shm` SQLite
     /// writes beside it, on drop.  Drop also runs on a panicking test.
@@ -406,7 +406,7 @@ mod tests {
             conn.execute_batch(TABLES).expect("the tables");
             conn.execute_batch(
                 "INSERT INTO receiver (id, serial, first_seen, last_seen)
-                 VALUES (1, 'AAA', '', '');",
+                 VALUES (1, 'AAA', '2026-09-01T00:00:00.000000000Z', '2026-09-01T00:00:00.000000000Z');",
             )
             .expect("a receiver");
             guard
@@ -461,7 +461,7 @@ mod tests {
         conn.execute_batch("INSERT INTO meta VALUES ('cadence_medium', '10');")
             .expect("cadence");
         let now = jiff::Timestamp::now().as_second();
-        let at = |second: i64| stored(jiff::Timestamp::from_second(second).expect("a timestamp"));
+        let at = |second: i64| Stored(jiff::Timestamp::from_second(second).expect("a timestamp"));
         // One transaction: a commit a row is slow enough on some disks
         // that the newest row is seconds old by the time it is read.
         conn.execute_batch("BEGIN").expect("begin");
@@ -541,7 +541,7 @@ mod tests {
         .expect("sensors");
         let now = jiff::Timestamp::now().as_second();
         for ago in [600, 300, 10] {
-            let at = stored(jiff::Timestamp::from_second(now - ago).expect("a time"));
+            let at = Stored(jiff::Timestamp::from_second(now - ago).expect("a time"));
             for id in [1, 2] {
                 conn.execute("INSERT INTO reading VALUES (?1, ?2, 40.0)", (id, &at))
                     .expect("a reading");

@@ -10,8 +10,8 @@ use super::Modes;
 use super::Series;
 use crate::schema::META;
 use crate::schema::TABLES;
-use crate::schema::stored;
 use crate::scratch::Scratch;
+use crate::timestamp::Stored;
 
 /// A new log holding the empty tables.
 fn fresh(name: &str) -> Scratch {
@@ -23,8 +23,8 @@ fn fresh(name: &str) -> Scratch {
 }
 
 /// A timestamp `second` unix seconds in, as the daemon stores it.
-fn at(second: i64) -> String {
-    stored(jiff::Timestamp::from_second(second).expect("a timestamp"))
+fn at(second: i64) -> Stored {
+    Stored(jiff::Timestamp::from_second(second).expect("a timestamp"))
 }
 
 /// A run of phase readings on disk, shaped the way the daemon writes
@@ -35,7 +35,7 @@ fn phase_log(name: &str, rows: &[(i64, f64, &str, i64)]) -> Scratch {
     let conn = scratch.connect();
     conn.execute_batch(
         "INSERT INTO receiver (id, serial, model, first_seen, last_seen)
-         VALUES (1, 'AAA', '58503A', '', '');",
+         VALUES (1, 'AAA', '58503A', '2026-09-01T00:00:00.000000000Z', '2026-09-01T00:00:00.000000000Z');",
     )
     .expect("a receiver");
     for &(second, interval, mode, holdover) in rows {
@@ -54,8 +54,8 @@ fn phase_log(name: &str, rows: &[(i64, f64, &str, i64)]) -> Scratch {
 /// One snapshot row carrying a phase reading.
 fn insert_phase(
     conn: &Connection,
-    at: &str,
-    fast_at: &str,
+    at: &Stored,
+    fast_at: &Stored,
     interval: Option<f64>,
     mode: &str,
     holdover: i64,
@@ -87,8 +87,8 @@ fn a_steady_ramp_has_no_deviation_and_the_repeats_are_not_counted() {
         let later = read + jiff::SignedDuration::from_millis(500);
         insert_phase(
             &conn,
-            &stored(later),
-            &stored(read),
+            &Stored(later),
+            &Stored(read),
             Some(1e-6),
             "Locked",
             0,
@@ -338,7 +338,7 @@ fn a_slower_tier_that_stops_reading_stops_being_plotted() {
     let conn = scratch.connect();
     conn.execute_batch(
         "INSERT INTO meta VALUES ('cadence_medium', '10');
-         INSERT INTO receiver (id, serial, first_seen, last_seen) VALUES (1, 'AAA', '', '');",
+         INSERT INTO receiver (id, serial, first_seen, last_seen) VALUES (1, 'AAA', '2026-09-01T00:00:00.000000000Z', '2026-09-01T00:00:00.000000000Z');",
     )
     .expect("cadence and a receiver");
     let start = 1_700_000_000;

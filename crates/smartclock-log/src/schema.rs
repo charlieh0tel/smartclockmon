@@ -246,17 +246,6 @@ pub const TABLES: &str = r#"
     );
 "#;
 
-/// A timestamp as the log stores it: RFC 3339 in UTC, always with nine
-/// fractional digits.
-///
-/// Fixed width so that text order is time order.  The default form
-/// trims trailing zeros, and `00Z`, `00.1Z` and `00.11Z` sort the
-/// wrong way round as text; every range and every `ORDER BY at` in the
-/// readers compares the text.
-pub fn stored(at: jiff::Timestamp) -> String {
-    format!("{at:.9}")
-}
-
 /// The `meta` key the daemon records a tier's cadence under, in
 /// seconds.
 pub fn cadence_key(tier: Tier) -> String {

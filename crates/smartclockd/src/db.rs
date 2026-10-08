@@ -22,7 +22,7 @@ use smartclock::snapshot::Tier;
 use smartclock::task::Cadence;
 use smartclock_log::schema;
 use smartclock_log::schema::cadence_key;
-use smartclock_log::schema::stored;
+use smartclock_log::timestamp::Stored;
 use smartclock_log::writer;
 
 /// Whether opening a log failed because a newer smartclockd wrote it.
@@ -135,7 +135,7 @@ impl Log {
         Ok(())
     }
 
-    /// Rewrite every stored timestamp in the form [`stored`] writes.
+    /// Rewrite every stored timestamp in the form [`Stored`] writes.
     ///
     /// One transaction, so a database is never left half in each form:
     /// a range compared as text across the two would misorder rows.
@@ -278,7 +278,7 @@ impl Log {
                        ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29,
                        ?30, ?31, ?32)",
             params![
-                stored(snapshot.at),
+                Stored(snapshot.at),
                 match snapshot.freshness {
                     Freshness::Live => "live",
                     Freshness::Stale => "stale",
@@ -316,9 +316,9 @@ impl Log {
                 snapshot.date.and_then(|d| d.rollover()).map(|r| r.epochs),
                 snapshot.log_count,
                 snapshot.polled.any_error(),
-                snapshot.polled.fast.at.map(stored),
-                snapshot.polled.medium.at.map(stored),
-                snapshot.polled.slow.at.map(stored),
+                snapshot.polled.fast.at.map(Stored),
+                snapshot.polled.medium.at.map(Stored),
+                snapshot.polled.slow.at.map(Stored),
                 self.current,
             ],
         )?;
@@ -347,7 +347,7 @@ impl Log {
         if snapshot.freshness != Freshness::Disconnected {
             tx.execute(
                 "UPDATE receiver SET last_seen = ?1 WHERE id = ?2",
-                params![stored(snapshot.at), self.current],
+                params![Stored(snapshot.at), self.current],
             )?;
         }
         tx.commit()?;
@@ -373,7 +373,7 @@ impl Log {
         self.conn.execute(
             "INSERT INTO audit (at, scpi, class, outcome, receiver_id)
              VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![stored(at), scpi, class, outcome, self.current,],
+            params![Stored(at), scpi, class, outcome, self.current,],
         )?;
         Ok(())
     }
@@ -382,7 +382,7 @@ impl Log {
     pub(crate) fn note(&mut self, at: jiff::Timestamp, text: &str) -> Result<()> {
         self.conn.execute(
             "INSERT INTO note (at, text, receiver_id) VALUES (?1, ?2, ?3)",
-            params![stored(at), text, self.current],
+            params![Stored(at), text, self.current],
         )?;
         Ok(())
     }
@@ -393,11 +393,11 @@ impl Log {
         let tx = self.conn.transaction()?;
         tx.execute(
             "INSERT INTO fact (since, key, value, receiver_id) VALUES (?1, ?2, ?3, ?4)",
-            params![stored(since), key, value, self.current],
+            params![Stored(since), key, value, self.current],
         )?;
         tx.execute(
             "INSERT INTO note (at, text, receiver_id) VALUES (?1, ?2, ?3)",
-            params![stored(since), format!("{key} = {value}"), self.current],
+            params![Stored(since), format!("{key} = {value}"), self.current],
         )?;
         tx.commit()?;
         Ok(())
@@ -504,7 +504,7 @@ impl Log {
         // Cleared first so a failure below leaves rows filed under no
         // receiver rather than under the one attached before.
         self.current = None;
-        let now = stored(jiff::Timestamp::now());
+        let now = Stored(jiff::Timestamp::now());
         self.conn.execute(
             "INSERT INTO receiver (serial, manufacturer, model, firmware, first_seen, last_seen)
              VALUES (?1, ?2, ?3, ?4, ?5, ?5)
@@ -573,7 +573,7 @@ impl Log {
         self.conn.execute(
             "INSERT INTO receiver_error (at, code, message, receiver_id)
              VALUES (?1, ?2, ?3, ?4)",
-            params![stored(jiff::Timestamp::now()), code, message, self.current,],
+            params![Stored(jiff::Timestamp::now()), code, message, self.current,],
         )?;
         Ok(())
     }
@@ -604,7 +604,7 @@ impl Log {
             "INSERT INTO receiver_event (at, register, bits, decoded, receiver_id)
              VALUES (?1, ?2, ?3, ?4, ?5)",
             params![
-                stored(jiff::Timestamp::now()),
+                Stored(jiff::Timestamp::now()),
                 register,
                 i64::from(bits),
                 decoded,
@@ -635,7 +635,7 @@ impl Log {
                 register,
                 positive,
                 negative,
-                stored(jiff::Timestamp::now()),
+                Stored(jiff::Timestamp::now()),
             ],
         )?;
         Ok(())
@@ -658,7 +658,7 @@ impl Log {
                  (at, entry, stamp, message, receiver_id, generation)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
-                stored(jiff::Timestamp::now()),
+                Stored(jiff::Timestamp::now()),
                 entry,
                 stamp,
                 message,
@@ -795,7 +795,7 @@ mod tests {
     use smartclock::snapshot::Freshness;
     use smartclock::snapshot::Snapshot;
     use smartclock_log::schema::VERSION;
-    use smartclock_log::schema::stored;
+    use smartclock_log::timestamp::Stored;
 
     #[test]
     fn a_closed_log_keeps_the_files_a_read_only_reader_needs() {
@@ -840,7 +840,7 @@ mod tests {
         log.note_receiver("HEWLETT-PACKARD,58503A,3710A01056,3704-C")
             .expect("note the receiver");
         let at = |s: &str| s.parse::<jiff::Timestamp>().expect("a timestamp");
-        let last_seen = |log: &Log| -> String {
+        let last_seen = |log: &Log| -> Stored {
             log.conn
                 .query_row("SELECT last_seen FROM receiver", [], |row| row.get(0))
                 .expect("last_seen")
@@ -848,31 +848,16 @@ mod tests {
         let mut measured = Snapshot::new(at("2030-01-01T00:00:00Z"));
         measured.freshness = Freshness::Live;
         log.record(&measured).expect("record a measurement");
-        assert_eq!(last_seen(&log), stored(measured.at));
+        assert_eq!(last_seen(&log), Stored(measured.at));
         let mut down = Snapshot::new(at("2030-01-01T00:01:00Z"));
         down.freshness = Freshness::Disconnected;
         log.record(&down).expect("record a disconnection");
-        assert_eq!(last_seen(&log), stored(measured.at));
+        assert_eq!(last_seen(&log), Stored(measured.at));
         // Noting the unit again, as a note or an audit row does, is not
         // seeing it.
         log.note_receiver("HEWLETT-PACKARD,58503A,3710A01056,3704-C")
             .expect("note the receiver again");
-        assert_eq!(last_seen(&log), stored(measured.at));
-    }
-
-    #[test]
-    fn stored_timestamps_sort_as_text_in_time_order() {
-        let at = |s: &str| s.parse::<jiff::Timestamp>().expect("a timestamp");
-        let times = [
-            at("2026-09-01T00:00:00Z"),
-            at("2026-09-01T00:00:00.1Z"),
-            at("2026-09-01T00:00:00.11Z"),
-        ];
-        let texts: Vec<String> = times.iter().map(|&t| stored(t)).collect();
-        let mut sorted = texts.clone();
-        sorted.sort();
-        assert_eq!(sorted, texts);
-        assert_eq!(texts[1], "2026-09-01T00:00:00.100000000Z");
+        assert_eq!(last_seen(&log), Stored(measured.at));
     }
 
     #[test]
