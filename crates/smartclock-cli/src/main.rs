@@ -433,6 +433,7 @@ fn main() -> Result<()> {
 }
 
 /// The exit status after a second Ctrl-C: 128 plus SIGINT's number.
+#[cfg(unix)]
 const EXIT_INTERRUPTED: i32 = 130;
 
 /// Set by Ctrl-C during a flash or a console read.

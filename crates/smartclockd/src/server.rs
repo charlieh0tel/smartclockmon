@@ -850,7 +850,7 @@ mod tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod socket_tests {
     use super::Daemon as Served;
     use super::HANGUP_CHECK;

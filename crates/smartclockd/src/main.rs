@@ -42,6 +42,7 @@ use clap::Parser;
 use jiff::Timestamp;
 use signal_hook::consts::SIGINT;
 use signal_hook::consts::SIGTERM;
+#[cfg(unix)]
 use signal_hook::iterator::Signals;
 use smartclock::attach::attach;
 use smartclock::command::Dialect;
@@ -422,6 +423,7 @@ fn read_sky(every: Duration, handle: Handle, stopping: Arc<AtomicBool>) -> Resul
 /// The first sets the returned flag and wakes the task so the
 /// supervisor returns; the log thread then writes what it holds.  A
 /// second signal is someone who will not wait for that.
+#[cfg(unix)]
 fn watch_for_stop(handle: Handle) -> Result<Arc<AtomicBool>> {
     let stopping = Arc::new(AtomicBool::new(false));
     let mut signals = Signals::new([SIGTERM, SIGINT]).context("watching for signals")?;
@@ -437,6 +439,38 @@ fn watch_for_stop(handle: Handle) -> Result<Arc<AtomicBool>> {
                 eprintln!("smartclockd: signal {signal}, stopping");
                 handle.stop();
             }
+        })
+        .context("spawning the signal thread")?;
+    Ok(stopping)
+}
+
+/// How often the stop flag is looked at where signals arrive only as a
+/// flag being set.
+#[cfg(not(unix))]
+const STOP_CHECK: Duration = Duration::from_millis(200);
+
+/// Stop on Ctrl-C, and at once on a second.  Elsewhere than Unix a
+/// signal only sets a flag, so a thread watches it and wakes the task.
+#[cfg(not(unix))]
+fn watch_for_stop(handle: Handle) -> Result<Arc<AtomicBool>> {
+    let stopping = Arc::new(AtomicBool::new(false));
+    for signal in [SIGTERM, SIGINT] {
+        // Registered first, so it sees the flag as the previous signal
+        // left it: set means this is the second.
+        signal_hook::flag::register_conditional_shutdown(signal, 1, Arc::clone(&stopping))
+            .context("watching for signals")?;
+        signal_hook::flag::register(signal, Arc::clone(&stopping))
+            .context("watching for signals")?;
+    }
+    let flag = Arc::clone(&stopping);
+    thread::Builder::new()
+        .name("smartclockd-signals".to_owned())
+        .spawn(move || {
+            while !flag.load(Ordering::SeqCst) {
+                thread::sleep(STOP_CHECK);
+            }
+            eprintln!("smartclockd: interrupted, stopping");
+            handle.stop();
         })
         .context("spawning the signal thread")?;
     Ok(stopping)

@@ -17,12 +17,19 @@ CARGO ?= cargo
 # identical version as a no-op: the binaries change or they do not, and
 # nothing from the outside says which.
 
-.PHONY: all build ci fmt fmt-check clippy test test-hw web-deps test-web doc docs clean deb release release-notes install-service
+.PHONY: all build windows ci fmt fmt-check clippy test test-hw web-deps test-web doc docs clean deb release release-notes install-service
 
 all: build
 
 build:
 	$(CARGO) build --workspace --all-targets
+
+# Everything but the sensor service, which reads Linux's hwmon and IIO,
+# cross-built for Windows; needs the x86_64-pc-windows-gnu target and
+# mingw-w64.
+WINDOWS_TARGET := x86_64-pc-windows-gnu
+windows:
+	$(CARGO) build --workspace --all-targets --exclude smartclock-sensord --target $(WINDOWS_TARGET)
 
 # What CI runs.  Keep this the whole of it.
 ci: fmt-check clippy test

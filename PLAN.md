@@ -476,6 +476,7 @@ build.
 
 ```
 make            build
+make windows    cross-build for Windows, all but the sensor service
 make ci         fmt-check clippy test
 make fmt        cargo fmt
 make clippy     cargo clippy --all-targets -- -D warnings

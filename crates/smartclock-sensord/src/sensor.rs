@@ -573,6 +573,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn a_symlinked_directory_is_followed_on_every_read() {
         let tree = Tree::new("link");
         tree.file("a/temp1_input", "20000")
