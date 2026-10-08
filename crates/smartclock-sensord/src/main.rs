@@ -77,13 +77,13 @@ struct Cli {
     #[arg(long, env = "SMARTCLOCK_SENSORD_SOCKET", default_value = SENSOR_SOCKET)]
     socket: PathBuf,
 
-    /// Also listen on TCP at this address, `HOST:PORT`, for clients on
-    /// other hosts, which connect with `--socket tcp://HOST:PORT`.
+    /// Also listen here, named as `--socket` is: `tcp://HOST:PORT` for
+    /// clients on other hosts, which connect with the same.
     ///
-    /// Nothing decides who may connect there: anyone who can reach it
-    /// may issue whatever this service allows.
+    /// Nothing decides who may connect over TCP: anyone who can reach
+    /// the address may issue whatever this service allows.
     #[arg(long, env = "SMARTCLOCK_SENSORD_LISTEN")]
-    listen: Option<String>,
+    listen: Option<PathBuf>,
 }
 
 /// One sensor as the loop keeps it.
@@ -183,8 +183,8 @@ fn run(cli: Cli) -> Result<()> {
         .spawn(move || smartclock::server::serve(listeners, "smartclock-sensord", answers))
         .context("spawning the socket server")?;
     eprintln!("smartclock-sensord: listening on {}", cli.socket.display());
-    if let Some(address) = &cli.listen {
-        eprintln!("smartclock-sensord: listening on tcp://{address}");
+    if let Some(also) = &cli.listen {
+        eprintln!("smartclock-sensord: listening on {}", also.display());
     }
 
     let mut kept = Vec::with_capacity(sensors.len());

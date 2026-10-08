@@ -35,9 +35,10 @@ group reach the daemon with `smartclockmon` and `smartclock-cli`.
 Group membership is the entire authorization model: anyone who can
 open the socket may issue whatever the daemon is configured to allow.
 
-`--listen HOST:PORT` (`SMARTCLOCKD_LISTEN`) has the daemon listen on
-TCP as well, for clients on other hosts, which name it as
-`--socket tcp://HOST:PORT`.  Nothing decides who may connect there:
+`--listen tcp://HOST:PORT` (`SMARTCLOCKD_LISTEN`) has the daemon
+listen on TCP as well, for clients on other hosts, which name it the
+same way, `--socket tcp://HOST:PORT`.  Both flags take a path, bare or
+as `unix://PATH`, or a `tcp://` address.  Nothing decides who may connect there:
 anyone who can reach the port may issue whatever the daemon allows.
 The port is the daemon's alone, so give each instance its own in a
 drop-in.  `smartclock-sensord` takes the same flag,

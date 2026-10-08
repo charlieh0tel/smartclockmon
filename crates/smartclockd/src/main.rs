@@ -106,13 +106,13 @@ struct Cli {
     #[arg(long, env = "SMARTCLOCKD_SOCKET")]
     socket: PathBuf,
 
-    /// Also listen on TCP at this address, `HOST:PORT`, for clients on
-    /// other hosts, which connect with `--socket tcp://HOST:PORT`.
+    /// Also listen here, named as `--socket` is: `tcp://HOST:PORT` for
+    /// clients on other hosts, which connect with the same.
     ///
-    /// Nothing decides who may connect there: anyone who can reach it
-    /// may issue whatever this service allows.
+    /// Nothing decides who may connect over TCP: anyone who can reach
+    /// the address may issue whatever this service allows.
     #[arg(long, env = "SMARTCLOCKD_LISTEN")]
-    listen: Option<String>,
+    listen: Option<PathBuf>,
 
     /// Seconds between fast-tier polls.
     #[arg(long, env = "SMARTCLOCKD_FAST", default_value_t = 1.0)]
@@ -655,7 +655,7 @@ fn supervise(supervisor: Supervisor) -> Result<()> {
         if !serving {
             start_server(Listening {
                 socket: &cli.socket,
-                tcp: cli.listen.as_deref(),
+                also: cli.listen.as_deref(),
                 shared: &shared,
                 requests: &requests_tx,
                 info: Arc::clone(&info),
@@ -1152,8 +1152,8 @@ fn open(settings: &Settings) -> Result<Device<Box<dyn Transport + Send>>> {
 struct Listening<'a> {
     /// Where to bind.
     socket: &'a Path,
-    /// A TCP address to listen on as well, if any.
-    tcp: Option<&'a str>,
+    /// Where to listen as well, if anywhere.
+    also: Option<&'a Path>,
     /// State to serve to clients.
     shared: &'a Shared,
     /// Where client commands go.
@@ -1164,7 +1164,7 @@ struct Listening<'a> {
 
 fn start_server(listening: Listening<'_>) -> Result<()> {
     let socket = listening.socket;
-    let listeners = smartclock::server::listen_all(socket, listening.tcp)?;
+    let listeners = smartclock::server::listen_all(socket, listening.also)?;
     let daemon = Arc::new(server::Daemon {
         handle: Handle::new(listening.requests.clone(), listening.shared.clone()),
         info: listening.info,
@@ -1174,8 +1174,8 @@ fn start_server(listening: Listening<'_>) -> Result<()> {
         .spawn(move || smartclock::server::serve(listeners, "smartclockd", daemon))
         .context("spawning the socket server")?;
     eprintln!("smartclockd: listening on {}", socket.display());
-    if let Some(address) = listening.tcp {
-        eprintln!("smartclockd: listening on tcp://{address}");
+    if let Some(also) = listening.also {
+        eprintln!("smartclockd: listening on {}", also.display());
     }
     Ok(())
 }
@@ -1452,7 +1452,7 @@ mod tests {
         };
         let listening = |info| Listening {
             socket: &socket,
-            tcp: None,
+            also: None,
             shared: &shared,
             requests: &requests,
             info,
