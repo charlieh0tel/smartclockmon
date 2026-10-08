@@ -34,7 +34,7 @@ use smartclock::client::Daemons;
 use smartclock::client::no_run_dir;
 use smartclock::defaults::DAEMON;
 use smartclock::defaults::RUN_DIR;
-use smartclock::defaults::SENSOR_SOCKET;
+use smartclock::defaults::SENSORD;
 use smartclock::error::Error;
 use smartclock::task::Cadence;
 use smartclock_http::Response;
@@ -76,7 +76,7 @@ struct Cli {
     /// The sensor service, its socket or `tcp://HOST:PORT`.  Its sensors
     /// are exported once it has answered; a host without one exports
     /// none.
-    #[arg(long, env = "SMARTCLOCK_EXPORTER_SENSORD", default_value = SENSOR_SOCKET)]
+    #[arg(long, env = "SMARTCLOCK_EXPORTER_SENSORD", default_value = SENSORD)]
     sensord: PathBuf,
 }
 

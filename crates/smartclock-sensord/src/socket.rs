@@ -51,18 +51,16 @@ impl Service for Answers {
 mod tests {
     use super::Answers;
     use smartclock::client::Daemon;
+    use smartclock::link::listen_scratch;
     use smartclock::sensors::Info;
     use smartclock::sensors::Latest;
     use smartclock::sensors::Reading;
-    use smartclock::server::listen;
     use smartclock::server::serve;
     use std::sync::Arc;
     use std::sync::Mutex;
 
     #[test]
     fn a_client_is_told_the_latest_readings() {
-        let socket =
-            std::env::temp_dir().join(format!("smartclock-sensord-socket-{}", std::process::id()));
         let info = Info {
             version: "test".to_owned(),
             every_s: 10.0,
@@ -80,13 +78,13 @@ mod tests {
                 error: None,
             }],
         }));
-        let listener = listen(&socket).expect("listen");
+        let (listener, scratch) = listen_scratch("sensord").expect("listen");
         let answers = Arc::new(Answers {
             info: info.clone(),
             latest: Arc::clone(&latest),
         });
         std::thread::spawn(move || serve(vec![listener], "test", answers));
-        let mut client = Daemon::connect(&socket).expect("connect");
+        let mut client = Daemon::connect(scratch.endpoint()).expect("connect");
         assert_eq!(client.sensor_info().expect("info"), info);
         let got = client.sensor_readings().expect("readings");
         assert_eq!(got.readings[0].value, Some(21.5));
@@ -94,6 +92,5 @@ mod tests {
         // this service's terms.
         assert!(client.info().is_err());
         assert!(client.status().is_err());
-        let _ = std::fs::remove_file(&socket);
     }
 }

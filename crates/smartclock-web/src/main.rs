@@ -34,7 +34,7 @@ use smartclock::defaults::DAEMON;
 use smartclock::defaults::LOG_DIR;
 use smartclock::defaults::RUN_DIR;
 use smartclock::defaults::SENSOR_LOG;
-use smartclock::defaults::SENSOR_SOCKET;
+use smartclock::defaults::SENSORD;
 use smartclock::parse::Identity;
 use smartclock::protocol::Op;
 use smartclock_http::Response;
@@ -129,7 +129,7 @@ struct Cli {
 
     /// The sensor service, its socket or `tcp://HOST:PORT`, for the
     /// sensors' latest readings.
-    #[arg(long, env = "SMARTCLOCK_WEB_SENSORD", default_value = SENSOR_SOCKET)]
+    #[arg(long, env = "SMARTCLOCK_WEB_SENSORD", default_value = SENSORD)]
     sensord: PathBuf,
 }
 

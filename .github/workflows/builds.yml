@@ -45,15 +45,14 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # All but the sensor service, which reads Linux's hwmon and IIO.
-      - run: cargo build --release --locked --workspace --bins --exclude smartclock-sensord
+      - run: cargo build --release --locked --workspace --bins
       - name: Package
         shell: bash
         run: |
           name=smartclockmon-windows-x86_64
           mkdir -p "dist/$name"
           for program in smartclockd smartclock-cli smartclockmon smartclock-web \
-                         smartclock-exporter smartclock-sim; do
+                         smartclock-exporter smartclock-sim smartclock-sensord; do
             cp "target/release/$program.exe" "dist/$name/"
           done
           { cat packaging/unreleased-build.txt; echo "$GITHUB_SHA"; } > "dist/$name/README.txt"

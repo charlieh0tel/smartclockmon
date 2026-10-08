@@ -14,10 +14,13 @@ use std::time::Instant;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use clap::CommandFactory as _;
+use clap::FromArgMatches as _;
 use clap::Parser;
 use jiff::Timestamp;
+use smartclock::defaults::SENSOR_LISTEN;
 use smartclock::defaults::SENSOR_LOG;
-use smartclock::defaults::SENSOR_SOCKET;
+use smartclock::defaults::SENSORD;
 use smartclock::sensors::DEFAULT_EVERY_S;
 use smartclock::sensors::Info;
 use smartclock::sensors::Latest;
@@ -79,8 +82,8 @@ struct Cli {
     log: PathBuf,
 
     /// Where clients connect.
-    #[arg(long, env = "SMARTCLOCK_SENSORD_SOCKET", default_value = SENSOR_SOCKET)]
-    socket: PathBuf,
+    #[arg(long, env = "SMARTCLOCK_SENSORD_SOCKET", default_value = SENSORD)]
+    socket: Option<PathBuf>,
 
     /// Also listen on TCP at this address, `HOST:PORT`, for clients on
     /// other hosts, which name it as `--sensord tcp://HOST:PORT`.
@@ -149,8 +152,35 @@ impl Sinks<'_> {
     }
 }
 
+/// The command line, offering only what this platform has: hwmon and
+/// IIO where there is a sysfs, and where there are no Unix sockets no
+/// socket, but a TCP address listened on by default.
+fn parse() -> Cli {
+    let mut command = Cli::command();
+    if !sysfs::PRESENT {
+        for arg in ["hwmon", "iio"] {
+            command = command.mut_arg(arg, |arg| arg.hide(true).value_parser(no_sysfs));
+        }
+    }
+    if let Some(address) = SENSOR_LISTEN {
+        command = command
+            .mut_arg("socket", |arg| {
+                arg.hide(true)
+                    .default_value(None)
+                    .value_parser(smartclock::link::no_unix_sockets)
+            })
+            .mut_arg("listen", |arg| arg.default_value(address));
+    }
+    Cli::from_arg_matches(&command.get_matches()).unwrap_or_else(|e| e.exit())
+}
+
+/// Refuses a sysfs sensor, where there is no sysfs.
+fn no_sysfs(_: &str) -> Result<String, String> {
+    Err("hwmon and IIO are Linux's, and there are none here".to_owned())
+}
+
 fn main() {
-    let cli = Cli::parse();
+    let cli = parse();
     if let Err(e) = run(cli) {
         eprintln!("smartclock-sensord: {e:#}");
         exit(1);
@@ -189,7 +219,7 @@ fn run(cli: Cli) -> Result<()> {
         Err(e) => refuse(e),
     };
     if sources.is_empty() {
-        refuse("no sensors are configured: set SMARTCLOCK_SENSORD_HWMON or SMARTCLOCK_SENSORD_IIO");
+        refuse("no sensors are configured; --help lists the kinds there are");
     }
     if let Err(e) = check_distinct(&sources) {
         refuse(e);
@@ -231,7 +261,7 @@ fn run(cli: Cli) -> Result<()> {
         kept.push(Kept { source, logged });
     }
 
-    let listeners = smartclock::server::listen_all(Some(&cli.socket), cli.listen.as_deref())?;
+    let listeners = smartclock::server::listen_all(cli.socket.as_deref(), cli.listen.as_deref())?;
     let answers = Arc::new(Answers {
         info: Info {
             version: smartclock::VERSION.to_owned(),

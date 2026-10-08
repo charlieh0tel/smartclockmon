@@ -7,14 +7,16 @@
 //! Unix a daemon's clients find it by its socket under [`RUN_DIR`].
 //! Windows has no Unix sockets, so a daemon listens on [`TCP_LISTEN`]
 //! and its clients ask [`DAEMON`]; a second daemon there needs a port of
-//! its own, and its clients told which.
+//! its own, and its clients told which.  The sensor service likewise
+//! listens on [`SENSOR_LISTEN`], and its clients ask [`SENSORD`].
 
 #[cfg(unix)]
 mod os {
     pub(super) const RUN_DIR: &str = "/run/smartclockd";
     pub(super) const LOG_DIR: &str = "/var/lib/smartclockd";
-    pub(super) const SENSOR_SOCKET: &str = "/run/smartclock-sensord/socket";
+    pub(super) const SENSORD: &str = "/run/smartclock-sensord/socket";
     pub(super) const SENSOR_LOG: &str = "/var/lib/smartclock-sensord/sensors.sqlite";
+    pub(super) const SENSOR_LISTEN: Option<&str> = None;
     pub(super) const TCP_LISTEN: Option<&str> = None;
     pub(super) const DAEMON: Option<&str> = None;
 }
@@ -27,14 +29,21 @@ macro_rules! tcp_listen {
     };
 }
 
+/// Where the sensor service listens where there are no Unix sockets.
+#[cfg(windows)]
+macro_rules! sensor_listen {
+    () => {
+        "127.0.0.1:9977"
+    };
+}
+
 #[cfg(windows)]
 mod os {
     pub(super) const RUN_DIR: &str = r"C:\ProgramData\smartclockmon\run";
     pub(super) const LOG_DIR: &str = r"C:\ProgramData\smartclockmon\log";
-    /// Never served, the sensor service being Linux's; a client asking
-    /// is told there are no Unix sockets here, and shows no sensors.
-    pub(super) const SENSOR_SOCKET: &str = r"C:\ProgramData\smartclockmon\run\sensord";
+    pub(super) const SENSORD: &str = concat!("tcp://", sensor_listen!());
     pub(super) const SENSOR_LOG: &str = r"C:\ProgramData\smartclockmon\log\sensors.sqlite";
+    pub(super) const SENSOR_LISTEN: Option<&str> = Some(sensor_listen!());
     pub(super) const TCP_LISTEN: Option<&str> = Some(tcp_listen!());
     pub(super) const DAEMON: Option<&str> = Some(concat!("tcp://", tcp_listen!()));
 }
@@ -46,8 +55,9 @@ pub const RUN_DIR: &str = os::RUN_DIR;
 /// The receiver daemons' logs, one file per receiver.
 pub const LOG_DIR: &str = os::LOG_DIR;
 
-/// The sensor service's socket.
-pub const SENSOR_SOCKET: &str = os::SENSOR_SOCKET;
+/// Where the sensor service's clients find it: its socket, or where
+/// there are no Unix sockets its TCP address.
+pub const SENSORD: &str = os::SENSORD;
 
 /// The sensor service's log.
 pub const SENSOR_LOG: &str = os::SENSOR_LOG;
@@ -59,3 +69,7 @@ pub const TCP_LISTEN: Option<&str> = os::TCP_LISTEN;
 /// The receiver daemon a client asks when told none; there is one
 /// exactly where there are no Unix sockets.
 pub const DAEMON: Option<&str> = os::DAEMON;
+
+/// Where the sensor service listens on TCP when told nowhere else;
+/// there is one exactly where there are no Unix sockets.
+pub const SENSOR_LISTEN: Option<&str> = os::SENSOR_LISTEN;

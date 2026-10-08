@@ -29,7 +29,7 @@ use crossterm::event::KeyModifiers;
 use crate::app::App;
 use smartclock::client::Daemon;
 use smartclock::defaults::DAEMON;
-use smartclock::defaults::SENSOR_SOCKET;
+use smartclock::defaults::SENSORD;
 use smartclock::types::Framing;
 
 use crate::app::View;
@@ -61,7 +61,7 @@ struct Cli {
     /// The sensor service, its socket or `tcp://HOST:PORT`, for the
     /// host's sensors in the header.  A host without the service shows
     /// none.
-    #[arg(long, default_value = SENSOR_SOCKET)]
+    #[arg(long, default_value = SENSORD)]
     sensord: PathBuf,
 }
 

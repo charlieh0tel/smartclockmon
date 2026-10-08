@@ -24,12 +24,11 @@ all: build
 build:
 	$(CARGO) build --workspace --all-targets
 
-# Everything but the sensor service, which reads Linux's hwmon and IIO,
-# cross-built for Windows; needs the x86_64-pc-windows-gnu target and
-# mingw-w64.
+# Everything, cross-built for Windows; needs the x86_64-pc-windows-gnu
+# target and mingw-w64.
 WINDOWS_TARGET := x86_64-pc-windows-gnu
 windows:
-	$(CARGO) build --workspace --all-targets --exclude smartclock-sensord --target $(WINDOWS_TARGET)
+	$(CARGO) build --workspace --all-targets --target $(WINDOWS_TARGET)
 
 # What CI runs.  Keep this the whole of it.
 ci: fmt-check clippy test

@@ -336,9 +336,8 @@ the cable and start it after:
 
 ## Windows
 
-`make windows` cross-builds everything but the sensor service, which
-reads Linux's hwmon and IIO, for `x86_64-pc-windows-gnu`; it needs that
-Rust target (`rustup target add x86_64-pc-windows-gnu`) and mingw-w64.
+`make windows` cross-builds everything for `x86_64-pc-windows-gnu`; it
+needs that Rust target (`rustup target add x86_64-pc-windows-gnu`) and mingw-w64.
 The test suite passes under Wine.  There is no installer and no
 service: the programs run from a console.
 
@@ -349,8 +348,12 @@ monitor, exporter and web view ask `tcp://127.0.0.1:9978` unless given
 receiver needs a daemon on a port of its own, and the collectors told
 both:
 
-    smartclockd --device COM3 --listen 127.0.0.1:9977
-    smartclock-exporter --daemon bench=tcp://127.0.0.1:9978,lab=tcp://127.0.0.1:9977
+    smartclockd --device COM3 --listen 127.0.0.1:9976
+    smartclock-exporter --daemon bench=tcp://127.0.0.1:9978,lab=tcp://127.0.0.1:9976
+
+The sensor service likewise listens on `127.0.0.1:9977`, where its
+clients look by default, and refuses `--socket`.  There are no hwmon or
+IIO sensors there, so it offers neither.
 
 Ctrl-C or Ctrl-Break stops the daemon; a second exits at once,
 without writing what it holds.  Closing its console, logging off or

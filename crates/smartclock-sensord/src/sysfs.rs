@@ -2,7 +2,7 @@
 //! for them, hwmon and IIO, so nothing here knows the part behind one.
 //!
 //! Only files are read, so this builds anywhere; the command line
-//! offers it only where there is a sysfs to read.  The units are the kernel's
+//! offers it only where [`PRESENT`].  The units are the kernel's
 //! (`Documentation/ABI/testing/sysfs-class-hwmon` and `sysfs-bus-iio`),
 //! and a reading is converted to the unit stored: degrees C, percent
 //! relative humidity, kilopascals.
@@ -16,6 +16,9 @@ use crate::sensor::Name;
 use crate::sensor::Quantity;
 use crate::sensor::ReadError;
 use crate::sensor::Source;
+
+/// Whether there is a sysfs to read: on Linux, and nowhere else.
+pub const PRESENT: bool = cfg!(target_os = "linux");
 
 /// Characters that make a path a glob.
 const GLOB: [char; 3] = ['*', '?', '['];

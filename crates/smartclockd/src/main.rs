@@ -216,15 +216,13 @@ fn parse() -> Cli {
     let command = match TCP_LISTEN {
         None => Cli::command().mut_arg("socket", |arg| arg.required_unless_present("listen")),
         Some(address) => Cli::command()
-            .mut_arg("socket", |arg| arg.hide(true).value_parser(no_unix_sockets))
+            .mut_arg("socket", |arg| {
+                arg.hide(true)
+                    .value_parser(smartclock::link::no_unix_sockets)
+            })
             .mut_arg("listen", |arg| arg.default_value(address)),
     };
     Cli::from_arg_matches(&command.get_matches()).unwrap_or_else(|e| e.exit())
-}
-
-/// Refuses a socket, where there are no Unix sockets.
-fn no_unix_sockets(_: &str) -> Result<PathBuf, String> {
-    Err("there are no Unix sockets here; listen with --listen HOST:PORT".to_owned())
 }
 
 fn main() -> Result<()> {

@@ -282,6 +282,12 @@ impl Drop for Scratch {
     }
 }
 
+/// Refuses a socket, for a command line where there are no Unix
+/// sockets.
+pub fn no_unix_sockets(_: &str) -> Result<PathBuf, String> {
+    Err("there are no Unix sockets here; listen with --listen HOST:PORT".to_owned())
+}
+
 /// Listen on TCP at `address`, `HOST:PORT`.
 ///
 /// Nothing decides who may connect: anyone who can reach the address

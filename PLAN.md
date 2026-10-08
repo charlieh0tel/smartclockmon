@@ -145,9 +145,11 @@ not change the wire format.
   daemon given neither listens on `127.0.0.1:9978`, and the monitor,
   exporter and web view ask `tcp://127.0.0.1:9978` when told no daemon.
   A second daemon there needs a port of its own and its clients told
-  which.  `smartclock::defaults` holds where things are on each,
-  `smartclock::link`'s `unix.rs` and `windows.rs` how a connection is
-  made, and `smartclockd::stop` how the daemon is stopped.
+  which.  The sensor service listens on `127.0.0.1:9977` there, and
+  offers no hwmon or IIO.  `smartclock::defaults` holds where things are
+  on each, `smartclock::link`'s `unix.rs` and `windows.rs` how a
+  connection is made, `smartclockd::stop` how the daemon is stopped,
+  and `smartclock_sensord::sysfs::PRESENT` whether there is a sysfs.
   Windows named pipes were tried and dropped: they have no read or
   write timeout, and a daemon that accepts and then wedges must not
   hold its client.
@@ -482,7 +484,7 @@ build.
 
 ```
 make            build
-make windows    cross-build for Windows, all but the sensor service
+make windows    cross-build for Windows
 make ci         fmt-check clippy test
 make fmt        cargo fmt
 make clippy     cargo clippy --all-targets -- -D warnings
