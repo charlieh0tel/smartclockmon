@@ -36,6 +36,7 @@ use smartclock_sensord::socket::Answers;
 use smartclock_sensord::socket::Shared;
 use smartclock_sensord::sysfs;
 use smartclock_sensord::sysfs::Interface;
+use smartclock_sensord::temper;
 
 /// The exit status for a configuration no retry can fix, which the unit
 /// does not restart on: a sensor that cannot be one, no sensors at all,
@@ -72,6 +73,19 @@ struct Cli {
         value_name = "NAME=CHANNEL"
     )]
     iio: Vec<String>,
+
+    /// A `TEMPerGold` or `TEMPerHUM` USB stick, NAME or NAME=PATH:
+    /// with a path, the stick at that hidraw node (Windows: HID device
+    /// path), such as a udev link; without one, the first stick found
+    /// that no other process holds.  Temperature, and humidity on a
+    /// `TEMPerHUM`.  Repeatable; the environment form is comma-separated.
+    #[arg(
+        long,
+        env = "SMARTCLOCK_SENSORD_TEMPER",
+        value_delimiter = ',',
+        value_name = "NAME[=PATH]"
+    )]
+    temper: Vec<String>,
 
     /// How often every sensor is read, in seconds.
     #[arg(long, env = "SMARTCLOCK_SENSORD_EVERY", default_value_t = DEFAULT_EVERY_S)]
@@ -203,7 +217,11 @@ fn sources(cli: &Cli) -> Result<Vec<Box<dyn Source>>, ConfigError> {
         .map(|(interface, spec)| {
             sysfs::parse(interface, spec).map(|channel| Box::new(channel) as Box<dyn Source>)
         });
-    sysfs.collect()
+    let sticks = cli
+        .temper
+        .iter()
+        .map(|spec| temper::parse(spec).map(|stick| Box::new(stick) as Box<dyn Source>));
+    sysfs.chain(sticks).collect()
 }
 
 fn run(cli: Cli) -> Result<()> {

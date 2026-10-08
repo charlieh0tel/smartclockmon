@@ -19,7 +19,9 @@ and a log of their own.
   `/etc/default/smartclock-sensord`).  It runs as `smartclockd`, like
   the other services, with no serial access.  It reads sensors through
   the kernel's two interfaces for them, knowing nothing about the parts
-  behind them, and logs whether or not any receiver is attached.
+  behind them, and PCsensor TEMPer USB sticks directly; it logs whether
+  or not any receiver is attached.  On Windows it reads only TEMPer
+  sticks, and listens on `127.0.0.1:9977` (`docs/running.md`).
 - **Its log** is `/var/lib/smartclock-sensord/sensors.sqlite`, apart
   from the receivers' logs, so nothing takes it for one.  Its schema is
   versioned from the first release; a later change is migrated forward
@@ -31,7 +33,7 @@ and a log of their own.
 
 ## Configuration
 
-Repeatable switches, one per interface:
+Repeatable switches, one per kind of sensor:
 
 - `--hwmon NAME=PATH` (`SMARTCLOCK_SENSORD_HWMON`): a hwmon `*_input`,
   such as `room=/sys/class/hwmon/hwmon3/temp1_input`.
@@ -43,6 +45,20 @@ Repeatable switches, one per interface:
   x `_scale`, each attribute taken for the channel or, failing that,
   for every channel of its type (`in_temp0_scale`, then
   `in_temp_scale`), with `_offset` 0 when absent and `_scale` required.
+- `--temper NAME[=PATH]` (`SMARTCLOCK_SENSORD_TEMPER`): a PCsensor
+  TEMPerGold or TEMPerHUM USB stick (3553:a001), read through
+  [`temper-hid`](https://crates.io/crates/temper-hid).  With a path, the
+  stick at that hidraw node, such as a udev link; without one, the first
+  stick found that no other process holds.  Several found is said once
+  in the journal.  It logs temperature, and humidity from a TEMPerHUM,
+  which appears the first time the stick is read.  The stick is held
+  open, and locked, between reads, and found again after an error, so
+  a replug is picked up.  Not to be read here and through the
+  `temper-iio` daemon at once: whichever opens it second is refused.
+  Access comes from the `temper` package, which the Debian package
+  depends on: its udev rules give the stick's hidraw node to group
+  `temper`, which the service joins, and turn off the stick's keyboard
+  interface.
 - `--every SECONDS` (`SMARTCLOCK_SENSORD_EVERY`): how often every sensor
   is read; 10 by default, the receivers' medium tier.
 
@@ -158,4 +174,5 @@ has to redo it.
 
 A helper outside this project can present one as an IIO device through
 `/dev/uhid`, and keep a symlink to it under `/run`.  The service reads
-it like any other IIO sensor.
+it like any other IIO sensor.  `temper-iio` does so for TEMPer sticks;
+`--temper` reads them without it.

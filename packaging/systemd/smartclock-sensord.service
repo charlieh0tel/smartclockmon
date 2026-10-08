@@ -4,7 +4,7 @@ Documentation=https://github.com/charlieh0tel/smartclockmon
 # One per host: sensors belong to the host, not to a receiver, so this
 # logs them whether or not any receiver is attached.  It reads hwmon
 # and IIO files in /sys, or the symlinks a helper keeps under /run, and
-# needs no device access of its own.  Name the sensors in
+# TEMPer sticks through their hidraw nodes.  Name the sensors in
 # /etc/default/smartclock-sensord before enabling it; with none it
 # exits 2 and stays failed.  See docs/sensors.md.
 
@@ -22,9 +22,11 @@ RestartSec=5
 RestartPreventExitStatus=2
 
 # The same user as the other services, so the web view and the
-# exporter can read its log.
+# exporter can read its log.  Group temper, from the temper package,
+# is what its udev rules give TEMPer sticks' hidraw nodes to.
 User=smartclockd
 Group=smartclockd
+SupplementaryGroups=temper
 
 StateDirectory=smartclock-sensord
 StateDirectoryMode=0750
@@ -34,7 +36,9 @@ RuntimeDirectoryMode=0750
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-PrivateDevices=yes
+# hidraw for TEMPer sticks, and no other device.
+DevicePolicy=closed
+DeviceAllow=char-hidraw rw
 NoNewPrivileges=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes

@@ -164,6 +164,9 @@ pub enum ReadError {
         /// What it held.
         text: String,
     },
+    /// A device could not be found, opened or read, with every cause.
+    #[error("{0}")]
+    Stick(String),
 }
 
 /// Refuse the same name configured twice for one quantity.  One name

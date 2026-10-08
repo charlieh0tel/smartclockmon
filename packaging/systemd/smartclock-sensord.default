@@ -17,6 +17,13 @@
 #   ls /sys/bus/iio/devices/*/ | grep -E '^in_(temp|humidityrelative|pressure)'
 #SMARTCLOCK_SENSORD_IIO=
 
+# TEMPer USB sticks, NAME or NAME=PATH, comma-separated: without a
+# path the first stick found that no other process holds, with one the
+# stick at that hidraw node, such as a udev link.  The temper
+# package's udev rules give the node to group temper, which the
+# service is in.
+#SMARTCLOCK_SENSORD_TEMPER=
+
 #SMARTCLOCK_SENSORD_EVERY=10
 #SMARTCLOCK_SENSORD_LOG=/var/lib/smartclock-sensord/sensors.sqlite
 #SMARTCLOCK_SENSORD_SOCKET=/run/smartclock-sensord/socket

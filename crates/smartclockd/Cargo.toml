@@ -46,7 +46,7 @@ and holdover history so it accumulates whether or not anyone is \
 watching."""
 section = "utils"
 priority = "optional"
-depends = "$auto, adduser"
+depends = "$auto, adduser, temper (>= 1.3.0)"
 assets = [
     ["target/release/smartclockd", "usr/bin/", "755"],
     ["target/release/smartclock-cli", "usr/bin/", "755"],
