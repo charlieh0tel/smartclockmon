@@ -236,6 +236,45 @@ function yAxis(col, values, height) {
 // uPlot would otherwise make room for on that chart alone.
 const STACK_RIGHT = 32;
 
+// The colors every chart's axes are drawn in: the labels, then the grid
+// and ticks, recessive so the readings are seen first.
+const AXIS_INK = "#8b929c";
+const AXIS_RULE = "#2b3038";
+// An axis as every chart draws one.
+const AXIS = { stroke: AXIS_INK, grid: { stroke: AXIS_RULE }, ticks: { stroke: AXIS_RULE } };
+
+// The options every chart in a stack of time charts shares:
+//   width, height  its size
+//   title          its title
+//   series         its series after the time
+//   fitted, ySize  its y axis as `yAxis` fitted it, and the stack's
+//                  shared y axis width
+//   last           whether it is the bottom chart, the one that
+//                  carries the time labels
+//   yStroke        the y axis labels' color, when not the usual
+//   legend, hooks  uPlot's, the hooks added to the drag that sets
+//                  the range
+function stackOptions(stack) {
+  return {
+    width: stack.width,
+    height: stack.height,
+    padding: [null, STACK_RIGHT, null, null],
+    title: stack.title,
+    series: [{}, ...stack.series],
+    axes: [
+      { ...AXIS, show: stack.last },
+      { ...AXIS, ...(stack.yStroke ? { stroke: stack.yStroke } : {}), ...stack.fitted.axis, size: stack.ySize },
+    ],
+    scales: {
+      x: { time: true },
+      ...(stack.fitted.range ? { y: { range: stack.fitted.range } } : {}),
+    },
+    legend: stack.legend ?? { show: true, live: true },
+    cursor: { drag: { x: true, y: false }, sync: { key: stack.sync, setSeries: false } },
+    hooks: { ...stack.hooks, ...TIME_HOOKS },
+  };
+}
+
 // Give every chart in a stack the width its container has settled at.
 // Each was made at the width the container had then, and adding charts
 // can bring on a scrollbar that narrows it partway down the stack.
@@ -307,6 +346,18 @@ function ranged(chart) {
 // this and scaling a drawing to fit.
 const DEVIATION_PLOT = { min: 240, ratio: 2.5, shortest: 300, tallest: 560 };
 
+// A plot's height for `width`, by `DEVIATION_PLOT`.  It follows the
+// width rather than being fixed, so a curve keeps its shape on any
+// window: at a fixed height a wide plot flattens a slope that has not
+// changed, which on a log-log chart is the one thing the reader is
+// meant to judge by eye.  Bounded at both ends, because the ratio
+// alone would make a very wide window very tall.
+function figureHeight(width) {
+  return Math.round(
+    Math.max(DEVIATION_PLOT.shortest, Math.min(DEVIATION_PLOT.tallest, width / DEVIATION_PLOT.ratio)),
+  );
+}
+
 // -------------------------------------------------------------- sensors
 //
 // The host's sensors, from the sensor service's log: a chart per
@@ -330,6 +381,18 @@ async function sensorsListed(signal) {
   }
 }
 
+// Every sensor's line of `quantity` over `win`, as the server buckets
+// it: [{ name, at, values }].
+async function sensorHistory(quantity, win, signal) {
+  const q = new URLSearchParams({
+    quantity,
+    from: win.from,
+    to: win.to,
+    points: win.points ?? pointsFor(win.to - win.from),
+  });
+  return ask("/api/sensors/history?" + q, signal);
+}
+
 // Each quantity the log holds, its sensors' lines over `win` snapped to
 // the grid: [{ quantity, lines: [{ name, at, values, source, device }] }].
 // A quantity whose read fails is left out rather than failing the page.
@@ -337,15 +400,9 @@ async function sensorGroups(listed, win, signal) {
   const quantities = SENSOR_QUANTITIES.filter((q) => listed.sensors.some((s) => s.quantity === q));
   const groups = await Promise.all(
     quantities.map(async (quantity) => {
-      const q = new URLSearchParams({
-        quantity,
-        from: win.from,
-        to: win.to,
-        points: win.points ?? pointsFor(win.to - win.from),
-      });
       let lines;
       try {
-        lines = await ask("/api/sensors/history?" + q, signal);
+        lines = await sensorHistory(quantity, win, signal);
       } catch (e) {
         if (e instanceof Superseded) throw e;
         return null;
@@ -550,8 +607,8 @@ function seconds(v) {
 function tauAxis() {
   return {
     scale: "x",
-    stroke: "#8b929c",
-    grid: { stroke: "#2b3038" },
+    stroke: AXIS_INK,
+    grid: { stroke: AXIS_RULE },
     label: "averaging time τ, seconds",
     labelSize: 28,
     font: AXIS_FONT,
@@ -567,8 +624,8 @@ function tauAxis() {
 function sigmaAxis(label) {
   return {
     scale: "y",
-    stroke: "#8b929c",
-    grid: { stroke: "#2b3038" },
+    stroke: AXIS_INK,
+    grid: { stroke: AXIS_RULE },
     size: 72,
     label,
     labelSize: 28,

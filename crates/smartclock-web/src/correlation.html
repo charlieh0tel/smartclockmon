@@ -87,7 +87,6 @@ const CORRELATED = ["efc_percent", "temperature_c", "time_interval_s"];
 const X_COLOR = "#fbbf24";
 const Y_COLOR = "#38bdf8";
 const FIT_COLOR = "#e6e8eb";
-const AXIS = { stroke: "#8b929c", grid: { stroke: "#2b3038" }, ticks: { stroke: "#2b3038" } };
 // How far either way the lag is tried, in seconds, and at most a
 // quarter of the buckets, past which too few pairs overlap to mean
 // much.
@@ -100,9 +99,6 @@ const LAG_TICKS = [1, 2, 5, 10, 15, 30, 60, 120];
 // The nearest dot the scatter's cursor picks, in CSS pixels.
 const SCATTER_REACH = 24;
 const SYNC = haveUplot ? uPlot.sync("correlation") : null;
-// How long after the last resize the page is read again, in
-// milliseconds.
-const COALESCE = 120;
 
 let timeCharts = [];
 let scatterChart = null;
@@ -222,16 +218,18 @@ function bucketed(at, values, win) {
 
 // One measure over the window, on its grid.
 async function measureOver(measure, win, signal) {
-  const span = { from: win.from, to: win.to, points: win.points };
   if (measure.from.quantity) {
-    const lines = await ask(
-      "/api/sensors/history?" + new URLSearchParams({ quantity: measure.from.quantity, ...span }),
-      signal,
-    );
+    const lines = await sensorHistory(measure.from.quantity, win, signal);
     const line = lines.find((l) => l.name === measure.from.sensor);
     return line ? bucketed(line.at, line.values, win) : emptyGrid(win);
   }
-  const q = new URLSearchParams({ receiver: measure.from.receiver, columns: measure.from.column, ...span });
+  const q = new URLSearchParams({
+    receiver: measure.from.receiver,
+    columns: measure.from.column,
+    from: win.from,
+    to: win.to,
+    points: win.points,
+  });
   if (lockedOnly) q.set("locked", "1");
   const got = await ask("/api/history?" + q, signal);
   const plot = got.plots.find((p) => p.column === measure.from.column);
@@ -269,21 +267,16 @@ function drawTime(win, x, y, xs, ys) {
     const host = document.createElement("div");
     $("time-charts").appendChild(host);
     const chart = ranged(new uPlot(
-      {
+      stackOptions({
         width: chartWidth("time-charts"),
         height,
-        padding: [null, STACK_RIGHT, null, null],
         title: m.name,
-        series: [{}, { label: m.name, stroke: color, width: 1.5, points: { show: false } }],
-        axes: [
-          { ...AXIS, show: place === lines.length - 1 },
-          { ...AXIS, ...fits[place].axis, size: ySize },
-        ],
-        scales: { x: { time: true }, ...(fits[place].range ? { y: { range: fits[place].range } } : {}) },
-        legend: { show: true, live: true },
-        cursor: { drag: { x: true, y: false }, sync: { key: SYNC.key, setSeries: false } },
-        hooks: TIME_HOOKS,
-      },
+        series: [{ label: m.name, stroke: color, width: 1.5, points: { show: false } }],
+        fitted: fits[place],
+        ySize,
+        last: place === lines.length - 1,
+        sync: SYNC.key,
+      }),
       [kept.map((i) => at[i]), kept.map((i) => values[i])],
       host,
     ));
@@ -333,7 +326,7 @@ function drawScatter(win, x, y, pairs, fit) {
     {
       mode: 2,
       width,
-      height: Math.round(Math.max(DEVIATION_PLOT.shortest, Math.min(DEVIATION_PLOT.tallest, width / DEVIATION_PLOT.ratio))),
+      height: figureHeight(width),
       scales: { x: { time: false }, y: {} },
       axes: [
         { ...AXIS, label: x.name, labelFont: AXIS_FONT, font: AXIS_FONT },
@@ -410,7 +403,7 @@ function drawLag(curve, win, peak) {
   lagChart = new uPlot(
     {
       width,
-      height: Math.round(Math.max(DEVIATION_PLOT.shortest, Math.min(DEVIATION_PLOT.tallest, width / DEVIATION_PLOT.ratio))),
+      height: figureHeight(width),
       scales: { x: { time: false } },
       axes: [
         {
@@ -511,12 +504,6 @@ async function load(signal) {
   drawLag(curve, win, peak);
   $("lag-note").textContent = `Each step is one bucket, ${spanText(win.width)}: zoom in for a finer lag.`;
   drawNumbers(win, x, y, pairs.length, r, rChanges, fit, peak);
-}
-
-let settling = null;
-function soon() {
-  clearTimeout(settling);
-  settling = setTimeout(() => renew(), COALESCE);
 }
 
 rangeControl($("ranges"), soon);

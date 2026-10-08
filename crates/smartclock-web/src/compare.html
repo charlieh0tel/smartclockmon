@@ -87,9 +87,6 @@ const MEASURE_TIMEOUT = 60000;
 // The shortest refresh the page offers, in seconds: each measures every
 // receiver's stability again.
 const COMPARE_FLOOR = 60;
-// How long after the last resize or drag the page is read again, in
-// milliseconds.
-const COALESCE = 120;
 // How often the picker looks for a receiver that has appeared, in
 // milliseconds.
 const PICKER_EVERY = 1000;
@@ -258,41 +255,20 @@ function drawHistory(shown, got, groups) {
     const host = document.createElement("div");
     $("charts").appendChild(host);
     const chart = ranged(new uPlot(
-      {
+      stackOptions({
         width: $("charts").clientWidth || 800,
         height,
-        padding: [null, STACK_RIGHT, null, null],
         title: label(col),
-        series: [
-          {},
-          ...drawing.lines.map((l) => ({
-            label: l.label,
-            stroke: l.color,
-            width: 1.5,
-            points: { show: false },
-          })),
-        ],
-        axes: [
-          {
-            stroke: "#8b929c",
-            grid: { stroke: "#2b3038" },
-            ticks: { stroke: "#2b3038" },
-            show: place === drawn.length - 1,
-          },
-          {
-            stroke: "#8b929c",
-            grid: { stroke: "#2b3038" },
-            ticks: { stroke: "#2b3038" },
-            ...fitted.axis,
-            size: ySize,
-          },
-        ],
-        scales: {
-          x: { time: true },
-          ...(fitted.range ? { y: { range: fitted.range } } : {}),
-        },
-        legend: { show: true, live: true },
-        cursor: { drag: { x: true, y: false }, sync: { key: SYNC.key, setSeries: false } },
+        series: drawing.lines.map((l) => ({
+          label: l.label,
+          stroke: l.color,
+          width: 1.5,
+          points: { show: false },
+        })),
+        fitted,
+        ySize,
+        last: place === drawn.length - 1,
+        sync: SYNC.key,
         hooks: {
           draw: [(u) => drawNoteLines(u, marks)],
           setCursor: [
@@ -301,9 +277,8 @@ function drawHistory(shown, got, groups) {
               noteTip(under, under ? noteAt(under, marks) : null);
             },
           ],
-          ...TIME_HOOKS,
         },
-      },
+      }),
       [joined[0], ...drawing.lines.map((l) => l.values)],
       host,
     ));
@@ -335,9 +310,7 @@ function drawDeviation(shown, curves) {
   deviationChart = new uPlot(
     {
       width: wide,
-      height: Math.round(
-        Math.max(DEVIATION_PLOT.shortest, Math.min(DEVIATION_PLOT.tallest, wide / DEVIATION_PLOT.ratio)),
-      ),
+      height: figureHeight(wide),
       scales: { x: TAU_SCALE, y: sigmaScale({}) },
       axes: [tauAxis(), sigmaAxis("deviation σy")],
       series: [
@@ -455,15 +428,6 @@ async function load(signal) {
   ]
     .filter(Boolean)
     .join("; ");
-}
-
-// Drawn again a moment after the last resize or drag rather than on
-// every event: a resize fires dozens a second, a drag fires on every
-// synced chart, and each read measures every receiver's stability.
-let settling = null;
-function soon() {
-  clearTimeout(settling);
-  settling = setTimeout(() => renew(), COALESCE);
 }
 
 rangeControl($("ranges"), soon);

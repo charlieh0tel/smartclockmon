@@ -144,17 +144,6 @@ function width() {
   return Math.max(DEVIATION_PLOT.min, $("pane").clientWidth || 800);
 }
 
-// Height follows width rather than being fixed, so the curve keeps its
-// shape on any window: at a fixed height a wide plot flattens a slope
-// that has not changed, which on a log-log chart is the one thing the
-// reader is meant to judge by eye.  Bounded at both ends, because the
-// ratio alone would make a very wide window very tall.
-function height(w) {
-  return Math.round(
-    Math.max(DEVIATION_PLOT.shortest, Math.min(DEVIATION_PLOT.tallest, w / DEVIATION_PLOT.ratio)),
-  );
-}
-
 // The table's averaging times, always in seconds, never minutes or
 // hours.
 function inSeconds(v) {
@@ -239,7 +228,7 @@ function draw(points) {
     return;
   }
   const size = { width: width(), height: 0 };
-  size.height = height(size.width);
+  size.height = figureHeight(size.width);
   // Two curves on the first chart.  The modified deviation is the one
   // this record supports exactly -- the receiver's reading is already
   // a ten-second mean, which is the innermost block of the modified
@@ -456,8 +445,8 @@ $("caveat").textContent =
 addEventListener("resize", () => {
   if (!chart) return;
   const w = width();
-  chart.setSize({ width: w, height: height(w) });
-  if (tdevChart) tdevChart.setSize({ width: w, height: Math.round(height(w) * 0.6) });
+  chart.setSize({ width: w, height: figureHeight(w) });
+  if (tdevChart) tdevChart.setSize({ width: w, height: Math.round(figureHeight(w) * 0.6) });
 });
 
 picker();

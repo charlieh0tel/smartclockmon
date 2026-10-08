@@ -354,13 +354,11 @@ async function draw(signal) {
     const host = document.createElement("div");
     $("charts").appendChild(host);
 
-    const opts = {
+    const opts = stackOptions({
       width: $("charts").clientWidth || 800,
       height,
-      padding: [null, STACK_RIGHT, null, null],
       title: drawing.lines.map((l) => label(l.column)).join(" and "),
       series: [
-        {},
         ...(drawing.envelope
           ? [
               { label: "min", stroke: "#0e7490", width: 1, points: { show: false } },
@@ -374,43 +372,23 @@ async function draw(signal) {
           points: { show: false },
         })),
       ],
-      axes: [
-        {
-          stroke: "#8b929c",
-          grid: { stroke: "#2b3038" },
-          ticks: { stroke: "#2b3038" },
-          show: last,
-        },
-        {
-          stroke: "#38bdf8",
-          grid: { stroke: "#2b3038" },
-          ticks: { stroke: "#2b3038" },
-          ...fitted.axis,
-          size: ySize,
-        },
-      ],
-      scales: {
-        x: { time: true },
-        ...(fitted.range ? { y: { range: fitted.range } } : {}),
-      },
+      fitted,
+      ySize,
+      last,
+      yStroke: "#38bdf8",
       // No per-chart legend.  With the cursor synced there is one
       // instant being pointed at, not one per plot, so the values
       // belong in one row -- and `show: last` meant only the bottom
       // plot had any readout at all, which is the opposite of what
-      // aligning them is for.
+      // aligning them is for.  Every chart moves together, which is
+      // what makes reading one value across the stack possible at all.
       legend: { show: false },
-      cursor: {
-        drag: { x: true, y: false },
-        // Every chart moves together, which is what makes reading one
-        // value across the stack possible at all.
-        sync: { key: SYNC.key, setSeries: false },
-      },
+      sync: SYNC.key,
       hooks: {
         setCursor: [() => readout()],
         draw: [drawNotes],
-        ...TIME_HOOKS,
       },
-    };
+    });
     const chart = ranged(new uPlot(
       opts,
       [
@@ -534,7 +512,7 @@ function pickers(plottable) {
     sensorBox.onchange = () => {
       withSensors = sensorBox.checked;
       remember({ sensors: withSensors ? null : "off" });
-      load();
+      soon();
     };
   }
   for (const box of $("columns").querySelectorAll("input[data-col]")) {
@@ -552,20 +530,11 @@ function pickers(plottable) {
       // ticked, so the stack does not reshuffle as it is built.
       columns = order.filter((c) => wanted.has(c));
       remember({ columns: columns.join(","), column: null });
-      load();
+      soon();
     };
   }
 }
 
-// A change the reader made -- the columns, the range, a drag -- reads
-// again, abandoning any read in flight.  Coalesced, because dragging
-// fires setScale repeatedly.
-const COALESCE = 120;
-let pending = null;
-function load() {
-  clearTimeout(pending);
-  pending = setTimeout(renew, COALESCE);
-}
 
 // ------------------------------------------------- the receiver's journal
 
@@ -712,8 +681,8 @@ const HISTORY_FLOOR = 5;
   // drift from the columns the query will actually accept.
   const first = await getJson(seriesQuery(columns, null, null));
   const plottable = first.plottable ?? columns;
-  rangeControl($("ranges"), load);
-  addEventListener("resize", load);
+  rangeControl($("ranges"), soon);
+  addEventListener("resize", soon);
   content({
     daemon: false,
     floor: HISTORY_FLOOR,

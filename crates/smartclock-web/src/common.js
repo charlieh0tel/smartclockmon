@@ -477,6 +477,18 @@ function renew(asked = false) {
   refresh(asked);
 }
 
+// How long after the last change the reader made -- a resize, a drag,
+// the columns, the range -- a page reads again, in milliseconds.  A
+// resize fires dozens a second, and a drag fires on every synced chart.
+const COALESCE = 120;
+let settling = null;
+
+// Read again once changes stop coming, abandoning any read in flight.
+function soon() {
+  clearTimeout(settling);
+  settling = setTimeout(() => renew(), COALESCE);
+}
+
 // Clear first, then read: what is shown is about to be wrong.
 function restart(why, bad = false) {
   running?.abort();
