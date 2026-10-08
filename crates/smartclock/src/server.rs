@@ -211,7 +211,17 @@ fn talk<S: Service>(stream: Stream, service: &S, slot: Slot) -> std::io::Result<
                 format!("this service speaks protocol {version}, not {}", request.v),
             ),
             Ok(request) => service.answer(request.id, request.op),
-            Err(e) => Message::err_in(version, String::new(), format!("malformed request: {e}")),
+            // The connection ends at the first line that is not a
+            // request.  Over TCP a web page can POST to a loopback
+            // port, and the request line comes first; read on, and a
+            // request in its body would be answered.
+            Err(e) => {
+                write_line(
+                    &writer,
+                    &Message::err_in(version, String::new(), format!("malformed request: {e}")),
+                )?;
+                return Ok(());
+            }
         };
         write_line(&writer, &reply)?;
     }
@@ -391,6 +401,24 @@ mod tests {
         let running = Running::start("live");
         let refused = listen(&running.0).expect_err("a second listener");
         assert_eq!(refused.kind(), std::io::ErrorKind::AddrInUse);
+    }
+
+    #[test]
+    fn a_request_after_a_malformed_line_is_not_answered() {
+        let running = Running::start("malformed");
+        let mut client = running.connect();
+        write!(
+            client,
+            "POST / HTTP/1.1\r\nHost: localhost\r\n\r\n{{\"v\":3,\"id\":\"a\",\"op\":{{\"kind\":\"ping\"}}}}\n"
+        )
+        .expect("send");
+        let mut reader = BufReader::new(client.try_clone().expect("clone"));
+        let mut line = String::new();
+        reader.read_line(&mut line).expect("read");
+        assert!(line.contains("malformed request"), "{line}");
+        let mut rest = String::new();
+        reader.read_line(&mut rest).expect("end of stream");
+        assert_eq!(rest, "", "answered past the malformed line");
     }
 
     #[test]

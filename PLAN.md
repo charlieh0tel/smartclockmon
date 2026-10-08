@@ -623,6 +623,9 @@ an attacker, so two things are not defended against:
 
 - Socket permissions are the whole of the authorization, and where
   the socket is TCP there is none: anything on the host may connect.
+  A connection ends at its first line that is not a request, so a web
+  page posting to the port does not have the request in its body
+  answered.
 - A client that connects and only reads holds one of the sixteen slots
   while connected; a watcher does exactly that, so it is not refused.
   One that stops reading is cut off once a write has waited
