@@ -14,7 +14,6 @@ workspace = true
 [dependencies]
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive", "env"] }
-interprocess = "2.4.4"
 jiff = "0.2.37"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
@@ -25,9 +24,6 @@ smartclock-log = { path = "../smartclock-log" }
 
 [dev-dependencies]
 smartclock-sim = { path = "../smartclock-sim" }
-
-[target."cfg(unix)".dependencies]
-socket2 = "0.6.5"
 
 # Packaging lives on this crate because cargo-deb wants a single
 # package, and the daemon is what the deb exists to install.  The other

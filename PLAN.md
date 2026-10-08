@@ -114,17 +114,16 @@ the front-panel alarm.
 
 ### The simulator is not PTY-backed
 
-A PTY would make it Unix-only, undoing the reason `interprocess` was
-chosen over raw AF_UNIX: systemd is to be the one Linux-specific piece.
+A PTY would make it Unix-only, when systemd is to be the one
+Linux-specific piece.
 Tests use `SimTransport` in `smartclock-sim`, an in-process
 `Transport`; end-to-end runs use the same simulator on a TCP listener,
 through the `TcpTransport` ser2net needs anyway.
 
 ### The protocol stays JSON
 
-gRPC in Rust means `tonic`, which lacks named pipes, so it would land
-on loopback TCP and reopen the authentication question socket
-permissions answer.  Protobuf would add a codegen step and lose
+gRPC in Rust means `tonic` and an async runtime the rest of the
+workspace does without.  Protobuf would add a codegen step and lose
 watching the socket with `socat`, for a message a second between two
 ends we control.  Revisit if a non-Rust client appears.  The socket
 carries its own type, converted from `Snapshot`, so a field rename does
@@ -132,10 +131,15 @@ not change the wire format.
 
 ### Two channels to the daemon
 
-- **Local socket, via `interprocess`**, for the live snapshot stream
-  and commands: one API over AF_UNIX and Windows named pipes,
-  newline-delimited JSON.  A client gets the current snapshot on
-  connect, then updates.  The name is a filesystem path, so systemd's
+- **A socket, via `smartclock::link`**, for the live snapshot stream
+  and commands, newline-delimited JSON.  A client gets the current
+  snapshot on connect, then updates.  On Unix it is an AF_UNIX socket;
+  elsewhere a loopback TCP port the system picks, written as
+  `tcp://ADDRESS:PORT` in a file where the socket would be.  Clients
+  take either path, or a `tcp://HOST:PORT` outright.  Windows named
+  pipes were tried and dropped: they have no read or write timeout,
+  and a daemon that accepts and then wedges must not hold its client.
+  The name is a filesystem path either way, so systemd's
   `RuntimeDirectory` owns its lifetime and file permissions gate
   access.
 - **SQLite file, opened read-only**, for history.  `journal_mode=WAL`
@@ -419,9 +423,10 @@ for seconds on a wedged bus, in the path of the serial link.
   `AF_UNIX`, for the `tcp://host:port` device form.  No
   `PrivateDevices`: it would hide the serial port.
 
-systemd is the only Linux-specific piece; `interprocess`, `serialport`
-and `rusqlite` are portable.  Porting means a launchd plist or a
-Windows service wrapper, not touching the protocol.
+systemd is the only Linux-specific piece; `serialport` and `rusqlite`
+are portable, and the socket falls back to TCP where there is no
+AF_UNIX.  Porting means a launchd plist or a Windows service wrapper,
+not touching the protocol.
 
 ### The command table is data
 
@@ -616,11 +621,11 @@ Known and unfixed, each because the fix is not yet worth its cost.  The
 threat model is a careless operator on a single-operator machine, not
 an attacker, so two things are not defended against:
 
-- Socket permissions are the whole of the authorization.
+- Socket permissions are the whole of the authorization, and where
+  the socket is TCP there is none: anything on the host may connect.
 - A client that connects and only reads holds one of the sixteen slots
   while connected; a watcher does exactly that, so it is not refused.
   One that stops reading is cut off once a write has waited
   `client::DEADLINE`, and when either half of a connection ends the
-  socket is shut both ways (Unix; `interprocess`'s portable stream has
-  neither).  A client half-closing its sending side releases its slot
+  socket is shut both ways.  A client half-closing its sending side releases its slot
   and stops the push thread, and is tested.

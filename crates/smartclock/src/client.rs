@@ -14,15 +14,12 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::time::Instant;
 
-use interprocess::TryClone as _;
-use interprocess::local_socket::GenericFilePath;
-use interprocess::local_socket::Stream;
-use interprocess::local_socket::ToFsName as _;
-use interprocess::local_socket::traits::Stream as _;
 use jiff::Timestamp;
 
 use crate::error::Error;
 use crate::error::Result;
+use crate::link;
+use crate::link::Stream;
 use crate::parse;
 use crate::parse::Identity;
 use crate::protocol::Message;
@@ -42,40 +39,6 @@ use crate::wire::Reading;
 /// caller for good: the exporter would leak the thread serving each
 /// scrape, one every fifteen seconds, until the process died.
 pub const DEADLINE: Duration = Duration::from_secs(20);
-
-/// Put a [`DEADLINE`] on every read and write of a connection.
-///
-/// Public for a client that holds its own stream rather than a
-/// [`Daemon`], which must not wait on a wedged daemon any more than
-/// this one does.
-///
-/// Reaching through the enum because `interprocess`'s portable
-/// `Stream` exposes no timeout of its own and no handle to set one on;
-/// the Unix variant does.  Elsewhere the deadline is simply absent,
-/// which is the same position this was in before.
-pub fn set_deadlines(stream: &Stream) {
-    set_timeouts(stream, Some(DEADLINE), Some(DEADLINE));
-}
-
-/// Set a connection's read and write timeouts, where they are left
-/// alone when `None`.
-#[cfg(unix)]
-fn set_timeouts(stream: &Stream, read: Option<Duration>, write: Option<Duration>) {
-    use std::os::fd::AsFd;
-
-    let Stream::UdSocket(stream) = stream;
-    let fd = stream.as_fd();
-    let socket = socket2::SockRef::from(&fd);
-    if read.is_some() {
-        let _ = socket.set_read_timeout(read);
-    }
-    if write.is_some() {
-        let _ = socket.set_write_timeout(write);
-    }
-}
-
-#[cfg(not(unix))]
-fn set_timeouts(_stream: &Stream, _read: Option<Duration>, _write: Option<Duration>) {}
 
 /// A connection to a running daemon.
 #[derive(Debug)]
@@ -108,14 +71,7 @@ impl Daemon {
     }
 
     fn open(socket: &Path, until: Option<Instant>) -> Result<Self> {
-        let name = socket.to_fs_name::<GenericFilePath>().map_err(|e| {
-            Error::Daemon(format!(
-                "{} is not a usable socket name: {e}",
-                socket.display()
-            ))
-        })?;
-        let stream = Stream::connect(name)?;
-        set_deadlines(&stream);
+        let stream = link::connect(socket)?;
         let reader = BufReader::new(stream.try_clone()?);
         Ok(Self {
             writer: stream,
@@ -163,7 +119,7 @@ impl Daemon {
             if left.is_zero() {
                 return Err(timed_out());
             }
-            set_timeouts(self.reader.get_ref(), Some(left), None);
+            self.reader.get_ref().set_read_timeout(Some(left))?;
             let mut line = String::new();
             match self.reader.read_line(&mut line) {
                 Ok(0) => return Err(Error::Daemon("it closed the connection".to_owned())),
@@ -412,11 +368,8 @@ mod tests {
     use super::Daemons;
     use super::cadence;
     use super::identity;
+    use crate::server::listen;
     use crate::task::Cadence;
-    use interprocess::local_socket::GenericFilePath;
-    use interprocess::local_socket::ListenerOptions;
-    use interprocess::local_socket::ToFsName as _;
-    use interprocess::local_socket::traits::Listener as _;
     use std::io::Write as _;
     use std::time::Duration;
     use std::time::Instant;
@@ -474,14 +427,7 @@ mod tests {
         let path =
             std::env::temp_dir().join(format!("smartclock-chatter-{}.sock", std::process::id()));
         let _ = std::fs::remove_file(&path);
-        let listener = ListenerOptions::new()
-            .name(
-                path.as_path()
-                    .to_fs_name::<GenericFilePath>()
-                    .expect("a name"),
-            )
-            .create_sync()
-            .expect("listen");
+        let listener = listen(&path).expect("listen");
         std::thread::spawn(move || {
             let Ok(mut stream) = listener.accept() else {
                 return;

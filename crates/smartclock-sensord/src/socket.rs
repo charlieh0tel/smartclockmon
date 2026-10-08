@@ -47,7 +47,7 @@ impl Service for Answers {
     }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use super::Answers;
     use smartclock::client::Daemon;

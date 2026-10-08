@@ -862,10 +862,10 @@ mod socket_tests {
     use smartclock::server::listen;
     use smartclock::server::serve;
 
+    use smartclock::link::Stream;
     use std::io::BufRead;
     use std::io::BufReader;
     use std::io::Write;
-    use std::os::unix::net::UnixStream;
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::sync::Mutex;
@@ -923,8 +923,8 @@ mod socket_tests {
             }
         }
 
-        fn connect(&self) -> UnixStream {
-            let stream = UnixStream::connect(&self.socket).expect("connect");
+        fn connect(&self) -> Stream {
+            let stream = smartclock::link::connect(&self.socket).expect("connect");
             stream
                 .set_read_timeout(Some(Duration::from_secs(5)))
                 .expect("timeout");
@@ -970,7 +970,7 @@ mod socket_tests {
     }
 
     /// The first line the daemon sends that answers `id`.
-    fn reply_to(stream: &UnixStream, id: &str) -> String {
+    fn reply_to(stream: &Stream, id: &str) -> String {
         let mut reader = BufReader::new(stream.try_clone().expect("clone"));
         for _ in 0..50 {
             let mut line = String::new();

@@ -268,10 +268,6 @@ mod tests {
     use super::SCRAPE_BUDGET;
     use super::scrape_all;
     use crate::metrics::render;
-    use interprocess::local_socket::GenericFilePath;
-    use interprocess::local_socket::ListenerOptions;
-    use interprocess::local_socket::ToFsName as _;
-    use interprocess::local_socket::traits::Listener as _;
     use smartclock::client::Daemons;
     use std::collections::BTreeSet;
     use std::path::PathBuf;
@@ -294,15 +290,7 @@ mod tests {
         fn wedged(&self, name: &str) {
             let socket = self.0.join(name).join("socket");
             std::fs::create_dir_all(socket.parent().expect("a parent")).expect("instance");
-            let listener = ListenerOptions::new()
-                .name(
-                    socket
-                        .as_path()
-                        .to_fs_name::<GenericFilePath>()
-                        .expect("a name"),
-                )
-                .create_sync()
-                .expect("listen");
+            let listener = smartclock::server::listen(&socket).expect("listen");
             std::thread::spawn(move || {
                 let held = listener.accept();
                 std::thread::sleep(SCRAPE_BUDGET * 3);

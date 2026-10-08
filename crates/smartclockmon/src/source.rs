@@ -8,6 +8,7 @@
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Write;
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::mpsc::Receiver;
@@ -18,12 +19,10 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use interprocess::local_socket::GenericFilePath;
-use interprocess::local_socket::Stream;
-use interprocess::local_socket::ToFsName as _;
-use interprocess::local_socket::traits::Stream as _;
 use smartclock::attach::attach;
 use smartclock::client;
+use smartclock::link;
+use smartclock::link::Stream;
 use smartclock::session::Config;
 use smartclock::task;
 use smartclock::task::AttachmentId;
@@ -223,7 +222,7 @@ impl Console {
 }
 
 /// The write half of a connection to the daemon.
-type SendHalf = <Stream as interprocess::local_socket::traits::Stream>::SendHalf;
+type SendHalf = Stream;
 
 /// How long to wait before trying the daemon again.
 ///
@@ -318,12 +317,14 @@ pub(crate) fn from_daemon(
 /// daemon sends its current snapshot on connect, and that is the one
 /// that fills the screen at once.
 fn connect_and_ask(socket: &str) -> Result<Handshake> {
-    let mut stream = connect(socket)?;
-    writeln!(stream, r#"{{"v":1,"id":"info","op":{{"kind":"info"}}}}"#)?;
-    stream.flush()?;
+    // Every read bounded, the handshake's included: snapshots arrive at
+    // least every few seconds even with the receiver gone, so silence
+    // for the whole deadline is a daemon not answering.
+    let mut send = link::connect(Path::new(socket))?;
+    writeln!(send, r#"{{"v":1,"id":"info","op":{{"kind":"info"}}}}"#)?;
+    send.flush()?;
 
-    let (recv, send) = stream.split();
-    let mut reader = BufReader::new(recv);
+    let mut reader = BufReader::new(send.try_clone()?);
     let mut database = None;
     let mut policy = Policy::default();
     // Defaults only until the daemon says otherwise; it may have been
@@ -379,26 +380,12 @@ type Handshake = (
 );
 
 /// The buffered read half of a connection to the daemon.
-type Reader = BufReader<<Stream as interprocess::local_socket::traits::Stream>::RecvHalf>;
+type Reader = BufReader<Stream>;
 
 /// How many snapshot lines to read past while waiting for the info
 /// reply.  A handful: the daemon sends the current snapshot on connect
 /// and then one per poll, so the reply arrives almost immediately.
 const MAX_LINES_BEFORE_INFO: usize = 8;
-
-fn connect(socket: &str) -> Result<Stream> {
-    let name = socket
-        .to_fs_name::<GenericFilePath>()
-        .context("naming the socket")?;
-    let stream = Stream::connect(name)?;
-    // Every read bounded, the handshake's included: a daemon that has
-    // accepted and then wedged would otherwise hold the reader for
-    // good, and the monitor would never try again.  Snapshots arrive at
-    // least every few seconds even with the receiver gone, so silence
-    // this long is a daemon not answering.
-    client::set_deadlines(&stream);
-    Ok(stream)
-}
 
 /// Forward snapshots, `early` first, until the daemon hangs up or
 /// stops answering, and say which.
@@ -548,10 +535,7 @@ mod tests {
     use super::Update;
     use super::from_daemon;
     use super::from_device;
-    use interprocess::local_socket::GenericFilePath;
-    use interprocess::local_socket::ListenerOptions;
-    use interprocess::local_socket::ToFsName as _;
-    use interprocess::local_socket::traits::Listener as _;
+    use smartclock::server::listen;
     use smartclock::snapshot::Snapshot;
     use smartclock::task::AttachmentId;
     use smartclock::types::Framing;
@@ -613,14 +597,7 @@ mod tests {
             std::process::id()
         ));
         let _ = std::fs::remove_file(&path);
-        let listener = ListenerOptions::new()
-            .name(
-                path.as_path()
-                    .to_fs_name::<GenericFilePath>()
-                    .expect("a name"),
-            )
-            .create_sync()
-            .expect("listen");
+        let listener = listen(&path).expect("listen");
         let reading = |attachment| {
             let mut snapshot = Snapshot::new(jiff::Timestamp::now());
             snapshot.attachment = attachment;
@@ -659,14 +636,7 @@ mod tests {
             std::process::id()
         ));
         let _ = std::fs::remove_file(&path);
-        let listener = ListenerOptions::new()
-            .name(
-                path.as_path()
-                    .to_fs_name::<GenericFilePath>()
-                    .expect("a name"),
-            )
-            .create_sync()
-            .expect("listen");
+        let listener = listen(&path).expect("listen");
         let snapshot = serde_json::json!({
             "snapshot": Reading::from(&Snapshot::new(jiff::Timestamp::now())),
         });

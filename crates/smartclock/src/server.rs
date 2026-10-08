@@ -1,15 +1,14 @@
-//! Serving the client protocol on a local socket.
+//! Serving the client protocol.
 //!
 //! In the library because more than one service serves it: the
 //! receiver daemon and the sensor service.  Each says what it answers
 //! through [`Service`]; what is here is what every one of them needs
 //! and must not get wrong separately -- a bounded number of clients, a
-//! bounded request line, a write deadline, and a socket only its owner
-//! and group can open.
+//! bounded request line, a write deadline, and one service per socket.
 //!
-//! Authorization is socket permissions and nothing else: systemd's
-//! `RuntimeDirectory` and its mode decide who can open the socket, and
-//! anyone who can may issue whatever the service allows.
+//! There is no authorization beyond who can connect at all, which
+//! [`link`] describes: anyone who can may issue whatever the service
+//! allows.
 
 use std::io::BufRead as _;
 use std::io::BufReader;
@@ -24,16 +23,10 @@ use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
 
-use interprocess::local_socket::GenericFilePath;
-use interprocess::local_socket::Listener;
-use interprocess::local_socket::ListenerOptions;
-use interprocess::local_socket::SendHalf;
-use interprocess::local_socket::Stream;
-use interprocess::local_socket::ToFsName as _;
-use interprocess::local_socket::traits::ListenerExt as _;
-use interprocess::local_socket::traits::Stream as _;
-
 use crate::client;
+use crate::link;
+use crate::link::Listener;
+use crate::link::Stream;
 use crate::protocol::Message;
 use crate::protocol::Protocol;
 use crate::protocol::Request;
@@ -48,8 +41,8 @@ pub const MAX_REQUEST: u64 = 8192;
 
 /// How many clients may be connected at once.
 ///
-/// Each takes a thread or two.  Socket permissions decide who may
-/// connect at all, but nothing stopped one mistaken loop from opening
+/// Each takes a thread or two.  Who may connect at all is decided
+/// elsewhere, but nothing stopped one mistaken loop from opening
 /// connections until the service ran out of threads, and the failure
 /// mode for that used to be a service that looked healthy and could
 /// never be reached again.
@@ -62,7 +55,7 @@ const ACCEPT_BACKOFF: Duration = Duration::from_millis(200);
 
 /// The half of a client's connection the service writes to, shared by
 /// whatever threads write to it.
-pub type Writer = Arc<Mutex<SendHalf>>;
+pub type Writer = Arc<Mutex<Stream>>;
 
 /// What a service answers, and anything it sends unasked.
 pub trait Service: Send + Sync + 'static {
@@ -101,48 +94,11 @@ pub struct Held {
     _closer: Closer,
 }
 
-/// Bind `socket`, owner and group only.
-///
-/// A socket left behind by a crash would otherwise block the bind, so
-/// it is removed -- but only if nothing answers on it.  Removing a live
-/// service's socket left that service running and unreachable, and its
-/// clients reconnecting to this one.  Bound here rather than in the
-/// serving thread, so a failure reaches whoever started the service.
+/// Listen at `socket`, as [`link::listen`] does.  Bound here rather
+/// than in the serving thread, so a failure reaches whoever started the
+/// service.
 pub fn listen(socket: &Path) -> std::io::Result<Listener> {
-    if let Some(parent) = socket.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let name = socket.to_fs_name::<GenericFilePath>()?.into_owned();
-    if Stream::connect(name.clone()).is_ok() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::AddrInUse,
-            format!(
-                "another service is serving {}; stop it first",
-                socket.display()
-            ),
-        ));
-    }
-    let _ = std::fs::remove_file(socket);
-    let listener = ListenerOptions::new().name(name).create_sync()?;
-    // Socket permissions are the whole of the authorization model, so
-    // they are set rather than inherited from whatever umask the
-    // service happened to start with.  Group access is deliberate: it
-    // is how an unprivileged operator runs the monitor.
-    set_socket_mode(socket)?;
-    Ok(listener)
-}
-
-/// Give the socket owner and group access, and nobody else.
-#[cfg(unix)]
-fn set_socket_mode(socket: &Path) -> std::io::Result<()> {
-    use std::os::unix::fs::PermissionsExt as _;
-    std::fs::set_permissions(socket, std::fs::Permissions::from_mode(0o660))
-}
-
-/// Elsewhere the platform decides; there is no portable equivalent.
-#[cfg(not(unix))]
-fn set_socket_mode(_socket: &Path) -> std::io::Result<()> {
-    Ok(())
+    link::listen(socket)
 }
 
 /// Listen for clients until the process ends.  `program` names the
@@ -150,8 +106,8 @@ fn set_socket_mode(_socket: &Path) -> std::io::Result<()> {
 pub fn serve<S: Service>(listener: Listener, program: &'static str, service: Arc<S>) {
     let clients = Arc::new(AtomicUsize::new(0));
     let mut failing = false;
-    for incoming in listener.incoming() {
-        let stream = match incoming {
+    loop {
+        let stream = match listener.accept() {
             Ok(stream) => {
                 failing = false;
                 stream
@@ -212,11 +168,10 @@ pub fn serve<S: Service>(listener: Listener, program: &'static str, service: Arc
 /// Serve one client until it goes away.
 fn talk<S: Service>(stream: Stream, service: &S, slot: Slot) -> std::io::Result<()> {
     let held = Held {
-        _closer: Closer::for_stream(&stream),
+        _closer: Closer::new(&stream),
         _slot: slot,
     };
-    let (recv, send_half) = stream.split();
-    let writer: Writer = Arc::new(Mutex::new(send_half));
+    let writer: Writer = Arc::new(Mutex::new(stream.try_clone()?));
 
     // Tells anything sending unasked to stop when this thread does,
     // however it ends.
@@ -227,7 +182,7 @@ fn talk<S: Service>(stream: Stream, service: &S, slot: Slot) -> std::io::Result<
     let _held = service.connected(&writer, &serving, held)?;
 
     // Capped: an unterminated line would otherwise grow without limit.
-    let mut reader = BufReader::new(recv);
+    let mut reader = BufReader::new(stream);
     let version = S::Op::VERSION;
     loop {
         let mut line = String::new();
@@ -264,12 +219,12 @@ fn talk<S: Service>(stream: Stream, service: &S, slot: Slot) -> std::io::Result<
 
 /// Write one message as a line.
 pub fn write_line<W: Write>(writer: &Mutex<W>, message: &Message) -> std::io::Result<()> {
-    let line = serde_json::to_string(message)?;
+    let mut line = serde_json::to_string(message)?;
+    line.push('\n');
     let mut writer = writer
         .lock()
         .map_err(|_| std::io::Error::other("poisoned writer"))?;
     writer.write_all(line.as_bytes())?;
-    writer.write_all(b"\n")?;
     writer.flush()
 }
 
@@ -288,50 +243,23 @@ impl Drop for Hangup {
 /// Without the deadline a client that stopped reading filled its buffer
 /// and left a writer blocked for good, holding the slot and its
 /// threads.  Without the shutdown a thread sending unasked that ended
-/// left the request thread reading a socket nobody would close.  Unix
-/// only: `interprocess`'s portable stream has neither, and elsewhere
-/// this does nothing.
+/// left the request thread reading a socket nobody would close.
 #[derive(Debug)]
-struct Closer {
-    #[cfg(unix)]
-    socket: Option<socket2::Socket>,
-}
+struct Closer(Option<Stream>);
 
 impl Closer {
-    #[cfg(unix)]
-    fn new(fd: std::os::fd::BorrowedFd<'_>) -> Self {
-        let socket = fd.try_clone_to_owned().ok().map(socket2::Socket::from);
+    fn new(stream: &Stream) -> Self {
+        let socket = stream.try_clone().ok();
         if let Some(socket) = &socket {
             let _ = socket.set_write_timeout(Some(client::DEADLINE));
         }
-        Self { socket }
-    }
-
-    #[cfg(not(unix))]
-    fn new() -> Self {
-        Self {}
-    }
-
-    /// For a stream as the listener hands it over.
-    fn for_stream(stream: &Stream) -> Self {
-        #[cfg(unix)]
-        {
-            use std::os::fd::AsFd as _;
-            let Stream::UdSocket(stream) = stream;
-            Self::new(stream.as_fd())
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = stream;
-            Self::new()
-        }
+        Self(socket)
     }
 }
 
 impl Drop for Closer {
     fn drop(&mut self) {
-        #[cfg(unix)]
-        if let Some(socket) = &self.socket {
+        if let Some(socket) = &self.0 {
             let _ = socket.shutdown(std::net::Shutdown::Both);
         }
     }
@@ -357,7 +285,7 @@ impl Drop for Slot {
     }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use super::Closer;
     use super::MAX_CLIENTS;
@@ -368,14 +296,16 @@ mod tests {
     use crate::protocol::Message;
     use crate::protocol::Protocol;
 
+    use crate::link::Stream;
     use serde::Deserialize;
     use serde::Serialize;
     use std::io::BufRead as _;
     use std::io::BufReader;
     use std::io::Read as _;
     use std::io::Write as _;
-    use std::os::fd::AsFd as _;
-    use std::os::unix::net::UnixStream;
+    use std::net::Ipv4Addr;
+    use std::net::TcpListener;
+    use std::net::TcpStream;
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::thread;
@@ -415,8 +345,8 @@ mod tests {
             Self(socket)
         }
 
-        fn connect(&self) -> UnixStream {
-            let stream = UnixStream::connect(&self.0).expect("connect");
+        fn connect(&self) -> Stream {
+            let stream = crate::link::connect(&self.0).expect("connect");
             stream
                 .set_read_timeout(Some(Duration::from_secs(5)))
                 .expect("timeout");
@@ -430,7 +360,7 @@ mod tests {
         }
     }
 
-    fn first_line(stream: &UnixStream) -> String {
+    fn first_line(stream: &Stream) -> String {
         let mut line = String::new();
         BufReader::new(stream.try_clone().expect("clone"))
             .read_line(&mut line)
@@ -454,18 +384,6 @@ mod tests {
         writeln!(client, r#"{{"v":1,"id":"a","op":{{"kind":"ping"}}}}"#).expect("send");
         let line = first_line(&client);
         assert!(line.contains("speaks protocol 3, not 1"), "{line}");
-    }
-
-    #[test]
-    fn the_socket_is_not_world_accessible() {
-        use std::os::unix::fs::PermissionsExt as _;
-        let running = Running::start("mode");
-        let mode = std::fs::metadata(&running.0)
-            .expect("stat the socket")
-            .permissions()
-            .mode()
-            & 0o777;
-        assert_eq!(mode, 0o660, "the socket is {mode:o}, not 0660");
     }
 
     #[test]
@@ -502,8 +420,11 @@ mod tests {
 
     #[test]
     fn a_client_socket_has_a_write_deadline_and_is_shut_when_its_closer_goes() {
-        let (service_side, mut client_side) = UnixStream::pair().expect("a socket pair");
-        let closer = Closer::new(service_side.as_fd());
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind");
+        let mut client_side =
+            TcpStream::connect(listener.local_addr().expect("an address")).expect("connect");
+        let (service_side, _) = listener.accept().expect("accept");
+        let closer = Closer::new(&Stream::Tcp(service_side.try_clone().expect("clone")));
         assert_eq!(
             service_side.write_timeout().expect("the write timeout"),
             Some(crate::client::DEADLINE)
