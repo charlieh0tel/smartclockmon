@@ -109,8 +109,8 @@ impl Log {
 #[cfg(test)]
 mod tests {
     use super::Log;
-    use crate::sysfs::Interface;
-    use crate::sysfs::parse;
+    use crate::sensor::Name;
+    use crate::sensor::Quantity;
     use jiff::Timestamp;
     use smartclock_log::error::Error;
     use smartclock_log::sensors::SensorLog;
@@ -147,21 +147,22 @@ mod tests {
     fn what_is_written_is_what_the_readers_read() {
         let scratch = Scratch::new("round");
         let log = Log::open(&scratch.0, Duration::from_secs(10)).expect("open");
-        let sensor = parse(Interface::Hwmon, "room=/sys/x/temp1_input").expect("parse");
-        let id = log.sensor_id(&sensor.name, sensor.quantity).expect("id");
+        let name = Name::new("room").expect("a name");
+        let source = "/sys/x/temp1_input";
+        let id = log.sensor_id(&name, Quantity::Temperature).expect("id");
         assert_eq!(
-            log.sensor_id(&sensor.name, sensor.quantity)
+            log.sensor_id(&name, Quantity::Temperature)
                 .expect("the same id"),
             id
         );
         let t0 = Timestamp::from_second(1_791_000_000).expect("a time");
-        log.note_source(id, t0, &sensor.source, Some("sht4x"))
+        log.note_source(id, t0, source, Some("sht4x"))
             .expect("source");
         // The same again is not a new row; a new device is.
-        log.note_source(id, t0, &sensor.source, Some("sht4x"))
+        log.note_source(id, t0, source, Some("sht4x"))
             .expect("same");
         let t1 = Timestamp::from_second(1_791_000_010).expect("a time");
-        log.note_source(id, t1, &sensor.source, Some("lm75"))
+        log.note_source(id, t1, source, Some("lm75"))
             .expect("changed");
         for (n, t) in [t0, t1].into_iter().enumerate() {
             log.record(id, t, 21.0 + n as f64).expect("a reading");

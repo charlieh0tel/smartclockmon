@@ -27,6 +27,7 @@ use smartclock::sensors::Latest;
 use smartclock::sensors::Reading;
 use smartclock_log::error::Error as LogError;
 use smartclock_sensord::log::Log;
+use smartclock_sensord::platform;
 use smartclock_sensord::sensor::ConfigError;
 use smartclock_sensord::sensor::Name;
 use smartclock_sensord::sensor::Quantity;
@@ -34,8 +35,6 @@ use smartclock_sensord::sensor::Source;
 use smartclock_sensord::sensor::check_distinct;
 use smartclock_sensord::socket::Answers;
 use smartclock_sensord::socket::Shared;
-use smartclock_sensord::sysfs;
-use smartclock_sensord::sysfs::Interface;
 use smartclock_sensord::temper;
 
 /// The exit status for a configuration no retry can fix, which the unit
@@ -51,28 +50,9 @@ const LONGEST_EVERY: f64 = 86_400.0;
 #[derive(Debug, Parser)]
 #[command(version = smartclock::VERSION)]
 struct Cli {
-    /// A hwmon sensor, NAME=PATH: its `temp<N>_input` or
-    /// `humidity<N>_input` file.  The directory may be a glob matching
-    /// one directory, or go through a symlink.  Repeatable; the
-    /// environment form is comma-separated.
-    #[arg(
-        long,
-        env = "SMARTCLOCK_SENSORD_HWMON",
-        value_delimiter = ',',
-        value_name = "NAME=PATH"
-    )]
-    hwmon: Vec<String>,
-
-    /// An IIO sensor, NAME=CHANNEL: the channel's path less its suffix,
-    /// such as `/sys/bus/iio/devices/iio:device0/in_temp`.  As --hwmon
-    /// otherwise.
-    #[arg(
-        long,
-        env = "SMARTCLOCK_SENSORD_IIO",
-        value_delimiter = ',',
-        value_name = "NAME=CHANNEL"
-    )]
-    iio: Vec<String>,
+    /// This platform's own sensors.
+    #[command(flatten)]
+    platform: platform::Args,
 
     /// A `TEMPerGold` or `TEMPerHUM` USB stick, NAME or NAME=PATH:
     /// with a path, the stick at that hidraw node (Windows: HID device
@@ -166,31 +146,20 @@ impl Sinks<'_> {
     }
 }
 
-/// The command line, offering only what this platform has: hwmon and
-/// IIO where there is a sysfs, and where there are no Unix sockets no
+/// The command line, where there are no Unix sockets offering no
 /// socket, but a TCP address listened on by default.
 fn parse() -> Cli {
-    let mut command = Cli::command();
-    if !sysfs::PRESENT {
-        for arg in ["hwmon", "iio"] {
-            command = command.mut_arg(arg, |arg| arg.hide(true).value_parser(no_sysfs));
-        }
-    }
-    if let Some(address) = SENSOR_LISTEN {
-        command = command
+    let command = match SENSOR_LISTEN {
+        None => Cli::command(),
+        Some(address) => Cli::command()
             .mut_arg("socket", |arg| {
                 arg.hide(true)
                     .default_value(None)
                     .value_parser(smartclock::link::no_unix_sockets)
             })
-            .mut_arg("listen", |arg| arg.default_value(address));
-    }
+            .mut_arg("listen", |arg| arg.default_value(address)),
+    };
     Cli::from_arg_matches(&command.get_matches()).unwrap_or_else(|e| e.exit())
-}
-
-/// Refuses a sysfs sensor, where there is no sysfs.
-fn no_sysfs(_: &str) -> Result<String, String> {
-    Err("hwmon and IIO are Linux's, and there are none here".to_owned())
 }
 
 fn main() {
@@ -209,19 +178,13 @@ fn refuse(why: impl Display) -> ! {
 
 /// Every source the command line names.
 fn sources(cli: &Cli) -> Result<Vec<Box<dyn Source>>, ConfigError> {
-    let sysfs = cli
-        .hwmon
-        .iter()
-        .map(|spec| (Interface::Hwmon, spec))
-        .chain(cli.iio.iter().map(|spec| (Interface::Iio, spec)))
-        .map(|(interface, spec)| {
-            sysfs::parse(interface, spec).map(|channel| Box::new(channel) as Box<dyn Source>)
-        });
     let sticks = cli
         .temper
         .iter()
         .map(|spec| temper::parse(spec).map(|stick| Box::new(stick) as Box<dyn Source>));
-    sysfs.chain(sticks).collect()
+    let mut sources = platform::sources(&cli.platform)?;
+    sources.extend(sticks.collect::<Result<Vec<_>, _>>()?);
+    Ok(sources)
 }
 
 fn run(cli: Cli) -> Result<()> {

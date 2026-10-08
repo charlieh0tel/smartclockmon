@@ -1,8 +1,7 @@
 //! Sensors as Linux's kernel presents them, through its two interfaces
 //! for them, hwmon and IIO, so nothing here knows the part behind one.
 //!
-//! Only files are read, so this builds anywhere; the command line
-//! offers it only where [`PRESENT`].  The units are the kernel's
+//! Built on Linux alone, as part of `platform::linux`.  The units are the kernel's
 //! (`Documentation/ABI/testing/sysfs-class-hwmon` and `sysfs-bus-iio`),
 //! and a reading is converted to the unit stored: degrees C, percent
 //! relative humidity, kilopascals.
@@ -16,9 +15,6 @@ use crate::sensor::Name;
 use crate::sensor::Quantity;
 use crate::sensor::ReadError;
 use crate::sensor::Source;
-
-/// Whether there is a sysfs to read: on Linux, and nowhere else.
-pub const PRESENT: bool = cfg!(target_os = "linux");
 
 /// Characters that make a path a glob.
 const GLOB: [char; 3] = ['*', '?', '['];
@@ -44,7 +40,7 @@ fn iio_type(quantity: Quantity) -> &'static str {
 
 /// Which of the kernel's interfaces a sensor is read through.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Interface {
+pub(super) enum Interface {
     /// `/sys/class/hwmon`: one `*_input` file per reading.
     Hwmon,
     /// `/sys/bus/iio`: a channel, read from its `_input`, or from its
@@ -54,21 +50,21 @@ pub enum Interface {
 
 /// One configured sysfs sensor.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Channel {
+pub(super) struct Channel {
     /// What it is called.
-    pub name: Name,
+    name: Name,
     /// What it measures, from the kernel's file name.
-    pub quantity: Quantity,
+    quantity: Quantity,
     /// How it is read.
-    pub interface: Interface,
+    interface: Interface,
     /// The path as configured: for hwmon a `*_input` file, for IIO a
     /// channel's path less its suffix.  Its directory may be a glob or
     /// go through symlinks; its last component is literal.
-    pub source: String,
+    source: String,
 }
 
 /// Parse a sensor configured as `NAME=PATH` for `interface`.
-pub fn parse(interface: Interface, spec: &str) -> Result<Channel, ConfigError> {
+pub(super) fn parse(interface: Interface, spec: &str) -> Result<Channel, ConfigError> {
     let (name, source) = spec
         .split_once('=')
         .filter(|(_, path)| !path.is_empty())
@@ -404,35 +400,33 @@ mod tests {
     #[test]
     fn iio_prefers_input_then_raw_offset_and_scale_falling_back_to_the_type() {
         let tree = Tree::new("iio");
-        // Not `iio:device0`: Windows allows no colon in a file name, and
-        // only the channel's own name means anything here.
         let sensor = |channel: &str| {
             parse(
                 Interface::Iio,
-                &format!("bench={}", tree.path(&format!("iio_device0/{channel}"))),
+                &format!("bench={}", tree.path(&format!("iio:device0/{channel}"))),
             )
             .expect("parse")
         };
         // Processed.
-        tree.file("iio_device0/in_temp_input", "22500");
+        tree.file("iio:device0/in_temp_input", "22500");
         assert!(close(read(&sensor("in_temp")).expect("read"), 22.5));
         // Raw with the channel's own scale and offset.
-        tree.file("iio_device0/in_temp0_raw", "2880")
-            .file("iio_device0/in_temp0_scale", "7.8125")
-            .file("iio_device0/in_temp0_offset", "10");
+        tree.file("iio:device0/in_temp0_raw", "2880")
+            .file("iio:device0/in_temp0_scale", "7.8125")
+            .file("iio:device0/in_temp0_offset", "10");
         assert!(close(
             read(&sensor("in_temp0")).expect("read"),
             2.89 * 7.8125
         ));
         // Raw with the type's scale and no offset.
-        tree.file("iio_device0/in_temp1_raw", "100")
-            .file("iio_device0/in_temp_scale", "250");
+        tree.file("iio:device0/in_temp1_raw", "100")
+            .file("iio:device0/in_temp_scale", "250");
         assert!(close(read(&sensor("in_temp1")).expect("read"), 25.0));
         // Pressure is in kilopascals already.
-        tree.file("iio_device0/in_pressure_input", "101.325");
+        tree.file("iio:device0/in_pressure_input", "101.325");
         assert!(close(read(&sensor("in_pressure")).expect("read"), 101.325));
         // Raw without a scale is not a reading.
-        tree.file("iio_device0/in_humidityrelative_raw", "5");
+        tree.file("iio:device0/in_humidityrelative_raw", "5");
         assert!(matches!(
             read(&sensor("in_humidityrelative")),
             Err(ReadError::Missing(_))
@@ -462,7 +456,6 @@ mod tests {
         assert!(matches!(read(&gone), Err(ReadError::Missing(_))));
     }
 
-    #[cfg(unix)]
     #[test]
     fn a_symlinked_directory_is_followed_on_every_read() {
         let tree = Tree::new("link");

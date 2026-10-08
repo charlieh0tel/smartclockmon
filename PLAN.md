@@ -149,7 +149,8 @@ not change the wire format.
   offers no hwmon or IIO.  `smartclock::defaults` holds where things are
   on each, `smartclock::link`'s `unix.rs` and `windows.rs` how a
   connection is made, `smartclockd::stop` how the daemon is stopped,
-  and `smartclock_sensord::sysfs::PRESENT` whether there is a sysfs.
+  and `smartclock_sensord::platform`'s `linux.rs` and `other.rs` which
+  sensors there are beyond TEMPer sticks.
   Windows named pipes were tried and dropped: they have no read or
   write timeout, and a daemon that accepts and then wedges must not
   hold its client.

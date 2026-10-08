@@ -3,7 +3,7 @@
 //! the design.
 
 pub mod log;
+pub mod platform;
 pub mod sensor;
 pub mod socket;
-pub mod sysfs;
 pub mod temper;
