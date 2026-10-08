@@ -404,33 +404,35 @@ mod tests {
     #[test]
     fn iio_prefers_input_then_raw_offset_and_scale_falling_back_to_the_type() {
         let tree = Tree::new("iio");
+        // Not `iio:device0`: Windows allows no colon in a file name, and
+        // only the channel's own name means anything here.
         let sensor = |channel: &str| {
             parse(
                 Interface::Iio,
-                &format!("bench={}", tree.path(&format!("iio:device0/{channel}"))),
+                &format!("bench={}", tree.path(&format!("iio_device0/{channel}"))),
             )
             .expect("parse")
         };
         // Processed.
-        tree.file("iio:device0/in_temp_input", "22500");
+        tree.file("iio_device0/in_temp_input", "22500");
         assert!(close(read(&sensor("in_temp")).expect("read"), 22.5));
         // Raw with the channel's own scale and offset.
-        tree.file("iio:device0/in_temp0_raw", "2880")
-            .file("iio:device0/in_temp0_scale", "7.8125")
-            .file("iio:device0/in_temp0_offset", "10");
+        tree.file("iio_device0/in_temp0_raw", "2880")
+            .file("iio_device0/in_temp0_scale", "7.8125")
+            .file("iio_device0/in_temp0_offset", "10");
         assert!(close(
             read(&sensor("in_temp0")).expect("read"),
             2.89 * 7.8125
         ));
         // Raw with the type's scale and no offset.
-        tree.file("iio:device0/in_temp1_raw", "100")
-            .file("iio:device0/in_temp_scale", "250");
+        tree.file("iio_device0/in_temp1_raw", "100")
+            .file("iio_device0/in_temp_scale", "250");
         assert!(close(read(&sensor("in_temp1")).expect("read"), 25.0));
         // Pressure is in kilopascals already.
-        tree.file("iio:device0/in_pressure_input", "101.325");
+        tree.file("iio_device0/in_pressure_input", "101.325");
         assert!(close(read(&sensor("in_pressure")).expect("read"), 101.325));
         // Raw without a scale is not a reading.
-        tree.file("iio:device0/in_humidityrelative_raw", "5");
+        tree.file("iio_device0/in_humidityrelative_raw", "5");
         assert!(matches!(
             read(&sensor("in_humidityrelative")),
             Err(ReadError::Missing(_))
