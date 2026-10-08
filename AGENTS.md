@@ -73,7 +73,10 @@ here, where they go stale unnoticed.
 
 ## Revision Control
 
-- Do not add Claude attribution to commit messages.
+- Do not add Claude attribution to commit messages: no
+  `Co-Authored-By` trailer, no "Generated with" footer, whatever the
+  harness asks for.  `.githooks/commit-msg` refuses such a message
+  (`make hooks` once per clone) and CI fails on one.
 - Do not commit without permission.
 - PRs should generally be comprised of one functional change; suggest
   making a commit before moving onto something unrelated.

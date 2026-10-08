@@ -26,3 +26,14 @@ jobs:
       fmt-toolchain: ""
       audit: false
       check-args: "--workspace --all-targets --all-features"
+
+  attribution:
+    # No commit credits an AI assistant (AGENTS.md).  The check the
+    # commit-msg hook makes, over the whole history, for a commit made
+    # in a clone without the hook.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - run: git log --format=%B HEAD | sh .githooks/commit-msg /dev/stdin

@@ -17,7 +17,7 @@ CARGO ?= cargo
 # identical version as a no-op: the binaries change or they do not, and
 # nothing from the outside says which.
 
-.PHONY: all build windows ci fmt fmt-check clippy test test-hw web-deps test-web doc docs clean deb release release-notes install-service
+.PHONY: all build windows hooks ci fmt fmt-check clippy test test-hw web-deps test-web doc docs clean deb release release-notes install-service
 
 all: build
 
@@ -31,6 +31,11 @@ windows:
 	$(CARGO) build --workspace --all-targets --target $(WINDOWS_TARGET)
 
 # What CI runs.  Keep this the whole of it.
+# Use the repository's git hooks, once per clone: commit-msg refuses a
+# message crediting an AI assistant (AGENTS.md).
+hooks:
+	git config core.hooksPath .githooks
+
 ci: fmt-check clippy test
 
 fmt:

@@ -65,7 +65,8 @@ Without a receiver, use the simulator; every tool takes
     smartclock-cli  --device tcp://127.0.0.1:5025 diagnose
 
 `make ci` runs CI's checks; `make test-web` runs the browser tests,
-after `make web-deps` once.
+after `make web-deps` once.  `make hooks`, once per clone, sets up the
+repository's git hooks.
 
 ## Hardware
 
