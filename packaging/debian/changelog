@@ -1,3 +1,15 @@
+smartclockmon (1.5.1-1) unstable; urgency=low
+
+  * smartclock-cli join-chips puts a flash image together from the four
+    AM29F010 chip dumps of a Z3801A, Z3805A or 58503A, named by their
+    labels, and split-chips takes one apart for programming the parts.
+    Swapped pairs or lanes are caught and named.
+  * The correlation page draws a sensor read less often than its
+    buckets are wide as a line; at a fine zoom it drew nothing, though
+    hovering still read the values.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Thu, 08 Oct 2026 16:08:28 -0700
+
 smartclockmon (1.5.0-1) unstable; urgency=low
 
   * Every timestamp in the logs is stored as integer nanoseconds since
