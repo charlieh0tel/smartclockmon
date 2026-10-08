@@ -45,6 +45,7 @@ use signal_hook::consts::SIGTERM;
 use signal_hook::iterator::Signals;
 use smartclock::attach::attach;
 use smartclock::command::Dialect;
+use smartclock::defaults::LOG_DIR;
 use smartclock::device::Device;
 use smartclock::session::Config;
 use smartclock::snapshot::Freshness;
@@ -91,7 +92,7 @@ struct Cli {
     #[arg(
         long,
         env = "SMARTCLOCKD_LOG_DIR",
-        default_value = "/var/lib/smartclockd"
+        default_value = LOG_DIR
     )]
     log_dir: PathBuf,
 

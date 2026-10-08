@@ -15,13 +15,13 @@ use anyhow::Context as _;
 use anyhow::Result;
 use clap::Parser;
 use jiff::Timestamp;
+use smartclock::defaults::SENSOR_LOG;
+use smartclock::defaults::SENSOR_SOCKET;
 use smartclock::sensors::DEFAULT_EVERY_S;
-use smartclock::sensors::DEFAULT_SOCKET;
 use smartclock::sensors::Info;
 use smartclock::sensors::Latest;
 use smartclock::sensors::Reading;
 use smartclock_log::error::Error as LogError;
-use smartclock_log::sensors::DEFAULT_LOG;
 use smartclock_sensord::log::Log;
 use smartclock_sensord::sensor;
 use smartclock_sensord::sensor::Interface;
@@ -70,11 +70,11 @@ struct Cli {
     every: f64,
 
     /// The log.
-    #[arg(long, env = "SMARTCLOCK_SENSORD_LOG", default_value = DEFAULT_LOG)]
+    #[arg(long, env = "SMARTCLOCK_SENSORD_LOG", default_value = SENSOR_LOG)]
     log: PathBuf,
 
     /// Where clients connect.
-    #[arg(long, env = "SMARTCLOCK_SENSORD_SOCKET", default_value = DEFAULT_SOCKET)]
+    #[arg(long, env = "SMARTCLOCK_SENSORD_SOCKET", default_value = SENSOR_SOCKET)]
     socket: PathBuf,
 }
 

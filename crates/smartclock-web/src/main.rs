@@ -27,9 +27,12 @@ use jiff::Timestamp;
 use smartclock::client;
 use smartclock::client::Daemon;
 use smartclock::client::Daemons;
+use smartclock::defaults::LOG_DIR;
+use smartclock::defaults::RUN_DIR;
+use smartclock::defaults::SENSOR_LOG;
+use smartclock::defaults::SENSOR_SOCKET;
 use smartclock::parse::Identity;
 use smartclock::protocol::Op;
-use smartclock::sensors::DEFAULT_SOCKET;
 use smartclock_http::Response;
 use smartclock_log::reader::Journal;
 use smartclock_log::reader::Log;
@@ -37,7 +40,6 @@ use smartclock_log::reader::MAX_PHASE_ROWS;
 use smartclock_log::reader::Receiver;
 use smartclock_log::schema::PLOTTABLE;
 use smartclock_log::schema::measured;
-use smartclock_log::sensors::DEFAULT_LOG;
 use smartclock_log::sensors::SensorLog;
 
 /// The page, built in rather than read from disk: one file to install,
@@ -82,7 +84,7 @@ struct Cli {
     #[arg(
         long,
         env = "SMARTCLOCK_WEB_RUN_DIR",
-        default_value = "/run/smartclockd"
+        default_value = RUN_DIR
     )]
     run_dir: PathBuf,
 
@@ -95,7 +97,7 @@ struct Cli {
     #[arg(
         long,
         env = "SMARTCLOCK_WEB_LOG_DIR",
-        default_value = "/var/lib/smartclockd"
+        default_value = LOG_DIR
     )]
     log_dir: PathBuf,
 
@@ -115,11 +117,11 @@ struct Cli {
 
     /// The sensor service's log, for the sensors' history.  Opened
     /// read-only; a host without one shows no sensors.
-    #[arg(long, env = "SMARTCLOCK_WEB_SENSOR_LOG", default_value = DEFAULT_LOG)]
+    #[arg(long, env = "SMARTCLOCK_WEB_SENSOR_LOG", default_value = SENSOR_LOG)]
     sensor_log: PathBuf,
 
     /// The sensor service's socket, for the sensors' latest readings.
-    #[arg(long, env = "SMARTCLOCK_WEB_SENSOR_SOCKET", default_value = DEFAULT_SOCKET)]
+    #[arg(long, env = "SMARTCLOCK_WEB_SENSOR_SOCKET", default_value = SENSOR_SOCKET)]
     sensor_socket: PathBuf,
 }
 

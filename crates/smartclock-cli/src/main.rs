@@ -30,12 +30,12 @@ use smartclock::console;
 use smartclock::console::Progress;
 use smartclock::console::Region;
 use smartclock::control::forbidden;
+use smartclock::defaults::SENSOR_SOCKET;
 use smartclock::device::Device;
 use smartclock::device::dialect_for;
 use smartclock::error::Error;
 use smartclock::parse;
 use smartclock::rollover::ReceiverDate;
-use smartclock::sensors::DEFAULT_SOCKET;
 use smartclock::session::Config;
 use smartclock::session::Session;
 use smartclock::transport;
@@ -192,7 +192,7 @@ enum Command {
     /// smartclock-sensord.  Needs neither a receiver nor its daemon.
     Sensors {
         /// The sensor service's socket.
-        #[arg(long, default_value = DEFAULT_SOCKET)]
+        #[arg(long, default_value = SENSOR_SOCKET)]
         sensor_socket: PathBuf,
     },
 }

@@ -25,9 +25,6 @@ use crate::reader::text_bound;
 /// service refuses a log of a later version; the readers accept any.
 pub const VERSION: i64 = 1;
 
-/// Where the service keeps its log unless told otherwise.
-pub const DEFAULT_LOG: &str = "/var/lib/smartclock-sensord/sensors.sqlite";
-
 /// The tables, as of [`VERSION`], each `IF NOT EXISTS`.
 pub const TABLES: &str = r#"
     -- One row per sensor: a name and what it measures, together, so a

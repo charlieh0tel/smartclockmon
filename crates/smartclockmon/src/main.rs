@@ -26,7 +26,7 @@ use crossterm::event::KeyModifiers;
 
 use crate::app::App;
 use smartclock::client::Daemon;
-use smartclock::sensors::DEFAULT_SOCKET;
+use smartclock::defaults::SENSOR_SOCKET;
 use smartclock::types::Framing;
 
 use crate::app::View;
@@ -57,7 +57,7 @@ struct Cli {
 
     /// The sensor service's socket, for the host's sensors in the
     /// header.  A host without the service shows none.
-    #[arg(long, default_value = DEFAULT_SOCKET)]
+    #[arg(long, default_value = SENSOR_SOCKET)]
     sensor_socket: PathBuf,
 }
 

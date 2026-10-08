@@ -19,9 +19,6 @@ pub const VERSION: u32 = 1;
 /// seconds: the receivers' medium tier.
 pub const DEFAULT_EVERY_S: f64 = 10.0;
 
-/// Where the service answers unless told otherwise.
-pub const DEFAULT_SOCKET: &str = "/run/smartclock-sensord/socket";
-
 /// How many read periods without a reading make a sensor's last
 /// reading too old to show as current, and a gap in its history worth
 /// breaking a line at.
