@@ -743,3 +743,17 @@ test("a length typed over a fixed range makes it the moving range of that length
   await expect.poll(() => new URL(page.url()).searchParams.get("last")).toBe("21600");
   expect(new URL(page.url()).searchParams.has("from")).toBe(false);
 });
+
+test("a sensor read less often than the buckets are wide is still drawn as a line", async ({ page }) => {
+  // The fake's sensors are read every fourth recorded time, so most
+  // buckets are empty; the line must run across them, not vanish.
+  await withSensors().install(page);
+  await page.goto(`/correlation?receiver=${B}&last=all&x=sensor:temperature:room`);
+  await page.waitForFunction(() => timeCharts.length === 2);
+  const drawn = await page.evaluate(() => {
+    const ys = timeCharts[1].data[1];
+    return { points: ys.length, missing: ys.filter((v) => v == null).length };
+  });
+  expect(drawn.points).toBeGreaterThan(1);
+  expect(drawn.missing).toBe(0);
+});

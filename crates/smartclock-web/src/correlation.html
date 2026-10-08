@@ -200,13 +200,22 @@ async function correlationWindow(signal) {
   return { from, to, points, width: (to - from + 1) / points };
 }
 
-// Values at times put in their buckets: an array a bucket long, null
-// where a bucket has nothing.
+// A grid with nothing in any bucket.
+const emptyGrid = (win) => new Array(win.points).fill(undefined);
+
+// Values at times put in their buckets: an array a bucket long,
+// undefined where a bucket has nothing, and null where the server
+// marked a gap.  The statistics treat both alike; the time charts join
+// a line across an empty bucket and break it at a gap, since a sensor
+// read every ten seconds leaves every other bucket empty at a fine zoom
+// without anything being missing.
 function bucketed(at, values, win) {
-  const grid = new Array(win.points).fill(null);
+  const grid = emptyGrid(win);
   at.forEach((t, i) => {
     const bucket = Math.floor((t - win.from) / win.width);
-    if (values[i] != null && bucket >= 0 && bucket < win.points) grid[bucket] = values[i];
+    if (bucket < 0 || bucket >= win.points) return;
+    if (values[i] != null) grid[bucket] = values[i];
+    else if (grid[bucket] === undefined) grid[bucket] = null;
   });
   return grid;
 }
@@ -220,13 +229,13 @@ async function measureOver(measure, win, signal) {
       signal,
     );
     const line = lines.find((l) => l.name === measure.from.sensor);
-    return line ? bucketed(line.at, line.values, win) : new Array(win.points).fill(null);
+    return line ? bucketed(line.at, line.values, win) : emptyGrid(win);
   }
   const q = new URLSearchParams({ receiver: measure.from.receiver, columns: measure.from.column, ...span });
   if (lockedOnly) q.set("locked", "1");
   const got = await ask("/api/history?" + q, signal);
   const plot = got.plots.find((p) => p.column === measure.from.column);
-  return plot ? bucketed(got.at, scaled(plot.mean, measure.from.column), win) : new Array(win.points).fill(null);
+  return plot ? bucketed(got.at, scaled(plot.mean, measure.from.column), win) : emptyGrid(win);
 }
 
 // ---------------------------------------------------------------- charts
@@ -254,6 +263,9 @@ function drawTime(win, x, y, xs, ys) {
   const ySize = stackWidth(fits);
   const at = timeOf(win);
   lines.forEach(([m, values, color], place) => {
+    // Only the buckets holding a reading or a gap, so the line runs on
+    // across empty ones.
+    const kept = values.flatMap((v, i) => (v === undefined ? [] : [i]));
     const host = document.createElement("div");
     $("time-charts").appendChild(host);
     const chart = ranged(new uPlot(
@@ -272,7 +284,7 @@ function drawTime(win, x, y, xs, ys) {
         cursor: { drag: { x: true, y: false }, sync: { key: SYNC.key, setSeries: false } },
         hooks: TIME_HOOKS,
       },
-      [at, values],
+      [kept.map((i) => at[i]), kept.map((i) => values[i])],
       host,
     ));
     timeCharts.push(chart);
