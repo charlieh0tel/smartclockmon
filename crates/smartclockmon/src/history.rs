@@ -11,6 +11,7 @@ use anyhow::Result;
 use smartclock::adev::Curve;
 use smartclock_log::reader;
 use smartclock_log::reader::MAX_PHASE_ROWS;
+use smartclock_log::reader::Modes;
 use smartclock_log::reader::Receiver;
 use smartclock_log::sensors::SensorLog;
 
@@ -350,9 +351,14 @@ impl Log {
     pub(crate) fn read(&self, receiver: i64, window: Window, columns: usize) -> Result<History> {
         let now = jiff::Timestamp::now().as_second();
         let asked = GRAPHED.map(str::to_owned);
-        let series = self
-            .0
-            .series(receiver, &asked, now - window.seconds(), now, columns)?;
+        let series = self.0.series(
+            receiver,
+            &asked,
+            now - window.seconds(),
+            now,
+            columns,
+            Modes::Every,
+        )?;
         let mut traces = [Trace::default(), Trace::default(), Trace::default()];
         for (trace, plot) in traces.iter_mut().zip(&series.plots) {
             for (n, &at) in series.at.iter().enumerate() {

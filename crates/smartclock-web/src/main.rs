@@ -41,6 +41,7 @@ use smartclock_http::Response;
 use smartclock_log::reader::Journal;
 use smartclock_log::reader::Log;
 use smartclock_log::reader::MAX_PHASE_ROWS;
+use smartclock_log::reader::Modes;
 use smartclock_log::reader::Receiver;
 use smartclock_log::schema::PLOTTABLE;
 use smartclock_log::schema::measured;
@@ -688,7 +689,8 @@ const DEFAULT_POINTS: usize = 1500;
 /// How much history a request that does not say gets.
 const DEFAULT_WINDOW: i64 = 3600;
 
-/// `?columns=efc_percent,temperature_c&from=...&to=...&points=1500`
+/// `?columns=efc_percent,temperature_c&from=...&to=...&points=1500`,
+/// and `&locked=1` for only the readings taken while locked to GPS.
 ///
 /// Absolute unix times rather than a named window, so the page can ask
 /// for whatever range it has zoomed to.  Several columns rather than
@@ -698,6 +700,7 @@ const DEFAULT_WINDOW: i64 = 3600;
 fn series(logs: &Logs, query: &str) -> Result<serde_json::Value> {
     let mut columns: Vec<String> = Vec::new();
     let (mut from, mut to, mut points) = (None, None, DEFAULT_POINTS);
+    let mut modes = Modes::Every;
     for (key, value) in smartclock_http::pairs(query) {
         match key {
             // Split after decoding, not before: a `+` is a space by
@@ -712,6 +715,7 @@ fn series(logs: &Logs, query: &str) -> Result<serde_json::Value> {
             "from" => from = value.parse::<i64>().ok(),
             "to" => to = value.parse::<i64>().ok(),
             "points" => points = value.parse().unwrap_or(DEFAULT_POINTS),
+            "locked" if value == "1" => modes = Modes::Locked,
             _ => {}
         }
     }
@@ -734,7 +738,7 @@ fn series(logs: &Logs, query: &str) -> Result<serde_json::Value> {
     // rather than the JSON error this function promises.
     let from = from.unwrap_or_else(|| to.saturating_sub(DEFAULT_WINDOW));
 
-    let series = log.series(receiver, &columns, from, to, points)?;
+    let series = log.series(receiver, &columns, from, to, points, modes)?;
     Ok(serde_json::json!({
         "from": from,
         "to": to,

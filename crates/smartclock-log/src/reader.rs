@@ -26,6 +26,7 @@ use smartclock::adev::Curve;
 use smartclock::adev::MAX_SAMPLES;
 use smartclock::snapshot::Tier;
 use smartclock::task::Cadence;
+use smartclock::types::SmartClockMode;
 
 use crate::error::Error;
 use crate::error::Result;
@@ -73,6 +74,18 @@ pub(crate) const MAX_POINTS: usize = 5000;
 /// seconds at an hour and hours at a month, which is the right shape,
 /// because what counts as a gap is relative to what is being looked at.
 pub(crate) const GAP_BUCKETS: i64 = 4;
+
+/// Which rows a series is made of.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Modes {
+    /// Every row the fast tier measured.
+    Every,
+    /// Only rows taken while the receiver was locked to GPS.  In
+    /// holdover the EFC is frozen, and in recovery and at power-up the
+    /// loop is slewing it, so a comparison of the EFC with anything
+    /// else is about the oscillator only while locked.
+    Locked,
+}
 
 /// The most of each journal stream one read returns.
 const MAX_JOURNAL: usize = 500;
@@ -405,7 +418,8 @@ impl Log {
     /// expressions.
     ///
     /// Only rows the fast tier measured are counted, and a slower
-    /// tier's column only while that tier's value is current.
+    /// tier's column only while that tier's value is current, and of
+    /// those only the ones `modes` admits.
     pub fn series(
         &self,
         receiver: i64,
@@ -413,6 +427,7 @@ impl Log {
         from: i64,
         to: i64,
         points: usize,
+        modes: Modes,
     ) -> Result<Series> {
         if columns.is_empty() {
             return Err(Error::Request("no columns asked for".to_owned()));
@@ -465,6 +480,7 @@ impl Log {
                -- ran them together would draw a step between two
                -- oscillators as though one had moved.
                AND receiver_id = ?5
+               AND (?6 IS NULL OR mode = ?6)
              GROUP BY bucket
              ORDER BY at"
         );
@@ -479,7 +495,12 @@ impl Log {
                 max: Vec::new(),
             })
             .collect();
-        let mut rows = statement.query((from, to, points, span, receiver))?;
+        // The mode as the daemon writes it.
+        let mode = match modes {
+            Modes::Every => None,
+            Modes::Locked => Some(format!("{:?}", SmartClockMode::Locked)),
+        };
+        let mut rows = statement.query((from, to, points, span, receiver, mode))?;
         let mut previous: Option<i64> = None;
         let bucket_width = (span as f64 + 1.0) / points as f64;
         while let Some(row) = rows.next()? {

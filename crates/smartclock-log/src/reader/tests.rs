@@ -6,6 +6,7 @@ use rusqlite::Connection;
 
 use super::Log;
 use super::MAX_PHASE_ROWS;
+use super::Modes;
 use super::Series;
 use crate::schema::META;
 use crate::schema::TABLES;
@@ -293,8 +294,12 @@ fn a_plot_shows_one_receiver_and_not_the_other() {
         let (fb, lb) = log.extent(2).expect("B's extent");
         (fa.min(fb) as i64, la.max(lb) as i64)
     };
-    let a = log.series(1, &columns, first, last, 100).expect("unit A");
-    let b = log.series(2, &columns, first, last, 100).expect("unit B");
+    let a = log
+        .series(1, &columns, first, last, 100, Modes::Every)
+        .expect("unit A");
+    let b = log
+        .series(2, &columns, first, last, 100, Modes::Every)
+        .expect("unit B");
     // The window spans both units' days, so each one's two rows fall in
     // a single bucket: the mean of that bucket is the test.
     // Contamination could not hide in it -- mixing A's 10 and 11 with
@@ -316,7 +321,10 @@ fn a_column_not_plottable_is_refused() {
     let scratch = two_units("refused");
     let log = Log::open(scratch.path()).expect("open");
     let asked = vec!["efc_percent); DROP TABLE snapshot; --".to_owned()];
-    assert!(log.series(1, &asked, 0, 2_000_000_000, 100).is_err());
+    assert!(
+        log.series(1, &asked, 0, 2_000_000_000, 100, Modes::Every)
+            .is_err()
+    );
 }
 
 #[test]
@@ -346,7 +354,14 @@ fn a_slower_tier_that_stops_reading_stops_being_plotted() {
 
     let log = Log::open(scratch.path()).expect("open");
     let series = log
-        .series(1, &["temperature_c".to_owned()], start, start + 119, 120)
+        .series(
+            1,
+            &["temperature_c".to_owned()],
+            start,
+            start + 119,
+            120,
+            Modes::Every,
+        )
         .expect("series");
     let plotted: Vec<f64> = series
         .at
@@ -384,6 +399,7 @@ fn a_gap_in_the_record_breaks_the_line() {
             first as i64,
             last as i64,
             200,
+            Modes::Every,
         )
         .expect("unit B over the whole span");
     let mean = &s.plots[0].mean;
@@ -393,6 +409,42 @@ fn a_gap_in_the_record_breaks_the_line() {
     );
     assert_eq!(mean.iter().filter(|v| v.is_some()).count(), 2);
     assert_eq!(s.at.len(), mean.len(), "every point needs an x");
+}
+
+#[test]
+fn a_locked_series_leaves_out_what_was_read_while_not_locked() {
+    // In holdover the EFC is frozen and in recovery it is slewed, so a
+    // series asked for while locked must not average those in.
+    let scratch = two_units("locked");
+    scratch
+        .connect()
+        .execute_batch(
+            "INSERT INTO snapshot (at, freshness, fast_at, mode, efc_percent, receiver_id) VALUES
+                ('2026-09-05T00:00:00.000000000Z','live','2026-09-05T00:00:00.000000000Z','Locked', 10.0, 2),
+                ('2026-09-05T00:00:01.000000000Z','live','2026-09-05T00:00:01.000000000Z','Recovery', 90.0, 2);",
+        )
+        .expect("extend");
+    let log = Log::open(scratch.path()).expect("open");
+    let window = 1_788_566_400;
+    let mean = |modes| {
+        log.series(
+            2,
+            &["efc_percent".to_owned()],
+            window,
+            window + 1,
+            16,
+            modes,
+        )
+        .expect("series")
+        .plots[0]
+            .mean
+            .iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<f64>>()
+    };
+    assert_eq!(mean(Modes::Locked), [10.0]);
+    assert_eq!(mean(Modes::Every), [10.0, 90.0]);
 }
 
 #[test]
