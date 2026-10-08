@@ -44,7 +44,7 @@
 </div>
 
 <div class="panel">
-  <div class="controls"><h2>Y against X, a dot per bucket, with the least-squares line</h2></div>
+  <div class="controls"><h2 id="scatter-title">Y against X, a dot per bucket, with the least-squares line</h2></div>
   <div id="scatter"></div>
   <div id="readout"></div>
 </div>
@@ -93,6 +93,8 @@ const AXIS = { stroke: "#8b929c", grid: { stroke: "#2b3038" }, ticks: { stroke: 
 // much.
 const LAG_REACH = 7200;
 const LAG_SHARE = 4;
+// The scatter's title before there is an r to put in it.
+const SCATTER_TITLE = "Y against X, a dot per bucket, with the least-squares line";
 // The lag axis's tick spacings, in whole minutes.
 const LAG_TICKS = [1, 2, 5, 10, 15, 30, 60, 120];
 // The nearest dot the scatter's cursor picks, in CSS pixels.
@@ -239,6 +241,7 @@ function clearCorrelation(why) {
   lagChart = null;
   for (const id of ["time-charts", "scatter", "readout", "lag", "lag-note", "numbers"]) $(id).innerHTML = "";
   $("note").textContent = why;
+  $("scatter-title").textContent = SCATTER_TITLE;
 }
 
 const chartWidth = (id) => $(id).clientWidth || 800;
@@ -435,7 +438,8 @@ function spanText(seconds) {
 function drawNumbers(win, x, y, n, r, rChanges, fit, peak) {
   const signed = (v, places = 3) => (v == null ? "-" : (v >= 0 ? "+" : "") + v.toFixed(places));
   const rows = [
-    ["r", signed(r), "agreement of the two over the window"],
+    ["r", signed(r), "agreement of the two over the window; negative when Y falls as X rises"],
+    ["r²", r == null ? "-" : (r * r).toFixed(3), "the share of Y's variance the line accounts for"],
     ["r of changes", signed(rChanges), "agreement of their bucket-to-bucket changes; near 0 when only a slow drift is shared"],
     ["slope", fit ? `${fit.slope.toPrecision(4)} per unit of X` : "-", "Y's change for a unit of X, least squares"],
     ["intercept", fit ? fit.intercept.toPrecision(6) : "-", ""],
@@ -486,6 +490,10 @@ async function load(signal) {
   const curve = lagCurve(xs, ys, reach);
   const peak = peakOf(curve);
   clearCorrelation("");
+  $("scatter-title").textContent =
+    `${y.name} against ${x.name}: ` +
+    (r == null ? "no r" : `r ${r >= 0 ? "+" : ""}${r.toFixed(3)}, r² ${(r * r).toFixed(3)}`) +
+    (fit ? `, slope ${fit.slope.toPrecision(4)}` : "");
   drawTime(win, x, y, xs, ys);
   drawScatter(win, x, y, pairs, fit);
   drawLag(curve, win, peak);
