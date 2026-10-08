@@ -570,11 +570,6 @@ view cannot drift apart.  The library, bottom up:
 
 ## Next
 
-- **A TEMPer read directly by `smartclock-sensord`**, through the
-  `tempered-hid` crate once its 2.0.0 is on crates.io: a third kind of
-  source beside hwmon and IIO, with no uhid device in the path.  Needs
-  hidraw access for the `smartclockd` group and a looser
-  `PrivateDevices`, a timeout per read, and reopening after an unplug.
 - **Later: compacting old logs**, perhaps into Parquet.  The logs grow
   without bound.
 - **Bench work:** the open items in `docs/hardware-investigations.md`,
