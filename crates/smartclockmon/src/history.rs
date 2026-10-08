@@ -456,6 +456,9 @@ mod tests {
             .expect("cadence");
         let now = jiff::Timestamp::now().as_second();
         let at = |second: i64| stored(jiff::Timestamp::from_second(second).expect("a timestamp"));
+        // One transaction: a commit a row is slow enough on some disks
+        // that the newest row is seconds old by the time it is read.
+        conn.execute_batch("BEGIN").expect("begin");
         for ago in (0..120).rev() {
             conn.execute(
                 "INSERT INTO snapshot
@@ -465,6 +468,7 @@ mod tests {
             )
             .expect("a row");
         }
+        conn.execute_batch("COMMIT").expect("commit");
         drop(conn);
 
         let history = scratch.open().read(1, Window::Hour, 1024).expect("read");
