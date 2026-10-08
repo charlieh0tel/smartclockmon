@@ -100,7 +100,7 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
 /* One row of pages, the same on every page, with the current one
    marked.  Arrows were worse than nothing: two links each ending in one
    read as a breadcrumb, as though Stability were somewhere inside Status. */
-.nav { display: flex; gap: 4px; padding: 4px 6px; }
+.nav { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 6px; }
 .nav a { color: var(--dim); text-decoration: none; padding: 4px 10px;
          border-radius: 4px; border: 1px solid transparent; }
 .nav a:hover { color: var(--text); background: var(--bg); }
@@ -164,3 +164,11 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
 /* Something to hover.  A title attribute announces itself to nobody,
    so anything carrying one is underlined the way a footnote is. */
 .hinted { border-bottom: 1px dotted var(--dim); }
+
+/* The correlation page's figures: name, value, and what it means. */
+#numbers { overflow-x: auto; }
+#pick-x, #pick-y { max-width: 100%; }
+table.numbers { border-collapse: collapse; }
+table.numbers th { text-align: left; font-weight: 400; color: var(--dim); padding: 3px 18px 3px 0; white-space: nowrap; }
+table.numbers td { padding: 3px 18px 3px 0; vertical-align: baseline; }
+table.numbers td.v { white-space: nowrap; font-variant-numeric: tabular-nums; }

@@ -1,0 +1,500 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SmartClock correlation</title>
+
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.min.css"
+      integrity="sha384-IfV0B7MIOYuO95kO9G5ySKPz/85zqFNOAs8iy4tkK5zd9izhJAB8b7lHrwYqqmYE"
+      crossorigin="anonymous">
+
+<link rel="stylesheet" href="/style.css">
+
+<div class="panel" id="status"><span class="muted">connecting...</span></div>
+
+<nav class="panel nav">
+  <a href="/">Live</a>
+  <a href="/status">Status</a>
+  <a href="/adev">Stability</a>
+  <a href="/compare">Compare</a>
+  <a href="/correlation" aria-current="page">Correlation</a>
+</nav>
+
+<div class="panel" id="unit-bar" hidden>
+  <div class="controls">
+    <label for="unit">Receiver</label>
+    <select id="unit"></select>
+    <span class="grow"></span>
+    <span id="unit-seen" class="muted"></span>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="controls">
+    <label for="pick-x">X</label>
+    <select id="pick-x"></select>
+    <label for="pick-y">Y</label>
+    <select id="pick-y"></select>
+    <label title="Leave out readings taken in holdover, in recovery and at power-up, when the EFC is frozen or being slewed rather than following the oscillator."><input type="checkbox" id="locked"> locked only</label>
+    <span class="grow"></span>
+    <span id="ranges"></span>
+  </div>
+  <div id="time-charts"></div>
+  <div id="note"></div>
+</div>
+
+<div class="panel">
+  <div class="controls"><h2>Y against X, a dot per bucket, with the least-squares line</h2></div>
+  <div id="scatter"></div>
+  <div id="readout"></div>
+</div>
+
+<div class="panel">
+  <div class="controls"><h2>r as Y is moved against X</h2></div>
+  <div id="lag"></div>
+  <div id="lag-note" class="muted"></div>
+</div>
+
+<div class="panel">
+  <div class="controls"><h2>The numbers</h2></div>
+  <div id="numbers"></div>
+</div>
+
+<footer id="colophon"></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.iife.min.js"
+        integrity="sha384-Gx3t0zdBAuQOuvvmaLZj7HKEiSgWTAs+VdtNY7wt19QDPTDQjFIwAuXDj0zeN00c"
+        crossorigin="anonymous"></script>
+<script src="/common.js"></script>
+<script src="/charts.js"></script>
+<script>
+"use strict";
+
+// Two measures over one range: each against time, one against the
+// other, and how well they agree as one is moved in time against the
+// other.  The measures are the chosen receiver's own columns, the
+// host's sensors and the other receivers' EFC, all put on one grid of
+// buckets so a moment is the same bucket in each.
+
+const haveUplot = typeof uPlot !== "undefined";
+const view = new URLSearchParams(location.search);
+// A day, which holds one turn of the room's temperature.
+readRange(86400);
+
+// The chosen receiver's columns offered, in this order.
+const CORRELATED = ["efc_percent", "temperature_c", "time_interval_s"];
+// X's color and Y's, as on every chart here.
+const X_COLOR = "#fbbf24";
+const Y_COLOR = "#38bdf8";
+const FIT_COLOR = "#e6e8eb";
+const AXIS = { stroke: "#8b929c", grid: { stroke: "#2b3038" }, ticks: { stroke: "#2b3038" } };
+// How far either way the lag is tried, in seconds, and at most a
+// quarter of the buckets, past which too few pairs overlap to mean
+// much.
+const LAG_REACH = 7200;
+const LAG_SHARE = 4;
+// The nearest dot the scatter's cursor picks, in CSS pixels.
+const SCATTER_REACH = 24;
+const SYNC = haveUplot ? uPlot.sync("correlation") : null;
+// How long after the last resize the page is read again, in
+// milliseconds.
+const COALESCE = 120;
+
+let timeCharts = [];
+let scatterChart = null;
+let lagChart = null;
+// The measures on offer, by key: { key, name, unit, fetch }.
+let offeredMeasures = [];
+let chosenX = view.get("x");
+let chosenY = view.get("y");
+let lockedOnly = view.get("locked") !== "0";
+$("locked").checked = lockedOnly;
+
+// --------------------------------------------------------------- measures
+
+// What can be correlated for the chosen receiver: its own columns that
+// it measures, every sensor, and every other receiver's EFC.
+function measuresOffered(listed) {
+  const own = CORRELATED.filter((c) => measures(c)).map((c) => ({
+    key: c,
+    name: columnName(c),
+    from: { receiver: unit, column: c },
+  }));
+  const sensors = listed.sensors.map((s) => ({
+    key: `sensor:${s.quantity}:${s.name}`,
+    name: `${s.name} ${s.quantity}, ${s.unit}`,
+    from: { quantity: s.quantity, sensor: s.name },
+  }));
+  const others = receivers
+    .filter((r) => r.serial !== unit && (!r.columns || r.columns.includes("efc_percent")))
+    .map((r) => ({
+      key: `efc:${r.serial}`,
+      name: `${unitName(r.serial)} EFC, percent of range`,
+      from: { receiver: r.serial, column: "efc_percent" },
+    }));
+  return [...own, ...sensors, ...others];
+}
+
+// The default pair: EFC against the receiver's own temperature, or
+// failing that the first temperature sensor, or failing that the first
+// other measure.
+function defaults() {
+  const keys = offeredMeasures.map((m) => m.key);
+  const y = keys.includes("efc_percent") ? "efc_percent" : keys[0];
+  const x = keys.includes("temperature_c")
+    ? "temperature_c"
+    : keys.find((k) => k.startsWith("sensor:temperature:")) ?? keys.find((k) => k !== y);
+  return { x, y };
+}
+
+function drawPickers() {
+  const keys = offeredMeasures.map((m) => m.key);
+  const fallback = defaults();
+  if (!keys.includes(chosenX)) chosenX = fallback.x;
+  if (!keys.includes(chosenY)) chosenY = fallback.y;
+  for (const [id, chosen] of [["pick-x", chosenX], ["pick-y", chosenY]]) {
+    $(id).innerHTML = offeredMeasures
+      .map((m) => `<option value="${esc(m.key)}">${esc(m.name)}</option>`)
+      .join("");
+    $(id).value = chosen ?? "";
+  }
+}
+
+$("pick-x").onchange = () => {
+  chosenX = $("pick-x").value;
+  remember({ x: chosenX });
+  renew();
+};
+$("pick-y").onchange = () => {
+  chosenY = $("pick-y").value;
+  remember({ y: chosenY });
+  renew();
+};
+$("locked").onchange = () => {
+  lockedOnly = $("locked").checked;
+  remember({ locked: lockedOnly ? null : "0" });
+  renew();
+};
+
+// ------------------------------------------------------------------ grid
+
+// The window asked for, in whole unix seconds, and its buckets.  "all"
+// is the chosen receiver's whole log.
+async function correlationWindow(signal) {
+  let from, to;
+  if (range.last === "all") {
+    const extent = await ask("/api/history?" + withUnit(new URLSearchParams({ columns: "efc_percent" })), signal);
+    if (!extent.first || !(extent.last > extent.first)) return null;
+    from = Math.round(extent.first);
+    to = Math.round(extent.last);
+  } else {
+    const bounds = rangeBounds();
+    from = Math.round(bounds.from);
+    to = Math.round(bounds.to);
+  }
+  const points = pointsFor(to - from);
+  return { from, to, points, width: (to - from + 1) / points };
+}
+
+// Values at times put in their buckets: an array a bucket long, null
+// where a bucket has nothing.
+function bucketed(at, values, win) {
+  const grid = new Array(win.points).fill(null);
+  at.forEach((t, i) => {
+    const bucket = Math.floor((t - win.from) / win.width);
+    if (values[i] != null && bucket >= 0 && bucket < win.points) grid[bucket] = values[i];
+  });
+  return grid;
+}
+
+// One measure over the window, on its grid.
+async function measureOver(measure, win, signal) {
+  const span = { from: win.from, to: win.to, points: win.points };
+  if (measure.from.quantity) {
+    const lines = await ask(
+      "/api/sensors/history?" + new URLSearchParams({ quantity: measure.from.quantity, ...span }),
+      signal,
+    );
+    const line = lines.find((l) => l.name === measure.from.sensor);
+    return line ? bucketed(line.at, line.values, win) : new Array(win.points).fill(null);
+  }
+  const q = new URLSearchParams({ receiver: measure.from.receiver, columns: measure.from.column, ...span });
+  if (lockedOnly) q.set("locked", "1");
+  const got = await ask("/api/history?" + q, signal);
+  const plot = got.plots.find((p) => p.column === measure.from.column);
+  return plot ? bucketed(got.at, scaled(plot.mean, measure.from.column), win) : new Array(win.points).fill(null);
+}
+
+// ---------------------------------------------------------------- charts
+
+function clearCorrelation(why) {
+  hold($("time-charts"), why === "");
+  for (const c of timeCharts) c.destroy();
+  timeCharts = [];
+  scatterChart?.destroy();
+  scatterChart = null;
+  lagChart?.destroy();
+  lagChart = null;
+  for (const id of ["time-charts", "scatter", "readout", "lag", "lag-note", "numbers"]) $(id).innerHTML = "";
+  $("note").textContent = why;
+}
+
+const chartWidth = (id) => $(id).clientWidth || 800;
+const timeOf = (win) => Array.from({ length: win.points }, (_, i) => win.from + (i + 0.5) * win.width);
+
+function drawTime(win, x, y, xs, ys) {
+  const lines = [[y, ys, Y_COLOR], [x, xs, X_COLOR]];
+  const height = plotHeight(lines.length);
+  const fits = lines.map(([m, v]) => yAxis(m.key, v.filter((n) => n != null), height));
+  const ySize = stackWidth(fits);
+  const at = timeOf(win);
+  lines.forEach(([m, values, color], place) => {
+    const host = document.createElement("div");
+    $("time-charts").appendChild(host);
+    const chart = ranged(new uPlot(
+      {
+        width: chartWidth("time-charts"),
+        height,
+        padding: [null, STACK_RIGHT, null, null],
+        title: m.name,
+        series: [{}, { label: m.name, stroke: color, width: 1.5, points: { show: false } }],
+        axes: [
+          { ...AXIS, show: place === lines.length - 1 },
+          { ...AXIS, ...fits[place].axis, size: ySize },
+        ],
+        scales: { x: { time: true }, ...(fits[place].range ? { y: { range: fits[place].range } } : {}) },
+        legend: { show: true, live: true },
+        cursor: { drag: { x: true, y: false }, sync: { key: SYNC.key, setSeries: false } },
+        hooks: TIME_HOOKS,
+      },
+      [at, values],
+      host,
+    ));
+    timeCharts.push(chart);
+  });
+  settleWidths(timeCharts, $("time-charts"));
+  release($("time-charts"));
+}
+
+// The dot nearest the cursor, by distance on the plot rather than along
+// x alone, which is what uPlot picks unless told otherwise.
+function nearestDot(u, seriesIdx) {
+  if (seriesIdx !== 1 || u.cursor.left < 0) return null;
+  const [dx, dy] = u.data[1];
+  let best = null, nearest = SCATTER_REACH ** 2;
+  for (let i = 0; i < dx.length; i++) {
+    const d = (u.valToPos(dx[i], "x") - u.cursor.left) ** 2 + (u.valToPos(dy[i], "y") - u.cursor.top) ** 2;
+    if (d < nearest) {
+      nearest = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+// A scatter series drawn as a dot per point, for uPlot's `paths`: its
+// mode 2 joins a series' points with a line unless given its own.
+const DOT_RADIUS = 2;
+function dots(u, seriesIdx) {
+  const [dx, dy] = u.data[seriesIdx];
+  const dot = new Path2D();
+  const r = DOT_RADIUS * devicePixelRatio;
+  for (let i = 0; i < dx.length; i++) {
+    const cx = u.valToPos(dx[i], "x", true), cy = u.valToPos(dy[i], "y", true);
+    dot.moveTo(cx + r, cy);
+    dot.arc(cx, cy, r, 0, 2 * Math.PI);
+  }
+  return { stroke: dot, fill: dot };
+}
+
+function drawScatter(win, x, y, pairs, fit) {
+  const dx = pairs.map((p) => p.x), dy = pairs.map((p) => p.y);
+  const lo = Math.min(...dx), hi = Math.max(...dx);
+  const line = fit ? [[lo, hi], [fit.slope * lo + fit.intercept, fit.slope * hi + fit.intercept]] : [[], []];
+  const width = Math.max(DEVIATION_PLOT.min, chartWidth("scatter"));
+  scatterChart = new uPlot(
+    {
+      mode: 2,
+      width,
+      height: Math.round(Math.max(DEVIATION_PLOT.shortest, Math.min(DEVIATION_PLOT.tallest, width / DEVIATION_PLOT.ratio))),
+      scales: { x: { time: false }, y: {} },
+      axes: [
+        { ...AXIS, label: x.name, labelFont: AXIS_FONT, font: AXIS_FONT },
+        { ...AXIS, label: y.name, labelFont: AXIS_FONT, font: AXIS_FONT, size: 72 },
+      ],
+      series: [
+        {},
+        {
+          label: "buckets",
+          stroke: Y_COLOR + "99",
+          fill: Y_COLOR + "99",
+          paths: dots,
+          points: { show: false },
+        },
+        { label: "fit", stroke: FIT_COLOR, width: 1.5, points: { show: false } },
+      ],
+      legend: { show: false },
+      cursor: {
+        dataIdx: nearestDot,
+        drag: { x: false, y: false },
+        points: { size: 9, fill: Y_COLOR, stroke: FIT_COLOR },
+      },
+      hooks: {
+        setCursor: [
+          (u) => {
+            const i = u.cursor.idxs?.[1];
+            $("readout").innerHTML = i == null
+              ? ""
+              : `<span class="k">at</span> <span class="v">${esc(new Date(pairs[i].at * 1000).toISOString().slice(0, 16).replace("T", " "))}Z</span>` +
+                `<span class="k">${esc(x.name)}</span> <span class="v">${fmt(pairs[i].x, 4)}</span>` +
+                `<span class="k">${esc(y.name)}</span> <span class="v">${fmt(pairs[i].y, 4)}</span>`;
+          },
+        ],
+      },
+    },
+    [null, [dx, dy], line],
+    $("scatter"),
+  );
+}
+
+// The lag curve's peak, a ringed dot with its lag and r beside it.
+const PEAK_RADIUS = 5;
+function markPeak(u, peak, win) {
+  if (peak[1] == null) return;
+  const ratio = devicePixelRatio;
+  const cx = u.valToPos((peak[0] * win.width) / 60, "x", true);
+  const cy = u.valToPos(peak[1], "y", true);
+  const ctx = u.ctx;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, PEAK_RADIUS * ratio, 0, 2 * Math.PI);
+  ctx.fillStyle = Y_COLOR;
+  ctx.strokeStyle = FIT_COLOR;
+  ctx.lineWidth = 2 * ratio;
+  ctx.fill();
+  ctx.stroke();
+  ctx.font = AXIS_FONT.replace(/^(\d+)px/, (_, px) => `${px * ratio}px`);
+  ctx.fillStyle = FIT_COLOR;
+  const leftHalf = cx < u.bbox.left + u.bbox.width / 2;
+  ctx.textAlign = leftHalf ? "left" : "right";
+  ctx.textBaseline = "bottom";
+  const minutes = (peak[0] * win.width) / 60;
+  ctx.fillText(
+    `${minutes >= 0 ? "+" : ""}${minutes.toFixed(1)} min, r ${peak[1].toFixed(3)}`,
+    cx + (leftHalf ? 1 : -1) * 2 * PEAK_RADIUS * ratio,
+    cy - PEAK_RADIUS * ratio,
+  );
+  ctx.restore();
+}
+
+function drawLag(curve, win, peak) {
+  const minutes = curve.map(([lag]) => (lag * win.width) / 60);
+  const width = Math.max(DEVIATION_PLOT.min, chartWidth("lag"));
+  lagChart = new uPlot(
+    {
+      width,
+      height: Math.round(Math.max(DEVIATION_PLOT.shortest, Math.min(DEVIATION_PLOT.tallest, width / DEVIATION_PLOT.ratio))),
+      scales: { x: { time: false } },
+      axes: [
+        { ...AXIS, label: "lag, minutes: positive when X leads Y", labelFont: AXIS_FONT, font: AXIS_FONT },
+        { ...AXIS, label: "r", labelFont: AXIS_FONT, font: AXIS_FONT },
+      ],
+      series: [
+        { label: "lag, min", value: (_, v) => (v == null ? "" : v.toFixed(1)) },
+        { label: "r", stroke: Y_COLOR, width: 1.5, points: { show: false }, value: (_, v) => (v == null ? "" : v.toFixed(3)) },
+      ],
+      legend: { show: true, live: true },
+      hooks: { draw: [(u) => markPeak(u, peak, win)] },
+    },
+    [minutes, curve.map(([, r]) => r)],
+    $("lag"),
+  );
+}
+
+// The strongest agreement along the lag curve: [lag, r].
+const peakOf = (curve) =>
+  curve.filter(([, r]) => r != null).reduce((a, b) => (Math.abs(b[1]) > Math.abs(a[1]) ? b : a), [0, null]);
+
+// A span of time in its largest sensible unit.
+function spanText(seconds) {
+  if (seconds >= 2 * 86400) return `${(seconds / 86400).toFixed(1)} d`;
+  if (seconds >= 2 * 3600) return `${(seconds / 3600).toFixed(1)} h`;
+  if (seconds >= 120) return `${(seconds / 60).toFixed(1)} min`;
+  return `${seconds.toFixed(0)} s`;
+}
+
+function drawNumbers(win, x, y, n, r, rChanges, fit, peak) {
+  const signed = (v, places = 3) => (v == null ? "-" : (v >= 0 ? "+" : "") + v.toFixed(places));
+  const rows = [
+    ["r", signed(r), "agreement of the two over the window"],
+    ["r of changes", signed(rChanges), "agreement of their bucket-to-bucket changes; near 0 when only a slow drift is shared"],
+    ["slope", fit ? `${fit.slope.toPrecision(4)} per unit of X` : "-", "Y's change for a unit of X, least squares"],
+    ["intercept", fit ? fit.intercept.toPrecision(6) : "-", ""],
+    ["best lag", peak[1] == null ? "-" : `${signed((peak[0] * win.width) / 60, 1)} min, r ${signed(peak[1])}`, "positive when X leads Y; no finer than a bucket"],
+    ["buckets", `${n} of ${win.points}, each ${spanText(win.width)}`, "only buckets where both have a value count"],
+    ["window", spanText(win.to - win.from), "one slow swing makes any two drifting things look related"],
+    ["readings", lockedOnly ? "locked only" : "every mode", ""],
+  ];
+  $("numbers").innerHTML =
+    `<table class="numbers"><tbody>` +
+    rows
+      .map(([k, v, why]) => `<tr><th>${esc(k)}</th><td class="v">${esc(v)}</td><td class="muted">${esc(why)}</td></tr>`)
+      .join("") +
+    `</tbody></table>`;
+}
+
+// ------------------------------------------------------------------ load
+
+async function load(signal) {
+  if (!haveUplot) {
+    clearCorrelation("The chart library did not load. It comes from a CDN, so this page needs internet access.");
+    return;
+  }
+  offeredMeasures = measuresOffered(await sensorsListed(signal));
+  drawPickers();
+  const x = offeredMeasures.find((m) => m.key === chosenX);
+  const y = offeredMeasures.find((m) => m.key === chosenY);
+  if (!x || !y) {
+    clearCorrelation("nothing to correlate: this receiver logs no measure to set against another");
+    return;
+  }
+  const win = await correlationWindow(signal);
+  if (!win) {
+    clearCorrelation("no readings from this receiver");
+    return;
+  }
+  const [xs, ys] = await Promise.all([measureOver(x, win, signal), measureOver(y, win, signal)]);
+  const at = timeOf(win);
+  const pairs = xs.flatMap((v, i) => (v != null && ys[i] != null ? [{ at: at[i], x: v, y: ys[i] }] : []));
+  if (pairs.length < MIN_PAIRS) {
+    clearCorrelation(`too few buckets hold both ${x.name} and ${y.name} in this range`);
+    return;
+  }
+  const r = pearson(xs, ys);
+  const rChanges = pearson(changes(xs), changes(ys));
+  const fit = leastSquares(xs, ys);
+  const reach = Math.max(1, Math.min(Math.floor(win.points / LAG_SHARE), Math.ceil(LAG_REACH / win.width)));
+  const curve = lagCurve(xs, ys, reach);
+  const peak = peakOf(curve);
+  clearCorrelation("");
+  drawTime(win, x, y, xs, ys);
+  drawScatter(win, x, y, pairs, fit);
+  drawLag(curve, win, peak);
+  $("lag-note").textContent = `Each step is one bucket, ${spanText(win.width)}: zoom in for a finer lag.`;
+  drawNumbers(win, x, y, pairs.length, r, rChanges, fit, peak);
+}
+
+let settling = null;
+function soon() {
+  clearTimeout(settling);
+  settling = setTimeout(() => renew(), COALESCE);
+}
+
+rangeControl($("ranges"), soon);
+addEventListener("resize", soon);
+content({
+  daemon: false,
+  clear: clearCorrelation,
+  load,
+});
+</script>

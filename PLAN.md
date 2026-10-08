@@ -389,6 +389,16 @@ plot -- from `/api/history`, `/api/adev` and `/api/notes`, asked once
 per receiver and joined in the browser.  The live, status and stability
 pages stay one receiver each.
 
+### Correlation is computed in the browser
+
+`/correlation` sets two measures against each other from the same
+bucketed `/api/history` and `/api/sensors/history` the other pages
+read, and works out r, the fit and the lag curve in the page: nothing
+else needs those numbers yet, so they get no endpoint.  The scatter is
+uPlot's own mode 2, its dots drawn by the page, so it looks like every
+other chart.  The one server change is `locked=1`, because the mode is
+text and cannot be averaged into a bucket after the fact.
+
 ### The time range follows Grafana
 
 The browser view's range control copies Grafana's dashboards -- half-

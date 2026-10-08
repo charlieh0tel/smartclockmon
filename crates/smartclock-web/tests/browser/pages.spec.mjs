@@ -395,11 +395,15 @@ test("with no receiver logged, the sensors are charted alone", async ({ page }) 
   expect(await page.evaluate(() => charts[0].smartclockLines[0].column)).toBe("sensor:temperature");
 });
 
-for (const path of ["/adev", "/compare"]) {
+for (const path of ["/adev", "/compare", "/correlation"]) {
   test(`the ${path} page fits a phone's width`, async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 800 });
-    await twoUnits().install(page);
-    await page.goto(`${path}?receiver=${B}&last=86400`);
+    const fake = twoUnits();
+    // Correlation needs both of its measures, and its whole log, which
+    // the recording's times are inside.
+    fake.everyColumn = true;
+    await fake.install(page);
+    await page.goto(`${path}?receiver=${B}&last=` + (path === "/correlation" ? "all" : "86400"));
     await page.waitForFunction(() => document.querySelectorAll(".uplot").length > 0);
     await page.waitForTimeout(300);
     const [scroll, client] = await page.evaluate(() => [
@@ -702,3 +706,28 @@ for (const p of PAGES) {
     });
   });
 }
+
+test("the correlation page sets two measures against each other, over locked readings unless told not to", async ({ page }) => {
+  const fake = twoUnits();
+  fake.everyColumn = true;
+  const asked = [];
+  page.on("request", (r) => {
+    if (r.url().includes("/api/history") && r.url().includes("from=")) asked.push(new URL(r.url()).searchParams);
+  });
+  await fake.install(page);
+  // The whole log, which the recording's times are inside.
+  await page.goto(`/correlation?receiver=${A}&last=all`);
+  await page.waitForFunction(() => scatterChart !== null && lagChart !== null);
+  await expect(page.locator("#numbers")).toContainText("r of changes");
+  expect(await page.locator("#pick-y").inputValue()).toBe("efc_percent");
+  expect(await page.locator("#pick-x").inputValue()).toBe("temperature_c");
+  expect(asked.length).toBeGreaterThan(0);
+  expect(asked.every((q) => q.get("locked") === "1")).toBe(true);
+  // The other receiver's EFC is offered too.
+  await expect(page.locator(`#pick-x option[value="efc:${B}"]`)).toHaveCount(1);
+  asked.length = 0;
+  await page.locator("#locked").uncheck();
+  await expect.poll(() => asked.length).toBeGreaterThan(0);
+  expect(asked.some((q) => q.has("locked"))).toBe(false);
+  expect(new URL(page.url()).searchParams.get("locked")).toBe("0");
+});

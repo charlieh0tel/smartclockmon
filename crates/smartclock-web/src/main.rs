@@ -71,6 +71,10 @@ const DEVIATION: &str = include_str!("adev.html");
 /// chart per column, and their stability curves on one plot.
 const COMPARE: &str = include_str!("compare.html");
 
+/// Two measures set against each other over one range: in time, one
+/// against the other, and at a lag.
+const CORRELATION: &str = include_str!("correlation.html");
+
 /// Shared by every page.
 const STYLE: &str = include_str!("style.css");
 
@@ -163,6 +167,7 @@ fn main() -> Result<()> {
             "/status" => Response::ok("text/html; charset=utf-8", STATUS_PAGE.to_owned()),
             "/adev" => Response::ok("text/html; charset=utf-8", DEVIATION.to_owned()),
             "/compare" => Response::ok("text/html; charset=utf-8", COMPARE.to_owned()),
+            "/correlation" => Response::ok("text/html; charset=utf-8", CORRELATION.to_owned()),
             "/style.css" => Response::ok("text/css; charset=utf-8", STYLE.to_owned()),
             "/common.js" => Response::ok("text/javascript; charset=utf-8", COMMON.to_owned()),
             "/charts.js" => Response::ok("text/javascript; charset=utf-8", CHARTS.to_owned()),
@@ -760,6 +765,7 @@ mod tests {
     use super::CHARTS;
     use super::COMMON;
     use super::COMPARE;
+    use super::CORRELATION;
     use super::Cache;
     use super::DEVIATION;
     use super::Logs;
@@ -896,6 +902,7 @@ mod tests {
             ("status.html", STATUS_PAGE),
             ("adev.html", DEVIATION),
             ("compare.html", COMPARE),
+            ("correlation.html", CORRELATION),
         ] {
             let mut scripts = vec![COMMON, page];
             if page.contains("/charts.js") {

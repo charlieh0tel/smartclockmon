@@ -591,3 +591,73 @@ function sigmaScale(bands) {
     range: (_, min, max) => [snapDown(Math.min(min, lo)), snapUp(Math.max(max, hi))],
   };
 }
+
+// ---------------------------------------------------------- correlation
+//
+// Statistics over two series on one regular grid of buckets, a null
+// where a bucket holds nothing.  Only buckets where both have a value
+// count.
+
+// Fewest pairs a statistic is given for.
+const MIN_PAIRS = 3;
+
+// The pairs where both have a value: [[x, y], ...].
+function paired(xs, ys) {
+  const pairs = [];
+  for (let i = 0; i < xs.length && i < ys.length; i++) {
+    if (xs[i] != null && ys[i] != null) pairs.push([xs[i], ys[i]]);
+  }
+  return pairs;
+}
+
+// Pearson's r, or null for too few pairs or a series that never moves.
+function pearson(xs, ys) {
+  const pairs = paired(xs, ys);
+  if (pairs.length < MIN_PAIRS) return null;
+  const n = pairs.length;
+  const mx = pairs.reduce((s, p) => s + p[0], 0) / n;
+  const my = pairs.reduce((s, p) => s + p[1], 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (const [x, y] of pairs) {
+    sxy += (x - mx) * (y - my);
+    sxx += (x - mx) ** 2;
+    syy += (y - my) ** 2;
+  }
+  return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : null;
+}
+
+// The least-squares line y = slope * x + intercept, or null.
+function leastSquares(xs, ys) {
+  const pairs = paired(xs, ys);
+  if (pairs.length < MIN_PAIRS) return null;
+  const n = pairs.length;
+  const mx = pairs.reduce((s, p) => s + p[0], 0) / n;
+  const my = pairs.reduce((s, p) => s + p[1], 0) / n;
+  let sxy = 0, sxx = 0;
+  for (const [x, y] of pairs) {
+    sxy += (x - mx) * (y - my);
+    sxx += (x - mx) ** 2;
+  }
+  if (!(sxx > 0)) return null;
+  const slope = sxy / sxx;
+  return { slope, intercept: my - slope * mx };
+}
+
+// Each bucket's change from the one before, null unless both have a
+// value.  Correlated changes are what is left of a relationship once
+// two slow drifts that merely happen together are taken away.
+function changes(values) {
+  return values.map((v, i) => (i > 0 && v != null && values[i - 1] != null ? v - values[i - 1] : null));
+}
+
+// r with `ys` moved `lag` buckets against `xs`, for every lag out to
+// `reach` either way: [[lag, r], ...].  A positive lag pairs each x with
+// the y that many buckets later, so a peak there means x leads.
+function lagCurve(xs, ys, reach) {
+  const curve = [];
+  for (let lag = -reach; lag <= reach; lag++) {
+    const shifted = xs.map((_, i) => ys[i + lag] ?? null);
+    curve.push([lag, pearson(xs, shifted)]);
+  }
+  return curve;
+}

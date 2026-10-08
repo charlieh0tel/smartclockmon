@@ -25,7 +25,7 @@ design, open questions and known defects.
 | `smartclockmon` | terminal monitor: dashboard, history graphs, journal, status screen and stability |
 | `smartclock-cli` | queries, `diagnose`, notes and facts, the host's sensors, transcripts, sweeps for undocumented commands, ROM and EEPROM reads, and firmware loading ([notes](docs/firmware/restart.md#the-flasher)) |
 | `smartclock-exporter` | Prometheus metrics for every receiver, from the daemons' readings |
-| `smartclock-web` | browser view: live state, zoomable history, the status screen, stability, and receivers compared |
+| `smartclock-web` | browser view: live state, zoomable history, the status screen, stability, receivers compared, and measures correlated |
 | `smartclock-sensord` | logs room temperature, humidity and pressure from hwmon, IIO and TEMPer USB sticks ([design](docs/sensors.md)) |
 | `smartclock-log` | the log's schema and the readers the web view and monitor share |
 | `smartclock-http` | the small HTTP server the exporter and web view share |
