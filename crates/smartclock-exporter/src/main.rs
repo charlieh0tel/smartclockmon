@@ -345,20 +345,14 @@ mod tests {
 
     #[test]
     fn a_listed_daemon_is_labeled_by_its_name() {
-        let daemons = Daemons::from_names(
-            &["bench=tcp://127.0.0.1:1".to_owned()],
-            None,
-        );
+        let daemons = Daemons::from_names(&["bench=tcp://127.0.0.1:1".to_owned()], None);
         let out = render(&scrape_all(&daemons, &Mutex::new(BTreeSet::new())));
         assert!(out.contains(r#"smartclock_up{daemon="bench"} 0"#), "{out}");
     }
 
     #[test]
     fn wedged_daemons_are_asked_together_and_given_up_on() {
-        let daemons = Daemons::from_names(
-            &[wedged("one"), wedged("two")],
-            None,
-        );
+        let daemons = Daemons::from_names(&[wedged("one"), wedged("two")], None);
         let started = Instant::now();
         let scrapes = scrape_all(&daemons, &Mutex::new(BTreeSet::new()));
         let took = started.elapsed();

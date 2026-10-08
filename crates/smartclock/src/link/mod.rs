@@ -18,17 +18,15 @@ use std::net::Shutdown;
 use std::net::TcpListener;
 use std::net::TcpStream;
 use std::net::ToSocketAddrs as _;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt as _;
-#[cfg(unix)]
-use std::os::unix::net::UnixListener;
-#[cfg(unix)]
-use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::client::DEADLINE;
+
+#[cfg_attr(unix, path = "unix.rs")]
+#[cfg_attr(windows, path = "windows.rs")]
+mod os;
 
 /// How a client names a TCP address.
 const TCP_SCHEME: &str = "tcp://";
@@ -80,58 +78,63 @@ fn invalid(why: String) -> io::Error {
 
 /// A connection to a service, from either end.
 #[derive(Debug)]
-pub enum Stream {
-    /// Over a Unix socket.
-    #[cfg(unix)]
-    Unix(UnixStream),
-    /// Over TCP.
+pub struct Stream(Over);
+
+/// What a [`Stream`] runs over.
+#[derive(Debug)]
+enum Over {
+    /// A Unix socket.
+    Unix(os::UnixStream),
+    /// TCP.
     Tcp(TcpStream),
 }
 
 /// Apply the same call to whichever stream it is.
 macro_rules! each {
-    ($stream:expr, $s:ident => $call:expr) => {
-        match $stream {
-            #[cfg(unix)]
-            Stream::Unix($s) => $call,
-            Stream::Tcp($s) => $call,
+    ($over:expr, $s:ident => $call:expr) => {
+        match $over {
+            Over::Unix($s) => $call,
+            Over::Tcp($s) => $call,
         }
     };
+}
+
+impl From<TcpStream> for Stream {
+    fn from(stream: TcpStream) -> Self {
+        Self(Over::Tcp(stream))
+    }
 }
 
 impl Stream {
     /// Another handle on the same connection.
     pub fn try_clone(&self) -> io::Result<Self> {
-        Ok(match self {
-            #[cfg(unix)]
-            Self::Unix(s) => Self::Unix(s.try_clone()?),
-            Self::Tcp(s) => Self::Tcp(s.try_clone()?),
-        })
+        Ok(Self(match &self.0 {
+            Over::Unix(s) => Over::Unix(s.try_clone()?),
+            Over::Tcp(s) => Over::Tcp(s.try_clone()?),
+        }))
     }
 
     /// Bound every read, or not when `None`.
     pub fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
-        each!(self, s => s.set_read_timeout(timeout))
+        each!(&self.0, s => s.set_read_timeout(timeout))
     }
 
     /// Bound every write, or not when `None`.
     pub fn set_write_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
-        each!(self, s => s.set_write_timeout(timeout))
+        each!(&self.0, s => s.set_write_timeout(timeout))
     }
 
     /// Shut the connection, for every handle on it.
     pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
-        each!(self, s => s.shutdown(how))
+        each!(&self.0, s => s.shutdown(how))
     }
 
     /// Bound reads and writes by [`DEADLINE`], and send each line as
     /// it is written: requests and replies are a line each, and each is
     /// waited on.
     fn prepare(self) -> io::Result<Self> {
-        match &self {
-            #[cfg(unix)]
-            Self::Unix(_) => {}
-            Self::Tcp(s) => s.set_nodelay(true)?,
+        if let Over::Tcp(s) = &self.0 {
+            s.set_nodelay(true)?;
         }
         self.set_read_timeout(Some(DEADLINE))?;
         self.set_write_timeout(Some(DEADLINE))?;
@@ -141,27 +144,30 @@ impl Stream {
 
 impl Read for Stream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        each!(self, s => s.read(buf))
+        each!(&mut self.0, s => s.read(buf))
     }
 }
 
 impl Write for Stream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        each!(self, s => s.write(buf))
+        each!(&mut self.0, s => s.write(buf))
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        each!(self, s => s.flush())
+        each!(&mut self.0, s => s.flush())
     }
 }
 
 /// Where a service accepts its clients.
 #[derive(Debug)]
-pub enum Listener {
-    /// On a Unix socket.
-    #[cfg(unix)]
-    Unix(UnixListener),
-    /// On a TCP port.
+pub struct Listener(On);
+
+/// What a [`Listener`] listens on.
+#[derive(Debug)]
+enum On {
+    /// A Unix socket.
+    Unix(os::UnixListener),
+    /// A TCP port.
     Tcp(TcpListener),
 }
 
@@ -170,26 +176,18 @@ impl Listener {
     /// the socket's path, or `tcp://` and the address bound, its port
     /// the one the system picked if asked for port 0.
     pub fn endpoint(&self) -> io::Result<PathBuf> {
-        match self {
-            #[cfg(unix)]
-            Self::Unix(l) => l
-                .local_addr()?
-                .as_pathname()
-                .map(Path::to_path_buf)
-                .ok_or_else(|| {
-                    io::Error::new(io::ErrorKind::AddrNotAvailable, "an unnamed socket")
-                }),
-            Self::Tcp(l) => Ok(PathBuf::from(format!("{TCP_SCHEME}{}", l.local_addr()?))),
+        match &self.0 {
+            On::Unix(l) => os::path(l),
+            On::Tcp(l) => Ok(PathBuf::from(format!("{TCP_SCHEME}{}", l.local_addr()?))),
         }
     }
 
     /// The next client, with nothing set on its connection yet.
     pub fn accept(&self) -> io::Result<Stream> {
-        Ok(match self {
-            #[cfg(unix)]
-            Self::Unix(l) => Stream::Unix(l.accept()?.0),
-            Self::Tcp(l) => Stream::Tcp(l.accept()?.0),
-        })
+        Ok(Stream(match &self.0 {
+            On::Unix(l) => Over::Unix(os::accept(l)?),
+            On::Tcp(l) => Over::Tcp(l.accept()?.0),
+        }))
     }
 }
 
@@ -200,28 +198,10 @@ impl Listener {
 /// caller for good.
 pub fn connect(named: &Path) -> io::Result<Stream> {
     let stream = match endpoint(named)? {
-        Endpoint::Tcp(address) => Stream::Tcp(connect_tcp(address)?),
-        Endpoint::Socket(socket) => connect_socket(socket)?,
+        Endpoint::Tcp(address) => Over::Tcp(connect_tcp(address)?),
+        Endpoint::Socket(socket) => Over::Unix(os::connect(socket)?),
     };
-    stream.prepare()
-}
-
-/// Connect to a Unix socket.
-#[cfg(unix)]
-fn connect_socket(socket: &Path) -> io::Result<Stream> {
-    Ok(Stream::Unix(UnixStream::connect(socket)?))
-}
-
-/// There are no Unix sockets here.
-#[cfg(not(unix))]
-fn connect_socket(socket: &Path) -> io::Result<Stream> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        format!(
-            "{}: there are no Unix sockets here; name the service as {TCP_SCHEME}HOST:PORT",
-            socket.display()
-        ),
-    ))
+    Stream(stream).prepare()
 }
 
 /// Connect to `HOST:PORT`, trying each address it resolves to.
@@ -241,54 +221,15 @@ fn connect_tcp(address: &str) -> io::Result<TcpStream> {
     }))
 }
 
-/// Bind a Unix socket at `socket`, owner and group only.
-///
-/// A socket left behind by a crash would otherwise block the bind, so
-/// it is replaced -- but only if nothing answers on it.  Replacing a
-/// live service's left that service running and unreachable, and its
-/// clients reconnecting to this one.
+/// Bind a Unix socket at `socket`, owner and group only, replacing one
+/// left behind that nothing answers on.
 pub fn listen(socket: &Path) -> io::Result<Listener> {
     if let Endpoint::Tcp(_) = endpoint(socket)? {
         return Err(invalid(
             "a socket is a path; listen on TCP with --listen HOST:PORT".to_owned(),
         ));
     }
-    bind_socket(socket)
-}
-
-#[cfg(unix)]
-fn bind_socket(socket: &Path) -> io::Result<Listener> {
-    if let Some(parent) = socket.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    if connect_socket(socket).is_ok() {
-        return Err(io::Error::new(
-            io::ErrorKind::AddrInUse,
-            format!(
-                "another service is serving {}; stop it first",
-                socket.display()
-            ),
-        ));
-    }
-    let _ = std::fs::remove_file(socket);
-    let listener = UnixListener::bind(socket)?;
-    // Socket permissions are the whole of the authorization model, so
-    // they are set rather than inherited from whatever umask the
-    // service happened to start with.  Group access is deliberate: it
-    // is how an unprivileged operator runs the monitor.
-    std::fs::set_permissions(socket, std::fs::Permissions::from_mode(0o660))?;
-    Ok(Listener::Unix(listener))
-}
-
-#[cfg(not(unix))]
-fn bind_socket(socket: &Path) -> io::Result<Listener> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        format!(
-            "{}: there are no Unix sockets here; listen on TCP with --listen HOST:PORT",
-            socket.display()
-        ),
-    ))
+    Ok(Listener(On::Unix(os::bind(socket)?)))
 }
 
 /// Listen on TCP at `address`, `HOST:PORT`.
@@ -297,7 +238,7 @@ fn bind_socket(socket: &Path) -> io::Result<Listener> {
 /// may issue whatever the service allows.
 pub fn listen_tcp(address: &str) -> io::Result<Listener> {
     let address = listening_address(address).map_err(invalid)?;
-    Ok(Listener::Tcp(TcpListener::bind(address)?))
+    Ok(Listener(On::Tcp(TcpListener::bind(address)?)))
 }
 
 /// `text` if it is written as a listening address is, `HOST:PORT`.

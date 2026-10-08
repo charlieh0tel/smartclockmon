@@ -517,7 +517,7 @@ mod tests {
         let mut client_side =
             TcpStream::connect(listener.local_addr().expect("an address")).expect("connect");
         let (service_side, _) = listener.accept().expect("accept");
-        let closer = Closer::new(&Stream::Tcp(service_side.try_clone().expect("clone")));
+        let closer = Closer::new(&Stream::from(service_side.try_clone().expect("clone")));
         assert_eq!(
             service_side.write_timeout().expect("the write timeout"),
             Some(crate::client::DEADLINE)
