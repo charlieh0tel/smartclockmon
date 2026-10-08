@@ -158,7 +158,7 @@ the chosen receiver's EFC, internal temperature or 1 PPS TI, any of
 the host's sensors, or another receiver's EFC.  Each is charted
 against time, then Y against X with its least-squares line, then r as
 Y is moved against X, a bucket at a time, two hours either way, so a
-peak, marked, says which leads and by how much.  The figures are r,
+peak, marked with its r and r², says which leads and by how much.  The figures are r,
 r², both also in the scatter's title, r of the bucket-to-bucket
 changes, which is near 0 when the two share only a slow drift, the
 slope of an ordinary least-squares fit of Y on X, the best lag, and how many buckets of what

@@ -385,7 +385,7 @@ function markPeak(u, peak, win) {
   ctx.textBaseline = "bottom";
   const minutes = (peak[0] * win.width) / 60;
   ctx.fillText(
-    `${minutes >= 0 ? "+" : ""}${minutes.toFixed(1)} min, r ${peak[1].toFixed(3)}`,
+    `${minutes >= 0 ? "+" : ""}${minutes.toFixed(1)} min, r ${peak[1].toFixed(3)}, r² ${(peak[1] ** 2).toFixed(3)}`,
     cx + (leftHalf ? 1 : -1) * 2 * PEAK_RADIUS * ratio,
     cy - PEAK_RADIUS * ratio,
   );
@@ -443,7 +443,7 @@ function drawNumbers(win, x, y, n, r, rChanges, fit, peak) {
     ["r of changes", signed(rChanges), "agreement of their bucket-to-bucket changes; near 0 when only a slow drift is shared"],
     ["slope", fit ? `${fit.slope.toPrecision(4)} per unit of X` : "-", "Y's change for a unit of X, least squares"],
     ["intercept", fit ? fit.intercept.toPrecision(6) : "-", ""],
-    ["best lag", peak[1] == null ? "-" : `${signed((peak[0] * win.width) / 60, 1)} min, r ${signed(peak[1])}`, "positive when X leads Y; no finer than a bucket"],
+    ["best lag", peak[1] == null ? "-" : `${signed((peak[0] * win.width) / 60, 1)} min, r ${signed(peak[1])}, r² ${(peak[1] ** 2).toFixed(3)}`, "positive when X leads Y; no finer than a bucket"],
     ["buckets", `${n} of ${win.points}, each ${spanText(win.width)}`, "only buckets where both have a value count"],
     ["window", spanText(win.to - win.from), "one slow swing makes any two drifting things look related"],
     ["readings", lockedOnly ? "locked only" : "every mode", ""],
