@@ -1,0 +1,64 @@
+name: builds
+
+# Release builds of every program from each push to main, for trying
+# them between releases: Linux's as a tarball, Windows' as the
+# artifact's own zip.  Not releases -- release.yml makes those, Linux's
+# alone -- so they are kept a month and not attached to anything.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    # The release's runner, so the binaries need no newer a glibc than
+    # the packages do.
+    runs-on: ubuntu-22.04
+    steps:
+      # The pin audit.yml carries; moved by hand to match it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # serialport needs libudev.  The compiler is the one
+      # rust-toolchain.toml names, which rustup installs on first use.
+      - run: sudo apt-get update && sudo apt-get install -y libudev-dev
+      - run: cargo build --release --locked --workspace --bins
+      # Tarred, because the artifact's zip does not keep the executable
+      # bit.
+      - name: Package
+        run: |
+          name=smartclockmon-linux-x86_64
+          mkdir -p "dist/$name"
+          for program in smartclockd smartclock-cli smartclockmon smartclock-web \
+                         smartclock-exporter smartclock-sim smartclock-sensord; do
+            cp "target/release/$program" "dist/$name/"
+          done
+          { cat packaging/unreleased-build.txt; echo "$GITHUB_SHA"; } > "dist/$name/README.txt"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: smartclockmon-linux-x86_64
+          path: dist/smartclockmon-linux-x86_64.tar.gz
+          retention-days: 30
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # All but the sensor service, which reads Linux's hwmon and IIO.
+      - run: cargo build --release --locked --workspace --bins --exclude smartclock-sensord
+      - name: Package
+        shell: bash
+        run: |
+          name=smartclockmon-windows-x86_64
+          mkdir -p "dist/$name"
+          for program in smartclockd smartclock-cli smartclockmon smartclock-web \
+                         smartclock-exporter smartclock-sim; do
+            cp "target/release/$program.exe" "dist/$name/"
+          done
+          { cat packaging/unreleased-build.txt; echo "$GITHUB_SHA"; } > "dist/$name/README.txt"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: smartclockmon-windows-x86_64
+          path: dist/smartclockmon-windows-x86_64
+          retention-days: 30
