@@ -78,7 +78,7 @@ struct Cli {
     socket: PathBuf,
 
     /// Also listen on TCP at this address, `HOST:PORT`, for clients on
-    /// other hosts, which name it `--sensord` `tcp://HOST:PORT`.
+    /// other hosts, which name it as `--sensord tcp://HOST:PORT`.
     ///
     /// Nothing decides who may connect over TCP: anyone who can reach
     /// the address may issue whatever this service allows.

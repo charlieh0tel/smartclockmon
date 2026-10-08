@@ -535,7 +535,7 @@ mod tests {
     use super::Update;
     use super::from_daemon;
     use super::from_device;
-    use smartclock::server::listen;
+    use smartclock::link::listen_tcp;
     use smartclock::snapshot::Snapshot;
     use smartclock::task::AttachmentId;
     use smartclock::types::Framing;
@@ -592,12 +592,8 @@ mod tests {
         // A daemon that reconnects to its receiver keeps its clients'
         // sockets, so the reading is the only sign; the monitor must
         // not go on showing the old unit's screen and log.
-        let path = std::env::temp_dir().join(format!(
-            "smartclockmon-reattach-{}.sock",
-            std::process::id()
-        ));
-        let _ = std::fs::remove_file(&path);
-        let listener = listen(&path).expect("listen");
+        let listener = listen_tcp("127.0.0.1:0").expect("listen");
+        let path = listener.endpoint().expect("an endpoint");
         let reading = |attachment| {
             let mut snapshot = Snapshot::new(jiff::Timestamp::now());
             snapshot.attachment = attachment;
@@ -615,7 +611,6 @@ mod tests {
         let (updates, ..) = from_daemon(&path.display().to_string()).expect("connect");
         let first_update = updates.recv_timeout(Duration::from_secs(5));
         let second_update = updates.recv_timeout(Duration::from_secs(5));
-        let _ = std::fs::remove_file(&path);
         assert!(
             matches!(first_update, Ok(Update::Reading(_))),
             "{first_update:?}"
@@ -631,12 +626,8 @@ mod tests {
     fn the_snapshot_sent_on_connect_is_not_lost_to_the_handshake() {
         // The daemon sends its current snapshot as soon as a client
         // connects, ahead of the reply to the client's info request.
-        let path = std::env::temp_dir().join(format!(
-            "smartclockmon-handshake-{}.sock",
-            std::process::id()
-        ));
-        let _ = std::fs::remove_file(&path);
-        let listener = listen(&path).expect("listen");
+        let listener = listen_tcp("127.0.0.1:0").expect("listen");
+        let path = listener.endpoint().expect("an endpoint");
         let snapshot = serde_json::json!({
             "snapshot": Reading::from(&Snapshot::new(jiff::Timestamp::now())),
         });
@@ -649,7 +640,6 @@ mod tests {
         });
         let (updates, ..) = from_daemon(&path.display().to_string()).expect("connect");
         let first = updates.recv_timeout(Duration::from_secs(5));
-        let _ = std::fs::remove_file(&path);
         assert!(matches!(first, Ok(Update::Reading(_))), "{first:?}");
         daemon.join().expect("the daemon");
     }

@@ -141,7 +141,11 @@ not change the wire format.
   `HOST:PORT` there is refused rather than looked for as a file.  The
   socket is a filesystem path, so systemd's `RuntimeDirectory` owns its
   lifetime and file permissions gate access; over TCP nothing does.
-  Where there are no Unix sockets, Windows, TCP is all there is.
+  Where there are no Unix sockets, Windows, TCP is all there is: a
+  daemon given neither listens on `127.0.0.1:9978`, and the monitor,
+  exporter and web view ask `tcp://127.0.0.1:9978` when told no daemon.
+  A second daemon there needs a port of its own and its clients told
+  which.  `smartclock::defaults` holds every such difference.
   Windows named pipes were tried and dropped: they have no read or
   write timeout, and a daemon that accepts and then wedges must not
   hold its client.

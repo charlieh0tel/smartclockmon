@@ -25,6 +25,7 @@ use std::os::unix::net::UnixListener;
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
 use std::path::Path;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::client::DEADLINE;
@@ -165,6 +166,23 @@ pub enum Listener {
 }
 
 impl Listener {
+    /// Where a client reaches this listener, as [`connect`] takes it:
+    /// the socket's path, or `tcp://` and the address bound, its port
+    /// the one the system picked if asked for port 0.
+    pub fn endpoint(&self) -> io::Result<PathBuf> {
+        match self {
+            #[cfg(unix)]
+            Self::Unix(l) => l
+                .local_addr()?
+                .as_pathname()
+                .map(Path::to_path_buf)
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::AddrNotAvailable, "an unnamed socket")
+                }),
+            Self::Tcp(l) => Ok(PathBuf::from(format!("{TCP_SCHEME}{}", l.local_addr()?))),
+        }
+    }
+
     /// The next client, with nothing set on its connection yet.
     pub fn accept(&self) -> io::Result<Stream> {
         Ok(match self {
@@ -353,12 +371,9 @@ mod tests {
     #[test]
     fn a_service_is_reached_over_tcp() {
         let listener = listen_tcp("127.0.0.1:0").expect("listen");
-        let Listener::Tcp(tcp) = &listener else {
-            panic!("not TCP");
-        };
-        let named = format!("tcp://{}", tcp.local_addr().expect("an address"));
+        let named = listener.endpoint().expect("an endpoint");
         echo_once(listener);
-        assert_eq!(round_trip(Path::new(&named)), "hello\n");
+        assert_eq!(round_trip(&named), "hello\n");
     }
 
     #[test]

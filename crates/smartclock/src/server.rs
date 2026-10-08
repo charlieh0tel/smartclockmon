@@ -345,7 +345,9 @@ mod tests {
     use super::MAX_CLIENTS;
     use super::MAX_REQUEST;
     use super::Service;
+    #[cfg(unix)]
     use super::listen;
+    #[cfg(unix)]
     use super::listen_all;
     use super::serve;
     use crate::protocol::Message;
@@ -386,18 +388,15 @@ mod tests {
         }
     }
 
-    /// A service on a socket of its own, removed when this goes.
+    /// A service on a loopback port of its own.
     struct Running(PathBuf);
 
     impl Running {
-        fn start(name: &str) -> Self {
-            let socket = std::env::temp_dir().join(format!(
-                "smartclock-server-test-{name}-{}",
-                std::process::id()
-            ));
-            let listener = listen(&socket).expect("listen");
+        fn start() -> Self {
+            let listener = crate::link::listen_tcp("127.0.0.1:0").expect("listen");
+            let endpoint = listener.endpoint().expect("an endpoint");
             thread::spawn(move || serve(vec![listener], "test", Arc::new(Echo)));
-            Self(socket)
+            Self(endpoint)
         }
 
         fn connect(&self) -> Stream {
@@ -406,12 +405,6 @@ mod tests {
                 .set_read_timeout(Some(Duration::from_secs(5)))
                 .expect("timeout");
             stream
-        }
-    }
-
-    impl Drop for Running {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_file(&self.0);
         }
     }
 
@@ -425,13 +418,14 @@ mod tests {
 
     #[test]
     fn a_request_is_answered_in_the_services_version() {
-        let running = Running::start("answer");
+        let running = Running::start();
         let mut client = running.connect();
         writeln!(client, r#"{{"v":3,"id":"a","op":{{"kind":"ping"}}}}"#).expect("send");
         let line = first_line(&client);
         assert!(line.contains(r#""v":3"#) && line.contains("pong"), "{line}");
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_service_answers_on_its_socket_and_over_tcp_alike() {
         let socket = std::env::temp_dir().join(format!(
@@ -454,23 +448,29 @@ mod tests {
 
     #[test]
     fn a_request_in_another_version_is_refused() {
-        let running = Running::start("version");
+        let running = Running::start();
         let mut client = running.connect();
         writeln!(client, r#"{{"v":1,"id":"a","op":{{"kind":"ping"}}}}"#).expect("send");
         let line = first_line(&client);
         assert!(line.contains("speaks protocol 3, not 1"), "{line}");
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_live_socket_is_not_taken_over() {
-        let running = Running::start("live");
-        let refused = listen(&running.0).expect_err("a second listener");
+        let socket = std::env::temp_dir().join(format!(
+            "smartclock-server-test-live-{}",
+            std::process::id()
+        ));
+        let _listener = listen(&socket).expect("listen");
+        let refused = listen(&socket).expect_err("a second listener");
+        let _ = std::fs::remove_file(&socket);
         assert_eq!(refused.kind(), std::io::ErrorKind::AddrInUse);
     }
 
     #[test]
     fn a_request_after_a_malformed_line_is_not_answered() {
-        let running = Running::start("malformed");
+        let running = Running::start();
         let mut client = running.connect();
         write!(
             client,
@@ -488,7 +488,7 @@ mod tests {
 
     #[test]
     fn a_request_longer_than_the_cap_is_refused() {
-        let running = Running::start("cap");
+        let running = Running::start();
         let mut client = running.connect();
         // Unterminated: only the capped read catches a line that never
         // ends.
@@ -498,7 +498,7 @@ mod tests {
 
     #[test]
     fn a_client_past_the_cap_is_turned_away_and_a_departed_one_makes_room() {
-        let running = Running::start("clients");
+        let running = Running::start();
         let held: Vec<_> = (0..MAX_CLIENTS).map(|_| running.connect()).collect();
         let extra = running.connect();
         assert!(first_line(&extra).contains("already connected"));

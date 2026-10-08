@@ -26,6 +26,7 @@ use crossterm::event::KeyModifiers;
 
 use crate::app::App;
 use smartclock::client::Daemon;
+use smartclock::defaults::DAEMON;
 use smartclock::defaults::SENSOR_SOCKET;
 use smartclock::types::Framing;
 
@@ -37,7 +38,8 @@ use crate::source::Update;
 struct Cli {
     /// The daemon to watch: its socket, one instance's
     /// `/run/smartclockd/<instance>/socket`, or `tcp://HOST:PORT`.
-    #[arg(long, required_unless_present = "device")]
+    /// Needed unless `--device` is given, or there are no Unix sockets.
+    #[arg(long)]
     daemon: Option<String>,
 
     /// Talk to the receiver directly instead of to the daemon.  Needs
@@ -92,11 +94,11 @@ const SENSORS_BUDGET: Duration = Duration::from_millis(250);
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let (updates, attachment, console, policy, cadence) = match (&cli.device, &cli.daemon) {
+    let daemon = cli.daemon.as_deref().or(DAEMON);
+    let (updates, attachment, console, policy, cadence) = match (&cli.device, daemon) {
         (Some(device), _) => source::from_device(device, cli.baud, cli.framing)?,
         (None, Some(daemon)) => source::from_daemon(daemon)?,
-        // clap requires one of the two.
-        (None, None) => unreachable!("--daemon is required without --device"),
+        (None, None) => anyhow::bail!("give --daemon, or --device for direct mode"),
     };
 
     let mut app = App::new(attachment, console, policy, cadence);

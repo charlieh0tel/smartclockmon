@@ -12,6 +12,7 @@ mod journal;
 #[cfg(test)]
 mod scratch;
 mod server;
+mod stop;
 
 use crate::inbox::Entry;
 use crate::inbox::Fact;
@@ -40,13 +41,10 @@ use anyhow::Context as _;
 use anyhow::Result;
 use clap::Parser;
 use jiff::Timestamp;
-use signal_hook::consts::SIGINT;
-use signal_hook::consts::SIGTERM;
-#[cfg(unix)]
-use signal_hook::iterator::Signals;
 use smartclock::attach::attach;
 use smartclock::command::Dialect;
 use smartclock::defaults::LOG_DIR;
+use smartclock::defaults::TCP_LISTEN;
 use smartclock::device::Device;
 use smartclock::session::Config;
 use smartclock::snapshot::Freshness;
@@ -104,12 +102,13 @@ struct Cli {
 
     /// The Unix socket to listen on.  No default: the socket is per
     /// instance, and the unit sets it from the instance name.  Needed
-    /// unless `--listen` is given.
-    #[arg(long, env = "SMARTCLOCKD_SOCKET", required_unless_present = "listen")]
+    /// unless `--listen` is given, or there are no Unix sockets.
+    #[arg(long, env = "SMARTCLOCKD_SOCKET")]
     socket: Option<PathBuf>,
 
     /// Also listen on TCP at this address, `HOST:PORT`, for clients on
-    /// other hosts, which name it `--daemon` `tcp://HOST:PORT`.
+    /// other hosts, which name it as `--daemon tcp://HOST:PORT`.  Where
+    /// there are no Unix sockets and no `--socket`, a default.
     ///
     /// Nothing decides who may connect over TCP: anyone who can reach
     /// the address may issue whatever this service allows.
@@ -216,9 +215,21 @@ fn main() -> Result<()> {
     let absolute = |path: &Path| {
         std::path::absolute(path).with_context(|| format!("resolving {}", path.display()))
     };
+    // Where there are no Unix sockets, TCP is all there is.
+    let listen = cli.listen.clone().or_else(|| {
+        cli.socket
+            .is_none()
+            .then_some(TCP_LISTEN)
+            .flatten()
+            .map(str::to_owned)
+    });
+    if cli.socket.is_none() && listen.is_none() {
+        anyhow::bail!("nowhere to listen: give --socket, --listen or both");
+    }
     let cli = Cli {
         log_dir: absolute(&cli.log_dir)?,
         database: cli.database.as_deref().map(absolute).transpose()?,
+        listen,
         ..cli
     };
     let baud = BaudRate::new(cli.baud).with_context(|| {
@@ -293,7 +304,7 @@ fn main() -> Result<()> {
 
     let shared = Shared::new();
     let (requests_tx, requests_rx) = channel();
-    let stopping = watch_for_stop(Handle::new(requests_tx.clone(), shared.clone()))?;
+    let stopping = stop::watch_for_stop(Handle::new(requests_tx.clone(), shared.clone()))?;
 
     let policy = Policy {
         control: cli.allow_control,
@@ -416,64 +427,6 @@ fn read_sky(every: Duration, handle: Handle, stopping: Arc<AtomicBool>) -> Resul
         })
         .context("spawning the sky thread")?;
     Ok(())
-}
-
-/// Stop on SIGTERM or SIGINT, and at once on a second one.
-///
-/// The first sets the returned flag and wakes the task so the
-/// supervisor returns; the log thread then writes what it holds.  A
-/// second signal is someone who will not wait for that.
-#[cfg(unix)]
-fn watch_for_stop(handle: Handle) -> Result<Arc<AtomicBool>> {
-    let stopping = Arc::new(AtomicBool::new(false));
-    let mut signals = Signals::new([SIGTERM, SIGINT]).context("watching for signals")?;
-    let flag = Arc::clone(&stopping);
-    thread::Builder::new()
-        .name("smartclockd-signals".to_owned())
-        .spawn(move || {
-            for signal in signals.forever() {
-                if flag.swap(true, Ordering::SeqCst) {
-                    eprintln!("smartclockd: signal {signal} again, exiting now");
-                    std::process::exit(1);
-                }
-                eprintln!("smartclockd: signal {signal}, stopping");
-                handle.stop();
-            }
-        })
-        .context("spawning the signal thread")?;
-    Ok(stopping)
-}
-
-/// How often the stop flag is looked at where signals arrive only as a
-/// flag being set.
-#[cfg(not(unix))]
-const STOP_CHECK: Duration = Duration::from_millis(200);
-
-/// Stop on Ctrl-C, and at once on a second.  Elsewhere than Unix a
-/// signal only sets a flag, so a thread watches it and wakes the task.
-#[cfg(not(unix))]
-fn watch_for_stop(handle: Handle) -> Result<Arc<AtomicBool>> {
-    let stopping = Arc::new(AtomicBool::new(false));
-    for signal in [SIGTERM, SIGINT] {
-        // Registered first, so it sees the flag as the previous signal
-        // left it: set means this is the second.
-        signal_hook::flag::register_conditional_shutdown(signal, 1, Arc::clone(&stopping))
-            .context("watching for signals")?;
-        signal_hook::flag::register(signal, Arc::clone(&stopping))
-            .context("watching for signals")?;
-    }
-    let flag = Arc::clone(&stopping);
-    thread::Builder::new()
-        .name("smartclockd-signals".to_owned())
-        .spawn(move || {
-            while !flag.load(Ordering::SeqCst) {
-                thread::sleep(STOP_CHECK);
-            }
-            eprintln!("smartclockd: interrupted, stopping");
-            handle.stop();
-        })
-        .context("spawning the signal thread")?;
-    Ok(stopping)
 }
 
 /// Sleep for `delay`, or less if the daemon is told to stop meanwhile.
@@ -1220,7 +1173,6 @@ fn start_server(listening: Listening<'_>) -> Result<()> {
 mod tests {
     use super::Entry;
     use super::Fact;
-    use super::Listening;
     use super::LogRequest;
     use super::Note;
     use super::Place;
@@ -1228,8 +1180,6 @@ mod tests {
     use super::db;
     use super::queued;
     use super::record_strays;
-    use super::server;
-    use super::start_server;
     use crate::scratch::Scratch;
     use smartclock::device::Device;
     use smartclock::session::Config;
@@ -1238,7 +1188,6 @@ mod tests {
     use smartclock::snapshot::Snapshot;
     use smartclock::task;
     use smartclock::task::Cadence;
-    use smartclock::task::Shared;
     use smartclock::types::AlarmCondition;
     use smartclock_sim::receiver::Receiver;
     use smartclock_sim::transport::SimTransport;
@@ -1467,8 +1416,14 @@ mod tests {
         assert_eq!(serials, vec![Some("A".to_owned())]);
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_live_socket_is_not_taken_over_and_a_stale_one_is() {
+        use super::Listening;
+        use super::server;
+        use super::start_server;
+        use smartclock::task::Shared;
+
         let socket =
             std::env::temp_dir().join(format!("smartclockd-takeover-{}.sock", std::process::id()));
         // Left behind by a crash: not a listening socket at all.

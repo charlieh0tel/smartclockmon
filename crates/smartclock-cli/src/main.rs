@@ -19,7 +19,6 @@ use clap::Parser;
 use clap::Subcommand;
 use jiff::Timestamp;
 use jiff::Zoned;
-#[cfg(unix)]
 use signal_hook::consts::SIGINT;
 use smartclock::attach::answering;
 use smartclock::client::Daemon;
@@ -433,7 +432,6 @@ fn main() -> Result<()> {
 }
 
 /// The exit status after a second Ctrl-C: 128 plus SIGINT's number.
-#[cfg(unix)]
 const EXIT_INTERRUPTED: i32 = 130;
 
 /// Set by Ctrl-C during a flash or a console read.
@@ -453,17 +451,10 @@ fn stop_on_interrupt() -> Result<Arc<AtomicBool>> {
         return Ok(Arc::clone(stop));
     }
     let stop = Arc::new(AtomicBool::new(false));
-    #[cfg(unix)]
-    {
-        // Registered first, so it sees the flag as the previous Ctrl-C
-        // left it: set means this is the second.
-        signal_hook::flag::register_conditional_shutdown(
-            SIGINT,
-            EXIT_INTERRUPTED,
-            Arc::clone(&stop),
-        )?;
-        signal_hook::flag::register(SIGINT, Arc::clone(&stop))?;
-    }
+    // Registered first, so it sees the flag as the previous Ctrl-C left
+    // it: set means this is the second.
+    signal_hook::flag::register_conditional_shutdown(SIGINT, EXIT_INTERRUPTED, Arc::clone(&stop))?;
+    signal_hook::flag::register(SIGINT, Arc::clone(&stop))?;
     Ok(Arc::clone(STOP.get_or_init(|| stop)))
 }
 

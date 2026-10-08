@@ -16,6 +16,7 @@ use std::time::Instant;
 
 use jiff::Timestamp;
 
+use crate::defaults::DAEMON;
 use crate::error::Error;
 use crate::error::Result;
 use crate::link;
@@ -317,11 +318,15 @@ impl Instance {
 }
 
 impl Daemons {
-    /// The daemons `named`, each `[NAME=]ENDPOINT`, or every one under
-    /// `run_dir` when none is.
+    /// The daemons `named`, each `[NAME=]ENDPOINT`, or when none is
+    /// every one under `run_dir`, or where there are no Unix sockets the
+    /// one at [`DAEMON`].
     pub fn from_names(named: &[String], run_dir: &Path) -> Self {
         if named.is_empty() {
-            Self::Dir(run_dir.to_path_buf())
+            match DAEMON {
+                Some(daemon) => Self::Listed(vec![Instance::named(daemon)]),
+                None => Self::Dir(run_dir.to_path_buf()),
+            }
         } else {
             Self::Listed(named.iter().map(|text| Instance::named(text)).collect())
         }
@@ -394,7 +399,7 @@ mod tests {
     use super::Instance;
     use super::cadence;
     use super::identity;
-    use crate::server::listen;
+    use crate::link::listen_tcp;
     use crate::task::Cadence;
     use std::io::Write as _;
     use std::time::Duration;
@@ -465,10 +470,8 @@ mod tests {
     fn a_daemon_that_chatters_but_never_answers_is_given_up_on() {
         // Snapshots every tenth of a second and no reply.  Each snapshot
         // used to restart the read timeout, so the request never ended.
-        let path =
-            std::env::temp_dir().join(format!("smartclock-chatter-{}.sock", std::process::id()));
-        let _ = std::fs::remove_file(&path);
-        let listener = listen(&path).expect("listen");
+        let listener = listen_tcp("127.0.0.1:0").expect("listen");
+        let path = listener.endpoint().expect("an endpoint");
         std::thread::spawn(move || {
             let Ok(mut stream) = listener.accept() else {
                 return;
@@ -481,7 +484,6 @@ mod tests {
         let mut daemon =
             Daemon::connect_within(&path, Duration::from_millis(800)).expect("connect");
         let asked = daemon.info();
-        let _ = std::fs::remove_file(&path);
         assert!(asked.is_err());
         assert!(
             started.elapsed() < Duration::from_secs(3),

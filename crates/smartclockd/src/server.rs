@@ -850,7 +850,7 @@ mod tests {
     }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod socket_tests {
     use super::Daemon as Served;
     use super::HANGUP_CHECK;
@@ -858,8 +858,8 @@ mod socket_tests {
     use super::Policy;
     use super::SharedInfo;
     use crate::inbox::LogInbox;
+    use smartclock::link::listen_tcp;
     use smartclock::server::MAX_CLIENTS;
-    use smartclock::server::listen;
     use smartclock::server::serve;
 
     use smartclock::link::Stream;
@@ -886,17 +886,13 @@ mod socket_tests {
     /// that did reach the device would block rather than quietly get a
     /// "task stopped" and look like it passed.
     struct Daemon {
-        socket: PathBuf,
+        endpoint: PathBuf,
         _requests: std::sync::mpsc::Receiver<smartclock::task::Request>,
         info: SharedInfo,
     }
 
     impl Daemon {
-        fn start(name: &str) -> Self {
-            let socket = std::env::temp_dir()
-                .join(format!("smartclockd-test-{name}-{}", std::process::id()));
-            let _ = std::fs::remove_file(&socket);
-
+        fn start() -> Self {
             let (tx, rx) = channel();
             let (audit_tx, _audit_rx) = channel();
             let handle = Handle::new(tx, Shared::new());
@@ -910,31 +906,26 @@ mod socket_tests {
             }));
 
             let shared_info = Arc::clone(&info);
-            let listener = listen(&socket).expect("listen");
+            let listener = listen_tcp("127.0.0.1:0").expect("listen");
+            let endpoint = listener.endpoint().expect("an endpoint");
             thread::Builder::new()
                 .name("test-serve".to_owned())
                 .spawn(move || serve(vec![listener], "test", Arc::new(Served { handle, info })))
                 .expect("serve thread");
 
             Self {
-                socket,
+                endpoint,
                 _requests: rx,
                 info: shared_info,
             }
         }
 
         fn connect(&self) -> Stream {
-            let stream = smartclock::link::connect(&self.socket).expect("connect");
+            let stream = smartclock::link::connect(&self.endpoint).expect("connect");
             stream
                 .set_read_timeout(Some(Duration::from_secs(5)))
                 .expect("timeout");
             stream
-        }
-    }
-
-    impl Drop for Daemon {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_file(&self.socket);
         }
     }
 
@@ -945,7 +936,7 @@ mod socket_tests {
         // journal and every other client need the shared state, and a
         // reconnect that waited behind the query could not start the
         // task that would answer it.
-        let daemon = Daemon::start("held-lock");
+        let daemon = Daemon::start();
         let mut client = daemon.connect();
         writeln!(
             client,
@@ -991,7 +982,7 @@ mod socket_tests {
         // and leave the push thread holding a subscription and a
         // socket.  Repeating it accumulated both without limit while
         // the cap was never reached.
-        let daemon = Daemon::start("halfclose");
+        let daemon = Daemon::start();
         let held: Vec<_> = (0..MAX_CLIENTS)
             .map(|_| {
                 let stream = daemon.connect();
@@ -1025,7 +1016,7 @@ mod socket_tests {
         // link is down.  The push threads used to wait for a snapshot
         // before noticing their clients had gone, so a full house of
         // departed clients held every slot until the link came back.
-        let daemon = Daemon::start("outage");
+        let daemon = Daemon::start();
         for _ in 0..MAX_CLIENTS {
             drop(daemon.connect());
         }
@@ -1047,7 +1038,7 @@ mod socket_tests {
         // The proof that it did not is that this returns at all: the
         // request channel has no task behind it, so anything that got
         // as far as the device would block until the test timed out.
-        let daemon = Daemon::start("gate");
+        let daemon = Daemon::start();
         let mut stream = daemon.connect();
         writeln!(
             stream,
@@ -1063,7 +1054,7 @@ mod socket_tests {
 
     #[test]
     fn a_query_header_carrying_a_payload_never_reaches_the_receiver() {
-        let daemon = Daemon::start("payload");
+        let daemon = Daemon::start();
         let mut stream = daemon.connect();
         writeln!(
             stream,

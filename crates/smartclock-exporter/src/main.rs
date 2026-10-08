@@ -290,18 +290,18 @@ mod tests {
             std::fs::create_dir_all(&dir).expect("a run directory");
             Self(dir)
         }
+    }
 
-        /// An instance whose daemon accepts and then never answers.
-        fn wedged(&self, name: &str) {
-            let socket = self.0.join(name).join("socket");
-            std::fs::create_dir_all(socket.parent().expect("a parent")).expect("instance");
-            let listener = smartclock::server::listen(&socket).expect("listen");
-            std::thread::spawn(move || {
-                let held = listener.accept();
-                std::thread::sleep(SCRAPE_BUDGET * 3);
-                drop(held);
-            });
-        }
+    /// A daemon that accepts and then never answers, named `name`.
+    fn wedged(name: &str) -> String {
+        let listener = smartclock::link::listen_tcp("127.0.0.1:0").expect("listen");
+        let endpoint = listener.endpoint().expect("an endpoint");
+        std::thread::spawn(move || {
+            let held = listener.accept();
+            std::thread::sleep(SCRAPE_BUDGET * 3);
+            drop(held);
+        });
+        format!("{name}={}", endpoint.display())
     }
 
     impl Drop for RunDir {
@@ -339,11 +339,12 @@ mod tests {
 
     #[test]
     fn wedged_daemons_are_asked_together_and_given_up_on() {
-        let run = RunDir::new("wedged");
-        run.wedged("one");
-        run.wedged("two");
+        let daemons = Daemons::from_names(
+            &[wedged("one"), wedged("two")],
+            std::path::Path::new("/nowhere"),
+        );
         let started = Instant::now();
-        let scrapes = scrape_all(&Daemons::Dir(run.0.clone()), &Mutex::new(BTreeSet::new()));
+        let scrapes = scrape_all(&daemons, &Mutex::new(BTreeSet::new()));
         let took = started.elapsed();
         assert_eq!(scrapes.len(), 2);
         assert!(scrapes.iter().all(|s| s.reading.is_none()));
