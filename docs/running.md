@@ -304,6 +304,12 @@ daemon shows the history and says so in the strip.
 `smartclock-exporter` scrapes every daemon into one `/metrics`, each
 sample labeled `daemon="<instance>"`, `serial` and `model`.
 
+Both can be given the daemons instead, with `--daemon` repeated or
+comma-separated, each `[NAME=]ENDPOINT`: a socket's path or
+`tcp://HOST:PORT`, so one collector can ask daemons on other hosts.
+The name is the exporter's `daemon` label; an unnamed one goes by its
+endpoint as written.
+
 ## Unplugging the adapter
 
 The daemon reconnects by itself, so the unit does not bind to a

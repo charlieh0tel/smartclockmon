@@ -88,10 +88,12 @@ struct Cli {
     )]
     run_dir: PathBuf,
 
-    /// One daemon, its socket or `tcp://HOST:PORT`, in place of the
-    /// directory.
-    #[arg(long, env = "SMARTCLOCK_WEB_DAEMON")]
-    daemon: Option<PathBuf>,
+    /// The daemons to ask, in place of the directory: each
+    /// `[NAME=]ENDPOINT`, the endpoint its socket or `tcp://HOST:PORT`.
+    /// Repeated, or comma-separated.  An unnamed one goes by its
+    /// endpoint.
+    #[arg(long, env = "SMARTCLOCK_WEB_DAEMON", value_delimiter = ',')]
+    daemon: Vec<String>,
 
     /// The daemon's logs, for history: one `.sqlite` file per receiver
     /// in this directory.  Opened read-only.
@@ -130,10 +132,7 @@ struct Cli {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     eprintln!("smartclock-web: serving http://{}/", cli.listen);
-    let daemons = match cli.daemon.clone() {
-        Some(file) => Daemons::File(file),
-        None => Daemons::Dir(cli.run_dir.clone()),
-    };
+    let daemons = Daemons::from_names(&cli.daemon, &cli.run_dir);
     let logs = match cli.database.clone() {
         Some(file) => Logs::File(file),
         None => Logs::Dir(cli.log_dir.clone()),
@@ -297,9 +296,8 @@ impl Cache {
 
 /// One daemon that answered, and what it is attached to.
 struct Live {
-    socket: PathBuf,
-    /// The instance name, the subdirectory's; empty for a socket
-    /// named outright.
+    endpoint: PathBuf,
+    /// The instance name: its subdirectory's, or as it was named.
     instance: String,
     /// The receiver it is attached to, when its identity parses and
     /// names a serial.
@@ -322,11 +320,11 @@ impl Live {
 /// All asked at once, so one that has wedged costs a request its
 /// [`ASK_BUDGET`] and no more, however many others there are.
 fn live(daemons: &Daemons, cache: &Cache) -> Vec<Live> {
-    let instances = daemons.sockets();
+    let instances = daemons.instances();
     thread::scope(|scope| {
         let asked: Vec<_> = instances
             .iter()
-            .map(|instance| scope.spawn(|| cache.info(&instance.socket)))
+            .map(|instance| scope.spawn(|| cache.info(&instance.endpoint)))
             .collect();
         instances
             .iter()
@@ -335,7 +333,7 @@ fn live(daemons: &Daemons, cache: &Cache) -> Vec<Live> {
                 let info = asked.join().ok()?.ok()?;
                 Some(Live {
                     identity: client::identity(&info).filter(|id| !id.serial.is_empty()),
-                    socket: instance.socket.clone(),
+                    endpoint: instance.endpoint.clone(),
                     instance: instance.name.clone(),
                 })
             })
@@ -355,13 +353,13 @@ fn choose(daemons: &Daemons, cache: &Cache, query: &str) -> Result<PathBuf> {
         Some(serial) => live(daemons, cache)
             .into_iter()
             .find(|d| d.serial() == Some(serial.as_str()))
-            .map(|d| d.socket)
+            .map(|d| d.endpoint)
             .ok_or_else(|| anyhow::anyhow!("no daemon is attached to receiver {serial}")),
         None => daemons
-            .sockets()
+            .instances()
             .into_iter()
             .next()
-            .map(|instance| instance.socket)
+            .map(|instance| instance.endpoint)
             .ok_or_else(|| anyhow::anyhow!("no daemon is running")),
     }
 }

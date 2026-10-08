@@ -7,8 +7,9 @@
 
 # The daemons' sockets, one instance per subdirectory.  Every one is
 # scraped, each sample labeled daemon="<instance>" and by the
-# receiver's serial and model.  Set SMARTCLOCK_EXPORTER_DAEMON to one
-# daemon instead, its socket or tcp://HOST:PORT.
+# receiver's serial and model.  Set SMARTCLOCK_EXPORTER_DAEMON to list
+# the daemons instead, comma-separated, each [NAME=]ENDPOINT: a socket
+# or tcp://HOST:PORT.  The name is the daemon label.
 #SMARTCLOCK_EXPORTER_RUN_DIR=/run/smartclockd
 
 # The sensor service.

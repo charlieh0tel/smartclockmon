@@ -278,39 +278,64 @@ fn filed_under(reply: &serde_json::Value) -> Result<Filed> {
     })
 }
 
-/// Where the daemons on a host are.
+/// Where the daemons a collector asks are.
 #[derive(Debug, Clone)]
 pub enum Daemons {
     /// The run directory: one instance per subdirectory, its socket
     /// inside, `<dir>/<instance>/socket`.
     Dir(PathBuf),
-    /// One socket, named outright.
-    File(PathBuf),
+    /// Named outright.
+    Listed(Vec<Instance>),
 }
 
-/// One socket a daemon could be listening on.
+/// One daemon a collector asks.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instance {
-    /// The instance name, its subdirectory's; empty for a socket named
-    /// outright.
+    /// The instance name: its subdirectory's, or as it was named.
     pub name: String,
-    /// The socket.
-    pub socket: PathBuf,
+    /// Where it is, as [`Daemon::connect`] takes it.
+    pub endpoint: PathBuf,
+}
+
+impl Instance {
+    /// One daemon as a command line names it, `[NAME=]ENDPOINT`.
+    ///
+    /// Unnamed, it goes by the endpoint as written, so that every one a
+    /// collector lists has a name of its own.
+    pub fn named(text: &str) -> Self {
+        match text.split_once('=') {
+            Some((name, endpoint)) if !name.is_empty() && !name.contains(['/', '\\']) => Self {
+                name: name.to_owned(),
+                endpoint: PathBuf::from(endpoint),
+            },
+            _ => Self {
+                name: text.to_owned(),
+                endpoint: PathBuf::from(text),
+            },
+        }
+    }
 }
 
 impl Daemons {
-    /// Every socket that could be a daemon's, by instance name.
+    /// The daemons `named`, each `[NAME=]ENDPOINT`, or every one under
+    /// `run_dir` when none is.
+    pub fn from_names(named: &[String], run_dir: &Path) -> Self {
+        if named.is_empty() {
+            Self::Dir(run_dir.to_path_buf())
+        } else {
+            Self::Listed(named.iter().map(|text| Instance::named(text)).collect())
+        }
+    }
+
+    /// Every daemon there could be, by instance name.
     ///
     /// An instance's directory outlives nothing: systemd removes it
     /// when the instance stops, so a socket that is there is one
     /// something should be answering on.  Whether anything does is the
     /// caller's to find out.
-    pub fn sockets(&self) -> Vec<Instance> {
+    pub fn instances(&self) -> Vec<Instance> {
         match self {
-            Self::File(file) => vec![Instance {
-                name: String::new(),
-                socket: file.clone(),
-            }],
+            Self::Listed(listed) => listed.clone(),
             Self::Dir(dir) => {
                 let Ok(entries) = std::fs::read_dir(dir) else {
                     return Vec::new();
@@ -319,9 +344,9 @@ impl Daemons {
                     .filter_map(|entry| entry.ok())
                     .map(|entry| Instance {
                         name: entry.file_name().to_string_lossy().into_owned(),
-                        socket: entry.path().join("socket"),
+                        endpoint: entry.path().join("socket"),
                     })
-                    .filter(|instance| instance.socket.exists())
+                    .filter(|instance| instance.endpoint.exists())
                     .collect();
                 sockets.sort();
                 sockets
@@ -366,6 +391,7 @@ pub fn identity(info: &serde_json::Value) -> Option<Identity> {
 mod tests {
     use super::Daemon;
     use super::Daemons;
+    use super::Instance;
     use super::cadence;
     use super::identity;
     use crate::server::listen;
@@ -384,17 +410,32 @@ mod tests {
         for name in ["b", "a"] {
             std::fs::write(dir.join(name).join("socket"), b"").expect("socket stand-in");
         }
-        let found = Daemons::Dir(dir.clone()).sockets();
+        let found = Daemons::Dir(dir.clone()).instances();
         let _ = std::fs::remove_dir_all(&dir);
         let names: Vec<&str> = found.iter().map(|i| i.name.as_str()).collect();
         assert_eq!(names, ["a", "b"]);
-        assert_eq!(found[0].socket, dir.join("a").join("socket"));
+        assert_eq!(found[0].endpoint, dir.join("a").join("socket"));
     }
 
     #[test]
     fn sockets_of_a_missing_directory_is_empty() {
         let dir = std::env::temp_dir().join("smartclock-daemons-does-not-exist");
-        assert!(Daemons::Dir(dir).sockets().is_empty());
+        assert!(Daemons::Dir(dir).instances().is_empty());
+    }
+
+    #[test]
+    fn a_listed_daemon_is_named_or_goes_by_its_endpoint() {
+        let named = Instance::named("bench=tcp://host:9000");
+        assert_eq!(
+            (named.name.as_str(), named.endpoint.as_path()),
+            ("bench", std::path::Path::new("tcp://host:9000"))
+        );
+        let unnamed = Instance::named("/run/smartclockd/x/socket");
+        assert_eq!(unnamed.name, "/run/smartclockd/x/socket");
+        assert_eq!(
+            unnamed.endpoint,
+            std::path::Path::new("/run/smartclockd/x/socket")
+        );
     }
 
     #[test]

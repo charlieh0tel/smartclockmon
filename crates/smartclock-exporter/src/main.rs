@@ -50,10 +50,12 @@ struct Cli {
     )]
     run_dir: PathBuf,
 
-    /// One daemon, its socket or `tcp://HOST:PORT`, in place of the
-    /// directory.
-    #[arg(long, env = "SMARTCLOCK_EXPORTER_DAEMON")]
-    daemon: Option<PathBuf>,
+    /// The daemons to ask, in place of the directory: each
+    /// `[NAME=]ENDPOINT`, the endpoint its socket or `tcp://HOST:PORT`.
+    /// Repeated, or comma-separated.  An unnamed one goes by its
+    /// endpoint.
+    #[arg(long, env = "SMARTCLOCK_EXPORTER_DAEMON", value_delimiter = ',')]
+    daemon: Vec<String>,
 
     /// Address to serve /metrics on.
     ///
@@ -76,15 +78,16 @@ struct Cli {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let daemons = match cli.daemon.clone() {
-        Some(file) => Daemons::File(file),
-        None => Daemons::Dir(cli.run_dir.clone()),
-    };
+    let daemons = Daemons::from_names(&cli.daemon, &cli.run_dir);
     eprintln!(
         "smartclock-exporter: serving http://{}/metrics from {}",
         cli.listen,
         match &daemons {
-            Daemons::File(file) => file.display().to_string(),
+            Daemons::Listed(listed) => listed
+                .iter()
+                .map(|instance| instance.endpoint.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
             Daemons::Dir(dir) => format!("every daemon under {}", dir.display()),
         }
     );
@@ -137,11 +140,11 @@ const SCRAPE_BUDGET: Duration = Duration::from_secs(5);
 /// until the exporter restarts, which is how a unit retired on purpose
 /// is forgotten.
 fn scrape_all(daemons: &Daemons, seen: &Mutex<BTreeSet<String>>) -> Vec<Scrape> {
-    let current = daemons.sockets();
+    let current = daemons.instances();
     let mut scrapes: Vec<(String, Scrape)> = thread::scope(|scope| {
         let asked: Vec<_> = current
             .iter()
-            .map(|instance| scope.spawn(|| scrape(&instance.name, &instance.socket)))
+            .map(|instance| scope.spawn(|| scrape(&instance.name, &instance.endpoint)))
             .collect();
         current
             .iter()
@@ -321,6 +324,16 @@ mod tests {
         // systemd removes the directory when the instance stops.
         std::fs::remove_dir_all(run.0.join("bench")).expect("stop it");
         let out = render(&scrape_all(&daemons, &seen));
+        assert!(out.contains(r#"smartclock_up{daemon="bench"} 0"#), "{out}");
+    }
+
+    #[test]
+    fn a_listed_daemon_is_labeled_by_its_name() {
+        let daemons = Daemons::from_names(
+            &["bench=tcp://127.0.0.1:1".to_owned()],
+            std::path::Path::new("/nowhere"),
+        );
+        let out = render(&scrape_all(&daemons, &Mutex::new(BTreeSet::new())));
         assert!(out.contains(r#"smartclock_up{daemon="bench"} 0"#), "{out}");
     }
 
