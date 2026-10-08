@@ -352,5 +352,10 @@ both:
     smartclockd --device COM3 --listen 127.0.0.1:9977
     smartclock-exporter --daemon bench=tcp://127.0.0.1:9978,lab=tcp://127.0.0.1:9977
 
+Ctrl-C or Ctrl-Break stops the daemon; a second exits at once,
+without writing what it holds.  Closing its console, logging off or
+shutting down gives it four seconds to write it, Windows ending the
+process at five.
+
 Logs default to `C:\ProgramData\smartclockmon\log`.  Anything that
 can reach a daemon's port may connect to it.

@@ -12,6 +12,8 @@ use signal_hook::consts::SIGTERM;
 use signal_hook::iterator::Signals;
 use smartclock::task::Handle;
 
+use super::AGAIN;
+
 pub(super) fn watch_for_stop(handle: Handle) -> Result<Arc<AtomicBool>> {
     let stopping = Arc::new(AtomicBool::new(false));
     let mut signals = Signals::new([SIGTERM, SIGINT]).context("watching for signals")?;
@@ -22,7 +24,7 @@ pub(super) fn watch_for_stop(handle: Handle) -> Result<Arc<AtomicBool>> {
             for signal in signals.forever() {
                 if flag.swap(true, Ordering::SeqCst) {
                     eprintln!("smartclockd: signal {signal} again, exiting now");
-                    std::process::exit(1);
+                    std::process::exit(AGAIN);
                 }
                 eprintln!("smartclockd: signal {signal}, stopping");
                 handle.stop();

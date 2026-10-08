@@ -1807,6 +1807,7 @@ dependencies = [
  "smartclock",
  "smartclock-log",
  "smartclock-sim",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
