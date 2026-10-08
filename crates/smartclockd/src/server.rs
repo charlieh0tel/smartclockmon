@@ -913,7 +913,7 @@ mod socket_tests {
             let listener = listen(&socket).expect("listen");
             thread::Builder::new()
                 .name("test-serve".to_owned())
-                .spawn(move || serve(listener, "test", Arc::new(Served { handle, info })))
+                .spawn(move || serve(vec![listener], "test", Arc::new(Served { handle, info })))
                 .expect("serve thread");
 
             Self {

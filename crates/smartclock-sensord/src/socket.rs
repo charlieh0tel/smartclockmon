@@ -85,7 +85,7 @@ mod tests {
             info: info.clone(),
             latest: Arc::clone(&latest),
         });
-        std::thread::spawn(move || serve(listener, "test", answers));
+        std::thread::spawn(move || serve(vec![listener], "test", answers));
         let mut client = Daemon::connect(&socket).expect("connect");
         assert_eq!(client.sensor_info().expect("info"), info);
         let got = client.sensor_readings().expect("readings");

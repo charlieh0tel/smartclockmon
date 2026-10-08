@@ -226,6 +226,11 @@ pub fn listen(socket: &Path) -> io::Result<Listener> {
     listen_loopback(socket)
 }
 
+/// Listen on TCP at `address`, `HOST:PORT`.
+pub fn listen_tcp(address: &str) -> io::Result<Listener> {
+    Ok(Listener::Tcp(TcpListener::bind(address)?))
+}
+
 /// Listen on a loopback port the system picks, and name it in `socket`.
 #[cfg(any(not(unix), test))]
 fn listen_loopback(socket: &Path) -> io::Result<Listener> {

@@ -136,7 +136,9 @@ not change the wire format.
   snapshot on connect, then updates.  On Unix it is an AF_UNIX socket;
   elsewhere a loopback TCP port the system picks, written as
   `tcp://ADDRESS:PORT` in a file where the socket would be.  Clients
-  take either path, or a `tcp://HOST:PORT` outright.  Windows named
+  take either path, or a `tcp://HOST:PORT` outright, which a service
+  listens on as well when given `--listen`, for clients on other hosts;
+  its sixteen clients are counted across both.  Windows named
   pipes were tried and dropped: they have no read or write timeout,
   and a daemon that accepts and then wedges must not hold its client.
   The name is a filesystem path either way, so systemd's

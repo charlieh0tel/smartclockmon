@@ -101,10 +101,47 @@ pub fn listen(socket: &Path) -> std::io::Result<Listener> {
     link::listen(socket)
 }
 
-/// Listen for clients until the process ends.  `program` names the
-/// service in its threads and its messages.
-pub fn serve<S: Service>(listener: Listener, program: &'static str, service: Arc<S>) {
+/// Listen at `socket`, and on TCP at `tcp`, `HOST:PORT`, if given.
+///
+/// Nothing decides who may connect over TCP: anyone who can reach the
+/// address may issue whatever the service allows.
+pub fn listen_all(socket: &Path, tcp: Option<&str>) -> std::io::Result<Vec<Listener>> {
+    let at = |place: String| {
+        move |e: std::io::Error| std::io::Error::new(e.kind(), format!("listening on {place}: {e}"))
+    };
+    let mut listeners = vec![listen(socket).map_err(at(socket.display().to_string()))?];
+    if let Some(address) = tcp {
+        listeners.push(link::listen_tcp(address).map_err(at(format!("tcp://{address}")))?);
+    }
+    Ok(listeners)
+}
+
+/// Listen for clients on every listener until the process ends.
+/// `program` names the service in its threads and its messages.
+///
+/// [`MAX_CLIENTS`] counts the clients of every listener together.
+pub fn serve<S: Service>(listeners: Vec<Listener>, program: &'static str, service: Arc<S>) {
     let clients = Arc::new(AtomicUsize::new(0));
+    thread::scope(|scope| {
+        for listener in listeners {
+            let (service, clients) = (&service, &clients);
+            let spawned = thread::Builder::new()
+                .name(format!("{program}-accept"))
+                .spawn_scoped(scope, move || accept(&listener, program, service, clients));
+            if let Err(e) = spawned {
+                eprintln!("{program}: could not listen: {e}");
+            }
+        }
+    });
+}
+
+/// Accept clients from one listener until the process ends.
+fn accept<S: Service>(
+    listener: &Listener,
+    program: &'static str,
+    service: &Arc<S>,
+    clients: &Arc<AtomicUsize>,
+) {
     let mut failing = false;
     loop {
         let stream = match listener.accept() {
@@ -141,8 +178,8 @@ pub fn serve<S: Service>(listener: Listener, program: &'static str, service: Arc
             );
             continue;
         }
-        let service = Arc::clone(&service);
-        let slot = Slot::take(&clients);
+        let service = Arc::clone(service);
+        let slot = Slot::take(clients);
         // A spawn failure must not end the accept loop.  It used to
         // propagate, so one transient EAGAIN under thread pressure left
         // the service looking healthy while no client could ever
@@ -302,6 +339,7 @@ mod tests {
     use super::MAX_REQUEST;
     use super::Service;
     use super::listen;
+    use super::listen_all;
     use super::serve;
     use crate::protocol::Message;
     use crate::protocol::Protocol;
@@ -351,7 +389,7 @@ mod tests {
                 std::process::id()
             ));
             let listener = listen(&socket).expect("listen");
-            thread::spawn(move || serve(listener, "test", Arc::new(Echo)));
+            thread::spawn(move || serve(vec![listener], "test", Arc::new(Echo)));
             Self(socket)
         }
 
@@ -385,6 +423,26 @@ mod tests {
         writeln!(client, r#"{{"v":3,"id":"a","op":{{"kind":"ping"}}}}"#).expect("send");
         let line = first_line(&client);
         assert!(line.contains(r#""v":3"#) && line.contains("pong"), "{line}");
+    }
+
+    #[test]
+    fn a_service_answers_on_its_socket_and_over_tcp_alike() {
+        let socket = std::env::temp_dir().join(format!(
+            "smartclock-server-test-both-{}",
+            std::process::id()
+        ));
+        let probe = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a free port");
+        let address = probe.local_addr().expect("an address").to_string();
+        drop(probe);
+        let listeners = listen_all(&socket, Some(&address)).expect("listen");
+        thread::spawn(move || serve(listeners, "test", Arc::new(Echo)));
+        for path in [socket.clone(), PathBuf::from(format!("tcp://{address}"))] {
+            let mut client = crate::link::connect(&path).expect("connect");
+            writeln!(client, r#"{{"v":3,"id":"a","op":{{"kind":"ping"}}}}"#).expect("send");
+            let line = first_line(&client);
+            assert!(line.contains("pong"), "{}: {line}", path.display());
+        }
+        let _ = std::fs::remove_file(&socket);
     }
 
     #[test]
