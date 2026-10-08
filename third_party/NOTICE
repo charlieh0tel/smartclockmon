@@ -68,13 +68,17 @@ which claims about the command set are checked.  CPU32 code, big-endian, loaded 
                              "Reading memory through it").  512 KB from
                              address 0; SHA-256 d13b9ff1...9491ca3.
                              Identical, byte for byte, to a set of
-                             four AM29F010 dumps labeled "58503-00007..10
-                             U11..U14 REV 3704", joined as the 3633
-                             image is, that Daniel Straus forwarded on
-                             2026-10-07 and had himself found on the
-                             Internet some time before; where they
-                             were read is not known.  Not kept here,
-                             since they add nothing to the image.
+                             four AM29F010 dumps labeled "U11..U14
+                             58503-00007..10", files dated 2018-10-08,
+                             posted as "Firmware Unknown" to the
+                             HP-Agilent-Keysight-equipment group,
+                             groups.io/g/HP-Agilent-Keysight-equipment/
+                             topic/121519426, alongside willhb's RevA
+                             set, and forwarded by Daniel Straus on
+                             2026-10-07.  Joined as the 3633 image is;
+                             not kept here, since they add nothing to
+                             the image.  Where they were read is not
+                             known.
 
   z3805a-3543b.bin           Z3805A firmware, revision 3543B.  Copyright
                              Hewlett-Packard 1993.  Read on 2026-09-27
