@@ -35,15 +35,15 @@ use crate::source::Update;
 #[derive(Parser)]
 #[command(about, version = smartclock::VERSION)]
 struct Cli {
-    /// The daemon's socket: one instance's
-    /// `/run/smartclockd/<instance>/socket`.
+    /// The daemon to watch: its socket, one instance's
+    /// `/run/smartclockd/<instance>/socket`, or `tcp://HOST:PORT`.
     #[arg(long, required_unless_present = "device")]
-    socket: Option<String>,
+    daemon: Option<String>,
 
     /// Talk to the receiver directly instead of to the daemon.  Needs
     /// the daemon stopped, since it holds the port, and records no
     /// history.
-    #[arg(long, conflicts_with = "socket")]
+    #[arg(long, conflicts_with = "daemon")]
     device: Option<String>,
 
     /// Bits per second, for direct mode.
@@ -55,10 +55,11 @@ struct Cli {
     #[arg(long, default_value = "8N1")]
     framing: Framing,
 
-    /// The sensor service's socket, for the host's sensors in the
-    /// header.  A host without the service shows none.
+    /// The sensor service, its socket or `tcp://HOST:PORT`, for the
+    /// host's sensors in the header.  A host without the service shows
+    /// none.
     #[arg(long, default_value = SENSOR_SOCKET)]
-    sensor_socket: PathBuf,
+    sensord: PathBuf,
 }
 
 /// How often to redraw when nothing has arrived, so the clock in the
@@ -91,18 +92,18 @@ const SENSORS_BUDGET: Duration = Duration::from_millis(250);
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let (updates, attachment, console, policy, cadence) = match (&cli.device, &cli.socket) {
+    let (updates, attachment, console, policy, cadence) = match (&cli.device, &cli.daemon) {
         (Some(device), _) => source::from_device(device, cli.baud, cli.framing)?,
-        (None, Some(socket)) => source::from_daemon(socket)?,
+        (None, Some(daemon)) => source::from_daemon(daemon)?,
         // clap requires one of the two.
-        (None, None) => unreachable!("--socket is required without --device"),
+        (None, None) => unreachable!("--daemon is required without --device"),
     };
 
     let mut app = App::new(attachment, console, policy, cadence);
     app.open_log();
 
     let mut terminal = ratatui::init();
-    let outcome = run(&mut terminal, app, &updates, &cli.sensor_socket);
+    let outcome = run(&mut terminal, app, &updates, &cli.sensord);
     // Restore the terminal whatever happened, or a failure leaves the
     // operator with no echo and no cursor.
     ratatui::restore();

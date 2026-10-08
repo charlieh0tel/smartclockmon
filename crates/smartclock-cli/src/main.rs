@@ -82,11 +82,11 @@ struct Cli {
     ///
     /// The daemon holds the serial port for as long as it runs, so a
     /// direct-mode tool has to be given `--device` with the daemon
-    /// stopped.  This talks to the daemon over its socket instead,
-    /// which leaves the logging running and is gated by whatever flags
-    /// the daemon was started with.
+    /// stopped.  This talks to the daemon instead, at its socket or
+    /// `tcp://HOST:PORT`, which leaves the logging running and is gated
+    /// by whatever flags the daemon was started with.
     #[arg(long, conflicts_with_all = ["device", "capture"], global = true)]
-    socket: Option<PathBuf>,
+    daemon: Option<PathBuf>,
 
     /// Record the whole exchange to this JSONL transcript, a new file:
     /// an existing one is refused, not overwritten.
@@ -165,7 +165,7 @@ enum Command {
         to: ReadTo,
     },
     /// Write a note to the log of the daemon's receiver, such as "added
-    /// a 20 dB LNA".  Needs `--socket`; nothing is sent to the receiver.
+    /// a 20 dB LNA".  Needs `--daemon`; nothing is sent to the receiver.
     Note {
         /// What it says; the words are joined with spaces.
         #[arg(required = true)]
@@ -175,7 +175,7 @@ enum Command {
         at: Option<Timestamp>,
     },
     /// Record a fact about the daemon's receiver, such as `ocxo.serial
-    /// 1234`, and a note saying so.  Needs `--socket`; nothing is sent
+    /// 1234`, and a note saying so.  Needs `--daemon`; nothing is sent
     /// to the receiver.
     Fact {
         /// What it is about, one word, such as `ocxo.serial`.
@@ -191,9 +191,9 @@ enum Command {
     /// List the host's sensors and their latest readings, from
     /// smartclock-sensord.  Needs neither a receiver nor its daemon.
     Sensors {
-        /// The sensor service's socket.
+        /// The sensor service: its socket or `tcp://HOST:PORT`.
         #[arg(long, default_value = SENSOR_SOCKET)]
-        sensor_socket: PathBuf,
+        sensord: PathBuf,
     },
 }
 
@@ -285,15 +285,15 @@ fn main() -> Result<()> {
         print!("{}", smartclock::matrix::markdown());
         return Ok(());
     }
-    if let Command::Sensors { sensor_socket } = &cli.command {
-        return sensors(sensor_socket);
+    if let Command::Sensors { sensord } = &cli.command {
+        return sensors(sensord);
     }
 
-    if let Some(socket) = cli.socket.clone() {
-        return through_daemon(&socket, &cli.command);
+    if let Some(daemon) = cli.daemon.clone() {
+        return through_daemon(&daemon, &cli.command);
     }
     if matches!(cli.command, Command::Note { .. } | Command::Fact { .. }) {
-        anyhow::bail!("notes and facts are written to the log by the daemon; give --socket");
+        anyhow::bail!("notes and facts are written to the log by the daemon; give --daemon");
     }
     // Before the port is opened, so a refused list sends nothing at
     // all rather than the commands ahead of the refused one.  What is
@@ -514,7 +514,7 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command, checked: &[Stri
         | Command::ReadEeprom { .. }
         | Command::Flash(_) => unreachable!("handled before the session is opened"),
         Command::Note { .. } | Command::Fact { .. } => {
-            unreachable!("refused without --socket, before the port is opened")
+            unreachable!("refused without --daemon, before the port is opened")
         }
         // Handled before the port is opened.
         Command::Commands => Ok(()),
@@ -944,7 +944,7 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
             print!("{}", smartclock::matrix::markdown());
             Ok(())
         }
-        Command::Sensors { sensor_socket } => sensors(sensor_socket),
+        Command::Sensors { sensord } => sensors(sensord),
         Command::Probe { .. } | Command::Sweep { .. } => anyhow::bail!(
             "probe and sweep send hundreds of commands and need the port to themselves; \
              stop smartclockd and use --device"

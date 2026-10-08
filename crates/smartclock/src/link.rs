@@ -1,8 +1,8 @@
 //! The connection between a service and its clients: a Unix socket, or
 //! TCP.
 //!
-//! `--socket` and `--listen` name where a service is the same way, at
-//! either end: `tcp://HOST:PORT`, or a path, bare or as `unix://PATH`.
+//! A daemon's `--socket` and `--listen`, and a client's `--daemon` and
+//! `--sensord`, name where a service is the same way: `tcp://HOST:PORT`, or a path, bare or as `unix://PATH`.
 //! A path is a Unix socket, or a file naming the TCP address the
 //! service listens on.  The file stands where the socket would, in the
 //! service's run directory, so either way systemd's `RuntimeDirectory`
@@ -42,7 +42,7 @@ const TCP_SCHEME: &str = "tcp://";
 /// How a path may be written, for symmetry with [`TCP_SCHEME`].
 const UNIX_SCHEME: &str = "unix://";
 
-/// Where a service is, as `--socket` and `--listen` name it.
+/// Where a service is, as the flags that name one take it.
 #[derive(Debug, PartialEq, Eq)]
 enum Endpoint<'a> {
     /// `tcp://HOST:PORT`.

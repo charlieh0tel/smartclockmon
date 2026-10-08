@@ -35,7 +35,7 @@
 #SMARTCLOCKD_SOCKET=/run/smartclockd/<port>/socket
 
 # Also listen here, tcp://HOST:PORT, for clients on other hosts, which
-# use --socket tcp://HOST:PORT.  Nothing decides who may connect there:
+# use --daemon tcp://HOST:PORT.  Nothing decides who may connect there:
 # anyone who can reach it may issue whatever this daemon allows.  A
 # port serves one instance, so set it in a drop-in per instance.
 #SMARTCLOCKD_LISTEN=

@@ -4,7 +4,7 @@ What is on this bench, and what it has been seen doing.
 
 This goes stale when hardware is swapped, so it is not in `README.md`,
 `PLAN.md` or `AGENTS.md`, and no code should depend on it.  A running
-daemon is the better source: `smartclock-cli --socket ... diagnose`
+daemon is the better source: `smartclock-cli --daemon ... diagnose`
 heads its report with the model, serial and firmware of whatever is
 attached, and every log row names its receiver.
 

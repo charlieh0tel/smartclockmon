@@ -17,7 +17,7 @@ error queue and its alarm changes -- and the notes written about it
 needs the daemon stopped and records no history; the header says so.
 
 The header ends with the host's sensors and their current readings,
-from `smartclock-sensord` (`--sensor-socket`), or `--` for one that
+from `smartclock-sensord` (`--sensord`), or `--` for one that
 has stopped reading.  The history view adds a pane per sensor quantity
 below the receiver's three, a line per sensor, from the log the service
 says it keeps.

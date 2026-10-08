@@ -45,9 +45,9 @@ client:
                 --log-dir . \
                 --socket /tmp/smartclockd.sock
 
-    smartclockmon --socket /tmp/smartclockd.sock
-    smartclock-web --socket /tmp/smartclockd.sock --log-dir .        # http://127.0.0.1:9980/
-    smartclock-exporter --socket /tmp/smartclockd.sock               # http://127.0.0.1:9979/metrics
+    smartclockmon --daemon /tmp/smartclockd.sock
+    smartclock-web --daemon /tmp/smartclockd.sock --log-dir .        # http://127.0.0.1:9980/
+    smartclock-exporter --daemon /tmp/smartclockd.sock               # http://127.0.0.1:9979/metrics
 
 Installed, the web view and the exporter need no options: both read
 every daemon's socket under `/run/smartclockd` and every log under

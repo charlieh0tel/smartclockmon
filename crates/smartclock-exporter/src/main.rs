@@ -50,9 +50,10 @@ struct Cli {
     )]
     run_dir: PathBuf,
 
-    /// One daemon's socket in place of the directory.
-    #[arg(long, env = "SMARTCLOCK_EXPORTER_SOCKET")]
-    socket: Option<PathBuf>,
+    /// One daemon, its socket or `tcp://HOST:PORT`, in place of the
+    /// directory.
+    #[arg(long, env = "SMARTCLOCK_EXPORTER_DAEMON")]
+    daemon: Option<PathBuf>,
 
     /// Address to serve /metrics on.
     ///
@@ -66,15 +67,16 @@ struct Cli {
     )]
     listen: String,
 
-    /// The sensor service's socket.  Its sensors are exported once it
-    /// has answered; a host without one exports none.
-    #[arg(long, env = "SMARTCLOCK_EXPORTER_SENSOR_SOCKET", default_value = SENSOR_SOCKET)]
-    sensor_socket: PathBuf,
+    /// The sensor service, its socket or `tcp://HOST:PORT`.  Its sensors
+    /// are exported once it has answered; a host without one exports
+    /// none.
+    #[arg(long, env = "SMARTCLOCK_EXPORTER_SENSORD", default_value = SENSOR_SOCKET)]
+    sensord: PathBuf,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let daemons = match cli.socket.clone() {
+    let daemons = match cli.daemon.clone() {
         Some(file) => Daemons::File(file),
         None => Daemons::Dir(cli.run_dir.clone()),
     };
@@ -88,7 +90,7 @@ fn main() -> Result<()> {
     );
     let seen = Mutex::new(BTreeSet::new());
     let sensord_seen = AtomicBool::new(false);
-    let sensor_socket = cli.sensor_socket.clone();
+    let sensor_socket = cli.sensord.clone();
     smartclock_http::serve(&cli.listen, move |path| match path {
         "/metrics" => {
             let (scrapes, sensors) = thread::scope(|scope| {

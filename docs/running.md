@@ -37,7 +37,7 @@ open the socket may issue whatever the daemon is configured to allow.
 
 `--listen tcp://HOST:PORT` (`SMARTCLOCKD_LISTEN`) has the daemon
 listen on TCP as well, for clients on other hosts, which name it the
-same way, `--socket tcp://HOST:PORT`.  Both flags take a path, bare or
+same way, `--daemon tcp://HOST:PORT`.  Both flags take a path, bare or
 as `unix://PATH`, or a `tcp://` address.  Nothing decides who may connect there:
 anyone who can reach the port may issue whatever the daemon allows.
 The port is the daemon's alone, so give each instance its own in a
@@ -47,7 +47,7 @@ drop-in.  `smartclock-sensord` takes the same flag,
 Check the install:
 
     systemctl status smartclockd@ttyUSB0
-    smartclockmon --socket /run/smartclockd/ttyUSB0/socket
+    smartclockmon --daemon /run/smartclockd/ttyUSB0/socket
     sudo -u smartclockd ls /var/lib/smartclockd/
     sudo -u smartclockd sqlite3 /var/lib/smartclockd/<model>-<serial>.sqlite \
         "select count(*), max(at) from snapshot;"
@@ -237,9 +237,9 @@ last year's holdover events stay in the record.
 What the receiver cannot report -- a new amplifier, a moved antenna,
 the oscillator's serial -- goes into its log through the daemon:
 
-    smartclock-cli --socket /run/smartclockd/ttyUSB0/socket note added a 20 dB LNA
-    smartclock-cli --socket ... note --at 2026-09-25T14:00:00-07:00 ran master_reset
-    smartclock-cli --socket ... fact ocxo.model 10811-60159
+    smartclock-cli --daemon /run/smartclockd/ttyUSB0/socket note added a 20 dB LNA
+    smartclock-cli --daemon ... note --at 2026-09-25T14:00:00-07:00 ran master_reset
+    smartclock-cli --daemon ... fact ocxo.model 10811-60159
 
 Both are filed under the receiver attached now; nothing is sent to it.
 Notes show in the journal of the web view and the monitor, and as
@@ -259,7 +259,7 @@ A second port is a second instance:
 
     sudo systemctl enable --now smartclockd@ttyUSB1
 
-    smartclockmon --socket /run/smartclockd/ttyUSB1/socket
+    smartclockmon --daemon /run/smartclockd/ttyUSB1/socket
 
 A Z3801A's port is fixed at seven data bits and odd parity
 (`097-z3801-01` 1-8 and 2-10); the daemon opens 8N1 by default.  A

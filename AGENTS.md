@@ -23,7 +23,7 @@ the project is, `PLAN.md` for architecture, decisions and open work.
 
 Which receiver is attached, where, and what state it is in are facts
 about a particular bench, not instructions about this project.  Ask, or
-read them from a running daemon: `smartclock-cli --socket ... diagnose`
+read them from a running daemon: `smartclock-cli --daemon ... diagnose`
 heads its report with the model, serial and firmware, and the snapshot
 log records which receiver every row came from.  Do not write them down
 here, where they go stale unnoticed.

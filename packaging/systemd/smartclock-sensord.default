@@ -22,6 +22,6 @@
 #SMARTCLOCK_SENSORD_SOCKET=/run/smartclock-sensord/socket
 
 # Also listen here, tcp://HOST:PORT, for clients on other hosts, which
-# use --sensor-socket tcp://HOST:PORT.  Nothing decides who may connect
+# use --sensord tcp://HOST:PORT.  Nothing decides who may connect
 # there.
 #SMARTCLOCK_SENSORD_LISTEN=

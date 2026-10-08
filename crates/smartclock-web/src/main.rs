@@ -88,9 +88,10 @@ struct Cli {
     )]
     run_dir: PathBuf,
 
-    /// One daemon's socket in place of the directory.
-    #[arg(long, env = "SMARTCLOCK_WEB_SOCKET")]
-    socket: Option<PathBuf>,
+    /// One daemon, its socket or `tcp://HOST:PORT`, in place of the
+    /// directory.
+    #[arg(long, env = "SMARTCLOCK_WEB_DAEMON")]
+    daemon: Option<PathBuf>,
 
     /// The daemon's logs, for history: one `.sqlite` file per receiver
     /// in this directory.  Opened read-only.
@@ -120,15 +121,16 @@ struct Cli {
     #[arg(long, env = "SMARTCLOCK_WEB_SENSOR_LOG", default_value = SENSOR_LOG)]
     sensor_log: PathBuf,
 
-    /// The sensor service's socket, for the sensors' latest readings.
-    #[arg(long, env = "SMARTCLOCK_WEB_SENSOR_SOCKET", default_value = SENSOR_SOCKET)]
-    sensor_socket: PathBuf,
+    /// The sensor service, its socket or `tcp://HOST:PORT`, for the
+    /// sensors' latest readings.
+    #[arg(long, env = "SMARTCLOCK_WEB_SENSORD", default_value = SENSOR_SOCKET)]
+    sensord: PathBuf,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
     eprintln!("smartclock-web: serving http://{}/", cli.listen);
-    let daemons = match cli.socket.clone() {
+    let daemons = match cli.daemon.clone() {
         Some(file) => Daemons::File(file),
         None => Daemons::Dir(cli.run_dir.clone()),
     };
@@ -137,7 +139,7 @@ fn main() -> Result<()> {
         None => Logs::Dir(cli.log_dir.clone()),
     };
     let cache = Cache::default();
-    let (sensor_log, sensor_socket) = (cli.sensor_log.clone(), cli.sensor_socket.clone());
+    let (sensor_log, sensor_socket) = (cli.sensor_log.clone(), cli.sensord.clone());
     smartclock_http::serve(&cli.listen, move |target| {
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
         match path {

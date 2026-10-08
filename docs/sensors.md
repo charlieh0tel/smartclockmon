@@ -130,9 +130,10 @@ read every 10 s measured 408 MB, about 0.4 MB a day per sensor.
   nothing; with no socket, no live values.  The exporter reports
   `smartclock_sensord_up 0` once it has seen the service.
 
-The web view takes `--sensor-log` and `--sensor-socket`
-(`SMARTCLOCK_WEB_SENSOR_LOG`, `SMARTCLOCK_WEB_SENSOR_SOCKET`), defaulting
-to the paths above; the exporter and the TUI take `--sensor-socket`.
+The web view takes `--sensor-log` and `--sensord`
+(`SMARTCLOCK_WEB_SENSOR_LOG`, `SMARTCLOCK_WEB_SENSORD`), defaulting to
+the paths above; the exporter, the TUI and `smartclock-cli sensors` take
+`--sensord`.
 
 ## Sensors
 

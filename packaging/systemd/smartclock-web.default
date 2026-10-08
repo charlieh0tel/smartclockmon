@@ -7,13 +7,14 @@
 
 # The daemons' sockets, one instance per subdirectory; the live strip
 # follows the selected receiver to its daemon.  Set
-# SMARTCLOCK_WEB_SOCKET to one socket instead.
+# SMARTCLOCK_WEB_DAEMON to one daemon instead, its socket or
+# tcp://HOST:PORT.
 #SMARTCLOCK_WEB_RUN_DIR=/run/smartclockd
 
 # The daemons' logs, one per receiver.  Set SMARTCLOCK_WEB_DATABASE to
 # a file instead to read one log.
 #SMARTCLOCK_WEB_LOG_DIR=/var/lib/smartclockd
 
-# The sensor service's log and socket.
+# The sensor service's log, and the service itself.
 #SMARTCLOCK_WEB_SENSOR_LOG=/var/lib/smartclock-sensord/sensors.sqlite
-#SMARTCLOCK_WEB_SENSOR_SOCKET=/run/smartclock-sensord/socket
+#SMARTCLOCK_WEB_SENSORD=/run/smartclock-sensord/socket
