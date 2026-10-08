@@ -428,6 +428,27 @@ for (const path of ["/", "/compare"]) {
   });
 }
 
+test("the compare page keeps its charts up while it reads them again", async ({ page }) => {
+  const fake = withSensors();
+  // A stability measurement takes time; the old curves stay meanwhile.
+  for (const unit of fake.units) unit.delay = { adev: 1000, notes: 300 };
+  await fake.install(page);
+  await page.goto(`/compare?receiver=${B}&last=3600`);
+  await page.waitForFunction(() => charts.length >= 3 && deviationChart);
+  const empty = await page.evaluate(() => new Promise((resolve) => {
+    let blank = 0;
+    const until = performance.now() + 2500;
+    const frame = () => {
+      if (!$("charts").querySelector(".uplot") || !$("chart-deviation").querySelector(".uplot")) blank++;
+      if (performance.now() < until) requestAnimationFrame(frame);
+      else resolve(blank);
+    };
+    renew(true);
+    requestAnimationFrame(frame);
+  }));
+  expect(empty).toBe(0);
+});
+
 test("a host without sensors offers none", async ({ page }) => {
   await openAt(page, "/", "last=3600");
   await page.waitForFunction(() => charts.length > 0);

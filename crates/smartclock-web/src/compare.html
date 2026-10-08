@@ -128,18 +128,26 @@ function pickers() {
   }
 }
 
-function clearCharts(why) {
+// Take the history charts down, saying why in their place.
+function clearHistory(why) {
   hold($("charts"), why === "");
-  hold($("chart-deviation"), why === "");
   for (const c of charts) c.destroy();
   charts = [];
-  deviationChart?.destroy();
-  deviationChart = null;
   $("charts").innerHTML = "";
-  $("chart-deviation").innerHTML = "";
-  $("deviation-note").textContent = "";
   noteTip(null, null);
   $("note").textContent = why;
+}
+
+function clearDeviation() {
+  deviationChart?.destroy();
+  deviationChart = null;
+  $("chart-deviation").innerHTML = "";
+  $("deviation-note").textContent = "";
+}
+
+function clearCharts(why) {
+  clearHistory(why);
+  clearDeviation();
 }
 
 // The window every receiver is asked for, in whole unix seconds.  One
@@ -407,7 +415,11 @@ async function load(signal) {
   const shown = serials.filter((s) => ticked.has(s) && got[s].at.length);
   const failed = serials.filter((s) => ticked.has(s) && got[s].failed);
   const quiet = serials.filter((s) => ticked.has(s) && !got[s].failed && !got[s].at.length);
-  clearCharts(
+  // Everything the history charts draw, read before they come down, so
+  // the page never shows them gone while it waits.
+  const notes = (await Promise.all(shown.map((s) => quietly(notesOf(s, win, signal), [])))).flat();
+  const groups = await sensorGroups(await sensorsListed(signal), win, signal);
+  clearHistory(
     [
       !shown.length && !failed.length ? "no ticked receiver has readings in this range" : "",
       failed.length ? `could not read ${failed.map(unitName).join(", ")}` : "",
@@ -416,15 +428,19 @@ async function load(signal) {
       .filter(Boolean)
       .join("; "),
   );
-  if (!shown.length) return;
-  marks = (await Promise.all(shown.map((s) => quietly(notesOf(s, win, signal), [])))).flat();
-  const groups = await sensorGroups(await sensorsListed(signal), win, signal);
+  if (!shown.length) {
+    clearDeviation();
+    return;
+  }
+  marks = notes;
   drawHistory(shown, got, groups);
+  // The last stability curves stay up while new ones are measured,
+  // which takes seconds, and are replaced in one step.
   const curves = Object.fromEntries(
     await Promise.all(shown.map(async (s) => [s, await quietly(deviationOf(s, win, signal), null)])),
   );
+  clearDeviation();
   drawDeviation(shown, curves);
-  release($("chart-deviation"));
   // A curve from a range longer than one measurement reads covers only
   // its newest part; said, since the plot cannot show it.
   const unread = shown.filter((s) => curves[s] === null);
