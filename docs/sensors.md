@@ -53,9 +53,7 @@ Repeatable switches, one per kind of sensor:
   in the journal.  It logs temperature, and humidity from a TEMPerHUM,
   which appears the first time the stick is read.  The stick is held
   open, and locked, between reads, and found again after an error, so
-  a replug is picked up.  Not to be read here and through the
-  `temper-iio` daemon at once: whichever opens it second is refused.
-  Access comes from the `temper` package, which the Debian package
+  a replug is picked up.  Access comes from the `temper` package, which the Debian package
   depends on: its udev rules give the stick's hidraw node to group
   `temper`, which the service joins, and turn off the stick's keyboard
   interface.
@@ -174,5 +172,5 @@ has to redo it.
 
 A helper outside this project can present one as an IIO device through
 `/dev/uhid`, and keep a symlink to it under `/run`.  The service reads
-it like any other IIO sensor.  `temper-iio` does so for TEMPer sticks;
-`--temper` reads them without it.
+it like any other IIO sensor.  TEMPer sticks need no helper:
+`--temper` reads them directly.
