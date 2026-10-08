@@ -124,10 +124,17 @@ pub fn listen_all(socket: Option<&Path>, tcp: Option<&str>) -> std::io::Result<V
 }
 
 /// Listen for clients on every listener until the process ends.
-/// `program` names the service in its threads and its messages.
+/// `program` names the service in its threads and its messages, the
+/// first of which says where each listener is, with the port the
+/// system picked for one asked for port 0.
 ///
 /// [`MAX_CLIENTS`] counts the clients of every listener together.
 pub fn serve<S: Service>(listeners: Vec<Listener>, program: &'static str, service: Arc<S>) {
+    for listener in &listeners {
+        if let Ok(endpoint) = listener.endpoint() {
+            eprintln!("{program}: listening on {}", endpoint.display());
+        }
+    }
     let clients = Arc::new(AtomicUsize::new(0));
     thread::scope(|scope| {
         for listener in listeners {

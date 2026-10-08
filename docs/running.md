@@ -333,3 +333,24 @@ the cable and start it after:
 
     sudo systemctl stop smartclockd@ttyUSB0
     sudo systemctl start smartclockd@ttyUSB0
+
+## Windows
+
+`make windows` cross-builds everything but the sensor service, which
+reads Linux's hwmon and IIO, for `x86_64-pc-windows-gnu`; it needs that
+Rust target (`rustup target add x86_64-pc-windows-gnu`) and mingw-w64.
+The test suite passes under Wine.  There is no installer and no
+service: the programs run from a console.
+
+Windows has no Unix sockets, so the daemon listens on TCP alone,
+`127.0.0.1:9978` unless given `--listen`, and refuses `--socket`.  The
+monitor, exporter and web view ask `tcp://127.0.0.1:9978` unless given
+`--daemon`; the exporter and web view refuse `--run-dir`.  A second
+receiver needs a daemon on a port of its own, and the collectors told
+both:
+
+    smartclockd --device COM3 --listen 127.0.0.1:9977
+    smartclock-exporter --daemon bench=tcp://127.0.0.1:9978,lab=tcp://127.0.0.1:9977
+
+Logs default to `C:\ProgramData\smartclockmon\log`.  Anything that
+can reach a daemon's port may connect to it.

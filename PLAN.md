@@ -145,7 +145,9 @@ not change the wire format.
   daemon given neither listens on `127.0.0.1:9978`, and the monitor,
   exporter and web view ask `tcp://127.0.0.1:9978` when told no daemon.
   A second daemon there needs a port of its own and its clients told
-  which.  `smartclock::defaults` holds every such difference.
+  which.  `smartclock::defaults` holds where things are on each,
+  `smartclock::link`'s `unix.rs` and `windows.rs` how a connection is
+  made, and `smartclockd::stop` how the daemon is stopped.
   Windows named pipes were tried and dropped: they have no read or
   write timeout, and a daemon that accepts and then wedges must not
   hold its client.
@@ -630,7 +632,10 @@ threat model is a careless operator on a single-operator machine, not
 an attacker, so two things are not defended against:
 
 - Socket permissions are the whole of the authorization, and over TCP
-  there is none: anyone who can reach the port may connect.
+  there is none: anyone who can reach the port may connect.  On
+  Windows, where TCP is all there is, a program that takes
+  `127.0.0.1:9978` before the daemon does is the daemon to every
+  client asking there by default.
   A connection ends at its first line that is not a request, so a web
   page posting to the port does not have the request in its body
   answered.

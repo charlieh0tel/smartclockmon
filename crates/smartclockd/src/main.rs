@@ -1167,12 +1167,6 @@ fn start_server(listening: Listening<'_>) -> Result<()> {
         .name("smartclockd-socket".to_owned())
         .spawn(move || smartclock::server::serve(listeners, "smartclockd", daemon))
         .context("spawning the socket server")?;
-    if let Some(socket) = listening.socket {
-        eprintln!("smartclockd: listening on {}", socket.display());
-    }
-    if let Some(address) = listening.tcp {
-        eprintln!("smartclockd: listening on {address}");
-    }
     Ok(())
 }
 
@@ -1423,45 +1417,50 @@ mod tests {
         assert_eq!(serials, vec![Some("A".to_owned())]);
     }
 
+    /// What only a Unix socket does.
     #[cfg(unix)]
-    #[test]
-    fn a_live_socket_is_not_taken_over_and_a_stale_one_is() {
-        use super::Listening;
-        use super::server;
-        use super::start_server;
+    mod socket {
+        use super::super::Listening;
+        use super::super::server;
+        use super::super::start_server;
+        use smartclock::task::Cadence;
         use smartclock::task::Shared;
+        use std::sync::mpsc::channel;
 
-        let socket =
-            std::env::temp_dir().join(format!("smartclockd-takeover-{}.sock", std::process::id()));
-        // Left behind by a crash: not a listening socket at all.
-        std::fs::write(&socket, b"").expect("a stale file");
-        let shared = Shared::new();
-        let (requests, _queue) = channel();
-        let (audit, _audit) = channel();
-        let info = || {
-            std::sync::Arc::new(std::sync::Mutex::new(server::Info {
-                identity: String::new(),
-                dialect: smartclock::command::Dialect::Hp58503,
-                database: String::new(),
-                policy: server::Policy::default(),
-                inbox: crate::inbox::LogInbox::new(audit.clone()),
-                cadence: Cadence::default(),
-            }))
-        };
-        let listening = |info| Listening {
-            socket: Some(&socket),
-            tcp: None,
-            shared: &shared,
-            requests: &requests,
-            info,
-        };
-        start_server(listening(info())).expect("the stale file is replaced");
-        let refused = start_server(listening(info())).expect_err("the socket is live");
-        assert!(
-            format!("{refused:#}").contains("another service"),
-            "{refused:#}"
-        );
-        let _ = std::fs::remove_file(&socket);
+        #[test]
+        fn a_live_socket_is_not_taken_over_and_a_stale_one_is() {
+            let socket = std::env::temp_dir()
+                .join(format!("smartclockd-takeover-{}.sock", std::process::id()));
+            // Left behind by a crash: not a listening socket at all.
+            std::fs::write(&socket, b"").expect("a stale file");
+            let shared = Shared::new();
+            let (requests, _queue) = channel();
+            let (audit, _audit) = channel();
+            let info = || {
+                std::sync::Arc::new(std::sync::Mutex::new(server::Info {
+                    identity: String::new(),
+                    dialect: smartclock::command::Dialect::Hp58503,
+                    database: String::new(),
+                    policy: server::Policy::default(),
+                    inbox: crate::inbox::LogInbox::new(audit.clone()),
+                    cadence: Cadence::default(),
+                }))
+            };
+            let listening = |info| Listening {
+                socket: Some(&socket),
+                tcp: None,
+                shared: &shared,
+                requests: &requests,
+                info,
+            };
+            start_server(listening(info())).expect("the stale file is replaced");
+            let refused = start_server(listening(info())).expect_err("the socket is live");
+            assert!(
+                format!("{refused:#}").contains("another service"),
+                "{refused:#}"
+            );
+            let _ = std::fs::remove_file(&socket);
+        }
     }
 
     #[test]

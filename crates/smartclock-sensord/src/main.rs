@@ -182,10 +182,6 @@ fn run(cli: Cli) -> Result<()> {
         .name("smartclock-sensord-socket".to_owned())
         .spawn(move || smartclock::server::serve(listeners, "smartclock-sensord", answers))
         .context("spawning the socket server")?;
-    eprintln!("smartclock-sensord: listening on {}", cli.socket.display());
-    if let Some(address) = &cli.listen {
-        eprintln!("smartclock-sensord: listening on {address}");
-    }
 
     let mut kept = Vec::with_capacity(sensors.len());
     for sensor in sensors {
