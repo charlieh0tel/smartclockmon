@@ -1,3 +1,21 @@
+smartclockmon (1.5.0-1) unstable; urgency=low
+
+  * Every timestamp in the logs is stored as integer nanoseconds since
+    the Unix epoch, in place of RFC 3339 text, and every table is
+    STRICT.  The receivers' logs move to schema 12 and the sensor log
+    to schema 2.
+  * Each daemon converts its log the first time it opens it: a few
+    seconds per log, during which the receiver is not read, in one
+    transaction, exact to the nanosecond, and the file vacuumed after,
+    which leaves it about 40% smaller.  A log in a form it cannot
+    convert exactly is left untouched and the daemon says why.
+  * The web view and the monitor refuse a log not yet converted,
+    naming the service to start once to convert it.  There is no
+    going back to 1.4 with a converted log; copy the logs first if you
+    may want to.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Thu, 08 Oct 2026 13:55:40 -0700
+
 smartclockmon (1.4.0-1) unstable; urgency=low
 
   * The web view has a correlation page, /correlation.  It sets two
