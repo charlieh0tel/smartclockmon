@@ -16,6 +16,8 @@ use std::time::Duration;
 use std::time::Instant;
 
 use anyhow::Result;
+use clap::CommandFactory as _;
+use clap::FromArgMatches as _;
 use clap::Parser;
 use crossterm::event;
 use crossterm::event::Event;
@@ -38,7 +40,6 @@ use crate::source::Update;
 struct Cli {
     /// The daemon to watch: its socket, one instance's
     /// `/run/smartclockd/<instance>/socket`, or `tcp://HOST:PORT`.
-    /// Needed unless `--device` is given, or there are no Unix sockets.
     #[arg(long)]
     daemon: Option<String>,
 
@@ -92,13 +93,22 @@ const SENSORS_REFRESH: Duration = Duration::from_secs(5);
 /// leaves the header without sensors until the next ask.
 const SENSORS_BUDGET: Duration = Duration::from_millis(250);
 
+/// The command line.  `--daemon` is needed without `--device`, except
+/// where there are no Unix sockets, where it has a default.
+fn parse() -> Cli {
+    let command = Cli::command().mut_arg("daemon", |arg| match DAEMON {
+        None => arg.required_unless_present("device"),
+        Some(daemon) => arg.default_value(daemon),
+    });
+    Cli::from_arg_matches(&command.get_matches()).unwrap_or_else(|e| e.exit())
+}
+
 fn main() -> Result<()> {
-    let cli = Cli::parse();
-    let daemon = cli.daemon.as_deref().or(DAEMON);
-    let (updates, attachment, console, policy, cadence) = match (&cli.device, daemon) {
+    let cli = parse();
+    let (updates, attachment, console, policy, cadence) = match (&cli.device, &cli.daemon) {
         (Some(device), _) => source::from_device(device, cli.baud, cli.framing)?,
         (None, Some(daemon)) => source::from_daemon(daemon)?,
-        (None, None) => anyhow::bail!("give --daemon, or --device for direct mode"),
+        (None, None) => unreachable!("--daemon is required without --device"),
     };
 
     let mut app = App::new(attachment, console, policy, cadence);

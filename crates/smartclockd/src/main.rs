@@ -39,6 +39,8 @@ use std::time::Instant;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use clap::CommandFactory as _;
+use clap::FromArgMatches as _;
 use clap::Parser;
 use jiff::Timestamp;
 use smartclock::attach::attach;
@@ -102,13 +104,12 @@ struct Cli {
 
     /// The Unix socket to listen on.  No default: the socket is per
     /// instance, and the unit sets it from the instance name.  Needed
-    /// unless `--listen` is given, or there are no Unix sockets.
+    /// unless `--listen` is given.
     #[arg(long, env = "SMARTCLOCKD_SOCKET")]
     socket: Option<PathBuf>,
 
     /// Also listen on TCP at this address, `HOST:PORT`, for clients on
-    /// other hosts, which name it as `--daemon tcp://HOST:PORT`.  Where
-    /// there are no Unix sockets and no `--socket`, a default.
+    /// other hosts, which name it as `--daemon tcp://HOST:PORT`.
     ///
     /// Nothing decides who may connect over TCP: anyone who can reach
     /// the address may issue whatever this service allows.
@@ -208,28 +209,34 @@ const FIRST_JOURNAL: Duration = Duration::from_secs(5);
 /// when empty and unchanged, nearly always.
 const JOURNAL_EVERY: Duration = Duration::from_secs(10);
 
+/// The command line.  `--socket` is needed without `--listen`, except
+/// where there are no Unix sockets: there it is refused, and `--listen`
+/// has a default.
+fn parse() -> Cli {
+    let command = match TCP_LISTEN {
+        None => Cli::command().mut_arg("socket", |arg| arg.required_unless_present("listen")),
+        Some(address) => Cli::command()
+            .mut_arg("socket", |arg| arg.hide(true).value_parser(no_unix_sockets))
+            .mut_arg("listen", |arg| arg.default_value(address)),
+    };
+    Cli::from_arg_matches(&command.get_matches()).unwrap_or_else(|e| e.exit())
+}
+
+/// Refuses a socket, where there are no Unix sockets.
+fn no_unix_sockets(_: &str) -> Result<PathBuf, String> {
+    Err("there are no Unix sockets here; listen with --listen HOST:PORT".to_owned())
+}
+
 fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let cli = parse();
     // Absolute, because the log's path is told to clients, which open it
     // from a working directory of their own.
     let absolute = |path: &Path| {
         std::path::absolute(path).with_context(|| format!("resolving {}", path.display()))
     };
-    // Where there are no Unix sockets, TCP is all there is.
-    let listen = cli.listen.clone().or_else(|| {
-        cli.socket
-            .is_none()
-            .then_some(TCP_LISTEN)
-            .flatten()
-            .map(str::to_owned)
-    });
-    if cli.socket.is_none() && listen.is_none() {
-        anyhow::bail!("nowhere to listen: give --socket, --listen or both");
-    }
     let cli = Cli {
         log_dir: absolute(&cli.log_dir)?,
         database: cli.database.as_deref().map(absolute).transpose()?,
-        listen,
         ..cli
     };
     let baud = BaudRate::new(cli.baud).with_context(|| {

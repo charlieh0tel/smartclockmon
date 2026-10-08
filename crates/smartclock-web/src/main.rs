@@ -22,11 +22,15 @@ use std::time::Instant;
 
 use anyhow::Context;
 use anyhow::Result;
+use clap::CommandFactory as _;
+use clap::FromArgMatches as _;
 use clap::Parser;
 use jiff::Timestamp;
 use smartclock::client;
 use smartclock::client::Daemon;
 use smartclock::client::Daemons;
+use smartclock::client::no_run_dir;
+use smartclock::defaults::DAEMON;
 use smartclock::defaults::LOG_DIR;
 use smartclock::defaults::RUN_DIR;
 use smartclock::defaults::SENSOR_LOG;
@@ -86,7 +90,7 @@ struct Cli {
         env = "SMARTCLOCK_WEB_RUN_DIR",
         default_value = RUN_DIR
     )]
-    run_dir: PathBuf,
+    run_dir: Option<PathBuf>,
 
     /// The daemons to ask, in place of the directory: each
     /// `[NAME=]ENDPOINT`, the endpoint its socket or `tcp://HOST:PORT`.
@@ -129,10 +133,22 @@ struct Cli {
     sensord: PathBuf,
 }
 
+/// The command line.  Where there are no Unix sockets there is no run
+/// directory either, and the daemon asked by default is [`DAEMON`].
+fn parse() -> Cli {
+    let command = match DAEMON {
+        None => Cli::command(),
+        Some(_) => Cli::command().mut_arg("run_dir", |arg| {
+            arg.hide(true).default_value(None).value_parser(no_run_dir)
+        }),
+    };
+    Cli::from_arg_matches(&command.get_matches()).unwrap_or_else(|e| e.exit())
+}
+
 fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let cli = parse();
     eprintln!("smartclock-web: serving http://{}/", cli.listen);
-    let daemons = Daemons::from_names(&cli.daemon, &cli.run_dir);
+    let daemons = Daemons::from_names(&cli.daemon, cli.run_dir.as_deref());
     let logs = match cli.database.clone() {
         Some(file) => Logs::File(file),
         None => Logs::Dir(cli.log_dir.clone()),

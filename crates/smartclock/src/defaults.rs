@@ -43,8 +43,10 @@ pub const SENSOR_SOCKET: &str = os::SENSOR_SOCKET;
 /// The sensor service's log.
 pub const SENSOR_LOG: &str = os::SENSOR_LOG;
 
-/// Where a receiver daemon listens on TCP when told nowhere at all.
+/// Where a receiver daemon listens on TCP when told nowhere else; there
+/// is one exactly where there are no Unix sockets.
 pub const TCP_LISTEN: Option<&str> = os::TCP_LISTEN;
 
-/// The receiver daemon a client asks when told none.
+/// The receiver daemon a client asks when told none; there is one
+/// exactly where there are no Unix sockets.
 pub const DAEMON: Option<&str> = os::DAEMON;

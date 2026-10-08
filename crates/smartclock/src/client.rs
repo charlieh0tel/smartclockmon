@@ -289,6 +289,15 @@ pub enum Daemons {
     Listed(Vec<Instance>),
 }
 
+/// Refuses a run directory, for a command line where there are no Unix
+/// sockets for one to hold.
+pub fn no_run_dir(_: &str) -> std::result::Result<PathBuf, String> {
+    Err(
+        "there are no Unix sockets here, so no run directory; name the daemons with --daemon"
+            .to_owned(),
+    )
+}
+
 /// One daemon a collector asks.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instance {
@@ -318,17 +327,16 @@ impl Instance {
 }
 
 impl Daemons {
-    /// The daemons `named`, each `[NAME=]ENDPOINT`, or when none is
-    /// every one under `run_dir`, or where there are no Unix sockets the
-    /// one at [`DAEMON`].
-    pub fn from_names(named: &[String], run_dir: &Path) -> Self {
-        if named.is_empty() {
-            match DAEMON {
-                Some(daemon) => Self::Listed(vec![Instance::named(daemon)]),
-                None => Self::Dir(run_dir.to_path_buf()),
+    /// The daemons `named`, each `[NAME=]ENDPOINT`; when none is,
+    /// every one under `run_dir`; without one of those either, the one
+    /// at [`DAEMON`], if there is one.
+    pub fn from_names(named: &[String], run_dir: Option<&Path>) -> Self {
+        match run_dir {
+            _ if !named.is_empty() => {
+                Self::Listed(named.iter().map(|text| Instance::named(text)).collect())
             }
-        } else {
-            Self::Listed(named.iter().map(|text| Instance::named(text)).collect())
+            Some(dir) => Self::Dir(dir.to_path_buf()),
+            None => Self::Listed(DAEMON.into_iter().map(Instance::named).collect()),
         }
     }
 

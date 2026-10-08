@@ -25,10 +25,14 @@ use std::thread;
 use std::time::Duration;
 
 use anyhow::Result;
+use clap::CommandFactory as _;
+use clap::FromArgMatches as _;
 use clap::Parser;
 use smartclock::client;
 use smartclock::client::Daemon;
 use smartclock::client::Daemons;
+use smartclock::client::no_run_dir;
+use smartclock::defaults::DAEMON;
 use smartclock::defaults::RUN_DIR;
 use smartclock::defaults::SENSOR_SOCKET;
 use smartclock::error::Error;
@@ -48,7 +52,7 @@ struct Cli {
         env = "SMARTCLOCK_EXPORTER_RUN_DIR",
         default_value = RUN_DIR
     )]
-    run_dir: PathBuf,
+    run_dir: Option<PathBuf>,
 
     /// The daemons to ask, in place of the directory: each
     /// `[NAME=]ENDPOINT`, the endpoint its socket or `tcp://HOST:PORT`.
@@ -76,9 +80,21 @@ struct Cli {
     sensord: PathBuf,
 }
 
+/// The command line.  Where there are no Unix sockets there is no run
+/// directory either, and the daemon asked by default is [`DAEMON`].
+fn parse() -> Cli {
+    let command = match DAEMON {
+        None => Cli::command(),
+        Some(_) => Cli::command().mut_arg("run_dir", |arg| {
+            arg.hide(true).default_value(None).value_parser(no_run_dir)
+        }),
+    };
+    Cli::from_arg_matches(&command.get_matches()).unwrap_or_else(|e| e.exit())
+}
+
 fn main() -> Result<()> {
-    let cli = Cli::parse();
-    let daemons = Daemons::from_names(&cli.daemon, &cli.run_dir);
+    let cli = parse();
+    let daemons = Daemons::from_names(&cli.daemon, cli.run_dir.as_deref());
     eprintln!(
         "smartclock-exporter: serving http://{}/metrics from {}",
         cli.listen,
@@ -331,7 +347,7 @@ mod tests {
     fn a_listed_daemon_is_labeled_by_its_name() {
         let daemons = Daemons::from_names(
             &["bench=tcp://127.0.0.1:1".to_owned()],
-            std::path::Path::new("/nowhere"),
+            None,
         );
         let out = render(&scrape_all(&daemons, &Mutex::new(BTreeSet::new())));
         assert!(out.contains(r#"smartclock_up{daemon="bench"} 0"#), "{out}");
@@ -341,7 +357,7 @@ mod tests {
     fn wedged_daemons_are_asked_together_and_given_up_on() {
         let daemons = Daemons::from_names(
             &[wedged("one"), wedged("two")],
-            std::path::Path::new("/nowhere"),
+            None,
         );
         let started = Instant::now();
         let scrapes = scrape_all(&daemons, &Mutex::new(BTreeSet::new()));
