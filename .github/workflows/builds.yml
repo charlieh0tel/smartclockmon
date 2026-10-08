@@ -2,8 +2,8 @@ name: builds
 
 # Release builds of every program from each push to main, for trying
 # them between releases: Linux's as a tarball, Windows' as the
-# artifact's own zip.  Not releases -- release.yml makes those, Linux's
-# alone -- so they are kept a month and not attached to anything.
+# artifact's own zip.  Not releases -- release.yml makes those -- so
+# they are kept a month and not attached to anything.
 on:
   push:
     branches: [main]
@@ -28,12 +28,7 @@ jobs:
       - name: Package
         run: |
           name=smartclockmon-linux-x86_64
-          mkdir -p "dist/$name"
-          for program in smartclockd smartclock-cli smartclockmon smartclock-web \
-                         smartclock-exporter smartclock-sim smartclock-sensord; do
-            cp "target/release/$program" "dist/$name/"
-          done
-          { cat packaging/unreleased-build.txt; echo "$GITHUB_SHA"; } > "dist/$name/README.txt"
+          packaging/bundle.sh "dist/$name" packaging/unreleased-build.txt "$GITHUB_SHA"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -48,14 +43,7 @@ jobs:
       - run: cargo build --release --locked --workspace --bins
       - name: Package
         shell: bash
-        run: |
-          name=smartclockmon-windows-x86_64
-          mkdir -p "dist/$name"
-          for program in smartclockd smartclock-cli smartclockmon smartclock-web \
-                         smartclock-exporter smartclock-sim smartclock-sensord; do
-            cp "target/release/$program.exe" "dist/$name/"
-          done
-          { cat packaging/unreleased-build.txt; echo "$GITHUB_SHA"; } > "dist/$name/README.txt"
+        run: packaging/bundle.sh dist/smartclockmon-windows-x86_64 packaging/unreleased-build.txt "$GITHUB_SHA"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: smartclockmon-windows-x86_64

@@ -1,0 +1,9 @@
+smartclockmon for Windows
+
+Console programs, built and tested by CI on Windows but untried on a
+receiver there, and unsupported: the supported releases are the Debian
+packages beside this.  There is no installer and no service.  How the
+programs differ on Windows is in docs/running.md, under Windows:
+https://github.com/charlieh0tel/smartclockmon/blob/main/docs/running.md
+
+Built from commit:

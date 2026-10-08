@@ -1,9 +1,9 @@
 smartclockmon, an unreleased build
 
 Built by CI from a push to main, for trying the programs between
-releases.  It is not a release and is not supported: releases are the
-Debian packages on the project's releases page.  The Windows build is
-tested only by CI, not on a receiver.
+releases.  It is not a release: releases are on the project's releases
+page, the Debian packages supported and the Windows zip not.  The
+Windows build is tested only by CI, not on a receiver.
 
 What the programs are and how to run them:
 https://github.com/charlieh0tel/smartclockmon

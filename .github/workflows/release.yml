@@ -41,6 +41,27 @@ jobs:
           ./packaging/release-notes.sh > notes.md
           gh release edit "$GITHUB_REF_NAME" --notes-file notes.md
 
+  # The Windows programs, zipped onto the release the deb job created.
+  # Unsupported, as their README and the release notes say.
+  windows:
+    needs: deb
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      # The pin audit.yml carries; moved by hand to match it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: cargo build --release --locked --workspace --bins
+      - name: Attach the zip
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name="smartclockmon-${GITHUB_REF_NAME#v}-windows-x86_64"
+          packaging/bundle.sh "dist/$name" packaging/windows-release.txt "$GITHUB_SHA"
+          (cd dist && 7z a -tzip "$name.zip" "$name")
+          gh release upload "$GITHUB_REF_NAME" "dist/$name.zip"
+
   trigger-apt-repo:
     needs: deb
     if: startsWith(github.ref, 'refs/tags/v')
