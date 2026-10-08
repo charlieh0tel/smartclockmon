@@ -535,7 +535,7 @@ mod tests {
     use super::Update;
     use super::from_daemon;
     use super::from_device;
-    use smartclock::link::listen_tcp;
+    use smartclock::link::listen_scratch;
     use smartclock::snapshot::Snapshot;
     use smartclock::task::AttachmentId;
     use smartclock::types::Framing;
@@ -592,8 +592,8 @@ mod tests {
         // A daemon that reconnects to its receiver keeps its clients'
         // sockets, so the reading is the only sign; the monitor must
         // not go on showing the old unit's screen and log.
-        let listener = listen_tcp("127.0.0.1:0").expect("listen");
-        let path = listener.endpoint().expect("an endpoint");
+        let (listener, scratch) = listen_scratch("smartclockmon").expect("listen");
+        let path = scratch.endpoint();
         let reading = |attachment| {
             let mut snapshot = Snapshot::new(jiff::Timestamp::now());
             snapshot.attachment = attachment;
@@ -626,8 +626,8 @@ mod tests {
     fn the_snapshot_sent_on_connect_is_not_lost_to_the_handshake() {
         // The daemon sends its current snapshot as soon as a client
         // connects, ahead of the reply to the client's info request.
-        let listener = listen_tcp("127.0.0.1:0").expect("listen");
-        let path = listener.endpoint().expect("an endpoint");
+        let (listener, scratch) = listen_scratch("smartclockmon").expect("listen");
+        let path = scratch.endpoint();
         let snapshot = serde_json::json!({
             "snapshot": Reading::from(&Snapshot::new(jiff::Timestamp::now())),
         });

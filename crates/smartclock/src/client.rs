@@ -407,7 +407,7 @@ mod tests {
     use super::Instance;
     use super::cadence;
     use super::identity;
-    use crate::link::listen_tcp;
+    use crate::link::listen_scratch;
     use crate::task::Cadence;
     use std::io::Write as _;
     use std::time::Duration;
@@ -478,8 +478,8 @@ mod tests {
     fn a_daemon_that_chatters_but_never_answers_is_given_up_on() {
         // Snapshots every tenth of a second and no reply.  Each snapshot
         // used to restart the read timeout, so the request never ended.
-        let listener = listen_tcp("127.0.0.1:0").expect("listen");
-        let path = listener.endpoint().expect("an endpoint");
+        let (listener, scratch) = listen_scratch("client").expect("listen");
+        let path = scratch.endpoint();
         std::thread::spawn(move || {
             let Ok(mut stream) = listener.accept() else {
                 return;
@@ -489,8 +489,7 @@ mod tests {
             }
         });
         let started = Instant::now();
-        let mut daemon =
-            Daemon::connect_within(&path, Duration::from_millis(800)).expect("connect");
+        let mut daemon = Daemon::connect_within(path, Duration::from_millis(800)).expect("connect");
         let asked = daemon.info();
         assert!(asked.is_err());
         assert!(

@@ -345,14 +345,11 @@ mod tests {
     use super::MAX_CLIENTS;
     use super::MAX_REQUEST;
     use super::Service;
-    #[cfg(unix)]
-    use super::listen;
-    #[cfg(unix)]
-    use super::listen_all;
     use super::serve;
     use crate::protocol::Message;
     use crate::protocol::Protocol;
 
+    use crate::link::Scratch;
     use crate::link::Stream;
     use serde::Deserialize;
     use serde::Serialize;
@@ -363,7 +360,6 @@ mod tests {
     use std::net::Ipv4Addr;
     use std::net::TcpListener;
     use std::net::TcpStream;
-    use std::path::PathBuf;
     use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
@@ -388,19 +384,19 @@ mod tests {
         }
     }
 
-    /// A service on a loopback port of its own.
-    struct Running(PathBuf);
+    /// A service listening where a client on this platform would find
+    /// one.
+    struct Running(Scratch);
 
     impl Running {
         fn start() -> Self {
-            let listener = crate::link::listen_tcp("127.0.0.1:0").expect("listen");
-            let endpoint = listener.endpoint().expect("an endpoint");
+            let (listener, scratch) = crate::link::listen_scratch("server").expect("listen");
             thread::spawn(move || serve(vec![listener], "test", Arc::new(Echo)));
-            Self(endpoint)
+            Self(scratch)
         }
 
         fn connect(&self) -> Stream {
-            let stream = crate::link::connect(&self.0).expect("connect");
+            let stream = crate::link::connect(self.0.endpoint()).expect("connect");
             stream
                 .set_read_timeout(Some(Duration::from_secs(5)))
                 .expect("timeout");
@@ -425,25 +421,18 @@ mod tests {
         assert!(line.contains(r#""v":3"#) && line.contains("pong"), "{line}");
     }
 
-    #[cfg(unix)]
     #[test]
-    fn a_service_answers_on_its_socket_and_over_tcp_alike() {
-        let socket = std::env::temp_dir().join(format!(
-            "smartclock-server-test-both-{}",
-            std::process::id()
-        ));
-        let probe = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a free port");
-        let address = probe.local_addr().expect("an address").to_string();
-        drop(probe);
-        let listeners = listen_all(Some(&socket), Some(&address)).expect("listen");
-        thread::spawn(move || serve(listeners, "test", Arc::new(Echo)));
-        for path in [socket.clone(), PathBuf::from(format!("tcp://{address}"))] {
-            let mut client = crate::link::connect(&path).expect("connect");
+    fn a_service_answers_on_every_listener_alike() {
+        let (local, scratch) = crate::link::listen_scratch("server").expect("listen");
+        let tcp = crate::link::listen_tcp("127.0.0.1:0").expect("listen on TCP");
+        let tcp_endpoint = tcp.endpoint().expect("an endpoint");
+        thread::spawn(move || serve(vec![local, tcp], "test", Arc::new(Echo)));
+        for endpoint in [scratch.endpoint(), &tcp_endpoint] {
+            let mut client = crate::link::connect(endpoint).expect("connect");
             writeln!(client, r#"{{"v":3,"id":"a","op":{{"kind":"ping"}}}}"#).expect("send");
             let line = first_line(&client);
-            assert!(line.contains("pong"), "{}: {line}", path.display());
+            assert!(line.contains("pong"), "{}: {line}", endpoint.display());
         }
-        let _ = std::fs::remove_file(&socket);
     }
 
     #[test]
@@ -453,19 +442,6 @@ mod tests {
         writeln!(client, r#"{{"v":1,"id":"a","op":{{"kind":"ping"}}}}"#).expect("send");
         let line = first_line(&client);
         assert!(line.contains("speaks protocol 3, not 1"), "{line}");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn a_live_socket_is_not_taken_over() {
-        let socket = std::env::temp_dir().join(format!(
-            "smartclock-server-test-live-{}",
-            std::process::id()
-        ));
-        let _listener = listen(&socket).expect("listen");
-        let refused = listen(&socket).expect_err("a second listener");
-        let _ = std::fs::remove_file(&socket);
-        assert_eq!(refused.kind(), std::io::ErrorKind::AddrInUse);
     }
 
     #[test]

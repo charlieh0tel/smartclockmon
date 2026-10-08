@@ -858,7 +858,8 @@ mod socket_tests {
     use super::Policy;
     use super::SharedInfo;
     use crate::inbox::LogInbox;
-    use smartclock::link::listen_tcp;
+    use smartclock::link::Scratch;
+    use smartclock::link::listen_scratch;
     use smartclock::server::MAX_CLIENTS;
     use smartclock::server::serve;
 
@@ -866,7 +867,6 @@ mod socket_tests {
     use std::io::BufRead;
     use std::io::BufReader;
     use std::io::Write;
-    use std::path::PathBuf;
     use std::sync::Arc;
     use std::sync::Mutex;
     use std::sync::mpsc::channel;
@@ -886,7 +886,7 @@ mod socket_tests {
     /// that did reach the device would block rather than quietly get a
     /// "task stopped" and look like it passed.
     struct Daemon {
-        endpoint: PathBuf,
+        scratch: Scratch,
         _requests: std::sync::mpsc::Receiver<smartclock::task::Request>,
         info: SharedInfo,
     }
@@ -906,22 +906,21 @@ mod socket_tests {
             }));
 
             let shared_info = Arc::clone(&info);
-            let listener = listen_tcp("127.0.0.1:0").expect("listen");
-            let endpoint = listener.endpoint().expect("an endpoint");
+            let (listener, scratch) = listen_scratch("smartclockd").expect("listen");
             thread::Builder::new()
                 .name("test-serve".to_owned())
                 .spawn(move || serve(vec![listener], "test", Arc::new(Served { handle, info })))
                 .expect("serve thread");
 
             Self {
-                endpoint,
+                scratch,
                 _requests: rx,
                 info: shared_info,
             }
         }
 
         fn connect(&self) -> Stream {
-            let stream = smartclock::link::connect(&self.endpoint).expect("connect");
+            let stream = smartclock::link::connect(self.scratch.endpoint()).expect("connect");
             stream
                 .set_read_timeout(Some(Duration::from_secs(5)))
                 .expect("timeout");

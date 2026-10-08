@@ -69,6 +69,11 @@ pub(super) fn path(listener: &UnixListener) -> io::Result<PathBuf> {
     match *listener {}
 }
 
+/// No socket, there being none here: a test listens on TCP instead.
+pub(super) fn scratch(_: &str) -> Option<PathBuf> {
+    None
+}
+
 /// That there are no Unix sockets here, and what to do instead.
 fn unsupported(socket: &Path, instead: &str) -> io::Error {
     io::Error::new(

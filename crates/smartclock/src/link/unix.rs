@@ -4,6 +4,8 @@ use std::io;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 /// A connection over a Unix socket.
 pub(super) type UnixStream = std::os::unix::net::UnixStream;
@@ -48,6 +50,14 @@ pub(super) fn bind(socket: &Path) -> io::Result<UnixListener> {
 /// The next client of `listener`.
 pub(super) fn accept(listener: &UnixListener) -> io::Result<UnixStream> {
     Ok(listener.accept()?.0)
+}
+
+/// A socket of this process's own, for a test to listen on, named
+/// after `tag` and unique to the call.
+pub(super) fn scratch(tag: &str) -> Option<PathBuf> {
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+    let call = CALLS.fetch_add(1, Ordering::Relaxed);
+    Some(std::env::temp_dir().join(format!("smartclock-{tag}-{}-{call}", std::process::id())))
 }
 
 /// Where `listener` is bound.

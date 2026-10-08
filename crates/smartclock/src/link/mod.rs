@@ -232,6 +232,40 @@ pub fn listen(socket: &Path) -> io::Result<Listener> {
     Ok(Listener(On::Unix(os::bind(socket)?)))
 }
 
+/// Listen where this platform's own clients would reach a service: on a
+/// Unix socket of the process's own, named after `tag`, or where there
+/// are none on a loopback port.  For tests, in this crate and others.
+#[doc(hidden)]
+pub fn listen_scratch(tag: &str) -> io::Result<(Listener, Scratch)> {
+    let listener = match os::scratch(tag) {
+        Some(socket) => listen(&socket)?,
+        None => listen_tcp("127.0.0.1:0")?,
+    };
+    let endpoint = listener.endpoint()?;
+    Ok((listener, Scratch(endpoint)))
+}
+
+/// Where a [`listen_scratch`] listener is; its socket, if it has one,
+/// is removed when this goes.
+#[doc(hidden)]
+#[derive(Debug)]
+pub struct Scratch(PathBuf);
+
+impl Scratch {
+    /// Where a client reaches the listener, as [`connect`] takes it.
+    pub fn endpoint(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        if let Ok(Endpoint::Socket(socket)) = endpoint(&self.0) {
+            let _ = std::fs::remove_file(socket);
+        }
+    }
+}
+
 /// Listen on TCP at `address`, `HOST:PORT`.
 ///
 /// Nothing decides who may connect: anyone who can reach the address
@@ -259,6 +293,7 @@ mod tests {
     use super::connect;
     use super::endpoint;
     use super::listen;
+    use super::listen_scratch;
     use super::listen_tcp;
     use std::io::BufRead as _;
     use std::io::BufReader;
@@ -287,15 +322,11 @@ mod tests {
         line
     }
 
-    #[cfg(unix)]
     #[test]
-    fn a_service_is_reached_through_its_socket() {
-        let socket =
-            std::env::temp_dir().join(format!("smartclock-link-socket-{}", std::process::id()));
-        echo_once(listen(&socket).expect("listen"));
-        let line = round_trip(&socket);
-        let _ = std::fs::remove_file(&socket);
-        assert_eq!(line, "hello\n");
+    fn a_service_is_reached_where_it_listens() {
+        let (listener, scratch) = listen_scratch("link").expect("listen");
+        echo_once(listener);
+        assert_eq!(round_trip(scratch.endpoint()), "hello\n");
     }
 
     #[cfg(unix)]

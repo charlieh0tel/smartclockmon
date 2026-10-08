@@ -290,6 +290,7 @@ mod tests {
     use super::scrape_all;
     use crate::metrics::render;
     use smartclock::client::Daemons;
+    use smartclock::link::Scratch;
     use std::collections::BTreeSet;
     use std::path::PathBuf;
     use std::sync::Mutex;
@@ -308,16 +309,16 @@ mod tests {
         }
     }
 
-    /// A daemon that accepts and then never answers, named `name`.
-    fn wedged(name: &str) -> String {
-        let listener = smartclock::link::listen_tcp("127.0.0.1:0").expect("listen");
-        let endpoint = listener.endpoint().expect("an endpoint");
+    /// A daemon that accepts and then never answers, named `name`, and
+    /// what removes its socket.
+    fn wedged(name: &str) -> (String, Scratch) {
+        let (listener, scratch) = smartclock::link::listen_scratch("exporter").expect("listen");
         std::thread::spawn(move || {
             let held = listener.accept();
             std::thread::sleep(SCRAPE_BUDGET * 3);
             drop(held);
         });
-        format!("{name}={}", endpoint.display())
+        (format!("{name}={}", scratch.endpoint().display()), scratch)
     }
 
     impl Drop for RunDir {
@@ -352,7 +353,8 @@ mod tests {
 
     #[test]
     fn wedged_daemons_are_asked_together_and_given_up_on() {
-        let daemons = Daemons::from_names(&[wedged("one"), wedged("two")], None);
+        let ((one, _one), (two, _two)) = (wedged("one"), wedged("two"));
+        let daemons = Daemons::from_names(&[one, two], None);
         let started = Instant::now();
         let scrapes = scrape_all(&daemons, &Mutex::new(BTreeSet::new()));
         let took = started.elapsed();
