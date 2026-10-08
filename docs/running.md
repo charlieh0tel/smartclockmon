@@ -75,7 +75,12 @@ opens it:
         /var/lib/smartclockd/<model>-<serial>.sqlite.bak
 
 Then install the new package and restart each instance.  The readers,
-`smartclock-web` and `smartclockmon`, open a log of any schema.
+`smartclock-web` and `smartclockmon`, open a log of any schema since
+12, the first with integer timestamps; an older one they
+refuse, saying which service to start once to convert it.  Converting
+takes a few seconds per log, during which the receiver is not read, and
+leaves the file smaller.  The same holds for the sensor log and
+`smartclock-sensord`, whose first schema with integer timestamps is 2.
 
 ## What the daemon does to the receiver
 

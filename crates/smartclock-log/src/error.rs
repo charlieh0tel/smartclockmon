@@ -35,6 +35,21 @@ pub enum Error {
         /// Which program refused it.
         program: &'static str,
     },
+    /// The log was written by an older service than the readers read,
+    /// and has not been converted since.  Starting that service once
+    /// converts it.
+    #[error(
+        "this log is schema {found} and is read from schema {oldest}; \
+         start {writer} once to convert it"
+    )]
+    OlderSchema {
+        /// The schema the log is stamped with.
+        found: i64,
+        /// The oldest schema the readers read.
+        oldest: i64,
+        /// The service that converts it.
+        writer: &'static str,
+    },
     /// The log's own record of itself is not what it should be.
     #[error("{0}")]
     Meta(String),

@@ -131,6 +131,14 @@ impl Log {
         if found.is_some_and(|found| found < FIXED_WIDTH_STAMPS) {
             self.widen_stamps()?;
         }
+        if found.is_some_and(|found| found < schema::INTEGER_TIMES) {
+            writer::convert_to_integer_times(
+                &mut self.conn,
+                schema::TABLES,
+                &schema::TIMES,
+                schema::VERSION,
+            )?;
+        }
         writer::stamp(&self.conn, schema::VERSION)?;
         Ok(())
     }
@@ -430,7 +438,7 @@ impl Log {
 
     /// Each audit row's time and the serial it is filed under.
     #[cfg(test)]
-    pub(crate) fn audit_rows(&self) -> Result<Vec<(String, Option<String>)>> {
+    pub(crate) fn audit_rows(&self) -> Result<Vec<(Stored, Option<String>)>> {
         let mut statement = self.conn.prepare(
             "SELECT audit.at, receiver.serial FROM audit
              LEFT JOIN receiver ON receiver.id = audit.receiver_id
@@ -879,7 +887,7 @@ mod tests {
         drop(conn);
 
         let log = Log::open(path).expect("open");
-        let rows: Vec<(String, Option<String>)> = log
+        let rows: Vec<(Stored, Option<Stored>)> = log
             .conn
             .prepare("SELECT at, fast_at FROM snapshot ORDER BY at")
             .expect("prepare")
@@ -887,15 +895,16 @@ mod tests {
             .expect("query")
             .collect::<std::result::Result<_, _>>()
             .expect("collect");
+        let at = |s: &str| Stored(s.parse().expect("a timestamp"));
         assert_eq!(
             rows,
             vec![
-                ("2026-09-01T00:00:00.000000000Z".to_owned(), None),
+                (at("2026-09-01T00:00:00Z"), None),
                 (
-                    "2026-09-01T00:00:00.100000000Z".to_owned(),
-                    Some("2026-09-01T00:00:00.100000000Z".to_owned())
+                    at("2026-09-01T00:00:00.1Z"),
+                    Some(at("2026-09-01T00:00:00.1Z"))
                 ),
-                ("2026-09-01T00:00:00.123456789Z".to_owned(), None),
+                (at("2026-09-01T00:00:00.123456789Z"), None),
             ]
         );
     }
@@ -1000,7 +1009,8 @@ mod tests {
                 manufacturer TEXT, model TEXT, firmware TEXT,
                 first_seen TEXT, last_seen TEXT
             );
-            INSERT INTO receiver (id, serial) VALUES (1, 'A');
+            INSERT INTO receiver (id, serial, first_seen, last_seen)
+                VALUES (1, 'A', '2026-09-01T00:00:00.000000000Z', '2026-09-01T00:00:00.000000000Z');
             CREATE TABLE receiver_log (
                 id INTEGER PRIMARY KEY, at TEXT NOT NULL, entry INTEGER NOT NULL,
                 stamp TEXT, message TEXT NOT NULL,

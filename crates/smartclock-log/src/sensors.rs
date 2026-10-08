@@ -19,13 +19,27 @@ use crate::reader::MAX_POINTS;
 use crate::reader::MIN_POINTS;
 use crate::reader::missing_table;
 use crate::reader::open_read_only;
+use crate::reader::readable;
 use crate::timestamp::bound;
 use crate::timestamp::seconds;
 use crate::timestamp::whole_seconds;
 
 /// Bumped when the tables change shape, or what a column holds.  The
-/// service refuses a log of a later version; the readers accept any.
-pub const VERSION: i64 = 1;
+/// service refuses a log of a later version; the readers accept any
+/// since [`INTEGER_TIMES`].
+pub const VERSION: i64 = 2;
+
+/// The first schema whose timestamps are integer nanoseconds.  The
+/// service converts an older log on open; the readers read none older.
+pub const INTEGER_TIMES: i64 = 2;
+
+/// Every column of [`TABLES`] holding one of our timestamps, by table.
+pub const TIMES: [(&str, &[&str]); 4] = [
+    ("sensor", &[]),
+    ("source", &["since"]),
+    ("period", &["since"]),
+    ("reading", &["at"]),
+];
 
 /// The tables, as of [`VERSION`], each `IF NOT EXISTS`.
 pub const TABLES: &str = r#"
@@ -37,7 +51,7 @@ pub const TABLES: &str = r#"
         quantity TEXT NOT NULL,
         unit     TEXT NOT NULL,
         UNIQUE (name, quantity)
-    );
+    ) STRICT;
 
     -- Where a sensor was read from, from when: the path as configured,
     -- and the kernel's name for the device behind it.  A new row
@@ -45,28 +59,28 @@ pub const TABLES: &str = r#"
     -- was read from.
     CREATE TABLE IF NOT EXISTS source (
         sensor_id INTEGER NOT NULL REFERENCES sensor(id),
-        since     TEXT NOT NULL,
+        since     INTEGER NOT NULL,
         source    TEXT NOT NULL,
         device    TEXT
-    );
+    ) STRICT;
     CREATE INDEX IF NOT EXISTS source_sensor ON source(sensor_id, since);
 
     -- How often the service read its sensors, from when: a new row
     -- whenever it is started with another period, so older readings
     -- are judged by the period they were read at.
     CREATE TABLE IF NOT EXISTS period (
-        since TEXT NOT NULL,
+        since INTEGER NOT NULL,
         every REAL NOT NULL
-    );
+    ) STRICT;
 
     -- One row per reading that succeeded.  A read that failed writes
     -- nothing: a gap in the readings is the record of it.
     CREATE TABLE IF NOT EXISTS reading (
         sensor_id INTEGER NOT NULL REFERENCES sensor(id),
-        at        TEXT NOT NULL,
+        at        INTEGER NOT NULL,
         value     REAL NOT NULL,
         PRIMARY KEY (sensor_id, at)
-    ) WITHOUT ROWID;
+    ) STRICT, WITHOUT ROWID;
 "#;
 
 /// The sensor service's log, open for reading.
@@ -107,9 +121,9 @@ pub struct Line {
 impl SensorLog {
     /// Open the log without taking a write lock on it.
     pub fn open(path: &Path) -> Result<Self> {
-        Ok(Self {
-            conn: open_read_only(path)?,
-        })
+        let conn = open_read_only(path)?;
+        readable(&conn, INTEGER_TIMES, "smartclock-sensord")?;
+        Ok(Self { conn })
     }
 
     /// Every sensor the log holds a reading of, with where it was last

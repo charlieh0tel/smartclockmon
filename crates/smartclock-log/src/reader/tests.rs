@@ -35,7 +35,7 @@ fn phase_log(name: &str, rows: &[(i64, f64, &str, i64)]) -> Scratch {
     let conn = scratch.connect();
     conn.execute_batch(
         "INSERT INTO receiver (id, serial, model, first_seen, last_seen)
-         VALUES (1, 'AAA', '58503A', '2026-09-01T00:00:00.000000000Z', '2026-09-01T00:00:00.000000000Z');",
+         VALUES (1, 'AAA', '58503A', 1788220800000000000, 1788220800000000000);",
     )
     .expect("a receiver");
     for &(second, interval, mode, holdover) in rows {
@@ -247,32 +247,32 @@ fn two_units(name: &str) -> Scratch {
             INSERT INTO receiver (id, serial, manufacturer, model, firmware, first_seen, last_seen)
             VALUES
                 (1,'AAA','HEWLETT-PACKARD','58503A','3704-C',
-                 '2026-09-01T00:00:00.000000000Z','2026-09-01T02:00:00.000000000Z'),
+                 1788220800000000000,1788228000000000000),
                 (2,'BBB','HEWLETT-PACKARD','Z3805A','3611-A',
-                 '2026-09-02T00:00:00.000000000Z','2026-09-02T02:00:00.000000000Z');
+                 1788307200000000000,1788314400000000000);
 
             INSERT INTO snapshot (at, freshness, fast_at, efc_percent, receiver_id) VALUES
-                ('2026-09-01T00:00:00.000000000Z','live','2026-09-01T00:00:00.000000000Z', 10.0, 1),
-                ('2026-09-01T00:00:01.000000000Z','live','2026-09-01T00:00:01.000000000Z', 11.0, 1),
-                ('2026-09-02T00:00:00.000000000Z','live','2026-09-02T00:00:00.000000000Z', 90.0, 2),
-                ('2026-09-02T00:00:01.000000000Z','live','2026-09-02T00:00:01.000000000Z', 91.0, 2);
+                (1788220800000000000,'live',1788220800000000000, 10.0, 1),
+                (1788220801000000000,'live',1788220801000000000, 11.0, 1),
+                (1788307200000000000,'live',1788307200000000000, 90.0, 2),
+                (1788307201000000000,'live',1788307201000000000, 91.0, 2);
 
             -- Out of entry order on purpose, and with a power-on whose
             -- stamp is midnight on a stale date: ordering by stamp puts
             -- entry 2 last, which is the bug this ordering replaced.
             INSERT INTO receiver_log (at, entry, stamp, message, receiver_id, generation) VALUES
-                ('2026-09-01T00:00:00.000000000Z',1,'20050528.00:01:00','one A',        1,0),
-                ('2026-09-01T00:00:01.000000000Z',2,'20050528.00:00:00','Power on',     1,0),
-                ('2026-09-01T00:00:02.000000000Z',1,'20050530.00:00:00','after clear A',1,1),
-                ('2026-09-02T00:00:00.000000000Z',1,'20050601.00:00:00','one B',        2,0);
+                (1788220800000000000,1,'20050528.00:01:00','one A',        1,0),
+                (1788220801000000000,2,'20050528.00:00:00','Power on',     1,0),
+                (1788220802000000000,1,'20050530.00:00:00','after clear A',1,1),
+                (1788307200000000000,1,'20050601.00:00:00','one B',        2,0);
 
             INSERT INTO receiver_event (at, register, bits, decoded, receiver_id) VALUES
-                ('2026-09-01T00:00:00.000000000Z','alarm',0,'clear A',1),
-                ('2026-09-02T00:00:00.000000000Z','alarm',8,'holdover B',2);
+                (1788220800000000000,'alarm',0,'clear A',1),
+                (1788307200000000000,'alarm',8,'holdover B',2);
 
             INSERT INTO receiver_error (at, code, message, receiver_id) VALUES
-                ('2026-09-01T00:00:00.000000000Z',-113,'undefined header A',1),
-                ('2026-09-02T00:00:00.000000000Z',-230,'data corrupt or stale B',2);
+                (1788220800000000000,-113,'undefined header A',1),
+                (1788307200000000000,-230,'data corrupt or stale B',2);
             "#,
         )
         .expect("fill it");
@@ -338,7 +338,7 @@ fn a_slower_tier_that_stops_reading_stops_being_plotted() {
     let conn = scratch.connect();
     conn.execute_batch(
         "INSERT INTO meta VALUES ('cadence_medium', '10');
-         INSERT INTO receiver (id, serial, first_seen, last_seen) VALUES (1, 'AAA', '2026-09-01T00:00:00.000000000Z', '2026-09-01T00:00:00.000000000Z');",
+         INSERT INTO receiver (id, serial, first_seen, last_seen) VALUES (1, 'AAA', 1788220800000000000, 1788220800000000000);",
     )
     .expect("cadence and a receiver");
     let start = 1_700_000_000;
@@ -386,8 +386,8 @@ fn a_gap_in_the_record_breaks_the_line() {
         .connect()
         .execute_batch(
             "INSERT INTO snapshot (at, freshness, fast_at, efc_percent, receiver_id) VALUES
-                ('2026-09-05T00:00:00.000000000Z','live','2026-09-05T00:00:00.000000000Z', 70.0, 2),
-                ('2026-09-05T00:00:01.000000000Z','live','2026-09-05T00:00:01.000000000Z', 71.0, 2);",
+                (1788566400000000000,'live',1788566400000000000, 70.0, 2),
+                (1788566401000000000,'live',1788566401000000000, 71.0, 2);",
         )
         .expect("extend");
     let log = Log::open(scratch.path()).expect("open");
@@ -420,8 +420,8 @@ fn a_locked_series_leaves_out_what_was_read_while_not_locked() {
         .connect()
         .execute_batch(
             "INSERT INTO snapshot (at, freshness, fast_at, mode, efc_percent, receiver_id) VALUES
-                ('2026-09-05T00:00:00.000000000Z','live','2026-09-05T00:00:00.000000000Z','Locked', 10.0, 2),
-                ('2026-09-05T00:00:01.000000000Z','live','2026-09-05T00:00:01.000000000Z','Recovery', 90.0, 2);",
+                (1788566400000000000,'live',1788566400000000000,'Locked', 10.0, 2),
+                (1788566401000000000,'live',1788566401000000000,'Recovery', 90.0, 2);",
         )
         .expect("extend");
     let log = Log::open(scratch.path()).expect("open");
@@ -496,14 +496,14 @@ fn notes_come_newest_first_and_a_fact_shows_its_latest_value() {
         .execute_batch(
             r#"
             INSERT INTO note (at, text, receiver_id) VALUES
-                ('2026-09-01T00:00:00.000000000Z','first A',1),
-                ('2026-09-01T00:00:05.000000000Z','later A',1),
-                ('2026-09-02T00:00:00.000000000Z','only B',2);
+                (1788220800000000000,'first A',1),
+                (1788220805000000000,'later A',1),
+                (1788307200000000000,'only B',2);
             INSERT INTO fact (since, key, value, receiver_id) VALUES
-                ('2026-09-01T00:00:00.000000000Z','ocxo.serial','old',1),
-                ('2026-09-03T00:00:00.000000000Z','ocxo.serial','new',1),
-                ('2026-09-01T00:00:00.000000000Z','antenna.feed','LNA',1),
-                ('2026-09-02T00:00:00.000000000Z','ocxo.serial','B',2);
+                (1788220800000000000,'ocxo.serial','old',1),
+                (1788393600000000000,'ocxo.serial','new',1),
+                (1788220800000000000,'antenna.feed','LNA',1),
+                (1788307200000000000,'ocxo.serial','B',2);
             "#,
         )
         .expect("fill it");
@@ -530,7 +530,7 @@ fn notes_are_read_by_range_however_old() {
     let conn = scratch.connect();
     // More newer notes than the journal shows, after the one asked for.
     conn.execute(
-        "INSERT INTO note (at, text, receiver_id) VALUES ('2026-01-01T00:00:00.000000000Z', 'old', 1)",
+        "INSERT INTO note (at, text, receiver_id) VALUES (1767225600000000000, 'old', 1)",
         [],
     )
     .expect("the old note");
@@ -639,7 +639,7 @@ fn a_closed_wal_log_in_a_directory_the_reader_cannot_write_is_still_read() {
         conn.execute_batch(
             "INSERT INTO receiver (id, serial, manufacturer, model, firmware, first_seen, last_seen)
              VALUES (1,'AAA','HEWLETT-PACKARD','58503A','3704-C',
-                     '2026-09-01T00:00:00.000000000Z','2026-09-01T00:00:00.000000000Z');",
+                     1788220800000000000,1788220800000000000);",
         )
         .expect("a receiver");
     }

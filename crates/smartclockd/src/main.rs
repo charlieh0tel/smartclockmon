@@ -1188,6 +1188,7 @@ mod tests {
     use smartclock::task;
     use smartclock::task::Cadence;
     use smartclock::types::AlarmCondition;
+    use smartclock_log::timestamp::Stored;
     use smartclock_sim::receiver::Receiver;
     use smartclock_sim::transport::SimTransport;
     use std::sync::mpsc::channel;
@@ -1346,7 +1347,7 @@ mod tests {
         assert_eq!(
             rows,
             vec![(
-                "2026-09-23T12:00:00.000000000Z".to_owned(),
+                Stored("2026-09-23T12:00:00Z".parse().expect("a timestamp")),
                 Some("A".to_owned())
             )]
         );

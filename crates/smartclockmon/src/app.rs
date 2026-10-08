@@ -527,7 +527,7 @@ mod tests {
         let before = (app.receiver, app.history_error.clone());
 
         conn.execute_batch(
-            "INSERT INTO receiver (id, serial, first_seen, last_seen) VALUES (7, 'AAA', '2026-09-01T00:00:00.000000000Z', '2026-09-01T00:00:00.000000000Z');",
+            "INSERT INTO receiver (id, serial, first_seen, last_seen) VALUES (7, 'AAA', 1788220800000000000, 1788220800000000000);",
         )
         .expect("the daemon's first row");
         app.refresh_journal();

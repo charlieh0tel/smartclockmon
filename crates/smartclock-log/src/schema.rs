@@ -8,10 +8,17 @@ use smartclock::snapshot::Tier;
 /// Bumped when the tables change shape, or what a column holds.
 ///
 /// The daemon refuses a log of a later version rather than write into
-/// what it does not understand.  The readers accept any: a viewer
-/// upgraded before the daemon restarts, or pointed at an archived log,
-/// shows what is there.
-pub const VERSION: i64 = 11;
+/// what it does not understand.  The readers accept any since
+/// [`INTEGER_TIMES`], newer ones included: a viewer upgraded before
+/// the daemon restarts, or pointed at an archived log, shows what is
+/// there.
+pub const VERSION: i64 = 12;
+
+/// The first schema whose timestamps are integer nanoseconds.  The
+/// daemon converts an older log on open; the readers read none older,
+/// since a range compared against text finds nothing rather than
+/// failing.
+pub const INTEGER_TIMES: i64 = 12;
 
 /// The table of facts about the log itself, the schema version first.
 ///
@@ -31,7 +38,7 @@ pub const TABLES: &str = r#"
     -- One row per poll that produced a publishable snapshot.
     CREATE TABLE IF NOT EXISTS snapshot (
         id                   INTEGER PRIMARY KEY,
-        at                   TEXT    NOT NULL,
+        at                   INTEGER    NOT NULL,
         freshness            TEXT    NOT NULL,
         mode                 TEXT,
         tfom                 INTEGER,
@@ -63,13 +70,13 @@ pub const TABLES: &str = r#"
         -- these a fast row restates the ten- and sixty-second
         -- values under a fresh timestamp, and a later query
         -- cannot tell a measurement from a repeat.
-        fast_at              TEXT,
-        medium_at            TEXT,
-        slow_at              TEXT,
+        fast_at              INTEGER,
+        medium_at            INTEGER,
+        slow_at              INTEGER,
         -- Which unit this row describes.  NULL in rows written
         -- before the log recorded that at all.
         receiver_id          INTEGER REFERENCES receiver(id)
-    );
+    ) STRICT;
     CREATE INDEX IF NOT EXISTS snapshot_at ON snapshot(at);
 
     -- The satellite table, which exists only on the status
@@ -84,7 +91,7 @@ pub const TABLES: &str = r#"
         elevation   INTEGER,
         azimuth     INTEGER,
         signal      INTEGER
-    );
+    ) STRICT;
     CREATE INDEX IF NOT EXISTS satellite_snapshot ON satellite(snapshot_id);
 
     -- Every receiver that has written to this log.
@@ -105,16 +112,16 @@ pub const TABLES: &str = r#"
         model        TEXT,
         -- As last seen, since an upgrade changes it.
         firmware     TEXT,
-        first_seen   TEXT NOT NULL,
+        first_seen   INTEGER NOT NULL,
         -- The newest measured row's time: set on attach, then with
         -- every snapshot logged that is not a disconnection.
-        last_seen    TEXT NOT NULL,
+        last_seen    INTEGER NOT NULL,
         -- The internal GPS engine's identity, exactly as
         -- :DIAGnostic:IDENtification:GPSystem? answered it, as
         -- last read.  NULL until a daemon of schema 9 or later
         -- has asked.
         gps_engine   TEXT
-    );
+    ) STRICT;
 
     -- Every change in the receiver's alarm condition register.
     --
@@ -131,7 +138,7 @@ pub const TABLES: &str = r#"
     -- whoever is standing at the instrument.
     CREATE TABLE IF NOT EXISTS receiver_event (
         id      INTEGER PRIMARY KEY,
-        at      TEXT    NOT NULL,
+        at      INTEGER    NOT NULL,
         -- Which register: "alarm", the status byte *STB? reads.
         register TEXT   NOT NULL,
         bits    INTEGER NOT NULL,
@@ -139,7 +146,7 @@ pub const TABLES: &str = r#"
         -- manual and without this daemon's bit tables.
         decoded TEXT    NOT NULL,
         receiver_id INTEGER REFERENCES receiver(id)
-    );
+    ) STRICT;
     CREATE INDEX IF NOT EXISTS receiver_event_at ON receiver_event(at);
 
     -- The transition filters in force when those events were
@@ -158,9 +165,9 @@ pub const TABLES: &str = r#"
         -- Which transitions latch: positive, negative.
         positive    INTEGER,
         negative    INTEGER,
-        at          TEXT    NOT NULL,
+        at          INTEGER    NOT NULL,
         PRIMARY KEY (receiver_id, register)
-    );
+    ) STRICT;
 
     -- Entries taken from the receiver's error queue.  Reading
     -- an entry removes it from the receiver, so once the queue
@@ -169,11 +176,11 @@ pub const TABLES: &str = r#"
         id      INTEGER PRIMARY KEY,
         -- When it was read, which is not when it happened: the
         -- queue carries no timestamps of its own.
-        at      TEXT    NOT NULL,
+        at      INTEGER    NOT NULL,
         code    INTEGER NOT NULL,
         message TEXT    NOT NULL,
         receiver_id INTEGER REFERENCES receiver(id)
-    );
+    ) STRICT;
     CREATE INDEX IF NOT EXISTS receiver_error_at ON receiver_error(at);
 
     -- The receiver's own diagnostic log, copied out entry by
@@ -182,7 +189,7 @@ pub const TABLES: &str = r#"
     CREATE TABLE IF NOT EXISTS receiver_log (
         id      INTEGER PRIMARY KEY,
         -- When we read it.
-        at      TEXT    NOT NULL,
+        at      INTEGER    NOT NULL,
         -- The receiver's own entry number, which restarts at 1
         -- when the log is cleared.
         entry   INTEGER NOT NULL,
@@ -206,7 +213,7 @@ pub const TABLES: &str = r#"
         -- is the receiver's own key, and re-reading an entry
         -- must not duplicate it.
         UNIQUE (receiver_id, generation, entry)
-    );
+    ) STRICT;
 
     -- Every command a client asked for.  Not a complete record
     -- of what was sent: the poll schedule is not audited, and
@@ -214,12 +221,12 @@ pub const TABLES: &str = r#"
     -- everything but the tier they run on.
     CREATE TABLE IF NOT EXISTS audit (
         id      INTEGER PRIMARY KEY,
-        at      TEXT NOT NULL,
+        at      INTEGER NOT NULL,
         scpi    TEXT NOT NULL,
         class   TEXT,
         outcome TEXT,
         receiver_id INTEGER REFERENCES receiver(id)
-    );
+    ) STRICT;
     CREATE INDEX IF NOT EXISTS audit_at ON audit(at);
 
     -- Free text about the receiver or the bench, written by a person
@@ -227,10 +234,10 @@ pub const TABLES: &str = r#"
     CREATE TABLE IF NOT EXISTS note (
         id      INTEGER PRIMARY KEY,
         -- When it happened, which may be before it was written.
-        at      TEXT NOT NULL,
+        at      INTEGER NOT NULL,
         text    TEXT NOT NULL,
         receiver_id INTEGER REFERENCES receiver(id)
-    );
+    ) STRICT;
     CREATE INDEX IF NOT EXISTS note_at ON note(at);
 
     -- What a person says the unit is made of, such as ocxo.serial.
@@ -239,12 +246,26 @@ pub const TABLES: &str = r#"
     CREATE TABLE IF NOT EXISTS fact (
         id      INTEGER PRIMARY KEY,
         -- When the value became true.
-        since   TEXT NOT NULL,
+        since   INTEGER NOT NULL,
         key     TEXT NOT NULL,
         value   TEXT NOT NULL,
         receiver_id INTEGER REFERENCES receiver(id)
-    );
+    ) STRICT;
 "#;
+
+/// Every column of [`TABLES`] holding one of our timestamps, by table.
+pub const TIMES: [(&str, &[&str]); 10] = [
+    ("snapshot", &["at", "fast_at", "medium_at", "slow_at"]),
+    ("receiver", &["first_seen", "last_seen"]),
+    ("receiver_event", &["at"]),
+    ("receiver_filter", &["at"]),
+    ("receiver_error", &["at"]),
+    ("receiver_log", &["at"]),
+    ("audit", &["at"]),
+    ("note", &["at"]),
+    ("fact", &["since"]),
+    ("satellite", &[]),
+];
 
 /// The `meta` key the daemon records a tier's cadence under, in
 /// seconds.

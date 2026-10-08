@@ -20,6 +20,7 @@ use std::path::Path;
 
 use rusqlite::Connection;
 use rusqlite::OpenFlags;
+use rusqlite::OptionalExtension as _;
 use rusqlite::Row;
 use serde::Serialize;
 use smartclock::adev::Curve;
@@ -30,6 +31,7 @@ use smartclock::types::SmartClockMode;
 
 use crate::error::Error;
 use crate::error::Result;
+use crate::schema::INTEGER_TIMES;
 use crate::schema::PLOTTABLE;
 use crate::schema::cadence_key;
 use crate::schema::has_column;
@@ -293,6 +295,30 @@ pub(crate) fn missing_table(e: &rusqlite::Error) -> bool {
     matches!(e, rusqlite::Error::SqliteFailure(_, Some(why)) if why.contains("no such table"))
 }
 
+/// Refuse a log stamped older than `oldest`, which `writer` converts.
+/// A log with no stamp yet has nothing in it to misread.
+pub(crate) fn readable(conn: &Connection, oldest: i64, writer: &'static str) -> Result<()> {
+    let found: Option<String> = match conn
+        .query_row("SELECT value FROM meta WHERE key = 'schema'", [], |row| {
+            row.get(0)
+        })
+        .optional()
+    {
+        Ok(found) => found,
+        Err(e) if missing_table(&e) => None,
+        Err(e) => return Err(e.into()),
+    };
+    match found.map(|f| f.parse::<i64>()) {
+        Some(Ok(found)) if found < oldest => Err(Error::OlderSchema {
+            found,
+            oldest,
+            writer,
+        }),
+        Some(Err(_)) => Err(Error::Meta("meta.schema is not a version".to_owned())),
+        _ => Ok(()),
+    }
+}
+
 /// Open a log without taking a write lock on it.
 ///
 /// A WAL log whose `-shm` is gone, in a directory this reader may not
@@ -330,9 +356,9 @@ pub(crate) fn open_read_only(path: &Path) -> Result<Connection> {
 impl Log {
     /// Open the log without taking a write lock on it.
     pub fn open(path: &Path) -> Result<Self> {
-        Ok(Self {
-            conn: open_read_only(path)?,
-        })
+        let conn = open_read_only(path)?;
+        readable(&conn, INTEGER_TIMES, "smartclockd")?;
+        Ok(Self { conn })
     }
 
     /// Every receiver this log holds, most recently seen first.

@@ -406,7 +406,7 @@ mod tests {
             conn.execute_batch(TABLES).expect("the tables");
             conn.execute_batch(
                 "INSERT INTO receiver (id, serial, first_seen, last_seen)
-                 VALUES (1, 'AAA', '2026-09-01T00:00:00.000000000Z', '2026-09-01T00:00:00.000000000Z');",
+                 VALUES (1, 'AAA', 1788220800000000000, 1788220800000000000);",
             )
             .expect("a receiver");
             guard
@@ -496,14 +496,14 @@ mod tests {
             .connect()
             .execute_batch(
                 "INSERT INTO receiver_log (at, entry, stamp, message, receiver_id, generation) VALUES
-                     ('2026-09-01T00:00:00.000000000Z', 1, '20050528.00:01:00', 'one', 1, 0),
-                     ('2026-09-01T00:00:01.000000000Z', 2, NULL, 'two', 1, 0);
+                     (1788220800000000000, 1, '20050528.00:01:00', 'one', 1, 0),
+                     (1788220801000000000, 2, NULL, 'two', 1, 0);
                  INSERT INTO receiver_event (at, register, bits, decoded, receiver_id) VALUES
-                     ('2026-09-01T00:00:00.000000000Z', 'alarm', 0, 'clear', 1);
+                     (1788220800000000000, 'alarm', 0, 'clear', 1);
                  INSERT INTO receiver_error (at, code, message, receiver_id) VALUES
-                     ('2026-09-01T00:00:05.000000000Z', -113, 'undefined header', 1);
+                     (1788220805000000000, -113, 'undefined header', 1);
                  INSERT INTO note (at, text, receiver_id) VALUES
-                     ('2026-09-01T00:00:03.000000000Z', 'added an LNA', 1);",
+                     (1788220803000000000, 'added an LNA', 1);",
             )
             .expect("fill it");
         let lines: Vec<Line> = scratch.open().journal(1, 50).expect("journal");

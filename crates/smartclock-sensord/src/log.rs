@@ -12,7 +12,9 @@ use rusqlite::Connection;
 use rusqlite::OptionalExtension as _;
 use rusqlite::params;
 use smartclock_log::error::Result;
+use smartclock_log::sensors::INTEGER_TIMES;
 use smartclock_log::sensors::TABLES;
+use smartclock_log::sensors::TIMES;
 use smartclock_log::sensors::VERSION;
 use smartclock_log::timestamp::Stored;
 use smartclock_log::writer;
@@ -31,9 +33,11 @@ impl Log {
     /// record how often the sensors are read from now, if that is not
     /// what was last recorded.
     pub fn open(path: &Path, every: Duration) -> Result<Self> {
-        let conn = writer::open(path)?;
-        // Nothing to migrate from yet: schema 1 is the first.
-        writer::stamped_version(&conn, VERSION, "smartclock-sensord")?;
+        let mut conn = writer::open(path)?;
+        let found = writer::stamped_version(&conn, VERSION, "smartclock-sensord")?;
+        if found.is_some_and(|found| found < INTEGER_TIMES) {
+            writer::convert_to_integer_times(&mut conn, TABLES, &TIMES, VERSION)?;
+        }
         conn.execute_batch(TABLES)?;
         let last: Option<f64> = conn
             .query_row(
@@ -190,5 +194,45 @@ mod tests {
             Log::open(&scratch.0, Duration::from_secs(10)),
             Err(Error::NewerSchema { found: 99, .. })
         ));
+    }
+
+    #[test]
+    fn a_schema_1_log_is_converted_and_keeps_its_readings() {
+        let scratch = Scratch::new("schema-1");
+        {
+            let conn = rusqlite::Connection::open(&scratch.0).expect("create");
+            conn.execute_batch(
+                "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                 INSERT INTO meta VALUES ('schema', '1');
+                 CREATE TABLE sensor (id INTEGER PRIMARY KEY, name TEXT NOT NULL,
+                     quantity TEXT NOT NULL, unit TEXT NOT NULL, UNIQUE (name, quantity));
+                 CREATE TABLE source (sensor_id INTEGER NOT NULL REFERENCES sensor(id),
+                     since TEXT NOT NULL, source TEXT NOT NULL, device TEXT);
+                 CREATE INDEX source_sensor ON source(sensor_id, since);
+                 CREATE TABLE period (since TEXT NOT NULL, every REAL NOT NULL);
+                 CREATE TABLE reading (sensor_id INTEGER NOT NULL REFERENCES sensor(id),
+                     at TEXT NOT NULL, value REAL NOT NULL,
+                     PRIMARY KEY (sensor_id, at)) WITHOUT ROWID;
+                 INSERT INTO sensor VALUES (1, 'room', 'temperature', 'C');
+                 INSERT INTO source VALUES (1, '2026-09-21T00:00:00.000000000Z', '/sys/x', 'lm75');
+                 INSERT INTO period VALUES ('2026-09-21T00:00:00.000000000Z', 10);
+                 INSERT INTO reading VALUES
+                     (1, '2026-09-21T00:00:00.000000000Z', 21.0),
+                     (1, '2026-09-21T00:00:10.000000000Z', 22.0);",
+            )
+            .expect("a schema 1 log");
+        }
+        drop(Log::open(&scratch.0, Duration::from_secs(10)).expect("convert it"));
+        let read = SensorLog::open(&scratch.0).expect("read it");
+        let t0 = "2026-09-21T00:00:00Z"
+            .parse::<Timestamp>()
+            .expect("a time")
+            .as_second();
+        let lines = read.series("temperature", t0, t0 + 10, 16).expect("series");
+        assert_eq!(lines[0].values, [Some(21.0), Some(22.0)]);
+        assert_eq!(
+            read.sensors().expect("sensors")[0].device.as_deref(),
+            Some("lm75")
+        );
     }
 }

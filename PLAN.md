@@ -287,12 +287,36 @@ Chosen over JSONL because trending means range queries over time.
 keeps it queryable.  JSONL is kept for raw wire transcripts:
 append-only, greppable, reusable as parser fixtures.
 
-Timestamps are compared as text, so the index on `at` serves every
-range bound and `ORDER BY at`.  Schema 8 stores nine fractional digits,
-because the default form trims trailing zeros and `00.11Z`, `00.1Z`,
-`00Z` sort in reverse; opening an older database rewrites existing
-stamps in one transaction.  Range bounds use the stored form: `T` sorts
-after a space, so a bound from `datetime('now')` excludes nothing.
+Every timestamp we record is an integer: nanoseconds since the Unix
+epoch, UTC, in 64 bits, which run to 2262.  An integer reads back
+exactly as written, compares exactly -- the readers tell a measured row
+from a repeated one by `fast_at = at` -- and orders as time does, so
+the index on `at` serves every range bound and `ORDER BY at`.  Not
+text: until schema 12 they were RFC 3339 strings, which sorted as time
+only at a fixed width, cost about 30 bytes each, and wanted a date
+function in every comparison.  Not a float: a double resolves about
+240 ns today, coarsening as the count grows, and equality on two floats
+holds only while both went through the same arithmetic.  The browser
+is never sent the integer, which JavaScript cannot hold exactly; the
+web view converts at its edge, to seconds for the charts and RFC 3339
+for the rest.  The receiver's own times -- its log stamps, its date and
+time of day -- are what it said, and stay text.  How a time is stored,
+and the SQL that reads it back, is `smartclock_log::timestamp`, and
+nowhere else.
+
+The tables are STRICT, so a value of the wrong type is refused rather
+than stored.
+
+Opening a schema 11 log converts it: each table rebuilt as STRICT with
+its timestamps exact to the nanosecond, the whole of it and the new
+stamp in one transaction, so a log is left at one schema or the other
+however the process ends.  Every timestamp is checked first, and one in
+another form, a column the tables no longer have that still holds
+values, or a row pointing at nothing refuses the conversion and changes
+nothing.  The file is vacuumed after.  On the bench's logs, of up to
+1.4 million rows, it took 1 to 5 s and left them 35 to 44 % smaller.
+The readers refuse an unconverted log, naming the service that
+converts it, rather than finding nothing in it.
 
 ### Poll scheduling is a link budget
 
