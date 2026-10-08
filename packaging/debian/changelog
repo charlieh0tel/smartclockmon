@@ -1,3 +1,40 @@
+smartclockmon (1.3.0-1) unstable; urgency=low
+
+  * Clients name the daemon they ask with --daemon and the sensor
+    service with --sensord, in place of --socket and --sensor-socket,
+    and the settings are SMARTCLOCK_WEB_DAEMON, SMARTCLOCK_WEB_SENSORD,
+    SMARTCLOCK_EXPORTER_DAEMON and SMARTCLOCK_EXPORTER_SENSORD.  The old
+    names are gone: change them in /etc/default/smartclock-web and
+    /etc/default/smartclock-exporter.  The daemons' own --socket is
+    unchanged.
+  * Remote clients: smartclockd and smartclock-sensord take --listen
+    HOST:PORT (SMARTCLOCKD_LISTEN, SMARTCLOCK_SENSORD_LISTEN) to listen
+    on TCP beside their socket, and every client takes
+    tcp://HOST:PORT.  Nothing decides who may connect over TCP.  Each
+    service says where it listens in its journal.
+  * The exporter and web view take --daemon repeated or
+    comma-separated, each [NAME=]ENDPOINT, for daemons on other hosts;
+    the name is the exporter's daemon label.  Without it they find
+    every daemon under /run/smartclockd as before.
+  * smartclock-sensord reads PCsensor TEMPerGold and TEMPerHUM USB
+    sticks: --temper NAME[=PATH] (SMARTCLOCK_SENSORD_TEMPER), the first
+    stick no other process holds unless a path is given.  It logs
+    temperature, and a TEMPerHUM's humidity.  The package depends on
+    temper (>= 1.3.0), whose udev rules give the stick to group temper,
+    which the service joins.
+  * A sensor configured at a path that names nothing is no longer
+    listed in the web view and monitor until it reads.  The sensor
+    settings file says how to find a host's sensors rather than giving
+    example paths.
+  * A connection to a service ends at its first line that is not a
+    request.
+  * The programs build and run on Windows, over loopback TCP, untried
+    on a receiver and unsupported; see docs/running.md.  Builds of each
+    push to main, for Linux and Windows, are kept a month as CI
+    artifacts.  Releases remain these Debian packages.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Thu, 08 Oct 2026 02:35:31 -0700
+
 smartclockmon (1.2.0-1) unstable; urgency=low
 
   * New smartclock-sensord, off until enabled: logs the host's hwmon
