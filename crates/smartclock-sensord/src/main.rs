@@ -1,7 +1,8 @@
-//! smartclock-sensord: reads the host's hwmon and IIO sensors on a
-//! period of its own and logs them, whether or not any receiver is
-//! attached.  `docs/sensors.md` has the design.
+//! smartclock-sensord: reads the host's sensors on a period of its own
+//! and logs them, whether or not any receiver is attached.
+//! `docs/sensors.md` has the design.
 
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::process::exit;
@@ -23,11 +24,15 @@ use smartclock::sensors::Latest;
 use smartclock::sensors::Reading;
 use smartclock_log::error::Error as LogError;
 use smartclock_sensord::log::Log;
-use smartclock_sensord::sensor;
-use smartclock_sensord::sensor::Interface;
-use smartclock_sensord::sensor::Sensor;
+use smartclock_sensord::sensor::ConfigError;
+use smartclock_sensord::sensor::Name;
+use smartclock_sensord::sensor::Quantity;
+use smartclock_sensord::sensor::Source;
+use smartclock_sensord::sensor::check_distinct;
 use smartclock_sensord::socket::Answers;
 use smartclock_sensord::socket::Shared;
+use smartclock_sensord::sysfs;
+use smartclock_sensord::sysfs::Interface;
 
 /// The exit status for a configuration no retry can fix, which the unit
 /// does not restart on: a sensor that cannot be one, no sensors at all,
@@ -86,14 +91,62 @@ struct Cli {
     listen: Option<String>,
 }
 
-/// One sensor as the loop keeps it.
+/// One source as the loop keeps it, with each quantity it logs.
 struct Kept {
-    sensor: Sensor,
+    source: Box<dyn Source>,
+    logged: Vec<Logged>,
+}
+
+/// One quantity a source is logged as.
+struct Logged {
+    quantity: Quantity,
     /// Its row in the log.
     id: i64,
+    /// Its place among the latest readings clients are told.
+    shown: usize,
     /// Whether its last read succeeded; `None` before the first.  Its
     /// journal says so only when that changes, not on every read.
     reading: Option<bool>,
+}
+
+/// What the loop writes to: the log, the latest readings, and which
+/// name and quantity each source has taken.
+struct Sinks<'a> {
+    log: &'a Log,
+    latest: &'a Shared,
+    taken: HashSet<(Name, Quantity)>,
+}
+
+impl Sinks<'_> {
+    /// Log `source` as measuring `quantity` from now on, or say why not.
+    fn register(&mut self, source: &dyn Source, quantity: Quantity) -> Result<Logged> {
+        if !self.taken.insert((source.name().clone(), quantity)) {
+            anyhow::bail!("{} {} is another sensor's", source.name(), quantity.name());
+        }
+        let id = self.log.sensor_id(source.name(), quantity)?;
+        let mut latest = self.latest.lock().unwrap_or_else(PoisonError::into_inner);
+        latest.readings.push(Reading {
+            name: source.name().to_string(),
+            quantity: quantity.name().to_owned(),
+            unit: quantity.unit().to_owned(),
+            source: source.origin().to_owned(),
+            at: None,
+            value: None,
+            error: None,
+        });
+        eprintln!(
+            "smartclock-sensord: {} {} from {}",
+            source.name(),
+            quantity.name(),
+            source.origin()
+        );
+        Ok(Logged {
+            quantity,
+            id,
+            shown: latest.readings.len() - 1,
+            reading: None,
+        })
+    }
 }
 
 fn main() {
@@ -110,6 +163,19 @@ fn refuse(why: impl Display) -> ! {
     exit(CONFIGURATION_ERROR);
 }
 
+/// Every source the command line names.
+fn sources(cli: &Cli) -> Result<Vec<Box<dyn Source>>, ConfigError> {
+    let sysfs = cli
+        .hwmon
+        .iter()
+        .map(|spec| (Interface::Hwmon, spec))
+        .chain(cli.iio.iter().map(|spec| (Interface::Iio, spec)))
+        .map(|(interface, spec)| {
+            sysfs::parse(interface, spec).map(|channel| Box::new(channel) as Box<dyn Source>)
+        });
+    sysfs.collect()
+}
+
 fn run(cli: Cli) -> Result<()> {
     if !cli.every.is_finite() || cli.every <= 0.0 || cli.every > LONGEST_EVERY {
         refuse(format!(
@@ -118,22 +184,14 @@ fn run(cli: Cli) -> Result<()> {
         ));
     }
     let every = Duration::from_secs_f64(cli.every);
-    let configured = cli
-        .hwmon
-        .iter()
-        .map(|spec| (Interface::Hwmon, spec))
-        .chain(cli.iio.iter().map(|spec| (Interface::Iio, spec)));
-    let sensors: Vec<Sensor> = match configured
-        .map(|(interface, spec)| sensor::parse(interface, spec))
-        .collect::<Result<_, _>>()
-    {
-        Ok(sensors) => sensors,
+    let sources = match sources(&cli) {
+        Ok(sources) => sources,
         Err(e) => refuse(e),
     };
-    if sensors.is_empty() {
+    if sources.is_empty() {
         refuse("no sensors are configured: set SMARTCLOCK_SENSORD_HWMON or SMARTCLOCK_SENSORD_IIO");
     }
-    if let Err(e) = sensor::check_distinct(&sensors) {
+    if let Err(e) = check_distinct(&sources) {
         refuse(e);
     }
 
@@ -149,26 +207,30 @@ fn run(cli: Cli) -> Result<()> {
     eprintln!(
         "smartclock-sensord {}: logging {} sensor{} every {} s to {}",
         smartclock::VERSION,
-        sensors.len(),
-        if sensors.len() == 1 { "" } else { "s" },
+        sources.len(),
+        if sources.len() == 1 { "" } else { "s" },
         cli.every,
         cli.log.display()
     );
     let latest: Shared = Arc::new(Mutex::new(Latest {
         every_s: cli.every,
-        readings: sensors
-            .iter()
-            .map(|sensor| Reading {
-                name: sensor.name.to_string(),
-                quantity: sensor.quantity.name().to_owned(),
-                unit: sensor.quantity.unit().to_owned(),
-                source: sensor.source.clone(),
-                at: None,
-                value: None,
-                error: None,
-            })
-            .collect(),
+        readings: Vec::new(),
     }));
+    let mut sinks = Sinks {
+        log: &log,
+        latest: &latest,
+        taken: HashSet::new(),
+    };
+    let mut kept = Vec::with_capacity(sources.len());
+    for source in sources {
+        let logged = source
+            .quantities()
+            .into_iter()
+            .map(|quantity| sinks.register(source.as_ref(), quantity))
+            .collect::<Result<_>>()?;
+        kept.push(Kept { source, logged });
+    }
+
     let listeners = smartclock::server::listen_all(Some(&cli.socket), cli.listen.as_deref())?;
     let answers = Arc::new(Answers {
         info: Info {
@@ -183,25 +245,11 @@ fn run(cli: Cli) -> Result<()> {
         .spawn(move || smartclock::server::serve(listeners, "smartclock-sensord", answers))
         .context("spawning the socket server")?;
 
-    let mut kept = Vec::with_capacity(sensors.len());
-    for sensor in sensors {
-        let id = log.sensor_id(&sensor)?;
-        eprintln!(
-            "smartclock-sensord: {} {} from {}",
-            sensor.name,
-            sensor.quantity.name(),
-            sensor.source
-        );
-        kept.push(Kept {
-            sensor,
-            id,
-            reading: None,
-        });
-    }
-
     let mut next = Instant::now();
     loop {
-        pass(&log, &mut kept, &latest);
+        for one in &mut kept {
+            pass(&mut sinks, one);
+        }
         next += every;
         let now = Instant::now();
         // A pass that ran past its slot -- a suspended host, a bus that
@@ -214,47 +262,79 @@ fn run(cli: Cli) -> Result<()> {
     }
 }
 
-/// Read every sensor once, log what read, and tell clients.
-fn pass(log: &Log, kept: &mut [Kept], latest: &Shared) {
-    for (n, one) in kept.iter_mut().enumerate() {
-        let at = Timestamp::now();
-        let read = sensor::read(&one.sensor);
-        {
-            let mut latest = latest.lock().unwrap_or_else(PoisonError::into_inner);
-            let shown = &mut latest.readings[n];
-            match &read {
-                Ok(value) => {
+/// Read one source once, log what read, and tell clients.
+fn pass(sinks: &mut Sinks<'_>, kept: &mut Kept) {
+    let at = Timestamp::now();
+    let name = kept.source.name().clone();
+    match kept.source.read() {
+        Ok(measures) => {
+            let device = kept.source.device();
+            for measure in measures {
+                let found = kept
+                    .logged
+                    .iter()
+                    .position(|logged| logged.quantity == measure.quantity);
+                let index = match found {
+                    Some(index) => index,
+                    // Measured but not known to be until now: logged from
+                    // here on, once.
+                    None => match sinks.register(kept.source.as_ref(), measure.quantity) {
+                        Ok(logged) => {
+                            kept.logged.push(logged);
+                            kept.logged.len() - 1
+                        }
+                        Err(e) => {
+                            eprintln!("smartclock-sensord: {name}: not logged: {e:#}");
+                            continue;
+                        }
+                    },
+                };
+                let logged = &mut kept.logged[index];
+                show(sinks.latest, logged.shown, |shown| {
                     shown.at = Some(at);
-                    shown.value = Some(*value);
+                    shown.value = Some(measure.value);
                     shown.error = None;
-                }
-                Err(e) => shown.error = Some(e.to_string()),
-            }
-        }
-        let name = format!("{} {}", one.sensor.name, one.sensor.quantity.name());
-        match read {
-            Ok(value) => {
-                if one.reading != Some(true) {
+                });
+                if logged.reading != Some(true) {
                     eprintln!(
-                        "smartclock-sensord: {name}: reading, {value} {}",
-                        one.sensor.quantity.unit()
+                        "smartclock-sensord: {name} {}: reading, {} {}",
+                        measure.quantity.name(),
+                        measure.value,
+                        measure.quantity.unit()
                     );
                 }
-                one.reading = Some(true);
-                let device = sensor::device(&one.sensor);
-                let written = log
-                    .note_source(one.id, at, &one.sensor.source, device.as_deref())
-                    .and_then(|()| log.record(one.id, at, value));
+                logged.reading = Some(true);
+                let written = sinks
+                    .log
+                    .note_source(logged.id, at, kept.source.origin(), device.as_deref())
+                    .and_then(|()| sinks.log.record(logged.id, at, measure.value));
                 if let Err(e) = written {
-                    eprintln!("smartclock-sensord: {name}: not logged: {e}");
+                    eprintln!(
+                        "smartclock-sensord: {name} {}: not logged: {e}",
+                        measure.quantity.name()
+                    );
                 }
             }
-            Err(e) => {
-                if one.reading != Some(false) {
-                    eprintln!("smartclock-sensord: {name}: no reading: {e}");
+        }
+        Err(e) => {
+            for logged in &mut kept.logged {
+                show(sinks.latest, logged.shown, |shown| {
+                    shown.error = Some(e.to_string());
+                });
+                if logged.reading != Some(false) {
+                    eprintln!(
+                        "smartclock-sensord: {name} {}: no reading: {e}",
+                        logged.quantity.name()
+                    );
                 }
-                one.reading = Some(false);
+                logged.reading = Some(false);
             }
         }
     }
+}
+
+/// Change what clients are told of one reading.
+fn show(latest: &Shared, shown: usize, change: impl FnOnce(&mut Reading)) {
+    let mut latest = latest.lock().unwrap_or_else(PoisonError::into_inner);
+    change(&mut latest.readings[shown]);
 }

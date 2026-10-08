@@ -17,7 +17,8 @@ use smartclock_log::sensors::TABLES;
 use smartclock_log::sensors::VERSION;
 use smartclock_log::writer;
 
-use crate::sensor::Sensor;
+use crate::sensor::Name;
+use crate::sensor::Quantity;
 
 /// The service's write connection.
 #[derive(Debug)]
@@ -51,19 +52,15 @@ impl Log {
         Ok(Self { conn })
     }
 
-    /// The row for a sensor, made on first sight.
-    pub fn sensor_id(&self, sensor: &Sensor) -> Result<i64> {
+    /// The row for a sensor's `quantity`, made on first sight.
+    pub fn sensor_id(&self, name: &Name, quantity: Quantity) -> Result<i64> {
         self.conn.execute(
             "INSERT OR IGNORE INTO sensor (name, quantity, unit) VALUES (?1, ?2, ?3)",
-            params![
-                sensor.name.as_str(),
-                sensor.quantity.name(),
-                sensor.quantity.unit()
-            ],
+            params![name.as_str(), quantity.name(), quantity.unit()],
         )?;
         Ok(self.conn.query_row(
             "SELECT id FROM sensor WHERE name = ?1 AND quantity = ?2",
-            params![sensor.name.as_str(), sensor.quantity.name()],
+            params![name.as_str(), quantity.name()],
             |row| row.get(0),
         )?)
     }
@@ -112,8 +109,8 @@ impl Log {
 #[cfg(test)]
 mod tests {
     use super::Log;
-    use crate::sensor::Interface;
-    use crate::sensor::parse;
+    use crate::sysfs::Interface;
+    use crate::sysfs::parse;
     use jiff::Timestamp;
     use smartclock_log::error::Error;
     use smartclock_log::sensors::SensorLog;
@@ -151,8 +148,12 @@ mod tests {
         let scratch = Scratch::new("round");
         let log = Log::open(&scratch.0, Duration::from_secs(10)).expect("open");
         let sensor = parse(Interface::Hwmon, "room=/sys/x/temp1_input").expect("parse");
-        let id = log.sensor_id(&sensor).expect("id");
-        assert_eq!(log.sensor_id(&sensor).expect("the same id"), id);
+        let id = log.sensor_id(&sensor.name, sensor.quantity).expect("id");
+        assert_eq!(
+            log.sensor_id(&sensor.name, sensor.quantity)
+                .expect("the same id"),
+            id
+        );
         let t0 = Timestamp::from_second(1_791_000_000).expect("a time");
         log.note_source(id, t0, &sensor.source, Some("sht4x"))
             .expect("source");
