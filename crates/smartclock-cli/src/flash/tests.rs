@@ -18,6 +18,9 @@ use smartclock_sim::transport::SimTransport;
 
 use super::Link;
 use super::Mode;
+use super::chips::check;
+use super::chips::join;
+use super::chips::split;
 use super::firmware::Firmware;
 use super::firmware::ImageError;
 use super::firmware::Layout;
@@ -218,6 +221,41 @@ fn validates_audited_images_and_rejects_corruption_and_chip_files() {
         .unwrap();
         Firmware::validate(bytes).unwrap();
     }
+}
+
+#[test]
+fn chip_dumps_join_in_their_labeled_order_and_split_back_and_swaps_are_told() {
+    let chips = split(DUMP).unwrap();
+    assert!(chips.iter().all(|chip| chip.len() == DUMP.len() / 4));
+    let image = join(&chips).unwrap();
+    assert_eq!(image, DUMP);
+    check(&image).unwrap();
+    Firmware::validate(image).unwrap();
+    let [chip_1l, chip_1m, chip_2l, chip_2m] = chips;
+    // Lanes swapped within a pair keep the lane sums, so the reset
+    // vector is the check that catches it.
+    let lanes_swapped = join(&[
+        chip_1m.clone(),
+        chip_1l.clone(),
+        chip_2l.clone(),
+        chip_2m.clone(),
+    ])
+    .unwrap();
+    Layout::AmdLanes.verify(&lanes_swapped).unwrap();
+    assert!(check(&lanes_swapped).is_err());
+    let pairs_swapped = join(&[
+        chip_2l.clone(),
+        chip_2m.clone(),
+        chip_1l.clone(),
+        chip_1m.clone(),
+    ])
+    .unwrap();
+    assert!(matches!(
+        Layout::AmdLanes.verify(&pairs_swapped),
+        Err(ImageError::Checksum { .. })
+    ));
+    assert!(join(&[chip_1l[1..].to_vec(), chip_1m, chip_2l, chip_2m]).is_err());
+    assert!(split(&DUMP[1..]).is_err());
 }
 
 #[test]

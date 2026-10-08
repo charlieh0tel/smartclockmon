@@ -27,6 +27,7 @@ use smartclock::types::ErrorEntry;
 use smartclock::types::Framing;
 use thiserror::Error;
 
+pub(crate) mod chips;
 mod firmware;
 
 use firmware::Firmware;

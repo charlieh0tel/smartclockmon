@@ -51,14 +51,14 @@ which claims about the command set are checked.  CPU32 code, big-endian, loaded 
                              Hewlett-Packard 1993.  Assembled from the
                              four AM29F010 dumps published by willhb at
                              github.com/willhb/HP-58503A-Firmware
-                             (58503_80007..80010_RevA): the author
-                             interleaved each chip pair byte by byte
-                             into `58503a_1_LandM_Combined.BIN` and
-                             `58503a_2_LandM_Combined.BIN`; here the
-                             second is the low half and the first the
-                             high half, the order the reset vector at
-                             address 0 (stack `0x10fffe`, entry `0x550`)
-                             settles.
+                             (58503_80007..80010_RevA, labeled 2L, 1L,
+                             2M and 1M).  Each pair is interleaved byte
+                             by byte, the M part on the even bytes, and
+                             pair 1 is the low half: the order the reset
+                             vector at address 0 (stack `0x10fffe`,
+                             entry `0x550`) and the boot checksums
+                             settle, and what `smartclock-cli
+                             join-chips` does.
 
   58503a-3704.bin            58503A firmware, revision 3704.  Copyright
                              Hewlett-Packard 1993.  Read on 2026-09-26
@@ -67,6 +67,14 @@ which claims about the command set are checked.  CPU32 code, big-endian, loaded 
                              *IDN? with 3704-C (`docs/firmware.md`,
                              "Reading memory through it").  512 KB from
                              address 0; SHA-256 d13b9ff1...9491ca3.
+                             Identical, byte for byte, to a set of
+                             four AM29F010 dumps labeled "58503-00007..10
+                             U11..U14 REV 3704", joined as the 3633
+                             image is, that Daniel Straus forwarded on
+                             2026-10-07 and had himself found on the
+                             Internet some time before; where they
+                             were read is not known.  Not kept here,
+                             since they add nothing to the image.
 
   z3805a-3543b.bin           Z3805A firmware, revision 3543B.  Copyright
                              Hewlett-Packard 1993.  Read on 2026-09-27

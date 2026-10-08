@@ -38,7 +38,7 @@ impl Layout {
         }
     }
 
-    fn verify(self, bytes: &[u8]) -> Result<(), ImageError> {
+    pub(super) fn verify(self, bytes: &[u8]) -> Result<(), ImageError> {
         match self {
             Self::AmdLanes => {
                 for (start, end) in [

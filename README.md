@@ -23,7 +23,7 @@ design, open questions and known defects.
 | `smartclock` | the library: transports, SCPI framing, the command table, parsers, the status screen scraper, the polling task, and the Allan deviation |
 | `smartclockd` | holds the serial port, logs to SQLite, serves clients over a Unix socket and, if asked, TCP |
 | `smartclockmon` | terminal monitor: dashboard, history graphs, journal, status screen and stability |
-| `smartclock-cli` | queries, `diagnose`, notes and facts, the host's sensors, transcripts, sweeps for undocumented commands, ROM and EEPROM reads, and firmware loading ([notes](docs/firmware/restart.md#the-flasher)) |
+| `smartclock-cli` | queries, `diagnose`, notes and facts, the host's sensors, transcripts, sweeps for undocumented commands, ROM and EEPROM reads, chip dumps joined into an image and split back, and firmware loading ([notes](docs/firmware/restart.md#the-flasher)) |
 | `smartclock-exporter` | Prometheus metrics for every receiver, from the daemons' readings |
 | `smartclock-web` | browser view: live state, zoomable history, the status screen, stability, receivers compared, and measures correlated |
 | `smartclock-sensord` | logs room temperature, humidity and pressure from hwmon, IIO and TEMPer USB sticks ([design](docs/sensors.md)) |

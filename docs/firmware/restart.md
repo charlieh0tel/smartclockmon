@@ -160,8 +160,16 @@ Read from all five images; the bench check of entry and exit is below.
   refused outside the writable range.  As 097-58503-13, 4-15 and
   5-115.
 - *Flash.*  Z3801A, Z3805A and 58503A: AM29F010s in word-interleaved
-  pairs, even bytes on one part and odd on the other; `0x0`--`0x3ffff`
-  the low pair, `0x40000`--`0x7ffff` the high.  Z3816A: an
+  pairs, labeled 1L, 1M, 2L and 2M (U12, U14, U11 and U13 on a
+  58503A): the M part holds the even bytes and the L part the odd;
+  pair 1 is `0x0`--`0x3ffff` and pair 2 `0x40000`--`0x7ffff`, the
+  order that reproduces `third_party/58503a-3633.bin` and
+  `58503a-3704.bin` from their chip dumps (`third_party/NOTICE`).
+  `smartclock-cli join-chips` puts four dumps together that way and
+  checks the result: lanes swapped within a pair keep the lane sums
+  below, since the stored sums swap with the bytes they cover, but
+  byte-swap the reset vector; pairs swapped fail the sums.
+  `split-chips` is its inverse, for programming the parts.  Z3816A: an
   Intel-style part, one 16-bit wide.
 - *Boot check.*  The AMD-flash reset code (`0x550`) sums each byte
   lane of each pair against the bytes at `0x3fffc` and `0x7fffc`.  A
@@ -356,7 +364,8 @@ The image catalog accepts these full 512 KiB dumps by exact SHA-256:
 | 58503A | 3704 | USA | `0x10000` |
 | Z3816A | 4001 | USA | `0x20000` |
 
-It rejects modified files, chip dumps and S-record input.  Model and
+It rejects modified files, chip dumps (`join-chips` makes an image of
+them) and S-record input.  Model and
 running primary/installer revision must match an audited profile; the
 candidate's model must match the receiver.  Writing requires the
 expected serial, and the identity's revision suffix must not change on

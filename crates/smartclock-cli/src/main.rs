@@ -49,6 +49,8 @@ use smartclock_log::reader::Fact;
 use smartclock_log::reader::Log;
 
 use crate::flash::FlashArgs;
+use crate::flash::chips::JoinArgs;
+use crate::flash::chips::SplitArgs;
 
 #[derive(Parser)]
 #[command(about, version = smartclock::VERSION)]
@@ -151,6 +153,14 @@ enum Command {
     /// flash back (docs/firmware/restart.md, "The flasher").  Stop the port's
     /// daemon first.  The only command that erases or programs.
     Flash(FlashArgs),
+    /// Put a flash image together from the four AM29F010 chip dumps
+    /// of a Z3801A, Z3805A or 58503A, named as their labels are
+    /// (docs/firmware/restart.md, "The installer"), and check that it
+    /// starts and sums as one of them boots.  Needs no receiver.
+    JoinChips(JoinArgs),
+    /// Split a flash image into the four chip dumps `join-chips`
+    /// takes, for programming the parts.  Needs no receiver.
+    SplitChips(SplitArgs),
     /// Read the whole flash, 512 KiB from address 0, as `read-memory`
     /// does.
     ReadFlash {
@@ -286,6 +296,12 @@ fn main() -> Result<()> {
     }
     if let Command::Sensors { sensord } = &cli.command {
         return sensors(sensord);
+    }
+    if let Command::JoinChips(args) = &cli.command {
+        return flash::chips::run_join(args);
+    }
+    if let Command::SplitChips(args) = &cli.command {
+        return flash::chips::run_split(args);
     }
 
     if let Some(daemon) = cli.daemon.clone() {
@@ -504,7 +520,9 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command, checked: &[Stri
         Command::ReadMemory { .. }
         | Command::ReadFlash { .. }
         | Command::ReadEeprom { .. }
-        | Command::Flash(_) => unreachable!("handled before the session is opened"),
+        | Command::Flash(_)
+        | Command::JoinChips(_)
+        | Command::SplitChips(_) => unreachable!("handled before the session is opened"),
         Command::Note { .. } | Command::Fact { .. } => {
             unreachable!("refused without --daemon, before the port is opened")
         }
@@ -537,6 +555,8 @@ fn typed(command: &Command) -> Result<Vec<String>> {
         | Command::ReadFlash { .. }
         | Command::ReadEeprom { .. }
         | Command::Flash(_)
+        | Command::JoinChips(_)
+        | Command::SplitChips(_)
         | Command::Note { .. }
         | Command::Fact { .. }
         | Command::Sensors { .. } => Vec::new(),
@@ -937,6 +957,8 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
             Ok(())
         }
         Command::Sensors { sensord } => sensors(sensord),
+        Command::JoinChips(args) => flash::chips::run_join(args),
+        Command::SplitChips(args) => flash::chips::run_split(args),
         Command::Probe { .. } | Command::Sweep { .. } => anyhow::bail!(
             "probe and sweep send hundreds of commands and need the port to themselves; \
              stop smartclockd and use --device"
