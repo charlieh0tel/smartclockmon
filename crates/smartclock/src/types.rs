@@ -87,8 +87,10 @@ impl EfcPercent {
     ///
     /// `:DIAGnostic:ROSCillator:EFControl:ABSolute?` returns that value
     /// and it is 20 bits wide: 713392 gives 36.0687, exactly what
-    /// `:RELative?` returned at the same moment.  Neither command is
-    /// documented; both were found by sweeping the receiver.
+    /// `:RELative?` returned at the same moment.  `:RELative?` is
+    /// documented, range -100 to +100 percent (097-59551-02 5-39,
+    /// 097-z3801-01 4-5); `:ABSolute?` is not, and the scale relating
+    /// them was found by sweeping the receiver.
     ///
     /// The converter behind it is not 20 bits.  On the Z3801A it is a
     /// 16-bit AD569 whose low-order bits are dithered to interpolate

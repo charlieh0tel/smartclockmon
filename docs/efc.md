@@ -6,8 +6,9 @@ what that means in volts and in frequency.
 ## The reported value is twenty bits
 
 `:DIAGnostic:ROSCillator:EFControl:ABSolute?` and `:RELative?` are one
-quantity in two units.  Neither is documented; both were found by
-sweeping the receiver.
+quantity in two units.  `:RELative?` is documented, "Range is -100%
+to +100%" (`097-59551-02` 5-39; `097-z3801-01` 4-5); `:ABSolute?` is
+not, and the scale relating them was found by sweeping the receiver.
 
     relative percent = raw / 2^20 * 200 - 100
 
