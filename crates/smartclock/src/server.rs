@@ -86,8 +86,7 @@ pub trait Service: Send + Sync + 'static {
 }
 
 /// What a connected client holds: its place among [`MAX_CLIENTS`], and
-/// its socket's write deadline and shutdown.  Dropping it lets the
-/// client go.
+/// its socket's shutdown.  Dropping it lets the client go.
 #[derive(Debug)]
 pub struct Held {
     _slot: Slot,
@@ -218,6 +217,10 @@ fn accept<S: Service>(
 
 /// Serve one client until it goes away.
 fn talk<S: Service>(stream: Stream, service: &S, slot: Slot) -> std::io::Result<()> {
+    // Without a deadline a client that stopped reading filled its buffer
+    // and left a writer blocked for good, holding the slot and its
+    // threads.  Set before the writer is cloned from it, which keeps it.
+    stream.set_write_timeout(Some(client::DEADLINE))?;
     let held = Held {
         _closer: Closer::new(&stream),
         _slot: slot,
@@ -298,23 +301,16 @@ impl Drop for Hangup {
     }
 }
 
-/// A client's socket, held with its slot: it bounds every write to
-/// [`client::DEADLINE`], and shuts the socket both ways when dropped.
+/// A client's socket, held with its slot, shut both ways when dropped.
 ///
-/// Without the deadline a client that stopped reading filled its buffer
-/// and left a writer blocked for good, holding the slot and its
-/// threads.  Without the shutdown a thread sending unasked that ended
-/// left the request thread reading a socket nobody would close.
+/// Without the shutdown a thread sending unasked that ended left the
+/// request thread reading a socket nobody would close.
 #[derive(Debug)]
 struct Closer(Option<Stream>);
 
 impl Closer {
     fn new(stream: &Stream) -> Self {
-        let socket = stream.try_clone().ok();
-        if let Some(socket) = &socket {
-            let _ = socket.set_write_timeout(Some(client::DEADLINE));
-        }
-        Self(socket)
+        Self(stream.try_clone().ok())
     }
 }
 
@@ -495,16 +491,12 @@ mod tests {
     }
 
     #[test]
-    fn a_client_socket_has_a_write_deadline_and_is_shut_when_its_closer_goes() {
+    fn a_client_socket_is_shut_when_its_closer_goes() {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind");
         let mut client_side =
             TcpStream::connect(listener.local_addr().expect("an address")).expect("connect");
         let (service_side, _) = listener.accept().expect("accept");
         let closer = Closer::new(&Stream::from(service_side.try_clone().expect("clone")));
-        assert_eq!(
-            service_side.write_timeout().expect("the write timeout"),
-            Some(crate::client::DEADLINE)
-        );
         client_side
             .set_read_timeout(Some(Duration::from_secs(5)))
             .expect("timeout");

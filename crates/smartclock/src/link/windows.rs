@@ -30,6 +30,14 @@ impl UnixStream {
         match *self {}
     }
 
+    pub(super) fn read_timeout(&self) -> io::Result<Option<Duration>> {
+        match *self {}
+    }
+
+    pub(super) fn write_timeout(&self) -> io::Result<Option<Duration>> {
+        match *self {}
+    }
+
     pub(super) fn shutdown(&self, _: Shutdown) -> io::Result<()> {
         match *self {}
     }

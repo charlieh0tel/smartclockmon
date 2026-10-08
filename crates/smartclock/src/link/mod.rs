@@ -106,12 +106,28 @@ impl From<TcpStream> for Stream {
 }
 
 impl Stream {
-    /// Another handle on the same connection.
+    /// Another handle on the same connection, with the same timeouts.
+    ///
+    /// Carried over by hand: on Windows a handle's timeouts are its own,
+    /// and a clone starts with none.
     pub fn try_clone(&self) -> io::Result<Self> {
-        Ok(Self(match &self.0 {
+        let clone = Self(match &self.0 {
             Over::Unix(s) => Over::Unix(s.try_clone()?),
             Over::Tcp(s) => Over::Tcp(s.try_clone()?),
-        }))
+        });
+        clone.set_read_timeout(self.read_timeout()?)?;
+        clone.set_write_timeout(self.write_timeout()?)?;
+        Ok(clone)
+    }
+
+    /// How long a read may wait, if it is bounded.
+    fn read_timeout(&self) -> io::Result<Option<Duration>> {
+        each!(&self.0, s => s.read_timeout())
+    }
+
+    /// How long a write may wait, if it is bounded.
+    fn write_timeout(&self) -> io::Result<Option<Duration>> {
+        each!(&self.0, s => s.write_timeout())
     }
 
     /// Bound every read, or not when `None`.
@@ -299,6 +315,7 @@ mod tests {
     use std::io::BufReader;
     use std::io::Write as _;
     use std::path::Path;
+    use std::time::Duration;
 
     /// Accept one client and echo one line back to it.
     fn echo_once(listener: Listener) {
@@ -346,6 +363,25 @@ mod tests {
         let named = listener.endpoint().expect("an endpoint");
         echo_once(listener);
         assert_eq!(round_trip(&named), "hello\n");
+    }
+
+    #[test]
+    fn a_clone_keeps_the_timeouts() {
+        let (listener, scratch) = listen_scratch("link").expect("listen");
+        echo_once(listener);
+        let stream = connect(scratch.endpoint()).expect("connect");
+        stream
+            .set_read_timeout(Some(Duration::from_secs(3)))
+            .expect("read timeout");
+        let clone = stream.try_clone().expect("clone");
+        assert_eq!(
+            clone.read_timeout().expect("read timeout"),
+            Some(Duration::from_secs(3))
+        );
+        assert_eq!(
+            clone.write_timeout().expect("write timeout"),
+            Some(crate::client::DEADLINE)
+        );
     }
 
     #[test]
