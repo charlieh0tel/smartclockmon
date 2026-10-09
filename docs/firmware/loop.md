@@ -390,10 +390,14 @@ routine compares equal across images and a different one does not.
 - The Z3815A and 58503B differ in the arithmetic.  Both compute K, k
   and a from a τ held in a register each pass, as `startup_pll` does,
   and both replace the drift term: where the Z3816A forms
-  d = p·2700/q + r, the 58503B forms v ← ((τ − 10)·v + 10·x)/τ -- a
-  running average with time constant τ, updated every ten seconds --
-  then clamps it to ±M and divides by 2700 before it reaches the
-  integrator.  What x is was not traced.  Their fit dispatchers differ
+  d = p·2700/q + r every ten seconds, they form the same expression
+  once per fit: when the fit's event arrives, the 58503B's `0x4658c`
+  (the Z3815A's at `0x4aa26`) copies a, b and c and stores
+  x = c·2700/q + b (`0x10327a`).  Each update then moves a running
+  value toward it, v ← ((τ − 10)·v + 10·x)/τ (`0x10327e`, at
+  `0x49c38`), clamps v to ±M, and adds it to the integrator where the
+  Z3816A adds d.  So a new fit's change of slope reaches the
+  oscillator over about τ, not at once.  Their fit dispatchers differ
   from the Z3816A's too, and from each other.
 
 The τ block has the 25-byte layout above in every image but the
