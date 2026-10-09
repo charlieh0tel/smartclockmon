@@ -122,8 +122,9 @@ const localZoneName = () =>
 // The chosen zone's short name.
 const zoneName = () => (zone === "utc" ? "UTC" : localZoneName());
 
-// What `Intl` is given to show a time in the chosen zone.
-const inZone = () => (zone === "utc" ? { timeZone: "UTC" } : {});
+// What `Intl` is given to show a time in the chosen zone: UTC on a
+// 24-hour clock, the viewer's zone as the viewer's locale has it.
+const inZone = () => (zone === "utc" ? { timeZone: "UTC", hourCycle: "h23" } : {});
 
 // A time as a person reads it, in the chosen zone, the zone named.
 const showTime = (when) =>

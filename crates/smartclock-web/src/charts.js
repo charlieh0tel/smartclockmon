@@ -244,9 +244,15 @@ const AXIS_RULE = "#2b3038";
 const AXIS = { stroke: AXIS_INK, grid: { stroke: AXIS_RULE }, ticks: { stroke: AXIS_RULE } };
 
 // What a time chart is given to label its time axis in the chosen
-// zone; uPlot labels in the viewer's own without it.
+// zone, UTC on a 24-hour clock; uPlot labels in the viewer's own zone,
+// on a 12-hour one, without it.
 const zonedAxis = () =>
-  zone === "utc" ? { tzDate: (ts) => uPlot.tzDate(new Date(ts * 1000), "Etc/UTC") } : {};
+  zone === "utc"
+    ? {
+        tzDate: (ts) => uPlot.tzDate(new Date(ts * 1000), "Etc/UTC"),
+        fmtDate: (template) => uPlot.fmtDate(template.replaceAll("{h}", "{HH}").replaceAll("{aa}", "")),
+      }
+    : {};
 
 // The options every chart in a stack of time charts shares:
 //   width, height  its size

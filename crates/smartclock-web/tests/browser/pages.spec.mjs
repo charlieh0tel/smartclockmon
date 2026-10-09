@@ -872,6 +872,11 @@ test.describe("in Los Angeles", () => {
     await expect.poll(() => new URL(page.url()).searchParams.get("tz")).toBe("utc");
     await expect(page.locator("#journal td").first()).toContainText("UTC");
     expect(await page.evaluate(() => fromField("2026-10-08T16:35"))).toBe("2026-10-08T16:35:00.000Z");
+    // UTC on a 24-hour clock, on the axes as elsewhere.
+    expect(await page.evaluate(() => showClock(Date.parse("2026-10-08T16:35:00Z")))).toBe("16:35:00");
+    await page.waitForFunction(() => charts.length > 0 && charts.at(-1).axes[0]._values);
+    const ticks = await page.evaluate(() => charts.at(-1).axes[0]._values.join(" "));
+    expect(ticks).not.toMatch(/[ap]m/i);
     expect(await page.evaluate(() => toField(Date.parse("2026-10-08T16:35:00Z")))).toBe("2026-10-08T16:35");
     for (const a of await page.locator("nav a").all()) {
       expect(new URL(await a.getAttribute("href"), page.url()).searchParams.get("tz")).toBe("utc");
