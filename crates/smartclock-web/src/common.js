@@ -725,6 +725,9 @@ const RELATIVE_UNITS = { s: 1, m: 60, h: 3600, d: 86400, w: 604800 };
 // year 5138, 1e11 milliseconds 1973.
 const MILLISECONDS_ABOVE = 1e11;
 
+// A date and time of day with no zone, a T or a space between them.
+const ZONELESS = /^(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d(?::\d\d(?:\.\d+)?)?)$/;
+
 // An instant from the address: `{ ago }` in seconds before now, or
 // `{ at }` in unix seconds; null if it is neither.
 function instant(text) {
@@ -737,7 +740,11 @@ function instant(text) {
     const n = Number(text);
     return { at: n > MILLISECONDS_ABOVE ? n / 1000 : n };
   }
-  const parsed = Date.parse(text);
+  // A date and time with no zone is UTC, not the browser's own zone as
+  // JavaScript would take it, so a link means the same instant
+  // wherever it is opened.
+  const zoneless = ZONELESS.exec(text);
+  const parsed = Date.parse(zoneless ? `${zoneless[1]}T${zoneless[2]}Z` : text);
   return Number.isFinite(parsed) ? { at: parsed / 1000 } : null;
 }
 

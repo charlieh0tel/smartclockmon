@@ -908,3 +908,17 @@ test.describe("in Los Angeles", () => {
     expect(await refusal("2026-10-08T09:35")).toBe("2026-10-08T16:35:00.000Z");
   });
 });
+
+test.describe("in Tokyo", () => {
+  test.use({ timezoneId: "Asia/Tokyo" });
+
+  test("a time typed into the address without a zone is UTC, wherever it is opened", async ({ page }) => {
+    await open(page, twoUnits(), "/", B);
+    const read = (text) => page.evaluate((t) => instant(t)?.at, text);
+    const utc = Date.parse("2026-10-08T16:35:00Z") / 1000;
+    expect(await read("2026-10-08T16:35")).toBe(utc);
+    expect(await read("2026-10-08 16:35:00")).toBe(utc);
+    expect(await read("2026-10-08T16:35:00Z")).toBe(utc);
+    expect(await read("2026-10-08T09:35:00-07:00")).toBe(utc);
+  });
+});
