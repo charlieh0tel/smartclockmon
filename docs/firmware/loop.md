@@ -30,7 +30,7 @@ The pSOS tasks are created at `0x231f0` to `0x232d4`: `gpsm` (entry
 `0x103d4e`) and `curv` (`0x450d4`, task id at `0x103d5e`); the SCPI
 task, `sci` (entry `0x39706`, task id at `0x103d5a`), is created by
 `FUN_00039732`.  The Z3805A's `:DIAGnostic:OS:PROCess?` lists the same
-names (see `scpi/z3801a.md`).  The loop below runs in `pllp`; the fit
+names (see `scpi/undocumented.md`).  The loop below runs in `pllp`; the fit
 in "The aging fit" runs in `curv`.
 
 ## Fine acquisition

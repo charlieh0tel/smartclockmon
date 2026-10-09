@@ -32,7 +32,7 @@ when the byte at `0x10266e` is set, and otherwise fails with code
 0xc.  So `:DIAGnostic:PTIMe:TINTerval?` is one reading, and
 `:SYNChronization:TINTerval?` and `:PTIMe:TINTerval?` the mean of
 ten.  A Z3805A answered the `DIAGnostic` form in the keyword sweep
-(`scpi/z3801a.md`, "time interval, unlocked reading").  The bench 58503A
+(`scpi/undocumented.md`, "What answered on a Z3805A").  The bench 58503A
 answered it once a second for an hour on 2026-09-25, and its
 ten-second value was the mean of those readings to 0.15 ns rms
 (`../hardware-investigations.md`, item 8).

@@ -253,7 +253,7 @@ driver: its host port is DUART channel B, with the exchanges `drtR`
 and `drtW` (`0x460c`) and the interrupt messages `DUARTB isr signaling
 ...` (`0x4686`), while `drta_get_byte` is still the GPS link on
 channel A.  The Z3805A's own `:DIAGnostic:OS` listing names both
-`sciR`/`sciW` and `drtR`/`drtW` (`scpi/z3801a.md`), so its firmware,
+`sciR`/`sciW` and `drtR`/`drtW` (`scpi/undocumented.md`), so its firmware,
 3543B, matches neither image exactly.
 
 ## The Z3801A image

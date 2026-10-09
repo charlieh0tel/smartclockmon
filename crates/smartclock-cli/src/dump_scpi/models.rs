@@ -144,7 +144,7 @@ fn same_tree(one: &[Entry], other: &[Entry]) -> bool {
 /// short, long, or anywhere between, in any case; a leading `:SOURce`
 /// of the path may be left out; arguments and a trailing `?` are
 /// ignored.
-fn spells(written: &str, path: &str) -> bool {
+pub(super) fn spells(written: &str, path: &str) -> bool {
     let written = written
         .split_whitespace()
         .next()

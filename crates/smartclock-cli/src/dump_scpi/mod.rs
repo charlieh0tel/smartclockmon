@@ -441,6 +441,36 @@ mod tests {
     }
 
     #[test]
+    fn every_path_the_undocumented_commands_name_is_in_a_tree() {
+        let root = format!("{}/../..", env!("CARGO_MANIFEST_DIR"));
+        let trees: Vec<Vec<Entry>> = IMAGES
+            .iter()
+            .map(|name| {
+                let image = std::fs::read(format!("{root}/third_party/firmware/{name}.bin"))
+                    .expect("the image is in the repository");
+                entries(&image).expect("the image has a tree")
+            })
+            .collect();
+        let held = std::fs::read_to_string(format!("{root}/docs/scpi/undocumented.md"))
+            .expect("the document is in the repository");
+        let headings: Vec<&str> = held
+            .lines()
+            .filter_map(|line| line.strip_prefix("### `"))
+            .filter_map(|rest| rest.split('`').next())
+            .collect();
+        assert!(!headings.is_empty(), "no path headings found");
+        for heading in headings {
+            assert!(
+                trees
+                    .iter()
+                    .flatten()
+                    .any(|entry| super::models::spells(heading, &entry.path)),
+                "{heading} is in no image's tree"
+            );
+        }
+    }
+
+    #[test]
     fn an_image_without_a_tree_is_refused() {
         assert!(dump(&[0; 0x1000]).is_err());
     }
