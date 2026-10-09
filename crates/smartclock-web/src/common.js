@@ -105,12 +105,23 @@ async function ask(url, signal, timeout = QUICK_TIMEOUT) {
 
 // ------------------------------------------------------------ time zone
 //
-// The zone times are shown and entered in: the viewer's own, or UTC.
-// Every time is stored and served in UTC, so this changes only how one
-// is shown or read from a field.  In the address as `tz=utc`, carried
-// between pages like the range.
+// How times are shown and entered: in the viewer's own zone or UTC, on
+// a 12- or a 24-hour clock.  Every time is stored and served in UTC, so
+// this changes only how one is shown or read from a field.  In the
+// address as `tz=`, carried between pages like the range.
 
-let zone = new URLSearchParams(location.search).get("tz") === "utc" ? "utc" : "local";
+// The ways, in the order the control steps through them; the first is
+// the default and is left out of the address.
+//   key    its value in the address
+//   utc    whether in UTC rather than the viewer's zone
+//   hours  12 or 24
+const TIME_STYLES = [
+  { key: "local", utc: false, hours: 12 },
+  { key: "local24", utc: false, hours: 24 },
+  { key: "utc", utc: true, hours: 24 },
+];
+let timeStyle =
+  TIME_STYLES.find((s) => s.key === new URLSearchParams(location.search).get("tz")) ?? TIME_STYLES[0];
 const HOUR_MS = 3600000;
 
 // The viewer's zone's short name now, such as PDT.
@@ -120,11 +131,17 @@ const localZoneName = () =>
     .find((p) => p.type === "timeZoneName")?.value ?? "local";
 
 // The chosen zone's short name.
-const zoneName = () => (zone === "utc" ? "UTC" : localZoneName());
+const zoneName = () => (timeStyle.utc ? "UTC" : localZoneName());
 
-// What `Intl` is given to show a time in the chosen zone: UTC on a
-// 24-hour clock, the viewer's zone as the viewer's locale has it.
-const inZone = () => (zone === "utc" ? { timeZone: "UTC", hourCycle: "h23" } : {});
+// What the control says of a way of showing times.
+const styleName = (style) =>
+  style.utc ? "UTC" : `${localZoneName()} ${style.hours}h`;
+
+// What `Intl` is given to show a time the chosen way.
+const inZone = () => ({
+  ...(timeStyle.utc ? { timeZone: "UTC" } : {}),
+  hourCycle: timeStyle.hours === 24 ? "h23" : "h12",
+});
 
 // A time as a person reads it, in the chosen zone, the zone named.
 const showTime = (when) =>
@@ -136,7 +153,7 @@ const showDate = (when) => new Date(when).toLocaleDateString(undefined, inZone()
 // A time as a time field holds it, to the minute, in the chosen zone.
 function toField(when) {
   const at = new Date(when).getTime();
-  const shift = zone === "utc" ? 0 : new Date(at).getTimezoneOffset() * 60000;
+  const shift = timeStyle.utc ? 0 : new Date(at).getTimezoneOffset() * 60000;
   return new Date(at - shift).toISOString().slice(0, 16);
 }
 
@@ -146,7 +163,7 @@ function toField(when) {
 function fromField(value) {
   if (!value) return null;
   const minute = value.slice(0, 16);
-  if (zone === "utc") return new Date(`${minute}:00Z`).toISOString();
+  if (timeStyle.utc) return new Date(`${minute}:00Z`).toISOString();
   const at = new Date(minute);
   if (toField(at) !== minute) {
     throw new Error(`${minute} is skipped when the clocks go forward; give it in UTC`);
@@ -914,13 +931,11 @@ function drawRangeControl() {
       refreshOptions().map(([value, label]) =>
         `<option value="${value}"${value === refreshChoice ? " selected" : ""}>${label}</option>`).join("") +
       `</select>`) +
-    `</span> <select id="range-zone" title="the zone times are shown and entered in">` +
-    [["local", localZoneName()], ["utc", "UTC"]].map(([value, label]) =>
-      `<option value="${value}"${value === zone ? " selected" : ""}>${label}</option>`).join("") +
-    `</select>`;
-  $("range-zone").onchange = () => {
-    zone = $("range-zone").value;
-    remember({ tz: zone === "utc" ? "utc" : null });
+    `</span> <button id="range-zone" title="how times are shown and entered; click for the next way">` +
+    `${esc(styleName(timeStyle))}</button>`;
+  $("range-zone").onclick = () => {
+    timeStyle = TIME_STYLES[(TIME_STYLES.indexOf(timeStyle) + 1) % TIME_STYLES.length];
+    remember({ tz: timeStyle === TIME_STYLES[0] ? null : timeStyle.key });
     carry();
     drawRangeControl();
     page?.zoned?.();

@@ -119,10 +119,12 @@ read when its range or measures change.  ⟳ reads at once.  Reading pauses whil
 tab is hidden, while a read is still running, while the pointer is on
 a chart, while text is selected, and while a note is being changed.
 
-Times are shown, and typed into a note's time, in the viewer's own
-zone or in UTC, chosen at the end of the range control and named
-wherever a time is shown.  Every time is stored and served in UTC, so
-the choice is only how one is shown; it rides in the address as
+Times are shown, and typed into a note's time, one of three ways, which
+the button at the end of the range control steps through: the
+viewer's own zone on a 12-hour clock (the default), the same on a
+24-hour clock, and UTC on a 24-hour clock.  The zone is named wherever
+a time is shown.  Every time is stored and served in UTC, so the choice
+is only how one is shown; it rides in the address as `tz=local24` or
 `tz=utc` and on the links between pages.  A local time that a clock
 change skips or passes twice is not one moment, and a note given one
 is refused with the advice to give it in UTC.  The receiver's own

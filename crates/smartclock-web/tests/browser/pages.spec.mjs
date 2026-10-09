@@ -868,7 +868,14 @@ test.describe("in Los Angeles", () => {
     await open(page, twoUnits(), "/", B);
     await page.locator('#journal-tabs button[data-stream="notes"]').click();
     await expect(page.locator("#journal td").first()).toContainText(/P[DS]T/);
-    await page.locator("#range-zone").selectOption("utc");
+    // Round from local 12-hour, through local 24-hour, to UTC.
+    await expect(page.locator("#range-zone")).toHaveText(/^P[DS]T 12h$/);
+    await page.locator("#range-zone").click();
+    await expect(page.locator("#range-zone")).toHaveText(/^P[DS]T 24h$/);
+    await expect.poll(() => new URL(page.url()).searchParams.get("tz")).toBe("local24");
+    expect(await page.evaluate(() => showClock(Date.parse("2026-10-08T16:35:00Z")))).toBe("09:35:00");
+    await page.locator("#range-zone").click();
+    await expect(page.locator("#range-zone")).toHaveText("UTC");
     await expect.poll(() => new URL(page.url()).searchParams.get("tz")).toBe("utc");
     await expect(page.locator("#journal td").first()).toContainText("UTC");
     expect(await page.evaluate(() => fromField("2026-10-08T16:35"))).toBe("2026-10-08T16:35:00.000Z");
@@ -881,6 +888,9 @@ test.describe("in Los Angeles", () => {
     for (const a of await page.locator("nav a").all()) {
       expect(new URL(await a.getAttribute("href"), page.url()).searchParams.get("tz")).toBe("utc");
     }
+    await page.locator("#range-zone").click();
+    await expect(page.locator("#range-zone")).toHaveText(/^P[DS]T 12h$/);
+    await expect.poll(() => new URL(page.url()).searchParams.has("tz")).toBe(false);
   });
 
   test("a local time a clock change skips or doubles is refused", async ({ page }) => {
