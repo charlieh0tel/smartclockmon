@@ -91,6 +91,7 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
 #journal .note-tools button { padding: 0 6px; font-size: 11px; }
 #journal .note-new-text { min-width: 20ch; flex: 1; }
 #note-form { margin-bottom: 8px; }
+body[data-picking] .u-over { cursor: crosshair; }
 #note-form #note-text { flex: 1; min-width: 12ch; }
 #journal-tabs button.on { background: var(--line); color: var(--fg); }
 /* The panel heading sits on the controls row here, so it drops the

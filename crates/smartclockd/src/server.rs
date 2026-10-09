@@ -240,6 +240,9 @@ fn handle_request(id: String, op: Op, handle: &Handle, info: &Info) -> Message {
             if text.is_empty() {
                 return Message::err(id, "a note needs some text");
             }
+            if let Some(why) = at.and_then(in_the_future) {
+                return Message::err(id, why);
+            }
             written(id, info, |receiver| {
                 info.inbox.note(Note {
                     at: at.unwrap_or_else(Timestamp::now),
@@ -258,6 +261,9 @@ fn handle_request(id: String, op: Op, handle: &Handle, info: &Info) -> Message {
             let text = text.trim();
             if text.is_empty() {
                 return Message::err(id, "a note needs some text; to remove it, delete it");
+            }
+            if let Some(why) = at.and_then(in_the_future) {
+                return Message::err(id, why);
             }
             change_note(id, info, note, was, receiver, Some((text.to_owned(), at)))
         }
@@ -310,6 +316,17 @@ fn written(
         ),
         Err(why) => Message::err(id, why),
     }
+}
+
+/// How far ahead of this host's clock a note may be dated: a client's
+/// clock a little ahead of it is not a note about the future.
+const NOTE_AHEAD: jiff::SignedDuration = jiff::SignedDuration::from_secs(60);
+
+/// Why a note dated `at` is refused, if it is: a note records what
+/// happened, so one dated past now is a mistake, usually in the zone.
+fn in_the_future(at: Timestamp) -> Option<String> {
+    (at > Timestamp::now() + NOTE_AHEAD)
+        .then(|| format!("{at} is in the future; a note records what has happened"))
 }
 
 /// Change or delete note `note` through the log thread, refusing if
@@ -1195,6 +1212,29 @@ mod note_tests {
             }
             other => panic!("{other:?}"),
         }
+    }
+
+    #[test]
+    fn a_note_dated_in_the_future_is_refused() {
+        let later = jiff::Timestamp::now() + jiff::SignedDuration::from_hours(1);
+        let note = Op::Note {
+            text: "tomorrow's job".to_owned(),
+            at: Some(later),
+        };
+        assert!(error(ask(UNIT, note)).is_some_and(|e| e.contains("in the future")));
+        let edit = Op::NoteEdit {
+            id: 1,
+            text: "x".to_owned(),
+            at: Some(later),
+            was: None,
+            receiver: None,
+        };
+        assert!(error(ask(UNIT, edit)).is_some_and(|e| e.contains("in the future")));
+        let soon = Op::Note {
+            text: "a client clock a little ahead".to_owned(),
+            at: Some(jiff::Timestamp::now() + jiff::SignedDuration::from_secs(5)),
+        };
+        assert!(error(ask(UNIT, soon)).is_none());
     }
 
     #[test]

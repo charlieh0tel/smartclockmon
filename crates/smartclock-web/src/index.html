@@ -49,7 +49,14 @@
   </div>
   <div id="note-form" class="controls" hidden>
     <input id="note-text" placeholder="Add a note: what changed on the bench" aria-label="New note">
-    <input id="note-when" type="datetime-local" step="1" title="When it happened; now if left empty" aria-label="When">
+    <span id="note-now" class="muted">when: now <button id="note-earlier">earlier...</button></span>
+    <span id="note-then" hidden>
+      <label for="note-when" class="muted">when</label>
+      <input id="note-when" type="datetime-local" step="60">
+      <span class="note-zone muted"></span>
+      <button id="note-pick" title="Then click a moment on any chart">pick on chart</button>
+      <button id="note-now-again">now</button>
+    </span>
     <button id="note-add">Add</button>
     <span id="note-said" class="muted"></span>
   </div>
@@ -594,7 +601,7 @@ function stamped(r) {
 
 const local = (iso) => {
   const at = new Date(iso);
-  return isNaN(at) ? esc(iso) : esc(at.toLocaleString());
+  return isNaN(at) ? esc(iso) : esc(at.toLocaleString(undefined, { timeZoneName: "short" }));
 };
 
 function drawJournal(journal) {
@@ -649,15 +656,83 @@ function showStream(journal) {
 // How long a delete waits for its second click before standing down.
 const CONFIRM_FOR = 4000;
 
-// A datetime-local field's value as an instant, or null when empty.
+// How far ahead of now a note may be dated, in milliseconds, as the
+// daemon allows: a clock a little ahead is not a note about the future.
+const NOTE_AHEAD = 60000;
+
+// The browser's time zone, as the time fields are in it, such as PDT.
+const ZONE =
+  new Intl.DateTimeFormat([], { timeZoneName: "short" })
+    .formatToParts(new Date())
+    .find((p) => p.type === "timeZoneName")?.value ?? "local";
+for (const zone of document.querySelectorAll(".note-zone")) zone.textContent = ZONE;
+
+// A time field's value as an instant, or null when empty.
 const fromLocal = (value) => (value ? new Date(value).toISOString() : null);
 
-// An instant as a datetime-local field shows it, in local time.
-function toLocal(iso) {
-  const at = new Date(iso);
+// An instant as a time field shows it, to the minute, in local time.
+function toLocal(when) {
+  const at = new Date(when);
   const shifted = new Date(at.getTime() - at.getTimezoneOffset() * 60000);
-  return shifted.toISOString().slice(0, 19);
+  return shifted.toISOString().slice(0, 16);
 }
+
+// Why a time is refused, if it is.
+const tooLate = (iso) =>
+  iso && Date.parse(iso) > Date.now() + NOTE_AHEAD
+    ? "that time is in the future; a note records what has happened"
+    : null;
+
+// The time field the next click on a chart fills in, while picking.
+let picking = null;
+
+// Fill `field` from the next click on a chart.  The page holds off
+// reading again meanwhile, so the charts stay where they were looked at.
+function pickInto(field) {
+  picking = field;
+  document.body.dataset.picking = "1";
+  $("note-form").dataset.editing = "1";
+  $("note-said").textContent = `click a moment on any chart (${ZONE}); Esc to stop`;
+}
+
+function stopPicking() {
+  picking = null;
+  delete document.body.dataset.picking;
+  delete $("note-form").dataset.editing;
+}
+
+$("charts").addEventListener(
+  "click",
+  (e) => {
+    if (!picking) return;
+    const chart = charts.find((c) => c.over.contains(e.target));
+    if (!chart) return;
+    const at = chart.posToVal(chart.cursor.left, "x");
+    picking.value = toLocal(at * 1000);
+    $("note-said").textContent = "";
+    stopPicking();
+  },
+  true,
+);
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && picking) {
+    stopPicking();
+    $("note-said").textContent = "";
+  }
+});
+
+$("note-earlier").onclick = () => {
+  $("note-now").hidden = true;
+  $("note-then").hidden = false;
+  $("note-when").value = toLocal(Date.now());
+};
+$("note-now-again").onclick = () => {
+  $("note-then").hidden = true;
+  $("note-now").hidden = false;
+  $("note-when").value = "";
+  stopPicking();
+};
+$("note-pick").onclick = () => pickInto($("note-when"));
 
 // Say how a write went, and read the journal and the charts again.
 async function wrote(action, request) {
@@ -680,10 +755,15 @@ $("note-add").onclick = async () => {
     $("note-said").textContent = "a note needs some text";
     return;
   }
-  const at = fromLocal($("note-when").value);
+  const at = $("note-then").hidden ? null : fromLocal($("note-when").value);
+  const late = tooLate(at);
+  if (late) {
+    $("note-said").textContent = late;
+    return;
+  }
   if (await wrote("add", { text, ...(at ? { at } : {}) })) {
     $("note-text").value = "";
-    $("note-when").value = "";
+    $("note-now-again").click();
   }
 };
 $("note-text").onkeydown = (e) => {
@@ -699,10 +779,16 @@ function editNote(note, button) {
   cell.innerHTML =
     `<span class="controls">` +
     `<input class="note-new-text" aria-label="Note" value="${esc(note.text)}">` +
-    `<input class="note-new-when" type="datetime-local" step="1" aria-label="When" value="${toLocal(note.at)}">` +
+    `<input class="note-new-when" type="datetime-local" step="60" aria-label="When" value="${toLocal(note.at)}">` +
+    `<span class="muted">${esc(ZONE)}</span> <button class="note-repick">pick on chart</button> ` +
     `<button class="note-save">save</button> <button class="note-cancel">cancel</button></span>`;
   const text = cell.querySelector(".note-new-text");
+  const when = cell.querySelector(".note-new-when");
+  // As shown, to the minute: the time is sent only if changed from
+  // this, or every edit would round the note's time to the minute.
+  const shown = when.value;
   text.focus();
+  cell.querySelector(".note-repick").onclick = () => pickInto(when);
   cell.querySelector(".note-cancel").onclick = () => renew(true);
   const save = async () => {
     const changed = text.value.trim();
@@ -710,7 +796,12 @@ function editNote(note, button) {
       $("note-said").textContent = "a note needs some text; to remove it, delete it";
       return;
     }
-    const at = fromLocal(cell.querySelector(".note-new-when").value);
+    const at = when.value === shown ? null : fromLocal(when.value);
+    const late = tooLate(at);
+    if (late) {
+      $("note-said").textContent = late;
+      return;
+    }
     await wrote("edit", { id: note.id, text: changed, was: note.text, ...(at ? { at } : {}) });
   };
   cell.querySelector(".note-save").onclick = save;

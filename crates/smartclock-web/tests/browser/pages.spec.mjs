@@ -813,3 +813,50 @@ test("a note being edited is not drawn over by the page refreshing", async ({ pa
   await expect(page.locator(".note-new-text")).toHaveValue("half typed");
   expect(fake.seen.journal).toBe(reads);
 });
+
+test("a note's time is now unless set, in the zone shown, and never in the future", async ({ page }) => {
+  const fake = twoUnits();
+  await open(page, fake, "/", B);
+  await page.locator('#journal-tabs button[data-stream="notes"]').click();
+  await expect(page.locator("#note-now")).toContainText("when: now");
+  await page.locator("#note-earlier").click();
+  await expect(page.locator("#note-then .note-zone")).not.toBeEmpty();
+
+  await page.locator("#note-text").fill("tomorrow");
+  await page.locator("#note-when").fill(
+    await page.evaluate(() => toLocal(Date.now() + 86400000)),
+  );
+  await page.locator("#note-add").click();
+  await expect(page.locator("#note-said")).toContainText("in the future");
+  expect(fake.writes.length).toBe(0);
+
+  // Edited text only: the time is left as it was, not rounded to the
+  // minute the field shows.
+  await page.locator(".note-edit").first().click();
+  await page.locator(".note-new-text").fill("text only");
+  await page.locator(".note-save").click();
+  await expect(page.locator("#note-said")).toHaveText("changed");
+  expect(fake.writes[0].body.at).toBeUndefined();
+});
+
+test("a note's time can be picked by clicking a chart", async ({ page }) => {
+  const fake = twoUnits();
+  await open(page, fake, "/", B);
+  await page.locator('#journal-tabs button[data-stream="notes"]').click();
+  await page.waitForFunction(() => charts.length > 0);
+  await page.locator("#note-earlier").click();
+  await page.locator("#note-pick").click();
+  const { x, y, expected } = await page.evaluate(() => {
+    const chart = charts[0];
+    const box = chart.over.getBoundingClientRect();
+    const left = box.width / 2;
+    return {
+      x: box.left + left,
+      y: box.top + box.height / 2,
+      expected: toLocal(chart.posToVal(left, "x") * 1000),
+    };
+  });
+  await page.mouse.click(x, y);
+  await expect(page.locator("#note-when")).toHaveValue(expected);
+  expect(await page.evaluate(() => document.body.dataset.picking)).toBeUndefined();
+});
