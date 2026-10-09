@@ -7,7 +7,7 @@ to regenerate; a test fails if this file and the table disagree.
 
 | Tree | Commands | Hardware | Firmware | Manual |
 | ---- | -------- | -------- | -------- | ------ |
-| 58503A/B, 59551A | 130 | 92 | 0 | 38 |
+| 58503A/B, 59551A | 141 | 103 | 0 | 38 |
 | Z3801A, Z3816A | 82 | 18 | 63 | 1 |
 
 **H** means the receiver answered it.  **F** means every keyword
@@ -17,13 +17,13 @@ it was transcribed from a manual and nothing more.
 
 | Class | Commands | Gate |
 | ----- | -------- | ---- |
-| Query | 91 | none |
+| Query | 102 | none |
 | Control | 31 | `--allow-control` |
 | Dangerous | 8 | `--allow-dangerous` |
 
 ## Undocumented
 
-12 commands appear in none of the manuals here.  They were found
+23 commands appear in none of the manuals here.  They were found
 by building candidate paths from the firmware's keyword table and
 sending them to a receiver: an unknown header returns -113 and
 changes nothing, so a sweep is safe and settles the question.
@@ -42,6 +42,17 @@ changes nothing, so a sweep is safe and settles the question.
 | `:DIAGnostic:TOFFset?` | time offset | a 58503A |
 | `:DIAGnostic:ROSCillator:EFControl:DATA?` | efc data | a 58503A |
 | `:DIAGnostic:SLOG?` | log oldest | a 58503A |
+| `:DIAGnostic:GPSystem:ACURrent?` | gps acurrent | a 58503A |
+| `:DIAGnostic:GPSystem:TRACking:LOG?` | tracking log | a 58503A |
+| `:DIAGnostic:REFerence:GPSystem:QUEStionable:HYSTeresis?` | gps reference hysteresis | a 58503A |
+| `:DIAGnostic:ROSCillator:EFControl:MODE?` | efc mode | a 58503A |
+| `:DIAGnostic:TCODe:ERRor:AMASk?` | timecode error a mask | a 58503A |
+| `:DIAGnostic:TCODe:ERRor:OMASk?` | timecode error o mask | a 58503A |
+| `:DIAGnostic:TCODe:STATus:AMASk?` | timecode status a mask | a 58503A |
+| `:DIAGnostic:TCODe:STATus:OMASk?` | timecode status o mask | a 58503A |
+| `:DIAGnostic:TMODe:DATA?` | tmode data | a 58503A |
+| `:DIAGnostic:TMODe:STATe?` | tmode state | a 58503A |
+| `:PTIMe:UTC?` | ptime utc | a 58503A |
 
 ## Every command
 
@@ -181,4 +192,15 @@ anything reaching the receiver.
 | time offset | Query | `:DIAGnostic:TOFFset?` H (58503A) |  |
 | efc data | Query | `:DIAGnostic:ROSCillator:EFControl:DATA?` H (58503A) |  |
 | log oldest | Query | `:DIAGnostic:SLOG?` H (58503A) | `:DIAGnostic:SLOG?` H |
+| gps acurrent | Query | `:DIAGnostic:GPSystem:ACURrent?` H (58503A) |  |
+| tracking log | Query | `:DIAGnostic:GPSystem:TRACking:LOG?` H (58503A) |  |
+| gps reference hysteresis | Query | `:DIAGnostic:REFerence:GPSystem:QUEStionable:HYSTeresis?` H (58503A) |  |
+| efc mode | Query | `:DIAGnostic:ROSCillator:EFControl:MODE?` H (58503A) |  |
+| timecode error a mask | Query | `:DIAGnostic:TCODe:ERRor:AMASk?` H (58503A) |  |
+| timecode error o mask | Query | `:DIAGnostic:TCODe:ERRor:OMASk?` H (58503A) |  |
+| timecode status a mask | Query | `:DIAGnostic:TCODe:STATus:AMASk?` H (58503A) |  |
+| timecode status o mask | Query | `:DIAGnostic:TCODe:STATus:OMASk?` H (58503A) |  |
+| tmode data | Query | `:DIAGnostic:TMODe:DATA?` H (58503A) |  |
+| tmode state | Query | `:DIAGnostic:TMODe:STATe?` H (58503A) |  |
+| ptime utc | Query | `:PTIMe:UTC?` H (58503A) |  |
 | system pon | Dangerous |  | `:SYSTem:PON` F (Z3816A) |

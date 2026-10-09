@@ -322,7 +322,7 @@ keyword keeps each one short.
 | `:DIAGnostic:FAIL:CHECksum` |  |  |  |  | s |  |  |  |  |
 | `:DIAGnostic:FAIL:CODE` |  |  |  |  | s |  |  |  |  |
 | `:DIAGnostic:GPSystem` |  |  | - | - | - | - | - | - | - |
-| `:DIAGnostic:GPSystem:ACURrent` |  |  | q | q | q |  |  | q | q |
+| `:DIAGnostic:GPSystem:ACURrent` |  | 58503A | q | q | q |  |  | q | q |
 | `:DIAGnostic:GPSystem:ACURrent:ALARm` |  |  | qs | qs | qs |  |  | qs | qs |
 | `:DIAGnostic:GPSystem:ACURrent:STATe` |  |  |  |  | q |  |  | q |  |
 | `:DIAGnostic:GPSystem:DCXO` |  |  |  |  | qs |  |  |  |  |
@@ -339,7 +339,7 @@ keyword keeps each one short.
 | `:DIAGnostic:GPSystem:POSition:SURVey:RAIM:THReshold` |  |  | qs | qs | qs | qs | qs | qs | qs |
 | `:DIAGnostic:GPSystem:TIME` |  | 58503A | q | q | q | q | q | q | q |
 | `:DIAGnostic:GPSystem:TRACking` |  |  | - | - | - |  |  | - | - |
-| `:DIAGnostic:GPSystem:TRACking:LOG` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:DIAGnostic:GPSystem:TRACking:LOG` |  | 58503A | qs | qs | qs |  |  | qs | qs |
 | `:DIAGnostic:GPSystem:UTC` |  | 58503A | qs | qs | qs | qs | qs | qs | qs |
 | `:DIAGnostic:IDENtification` | Z |  | - | - | - | - | - | - | - |
 | `:DIAGnostic:IDENtification:DEFault` |  | 58503A | q | q | q | q | q | q | q |
@@ -376,7 +376,7 @@ keyword keeps each one short.
 | `:DIAGnostic:REFerence:EXTernal:QUEStionable:HYSTeresis` |  |  | qs | qs | qs |  |  | qs | qs |
 | `:DIAGnostic:REFerence:GPSystem` |  |  | - | - | - |  |  | - | - |
 | `:DIAGnostic:REFerence:GPSystem:QUEStionable` |  |  | - | - | - |  |  | - | - |
-| `:DIAGnostic:REFerence:GPSystem:QUEStionable:HYSTeresis` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:DIAGnostic:REFerence:GPSystem:QUEStionable:HYSTeresis` |  | 58503A | qs | qs | qs |  |  | qs | qs |
 | `:DIAGnostic:REFerence:STATus` |  |  |  |  | s |  |  |  |  |
 | `:DIAGnostic:ROSCillator` | Z |  | - | - | - | - | - | - | - |
 | `:DIAGnostic:ROSCillator:CURRent` |  | 58503A, Z3805A | q | q | q | q | q | q | q |
@@ -387,7 +387,7 @@ keyword keeps each one short.
 | `:DIAGnostic:ROSCillator:EFControl:DADC` |  |  |  |  | qs |  |  | qs |  |
 | `:DIAGnostic:ROSCillator:EFControl:DATA` |  | 58503A |  | qs | qs |  |  | qs |  |
 | `:DIAGnostic:ROSCillator:EFControl:FPGA` |  |  |  |  | s |  |  |  |  |
-| `:DIAGnostic:ROSCillator:EFControl:MODE` |  |  |  | qs | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:EFControl:MODE` |  | 58503A |  | qs | qs |  |  | qs |  |
 | `:DIAGnostic:ROSCillator:EFControl:RELative` | A, B, Z | 58503A | q | q | q | q | q | q | q |
 | `:DIAGnostic:ROSCillator:LTIMe` |  |  |  |  | - |  |  |  |  |
 | `:DIAGnostic:ROSCillator:LTIMe:DATA` |  |  |  |  | q |  |  |  |  |
@@ -450,18 +450,18 @@ keyword keeps each one short.
 | `:DIAGnostic:TCODe` |  |  |  | - | - |  |  | - |  |
 | `:DIAGnostic:TCODe:ASCii` |  |  |  |  | qs |  |  |  |  |
 | `:DIAGnostic:TCODe:ERRor` |  |  |  | - | - |  |  | - |  |
-| `:DIAGnostic:TCODe:ERRor:AMASk` |  |  |  | qs | qs |  |  | qs |  |
-| `:DIAGnostic:TCODe:ERRor:OMASk` |  |  |  | qs | qs |  |  | qs |  |
+| `:DIAGnostic:TCODe:ERRor:AMASk` |  | 58503A |  | qs | qs |  |  | qs |  |
+| `:DIAGnostic:TCODe:ERRor:OMASk` |  | 58503A |  | qs | qs |  |  | qs |  |
 | `:DIAGnostic:TCODe:STATus` |  |  |  | - | - |  |  | - |  |
-| `:DIAGnostic:TCODe:STATus:AMASk` |  |  |  | qs | qs |  |  | qs |  |
-| `:DIAGnostic:TCODe:STATus:OMASk` |  |  |  | qs | qs |  |  | qs |  |
+| `:DIAGnostic:TCODe:STATus:AMASk` |  | 58503A |  | qs | qs |  |  | qs |  |
+| `:DIAGnostic:TCODe:STATus:OMASk` |  | 58503A |  | qs | qs |  |  | qs |  |
 | `:DIAGnostic:TEMPerature` |  | 58503A | q | q | q | q | q | q | q |
 | `:DIAGnostic:TEST` | A, B |  | q | q | q | q | q | q | q |
 | `:DIAGnostic:TEST:FLASh` |  |  |  |  | q |  |  | q |  |
 | `:DIAGnostic:TEST:RESult` | A, B | 58503A | q | q | q | q | q | q | q |
 | `:DIAGnostic:TMODe` |  |  | - | - | - |  |  | - | - |
-| `:DIAGnostic:TMODe:DATA` |  |  | qs | qs | qs |  |  | qs | qs |
-| `:DIAGnostic:TMODe:STATe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:DIAGnostic:TMODe:DATA` |  | 58503A | qs | qs | qs |  |  | qs | qs |
+| `:DIAGnostic:TMODe:STATe` |  | 58503A | qs | qs | qs |  |  | qs | qs |
 | `:DIAGnostic:TOFFset` |  | 58503A | qs | qs | qs | qs | qs | qs | qs |
 | `:DIAGnostic:TSET` |  |  | qs | qs | s |  |  | qs | qs |
 | `:DIAGnostic:TVALid` |  |  | - | - | - |  |  | - | - |
@@ -785,7 +785,7 @@ keyword keeps each one short.
 | `:SOURce:PTIMe:TIME:STRing` | A, B | 58503A, Z3805A | q | q | q | q | q | q | q |
 | `:SOURce:PTIMe:TINTerval` | Z |  | q | q | q | q | q | q | q |
 | `:SOURce:PTIMe:TZONe` | A, B | 58503A, Z3805A | qs | qs | qs | qs | qs | qs | qs |
-| `:SOURce:PTIMe:UTC` |  |  |  | qs | qs |  |  | qs |  |
+| `:SOURce:PTIMe:UTC` |  | 58503A |  | qs | qs |  |  | qs |  |
 | `:SOURce:PULSe` |  |  | - | - | - | - | - | - | - |
 | `:SOURce:PULSe:CONTinuous` |  |  | - | - | - | - | - | - | - |
 | `:SOURce:PULSe:CONTinuous:PERiod` | A, B |  | qs | qs | qs | qs | qs | qs | qs |

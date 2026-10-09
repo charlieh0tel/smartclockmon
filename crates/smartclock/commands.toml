@@ -2244,3 +2244,134 @@ doc = "Oldest diagnostic log entry, where :DIAGnostic:LOG:READ? gives the newest
   evidence = "hardware"
 
 
+[[command]]
+id = "gps_acurrent"
+class = "query"
+doc = "A word from the firmware's table of eight channels, the value read where one has been and the image's default where not; its unit is not established.  Undocumented; see docs/scpi/undocumented.md."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:GPSystem:ACURrent?"
+  response = "real"
+  models = ["58503A"]
+  cite = "discovered on a 58503A"
+  evidence = "hardware"
+
+[[command]]
+id = "tracking_log"
+class = "query"
+doc = "A flag.  Undocumented; see docs/scpi/undocumented.md."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:GPSystem:TRACking:LOG?"
+  response = "int"
+  models = ["58503A"]
+  cite = "discovered on a 58503A"
+  evidence = "hardware"
+
+[[command]]
+id = "gps_reference_hysteresis"
+class = "query"
+doc = "A stored value, converted for the reply.  Undocumented; see docs/scpi/undocumented.md."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:REFerence:GPSystem:QUEStionable:HYSTeresis?"
+  response = "int"
+  models = ["58503A"]
+  cite = "discovered on a 58503A"
+  evidence = "hardware"
+
+[[command]]
+id = "efc_mode"
+class = "query"
+doc = "One of three values from a mode byte; NORM on the bench 58503A.  Undocumented, new in 3704; see docs/scpi/undocumented.md."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:ROSCillator:EFControl:MODE?"
+  response = "word"
+  models = ["58503A"]
+  cite = "discovered on a 58503A"
+  evidence = "hardware"
+
+[[command]]
+id = "timecode_error_a_mask"
+class = "query"
+doc = "A mask byte.  Undocumented, new in 3704; see docs/scpi/undocumented.md."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:TCODe:ERRor:AMASk?"
+  response = "int"
+  models = ["58503A"]
+  cite = "discovered on a 58503A"
+  evidence = "hardware"
+
+[[command]]
+id = "timecode_error_o_mask"
+class = "query"
+doc = "A mask byte.  Undocumented, new in 3704; see docs/scpi/undocumented.md."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:TCODe:ERRor:OMASk?"
+  response = "int"
+  models = ["58503A"]
+  cite = "discovered on a 58503A"
+  evidence = "hardware"
+
+[[command]]
+id = "timecode_status_a_mask"
+class = "query"
+doc = "A mask byte.  Undocumented, new in 3704; see docs/scpi/undocumented.md."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:TCODe:STATus:AMASk?"
+  response = "int"
+  models = ["58503A"]
+  cite = "discovered on a 58503A"
+  evidence = "hardware"
+
+[[command]]
+id = "timecode_status_o_mask"
+class = "query"
+doc = "A mask byte.  Undocumented, new in 3704; see docs/scpi/undocumented.md."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:TCODe:STATus:OMASk?"
+  response = "int"
+  models = ["58503A"]
+  cite = "discovered on a 58503A"
+  evidence = "hardware"
+
+[[command]]
+id = "tmode_data"
+class = "query"
+doc = "A byte.  Undocumented; see docs/scpi/undocumented.md."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:TMODe:DATA?"
+  response = "int"
+  models = ["58503A"]
+  cite = "discovered on a 58503A"
+  evidence = "hardware"
+
+[[command]]
+id = "tmode_state"
+class = "query"
+doc = "A byte.  Undocumented; see docs/scpi/undocumented.md."
+
+  [command.dialect.hp58503]
+  scpi = ":DIAGnostic:TMODe:STATe?"
+  response = "int"
+  models = ["58503A"]
+  cite = "discovered on a 58503A"
+  evidence = "hardware"
+
+[[command]]
+id = "ptime_utc"
+class = "query"
+doc = "A flag.  Undocumented, new in 3704; see docs/scpi/undocumented.md."
+
+  [command.dialect.hp58503]
+  scpi = ":PTIMe:UTC?"
+  response = "int"
+  models = ["58503A"]
+  cite = "discovered on a 58503A"
+  evidence = "hardware"
