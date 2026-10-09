@@ -19,8 +19,9 @@ Each `manual-*.txt` is the command paths a manual writes from the
 root, one `LANGUAGE PATH` a line, PRIMARY or INSTALL, with a comment
 saying how they were drawn from it.  A model counts against its own
 manual: 097-59551-02 for the 58503A, 097-58503-13 for the 58503B,
-097-z3801-01 for the Z3801A.  None here is the Z3805A's, Z3815A's or
-Z3816A's.
+097-z3801-01 for the Z3801A.  The Z3805A has none of its own and is
+counted against the Z3801A's while its tree is the same, with a
+footnote saying so; none here is the Z3815A's or Z3816A's.
 
 ## Format
 

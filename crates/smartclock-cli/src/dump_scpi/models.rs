@@ -15,6 +15,9 @@ struct Manual {
     name: &'static str,
     /// The models it is the manual of, as an image's name starts.
     models: &'static [&'static str],
+    /// Models with no manual of their own, counted against this one
+    /// where an image's tree is that of one of `models`.
+    borrowers: &'static [&'static str],
     /// One `LANGUAGE PATH` a line; `#` lines are comments.
     paths: &'static str,
 }
@@ -24,16 +27,19 @@ const MANUALS: [Manual; 3] = [
     Manual {
         name: "097-59551-02",
         models: &["58503a"],
+        borrowers: &[],
         paths: include_str!("../../../../docs/scpi/manual-097-59551-02.txt"),
     },
     Manual {
         name: "097-58503-13",
         models: &["58503b"],
+        borrowers: &[],
         paths: include_str!("../../../../docs/scpi/manual-097-58503-13.txt"),
     },
     Manual {
         name: "097-z3801-01",
         models: &["z3801a"],
+        borrowers: &["z3805a"],
         paths: include_str!("../../../../docs/scpi/manual-097-z3801-01.txt"),
     },
 ];
@@ -90,13 +96,31 @@ impl Manual {
 
     /// Whether it is the manual of the image named `image`.
     fn covers(&self, image: &str) -> bool {
-        self.models.iter().any(|model| {
-            image
-                .split('-')
-                .next()
-                .is_some_and(|first| first.eq_ignore_ascii_case(model))
-        })
+        is_model(image, self.models)
     }
+
+    /// Whether the image named `image` is of a model it is borrowed by.
+    fn lends(&self, image: &str) -> bool {
+        is_model(image, self.borrowers)
+    }
+}
+
+/// Whether the image named `image` is of one of `models`, by the part
+/// of its name before the first `-`.
+fn is_model(image: &str, models: &[&str]) -> bool {
+    image
+        .split('-')
+        .next()
+        .is_some_and(|first| models.iter().any(|model| first.eq_ignore_ascii_case(model)))
+}
+
+/// Whether two trees hold the same paths with the same handlers,
+/// wherever their nodes are.
+fn same_tree(one: &[Entry], other: &[Entry]) -> bool {
+    one.len() == other.len()
+        && one.iter().zip(other).all(|(one, other)| {
+            one.path == other.path && one.query == other.query && one.setter == other.setter
+        })
 }
 
 /// Whether `written`, a command as a manual or the command table
@@ -221,18 +245,40 @@ fn summary(out: &mut String, images: &[(String, Vec<Entry>)]) {
          | Image | Manual | Paths | Listed | Not | Handlers | Listed | Not |\n\
          | ----- | ------ | ----- | ------ | --- | -------- | ------ | --- |\n",
     );
+    let mut notes = Vec::new();
     for (name, entries) in images {
         let handlers: BTreeSet<u32> = entries
             .iter()
             .filter(|entry| entry.query || entry.setter)
             .map(|entry| entry.node)
             .collect();
-        match MANUALS.iter().find(|manual| manual.covers(name)) {
-            Some(manual) => {
+        let own = MANUALS.iter().find(|manual| manual.covers(name));
+        let borrowed = || {
+            MANUALS.iter().find_map(|manual| {
+                let lender = images.iter().find(|(other, tree)| {
+                    manual.lends(name) && manual.covers(other) && same_tree(tree, entries)
+                })?;
+                Some((manual, &lender.0))
+            })
+        };
+        let found = own.map(|manual| (manual, String::new())).or_else(|| {
+            borrowed().map(|(manual, lender)| {
+                let note = notes.len() + 1;
+                notes.push(format!(
+                    "[^{note}]: {name} has no manual of its own.  Its tree is \
+                         {lender}'s, path for path and handler for handler, so it is \
+                         counted against {}.",
+                    manual.name
+                ));
+                (manual, format!("[^{note}]"))
+            })
+        });
+        match found {
+            Some((manual, note)) => {
                 let counts = count(manual, entries);
                 let _ = writeln!(
                     out,
-                    "| {name} | {} | {} | {} | {} | {} | {} | {} |",
+                    "| {name} | {}{note} | {} | {} | {} | {} | {} | {} |",
                     manual.name,
                     entries.len(),
                     counts.paths_listed,
@@ -253,6 +299,9 @@ fn summary(out: &mut String, images: &[(String, Vec<Entry>)]) {
         }
     }
     out.push('\n');
+    for note in notes {
+        let _ = writeln!(out, "{note}\n");
+    }
 }
 
 fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {

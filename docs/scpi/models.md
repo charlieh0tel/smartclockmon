@@ -20,9 +20,11 @@ listed if any of its paths is.
 | 58503a-3704 | 097-59551-02 | 931 | 125 | 806 | 408 | 119 | 289 |
 | 58503b-1.01.04 | 097-58503-13 | 831 | 128 | 703 | 399 | 120 | 279 |
 | z3801a-3543 | 097-z3801-01 | 595 | 113 | 482 | 350 | 84 | 266 |
-| z3805a-3543b | none | 595 | | | 350 | | |
+| z3805a-3543b | 097-z3801-01[^1] | 595 | 113 | 482 | 350 | 84 | 266 |
 | z3815a-4010 | none | 965 | | | 440 | | |
 | z3816a-4001 | none | 902 | | | 381 | | |
+
+[^1]: z3805a-3543b has no manual of its own.  Its tree is z3801a-3543's, path for path and handler for handler, so it is counted against 097-z3801-01.
 
 ## Every path
 
