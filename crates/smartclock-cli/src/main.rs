@@ -174,14 +174,23 @@ enum Command {
         to: ReadTo,
     },
     /// Write a note to the log of the daemon's receiver, such as "added
-    /// a 20 dB LNA".  Needs `--daemon`; nothing is sent to the receiver.
+    /// a 20 dB LNA", or change or delete one by its id, as the web view's
+    /// journal shows it.  What a changed note said before is kept in the
+    /// log.  Needs `--daemon`; nothing is sent to the receiver.
     Note {
         /// What it says; the words are joined with spaces.
-        #[arg(required = true)]
+        #[arg(required_unless_present = "delete")]
         text: Vec<String>,
-        /// When it happened, as RFC 3339 with an offset; now by default.
-        #[arg(long)]
+        /// When it happened, as RFC 3339 with an offset: now by default
+        /// for a new note, unchanged for an edited one.
+        #[arg(long, conflicts_with = "delete")]
         at: Option<Timestamp>,
+        /// Replace the text of the note with this id.
+        #[arg(long, value_name = "ID", conflicts_with = "delete")]
+        edit: Option<i64>,
+        /// Delete the note with this id.
+        #[arg(long, value_name = "ID", conflicts_with = "text")]
+        delete: Option<i64>,
     },
     /// Record a fact about the daemon's receiver, such as `ocxo.serial
     /// 1234`, and a note saying so.  Needs `--daemon`; nothing is sent
@@ -944,8 +953,20 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
             Ok(())
         }
         Command::Diagnose => diagnose_daemon(&mut daemon),
-        Command::Note { text, at } => {
-            filed("noted", &daemon.note(&text.join(" "), *at)?);
+        Command::Note {
+            text,
+            at,
+            edit,
+            delete,
+        } => {
+            match (edit, delete) {
+                (Some(id), _) => filed(
+                    "changed",
+                    &daemon.edit_note(*id, &text.join(" "), *at, None, None)?,
+                ),
+                (_, Some(id)) => filed("deleted", &daemon.delete_note(*id, None, None)?),
+                (None, None) => filed("noted", &daemon.note(&text.join(" "), *at)?),
+            }
             Ok(())
         }
         Command::Fact { key, value, since } => {

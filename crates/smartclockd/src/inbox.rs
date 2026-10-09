@@ -59,6 +59,19 @@ pub(crate) struct Fact {
     pub(crate) value: String,
 }
 
+/// A change to a note already written, as a client sent it.
+#[derive(Debug)]
+pub(crate) struct NoteChange {
+    /// Which note, by its id in the log.
+    pub(crate) id: i64,
+    /// The `*IDN?` of the receiver attached when it was sent.
+    pub(crate) receiver: String,
+    /// The text the client read, if it read one.
+    pub(crate) was: Option<String>,
+    /// Its new text and, if given, its new time; `None` to delete it.
+    pub(crate) now: Option<(String, Option<jiff::Timestamp>)>,
+}
+
 /// Whether a write happened, and if not, why.
 type Written = Sender<Result<(), String>>;
 
@@ -84,6 +97,8 @@ pub(crate) enum LogRequest {
     /// Write a fact, and a note saying so, and say whether they were
     /// written.
     Fact(Fact, Written),
+    /// Change or delete a note, and say whether it was done.
+    NoteChange(NoteChange, Written),
 }
 
 /// A handle on the log thread's inbox.
@@ -118,6 +133,12 @@ impl LogInbox {
     /// Write a fact, waiting up to [`WRITTEN_WITHIN`] to hear it was.
     pub(crate) fn fact(&self, fact: Fact) -> Result<Filed, String> {
         self.write(|written| LogRequest::Fact(fact, written))
+    }
+
+    /// Change or delete a note, waiting up to [`WRITTEN_WITHIN`] to
+    /// hear it was.
+    pub(crate) fn change_note(&self, change: NoteChange) -> Result<Filed, String> {
+        self.write(|written| LogRequest::NoteChange(change, written))
     }
 
     fn write(&self, request: impl FnOnce(Written) -> LogRequest) -> Result<Filed, String> {

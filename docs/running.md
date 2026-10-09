@@ -245,6 +245,8 @@ the oscillator's serial -- goes into its log through the daemon:
     smartclock-cli --daemon /run/smartclockd/ttyUSB0/socket note added a 20 dB LNA
     smartclock-cli --daemon ... note --at 2026-09-25T14:00:00-07:00 ran master_reset
     smartclock-cli --daemon ... fact ocxo.model 10811-60159
+    smartclock-cli --daemon ... note --edit 12 added a 26 dB LNA
+    smartclock-cli --daemon ... note --delete 12
 
 Both are filed under the receiver attached now; nothing is sent to it.
 Notes show in the journal of the web view and the monitor, and as
@@ -253,8 +255,11 @@ pointer on a line; clicking a note in the web journal shows an hour
 either side of it; current facts head
 `diagnose` and sit under the web view's history.
 A fact keeps its history, so a replaced part's old value stays, and
-each one also leaves a note.  Rows are not edited through the daemon;
-fix a mistake with `sqlite3` on the log.  A daemon busy reading the
+each one also leaves a note.  A note is changed or deleted by its id,
+which the web view's journal shows; what it said before is kept, in
+the log's `note_change` table, so nothing written is lost.  The daemon
+changes only the notes of the receiver attached to it.  A daemon busy
+reading the
 receiver's log answers "queued": the note is written shortly, so do
 not send it again.
 

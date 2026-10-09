@@ -37,6 +37,7 @@ use crate::inbox::Fact;
 use crate::inbox::Filed;
 use crate::inbox::LogInbox;
 use crate::inbox::Note;
+use crate::inbox::NoteChange;
 
 /// How often a client's push thread wakes, with no snapshot to send,
 /// to see whether its client has gone.
@@ -247,6 +248,24 @@ fn handle_request(id: String, op: Op, handle: &Handle, info: &Info) -> Message {
                 })
             })
         }
+        Op::NoteEdit {
+            id: note,
+            text,
+            at,
+            was,
+            receiver,
+        } => {
+            let text = text.trim();
+            if text.is_empty() {
+                return Message::err(id, "a note needs some text; to remove it, delete it");
+            }
+            change_note(id, info, note, was, receiver, Some((text.to_owned(), at)))
+        }
+        Op::NoteDelete {
+            id: note,
+            was,
+            receiver,
+        } => change_note(id, info, note, was, receiver, None),
         Op::Fact { key, value, since } => {
             let (key, value) = (key.trim(), value.trim());
             if key.is_empty() || key.contains(char::is_whitespace) {
@@ -291,6 +310,39 @@ fn written(
         ),
         Err(why) => Message::err(id, why),
     }
+}
+
+/// Change or delete note `note` through the log thread, refusing if
+/// the client named a receiver other than the one attached: the daemon
+/// writes the attached receiver's log, which would not be where the
+/// client read the note.
+fn change_note(
+    id: String,
+    info: &Info,
+    note: i64,
+    was: Option<String>,
+    receiver: Option<String>,
+    now: Option<(String, Option<Timestamp>)>,
+) -> Message {
+    let attached = smartclock::parse::identity(&info.identity)
+        .map(|i| i.serial)
+        .ok();
+    if let Some(serial) = receiver
+        && attached.as_deref() != Some(serial.as_str())
+    {
+        return Message::err(
+            id,
+            format!("this daemon is attached to another receiver than {serial}"),
+        );
+    }
+    written(id, info, |receiver| {
+        info.inbox.change_note(NoteChange {
+            id: note,
+            receiver,
+            was,
+            now,
+        })
+    })
 }
 
 /// Run a client's command, if the policy permits it.
@@ -1092,7 +1144,9 @@ mod note_tests {
         thread::spawn(move || {
             for request in inbox {
                 match request {
-                    LogRequest::Note(_, written) | LogRequest::Fact(_, written) => {
+                    LogRequest::Note(_, written)
+                    | LogRequest::Fact(_, written)
+                    | LogRequest::NoteChange(_, written) => {
                         let _ = written.send(Ok(()));
                     }
                     LogRequest::Audit(_) => {}
@@ -1141,6 +1195,28 @@ mod note_tests {
             }
             other => panic!("{other:?}"),
         }
+    }
+
+    #[test]
+    fn a_note_is_changed_only_on_the_receiver_named_and_never_to_nothing() {
+        let edit = |text: &str, receiver: Option<&str>| Op::NoteEdit {
+            id: 1,
+            text: text.to_owned(),
+            at: None,
+            was: None,
+            receiver: receiver.map(str::to_owned),
+        };
+        assert!(error(ask(UNIT, edit("swapped the stick", None))).is_none());
+        assert!(error(ask(UNIT, edit("swapped the stick", Some("3710A01056")))).is_none());
+        let elsewhere = error(ask(UNIT, edit("swapped the stick", Some("3625A01487"))));
+        assert!(elsewhere.is_some_and(|e| e.contains("another receiver")));
+        assert!(error(ask(UNIT, edit("   ", None))).is_some_and(|e| e.contains("delete it")));
+        let delete = Op::NoteDelete {
+            id: 1,
+            was: None,
+            receiver: Some("3625A01487".to_owned()),
+        };
+        assert!(error(ask(UNIT, delete)).is_some());
     }
 
     #[test]

@@ -405,6 +405,14 @@ attached when it is written, even when `--at` backdates it past a swap;
 a bench-wide note, such as a splitter change, is written to each daemon
 in turn.  `docs/running.md`, "Notes and facts", says where they show.
 
+A note can be changed or deleted, by its id (ops `note_edit`,
+`note_delete`), by the daemon attached to its receiver.  The note is
+changed in place, so every reader stays as it was, and what it said
+before goes into `note_change` (schema 13), so the record loses
+nothing.  A client that read the note sends the text it read, and a
+note changed since is not changed again: two people editing at once
+do not silently undo each other.
+
 ### Comparing receivers is a page over the existing API
 
 `/compare` shows every receiver over the same range -- 1 PPS TI, EFC,

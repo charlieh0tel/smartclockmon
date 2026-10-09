@@ -82,6 +82,41 @@ pub enum Op {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         at: Option<jiff::Timestamp>,
     },
+    /// Change a note in the attached receiver's log: its text, and its
+    /// time if one is given.  What it said before is kept in the log.
+    /// Answers as [`Op::Note`] does.
+    #[serde(rename = "note_edit")]
+    NoteEdit {
+        /// Which note, by its id in that log.
+        id: i64,
+        /// What it says now.
+        text: String,
+        /// When it happened; unchanged if absent.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        at: Option<jiff::Timestamp>,
+        /// The text the client read, if it read one: the change is
+        /// refused if the note no longer says that, so two people
+        /// editing at once do not silently undo each other.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        was: Option<String>,
+        /// The serial of the receiver whose log holds the note, if the
+        /// client knows it: refused if another is attached.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        receiver: Option<String>,
+    },
+    /// Delete a note from the attached receiver's log, keeping what it
+    /// said in the log.  Answers as [`Op::Note`] does.
+    #[serde(rename = "note_delete")]
+    NoteDelete {
+        /// Which note, by its id in that log.
+        id: i64,
+        /// As for [`Op::NoteEdit`].
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        was: Option<String>,
+        /// As for [`Op::NoteEdit`].
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        receiver: Option<String>,
+    },
     /// Record a fact about the attached receiver, such as
     /// `ocxo.serial`, and a note saying so.  Nothing is sent to the
     /// receiver.  Answers as [`Op::Note`] does.

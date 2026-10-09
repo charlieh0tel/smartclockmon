@@ -19,6 +19,7 @@ use crate::inbox::Fact;
 use crate::inbox::LogInbox;
 use crate::inbox::LogRequest;
 use crate::inbox::Note;
+use crate::inbox::NoteChange;
 use crate::journal::Journal;
 use crate::journal::LOST_TO_OVERFLOW;
 use crate::server::Policy;
@@ -1017,7 +1018,23 @@ impl Recorder {
                 }
                 let _ = written.send(outcome);
             }
+            LogRequest::NoteChange(change, written) => {
+                let _ = written.send(self.change_note(&change));
+            }
         }
+    }
+
+    /// Change or delete a note in the log of the receiver attached when
+    /// it was sent.  A refusal -- no such note, another receiver's, or
+    /// changed since it was read -- is the client's to hear, not a
+    /// fault of the daemon's.
+    fn change_note(&mut self, change: &NoteChange) -> Result<(), String> {
+        let log = self.log_for(&change.receiver)?;
+        log.change_note(
+            change.id,
+            change.was.as_deref(),
+            change.now.as_ref().map(|(text, at)| (text.as_str(), *at)),
+        )
     }
 
     /// Write a note under the receiver attached when it was sent.

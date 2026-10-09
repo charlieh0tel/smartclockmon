@@ -258,6 +258,8 @@ pub struct ReceiverError {
 /// A person's note about the receiver or the bench.
 #[derive(Debug, Serialize)]
 pub struct Note {
+    /// Its id in the log, which an edit or a delete names it by.
+    pub id: i64,
     /// When it happened, as the writer gave it.
     pub at: String,
     /// What it says.
@@ -709,13 +711,14 @@ impl Log {
             )?,
             notes: self.stream(
                 receiver,
-                "SELECT at, text FROM note
+                "SELECT at, text, id FROM note
                  WHERE receiver_id = ?1 ORDER BY at DESC, id DESC",
                 limit,
                 |row| {
                     Ok(Note {
                         at: row.get::<_, Stored>(0)?.to_string(),
                         text: row.get(1)?,
+                        id: row.get(2)?,
                     })
                 },
             )?,
@@ -728,7 +731,7 @@ impl Log {
     /// [`MAX_JOURNAL`]; empty on a log older than notes.
     pub fn notes(&self, receiver: i64, from: i64, to: i64) -> Result<Vec<Note>> {
         let sql = format!(
-            "SELECT at, text FROM note
+            "SELECT at, text, id FROM note
              WHERE receiver_id = ?1 AND at >= {} AND at < {}
              ORDER BY at, id LIMIT ?4",
             bound("?2"),
@@ -744,6 +747,7 @@ impl Log {
                 Ok(Note {
                     at: row.get::<_, Stored>(0)?.to_string(),
                     text: row.get(1)?,
+                    id: row.get(2)?,
                 })
             })?
             .collect::<std::result::Result<_, _>>()?)

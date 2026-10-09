@@ -12,7 +12,7 @@ use smartclock::snapshot::Tier;
 /// [`INTEGER_TIMES`], newer ones included: a viewer upgraded before
 /// the daemon restarts, or pointed at an archived log, shows what is
 /// there.
-pub const VERSION: i64 = 12;
+pub const VERSION: i64 = 13;
 
 /// The first schema whose timestamps are integer nanoseconds.  The
 /// daemon converts an older log on open; the readers read none older,
@@ -240,6 +240,21 @@ pub const TABLES: &str = r#"
     ) STRICT;
     CREATE INDEX IF NOT EXISTS note_at ON note(at);
 
+    -- Every change a person made to a note after writing it: what it
+    -- said and when it was dated before, and after, or NULL after for
+    -- a note deleted.  So an edit or a delete loses nothing written.
+    CREATE TABLE IF NOT EXISTS note_change (
+        id          INTEGER PRIMARY KEY,
+        -- When the change was made.
+        at          INTEGER NOT NULL,
+        note_id     INTEGER NOT NULL,
+        was_at      INTEGER NOT NULL,
+        was_text    TEXT NOT NULL,
+        now_at      INTEGER,
+        now_text    TEXT,
+        receiver_id INTEGER REFERENCES receiver(id)
+    ) STRICT;
+
     -- What a person says the unit is made of, such as ocxo.serial.
     -- One row per value, so a replaced part keeps its old value: the
     -- current value of a key is its row with the latest since.
@@ -254,7 +269,7 @@ pub const TABLES: &str = r#"
 "#;
 
 /// Every column of [`TABLES`] holding one of our timestamps, by table.
-pub const TIMES: [(&str, &[&str]); 10] = [
+pub const TIMES: [(&str, &[&str]); 11] = [
     ("snapshot", &["at", "fast_at", "medium_at", "slow_at"]),
     ("receiver", &["first_seen", "last_seen"]),
     ("receiver_event", &["at"]),
@@ -263,6 +278,7 @@ pub const TIMES: [(&str, &[&str]); 10] = [
     ("receiver_log", &["at"]),
     ("audit", &["at"]),
     ("note", &["at"]),
+    ("note_change", &["at", "was_at", "now_at"]),
     ("fact", &["since"]),
     ("satellite", &[]),
 ];

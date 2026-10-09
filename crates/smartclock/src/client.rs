@@ -226,6 +226,43 @@ impl Daemon {
         filed_under(&value)
     }
 
+    /// Change a note in the attached receiver's log: its text, and its
+    /// time if `at` is given.  `was` and `receiver` as for
+    /// [`Op::NoteEdit`].
+    pub fn edit_note(
+        &mut self,
+        id: i64,
+        text: &str,
+        at: Option<Timestamp>,
+        was: Option<&str>,
+        receiver: Option<&str>,
+    ) -> Result<Filed> {
+        let value = self.ask(Op::NoteEdit {
+            id,
+            text: text.to_owned(),
+            at,
+            was: was.map(str::to_owned),
+            receiver: receiver.map(str::to_owned),
+        })?;
+        filed_under(&value)
+    }
+
+    /// Delete a note from the attached receiver's log.  `was` and
+    /// `receiver` as for [`Op::NoteEdit`].
+    pub fn delete_note(
+        &mut self,
+        id: i64,
+        was: Option<&str>,
+        receiver: Option<&str>,
+    ) -> Result<Filed> {
+        let value = self.ask(Op::NoteDelete {
+            id,
+            was: was.map(str::to_owned),
+            receiver: receiver.map(str::to_owned),
+        })?;
+        filed_under(&value)
+    }
+
     /// Record a fact about the attached receiver.  Nothing is sent to
     /// the receiver.
     pub fn fact(&mut self, key: &str, value: &str, since: Option<Timestamp>) -> Result<Filed> {

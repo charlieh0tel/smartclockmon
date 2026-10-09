@@ -395,6 +395,75 @@ impl Log {
         Ok(())
     }
 
+    /// Change a note's text, and its time if `now` gives one, or delete
+    /// it when `now` is `None`, recording what it said before.
+    ///
+    /// Refused, changing nothing, if there is no such note, if it is
+    /// filed under a receiver other than the one noted now, or if `was`
+    /// is given and the note no longer says that.  The reason is the
+    /// error, for the client.
+    pub(crate) fn change_note(
+        &mut self,
+        id: i64,
+        was: Option<&str>,
+        now: Option<(&str, Option<jiff::Timestamp>)>,
+    ) -> std::result::Result<(), String> {
+        self.changed_note(id, was, now)
+            .map_err(|e| format!("{e:#}"))?
+    }
+
+    /// [`Log::change_note`], a failure to write apart from a refusal.
+    fn changed_note(
+        &mut self,
+        id: i64,
+        was: Option<&str>,
+        now: Option<(&str, Option<jiff::Timestamp>)>,
+    ) -> Result<std::result::Result<(), String>> {
+        let tx = self.conn.transaction()?;
+        let held: Option<(Stored, String, Option<i64>)> = tx
+            .query_row(
+                "SELECT at, text, receiver_id FROM note WHERE id = ?1",
+                [id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()?;
+        let Some((was_at, was_text, receiver)) = held else {
+            return Ok(Err(format!("there is no note {id} in this log")));
+        };
+        if receiver != self.current {
+            return Ok(Err(format!("note {id} is another receiver's")));
+        }
+        if was.is_some_and(|was| was != was_text) {
+            return Ok(Err(format!(
+                "note {id} has changed since it was read; read it again"
+            )));
+        }
+        let now_at = now.map(|(_, at)| at.map_or(was_at, Stored));
+        match now {
+            Some((text, _)) => tx.execute(
+                "UPDATE note SET at = ?1, text = ?2 WHERE id = ?3",
+                params![now_at, text, id],
+            )?,
+            None => tx.execute("DELETE FROM note WHERE id = ?1", [id])?,
+        };
+        tx.execute(
+            "INSERT INTO note_change
+                     (at, note_id, was_at, was_text, now_at, now_text, receiver_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                Stored(jiff::Timestamp::now()),
+                id,
+                was_at,
+                was_text,
+                now_at,
+                now.map(|(text, _)| text),
+                receiver,
+            ],
+        )?;
+        tx.commit()?;
+        Ok(Ok(()))
+    }
+
     /// Write a fact about the receiver noted now, and a note saying so
     /// at the same time, together or not at all.
     pub(crate) fn fact(&mut self, since: jiff::Timestamp, key: &str, value: &str) -> Result<()> {
@@ -1259,5 +1328,106 @@ mod tests {
         drop(log);
         // Reopening its own database is not a refusal.
         Log::open(path).expect("reopening our own schema");
+    }
+
+    #[test]
+    fn a_note_is_changed_and_deleted_keeping_what_it_said() {
+        let scratch = Scratch::new("note-change");
+        let mut log = Log::open(scratch.path()).expect("open");
+        log.note_receiver("HEWLETT-PACKARD,58503A,3710A01056,3704-C")
+            .expect("a receiver");
+        let at: jiff::Timestamp = "2026-10-08T16:35:00Z".parse().expect("a time");
+        log.note(at, "stick in the sun").expect("a note");
+        log.note(at, "a second").expect("another");
+        let later: jiff::Timestamp = "2026-10-08T16:40:00Z".parse().expect("a time");
+
+        // A stale `was` changes nothing.
+        let refused = log.change_note(1, Some("not what it says"), Some(("x", None)));
+        assert!(refused.is_err_and(|e| e.contains("changed since")));
+        log.change_note(
+            1,
+            Some("stick in the sun"),
+            Some(("stick in direct sun", Some(later))),
+        )
+        .expect("edit");
+        log.change_note(2, None, None).expect("delete");
+        assert!(
+            log.change_note(2, None, None)
+                .is_err_and(|e| e.contains("no note 2"))
+        );
+
+        let notes: Vec<(i64, Stored, String)> = log
+            .conn
+            .prepare("SELECT id, at, text FROM note ORDER BY id")
+            .expect("prepare")
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .expect("query")
+            .collect::<rusqlite::Result<_>>()
+            .expect("rows");
+        assert_eq!(
+            notes,
+            vec![(1, Stored(later), "stick in direct sun".to_owned())]
+        );
+        let changes: Vec<(i64, String, Option<String>, Option<Stored>)> = log
+            .conn
+            .prepare("SELECT note_id, was_text, now_text, now_at FROM note_change ORDER BY id")
+            .expect("prepare")
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .expect("query")
+            .collect::<rusqlite::Result<_>>()
+            .expect("rows");
+        assert_eq!(
+            changes,
+            vec![
+                (
+                    1,
+                    "stick in the sun".to_owned(),
+                    Some("stick in direct sun".to_owned()),
+                    Some(Stored(later))
+                ),
+                (2, "a second".to_owned(), None, None),
+            ]
+        );
+    }
+
+    #[test]
+    fn another_receivers_note_is_not_changed() {
+        let scratch = Scratch::new("note-elsewhere");
+        let mut log = Log::open(scratch.path()).expect("open");
+        log.note_receiver("HEWLETT-PACKARD,58503A,A,3704-C")
+            .expect("A");
+        log.note(jiff::Timestamp::now(), "A's").expect("a note");
+        log.note_receiver("HEWLETT-PACKARD,58503A,B,3704-C")
+            .expect("B");
+        assert!(
+            log.change_note(1, None, None)
+                .is_err_and(|e| e.contains("another receiver"))
+        );
+    }
+
+    #[test]
+    fn a_schema_12_log_gains_the_note_change_table() {
+        let scratch = Scratch::new("schema-12");
+        drop(Log::open(scratch.path()).expect("create"));
+        {
+            let conn = Connection::open(scratch.path()).expect("reopen");
+            conn.execute_batch(
+                "DROP TABLE note_change; UPDATE meta SET value = '12' WHERE key = 'schema';",
+            )
+            .expect("make it schema 12");
+        }
+        let log = Log::open(scratch.path()).expect("migrate");
+        let (version, tables): (String, i64) = log
+            .conn
+            .query_row(
+                "SELECT (SELECT value FROM meta WHERE key = 'schema'),
+                        (SELECT count(*) FROM sqlite_master WHERE name = 'note_change')",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read");
+        assert_eq!((version.as_str(), tables), ("13", 1));
     }
 }
