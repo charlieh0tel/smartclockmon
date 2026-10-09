@@ -67,7 +67,7 @@ fn simulator_reflashes_each_model_through_real_echoes_and_prompts() {
         ("z3816a-4001.bin", FlashLayout::IntelWords),
     ] {
         let bytes = std::fs::read(format!(
-            "{}/../../third_party/{name}",
+            "{}/../../third_party/firmware/{name}",
             env!("CARGO_MANIFEST_DIR")
         ))
         .unwrap();
@@ -154,7 +154,7 @@ fn simulator_rejects_bad_records_and_protected_addresses() {
     );
 }
 
-const DUMP: &[u8] = include_bytes!("../../../../third_party/z3801a-3543.bin");
+const DUMP: &[u8] = include_bytes!("../../../../third_party/firmware/z3801a-3543.bin");
 
 /// Strict exchange script for early-exit and identity-change tests.
 #[derive(Debug, Default)]
@@ -215,7 +215,7 @@ fn validates_audited_images_and_rejects_corruption_and_chip_files() {
         "z3816a-4001.bin",
     ] {
         let bytes = std::fs::read(format!(
-            "{}/../../third_party/{name}",
+            "{}/../../third_party/firmware/{name}",
             env!("CARGO_MANIFEST_DIR")
         ))
         .unwrap();
@@ -411,8 +411,8 @@ fn failed_boot_is_not_reported_as_success() {
 
 #[test]
 fn simulator_upgrades_and_downgrades_preserving_the_original_installer() {
-    let older = include_bytes!("../../../../third_party/58503a-3633.bin");
-    let newer = include_bytes!("../../../../third_party/58503a-3704.bin");
+    let older = include_bytes!("../../../../third_party/firmware/58503a-3633.bin");
+    let newer = include_bytes!("../../../../third_party/firmware/58503a-3704.bin");
     for (original, candidate) in [(older, newer), (newer, older)] {
         let original_firmware = Firmware::validate(original.to_vec()).unwrap();
         let firmware = Firmware::validate(candidate.to_vec()).unwrap();
@@ -442,9 +442,10 @@ fn simulator_upgrades_and_downgrades_preserving_the_original_installer() {
 
 #[test]
 fn a_changed_suffix_does_not_hide_a_successful_upgrade_or_wrong_revision() {
-    let firmware =
-        Firmware::validate(include_bytes!("../../../../third_party/58503a-3704.bin").to_vec())
-            .unwrap();
+    let firmware = Firmware::validate(
+        include_bytes!("../../../../third_party/firmware/58503a-3704.bin").to_vec(),
+    )
+    .unwrap();
     for final_revision in ["3704-D", "3633-D"] {
         let mut script = full_transfer(&firmware, Mode::Primary, Mode::Primary);
         for ((_, reply), revision) in script
@@ -603,7 +604,7 @@ fn a_stopped_write_names_a_new_transcript_for_the_rerun() {
 
 #[test]
 fn an_image_checked_by_its_word_sum_is_split_and_joined_and_found_sound() {
-    let image = include_bytes!("../../../../third_party/58503b-1.01.04.bin").to_vec();
+    let image = include_bytes!("../../../../third_party/firmware/58503b-1.01.04.bin").to_vec();
     let told = examine(&image);
     assert!(told.sound, "{:?}", told.lines);
     assert!(told.lines[1].contains("word sum"), "{:?}", told.lines);

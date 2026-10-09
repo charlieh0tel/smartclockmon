@@ -772,7 +772,10 @@ mod tests {
             "58503a-3633.bin",
             "58503a-3704.bin",
         ]) {
-            let path = format!("{}/../../third_party/{name}", env!("CARGO_MANIFEST_DIR"));
+            let path = format!(
+                "{}/../../third_party/firmware/{name}",
+                env!("CARGO_MANIFEST_DIR")
+            );
             let image = std::fs::read(&path).expect(&path);
             let at = |address: u32, n: usize| &image[address as usize..address as usize + n];
             assert_eq!(at(exit.cell, 4), exit.routine.to_be_bytes(), "{exit}");

@@ -103,7 +103,7 @@ agrees with the code.
   from their own unit, was on ko4bb.com and survives as a PDF attached
   to a time-nuts message of December 2022
   (<https://febo.com/pipermail/time-nuts_lists.febo.com/2022-December/106993.html>);
-  a copy is `third_party/Z3801A-Outer-Oven-Description.pdf`.  The page
+  a copy is `third_party/community/Z3801A-Outer-Oven-Description.pdf`.  The page
   does not name its author; the PDF's metadata names David G. Mason as
   its maker, in 2018.  It places the whole controller on the
   power-supply board: an AD586 reference feeding a Wheatstone bridge

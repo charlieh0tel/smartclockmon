@@ -170,7 +170,7 @@ EEPROM, and `halt` returns the port to SCPI (item 14).
 
 ## 10. A 58503A image -- done for revision 3633
 
-`third_party/58503a-3633.bin`, assembled from willhb's flash dumps
+`third_party/firmware/58503a-3633.bin`, assembled from willhb's flash dumps
 (`NOTICE`), answered the first questions (`firmware/console.md`, "The 58503A
 image"): the loop has the c·s term, `TCOefficient` is that c and its
 setter writes it, the oscillator current is channel 3 with the same
@@ -348,7 +348,7 @@ receiver was accessed.  Results recorded on 2026-09-28.
 
 The related 55300A manual assigns S1 B1 to "Preset All Serial Ports at
 Powerup" and B2 to "Password Required" (097-55300-01, figures 3-14 and
-3-15A; `third_party/097-55300-01-iss-1.pdf`).  Those assignments are
+3-15A; `third_party/hp/097-55300-01-iss-1.pdf`).  Those assignments are
 not established for these boards.  The reset path and installer entry
 the hypotheses rely on are in
 [`firmware/restart.md`](firmware/restart.md#forced-installer-entry-with-an-unusable-primary).

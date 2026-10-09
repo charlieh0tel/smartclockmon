@@ -1,6 +1,6 @@
 # What the firmware shows
 
-What `third_party/z3816a-4001.bin` shows about how the receiver
+What `third_party/firmware/z3816a-4001.bin` shows about how the receiver
 measures the 1 PPS time interval, how it disciplines the oscillator
 from it, and whether the Oncore's sawtooth correction enters either.
 Addresses are in that image, loaded at address zero, except where a
@@ -17,7 +17,7 @@ counter at `0xfff90c`/`0xfff90d` it reads to count 1 PPS edges).  That
 is the General-Purpose Timer module, which the 68331 has alongside its
 SIM and QSM (NXP's MC68331 page, <https://www.nxp.com/products/MC68331>)
 and the 68332 lacks -- it has a TPU there.  The MC68331 User's Manual
-(`third_party/MC68331UM.pdf`) places the SIM at $YFFA00 (Table D-3),
+(`third_party/motorola/MC68331UM.pdf`) places the SIM at $YFFA00 (Table D-3),
 the GPT at $YFF900 with the port GP data register PORTGP at $YFF907
 (Table D-2, D.5) and the QSM at $YFFC00 (Table D-13), where this image
 finds them; bit 5 of PORTGP is the pin PGP5/OC3/OC1 (section 7.2).  An

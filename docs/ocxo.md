@@ -98,9 +98,9 @@ not a specification.
 
 ## Sources
 
-- `third_party/10811-variants-90027-1.pdf` — HP drawing A-10811-90027-1
+- `third_party/hp/10811-variants-90027-1.pdf` — HP drawing A-10811-90027-1
   rev H, 26 October 1999.  27 variants; the -60159 is section 12.
-- `third_party/HP-10811AB-Manual.pdf` — HP 10811A/B operating and
+- `third_party/hp/HP-10811AB-Manual.pdf` — HP 10811A/B operating and
   service manual.  Base part specification, EFC description, warm-up.
 - <http://etoysbox.jp/Memo/3_Test_Equipments/HP_10811_OCXO/HP_10811_OCXO_Spec.html>
   — independent listing; gives the -60159 the same coarse tuning range

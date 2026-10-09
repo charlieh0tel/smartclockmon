@@ -1,6 +1,6 @@
 # Z3801A command tree
 
-Every command path in `third_party/z3801a-3543.bin`, read out of the
+Every command path in `third_party/firmware/z3801a-3543.bin`, read out of the
 parser's own tables.  `z3801-keywords.md` has the vocabulary and the
 structures this was extracted from.  `z3816a-4001.bin` holds tables of
 the same layout at other addresses (`firmware/README.md`, "Note on the

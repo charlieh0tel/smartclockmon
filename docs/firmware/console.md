@@ -167,7 +167,7 @@ procedure:
    `0x400000` (chip select 9, as the reset code programs it):
 
        smartclock-cli --device /dev/<port> --framing 7O1 read-flash \
-           --out rom.bin --compare third_party/z3801a-3543.bin
+           --out rom.bin --compare third_party/firmware/z3801a-3543.bin
        smartclock-cli --device /dev/<port> --framing 7O1 read-eeprom \
            --out eeprom.bin
 
@@ -202,23 +202,23 @@ first session is `docs/z3801a-pforth.txt`.
 
 The bench 58503A (3710A01056, 3704-C) works the same way at 19200 8N1.
 The same day its ROM came back in 647 seconds and is
-`third_party/58503a-3704.bin`, SHA-256
+`third_party/firmware/58503a-3704.bin`, SHA-256
 `d13b9ff1e4a0a59517aac4d066c60e22b290cf4ff6810c5c2bf01f1bc9491ca3`:
 the same reset vector as 3633, its revision string `3704` at
 `0x1309c`, and 345 of its 512 kilobytes different from the 3633
-image.  Its EEPROM is `third_party/58503a-3710A01056-eeprom.bin`.
+image.  Its EEPROM is `third_party/firmware/eeprom/58503a-3710A01056-eeprom.bin`.
 While the console runs, only the SCPI task has ended: the loop, the
 GPS task and the health monitor carry on, and the front panel with
 them.
 
 The bench Z3805A (3625A01487, 3543B-A) also works the same way, at
 19200 8N1.  On 2026-09-27 its ROM came back in 654 seconds and is
-`third_party/z3805a-3543b.bin`, SHA-256
+`third_party/firmware/z3805a-3543b.bin`, SHA-256
 `216daf929b293be02bfd92ed61cca8c7e70d577696f2567a12f01905f6998792`:
 the same reset vector, its revision string `3543B` at `0x12eee`, where
 the Z3801A image has `3543`, and 281 of its 512 kilobytes different
 from `z3801a-3543.bin`.  Its console words are the Z3801A's, all 242.
-Its EEPROM, `third_party/z3805a-3625A01487-eeprom.bin`, opens with
+Its EEPROM, `third_party/firmware/eeprom/z3805a-3625A01487-eeprom.bin`, opens with
 `Z3805A`, `3625A01487` and `AS` where the Z3801A's has `AQ`; its
 diagnostic log is stamped with calendar dates where the Z3801A's uses
 hex.  The session is `docs/z3805a-pforth.txt`.
@@ -406,7 +406,7 @@ the board, not in the image.  The Z3801 dialect does not poll it.
 
 ## The 58503A image
 
-`third_party/58503a-3633.bin` is a 58503A's program flash, revision
+`third_party/firmware/58503a-3633.bin` is a 58503A's program flash, revision
 3633 (the string before the second copyright notice, at `0x12fea`),
 Hewlett-Packard 1993, assembled from four AM29F010 dumps as
 `third_party/NOTICE` describes.  It enters at `0x550` like the Z3801A's
@@ -479,7 +479,7 @@ table.
   Z3801A and Z3805A images lack it.
 
 Revision 3704, read from the bench receiver itself
-(`third_party/58503a-3704.bin`), has the same term in the same three
+(`third_party/firmware/58503a-3704.bin`), has the same term in the same three
 places.  Its `pll_normal` is `FUN_0004495a` (message at `0x44f22`); at
 `0x44848`, `0x44a54` and `0x44d7c` it multiplies the float at
 `0x102014` -- the cell its `TCOefficient` record also names -- by the

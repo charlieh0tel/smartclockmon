@@ -250,7 +250,7 @@ fn a_gapless_record_agrees_with_allantools_on_the_maximum_excursion() {
 
 /// `(tau, overlapping Allan deviation, modified Allan deviation, time
 /// deviation)` for the 1000-point test data set, from NIST SP 1065
-/// (`third_party/NIST-SP-1065.pdf`) Table 31.
+/// (`third_party/nist/NIST-SP-1065.pdf`) Table 31.
 const NIST_SP_1065: [(f64, f64, f64, f64); 3] = [
     (1.0, 2.922319e-01, 2.922319e-01, 1.687202e-01),
     (10.0, 9.159953e-02, 6.172376e-02, 3.563623e-01),

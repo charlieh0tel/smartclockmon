@@ -643,7 +643,7 @@ view cannot drift apart.  The library, bottom up:
    - The 58503B's manuals give its heights above the GPS ellipsoid
      where the 58503A's and 59551A's give mean sea level
      (097-58503-13 3-17 and 4-5, 097-58503-12), but its firmware
-     1.01.04 labels them MSL (`third_party/58503b-1.01.04.bin`: `HGT
+     1.01.04 labels them MSL (`third_party/firmware/58503b-1.01.04.bin`: `HGT
      (msl)`, `MSL HGT`) and says ellipsoid nowhere.  Which is true is
      not established; a geodetic setting must name its datum either
      way.  Earth-centered coordinates sidestep that.

@@ -1,6 +1,6 @@
 # Z3801A SCPI keyword table
 
-The receiver's own vocabulary, read from `third_party/z3801a-3543.bin`;
+The receiver's own vocabulary, read from `third_party/firmware/z3801a-3543.bin`;
 it settles spelling questions the manual leaves open.
 
 ## Encoding

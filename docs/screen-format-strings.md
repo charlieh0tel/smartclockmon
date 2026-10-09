@@ -1,7 +1,7 @@
 # Status screen format strings
 
 The templates of the screen `:SYSTem:STATus?` returns, as the
-Z3801A image (`third_party/z3801a-3543.bin`) holds them.  The 58503A
+Z3801A image (`third_party/firmware/z3801a-3543.bin`) holds them.  The 58503A
 images (`58503a-3633.bin`, `58503a-3704.bin`) have the same layout and
 field widths; where their strings differ is noted below.
 
