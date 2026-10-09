@@ -78,3 +78,41 @@ writes a register index into a control byte, shadowed at `0x102673`,
 and reads back four bits; `FUN_000444e2` reads two nibbles for a byte;
 the count is assembled from three bytes, register selectors `0x16`,
 `0x14` and `0x12`.
+
+## In every image
+
+The same code is in all seven images, at other addresses: the
+`SYNChronization` and `PTIMe` forms share a query handler that returns
+the float mean of ten one-second readings, tagged `0xfff6`, while its
+flag is set; the `DIAGnostic` form has its own handler, which returns
+the latest reading, a double converted to float, with the tag stored
+beside it; one routine counts readings to ten and stores the mean.
+Each image also holds the 1.0e-7 tick constant (`0x3e7ad7f29abcaf48`)
+and the FPGA port `0x304000` and calibration block `0x400080`
+addresses.  Read with Ghidra 12.1.3 on 2026-10-09; the mean and its
+flag sit four bytes apart in each.
+
+| Image | `:SYNC:TINT?` handler | Mean, flag | Averaging | `:DIAG:PTIM:TINT?` handler | Reading, flag |
+| ----- | --------------------- | ---------- | --------- | -------------------------- | ------------- |
+| Z3816A 4001 | `0x3f8fa` | `0x102c0c`, `0x102c10` | `0x4824a` | `0x3b052` | `0x102666`, `0x10266e` |
+| Z3801A 3543 | `0x2efb8` | `0x102530`, `0x102534` | `0x44928` | `0x2a75a` | `0x101f94`, `0x101f9c` |
+| Z3805A 3543B | `0x300b2` | `0x102538`, `0x10253c` | `0x448fc` | `0x2b896` | `0x101f9c`, `0x101fa4` |
+| 58503A 3633 | `0x2fbf6` | `0x10284e`, `0x102852` | `0x4491e` | `0x2b344` | `0x1022a8`, `0x1022b0` |
+| 58503A 3704 | `0x2fe82` | `0x10285e`, `0x102862` | `0x4495a` | `0x2b3ec` | `0x1022ae`, `0x1022b6` |
+| Z3815A 4010 | `0x44112` | `0x102c5c`, `0x102c60` | `0x4ddea` | `0x3ec0a` | `0x10268c`, `0x102694` |
+| 58503B 1.01.04 | `0x3ff46` | `0x1032b0`, `0x1032b4` | `0x498ee` | `0x3ae28` | `0x1029ee`, `0x1029f6` |
+
+Two differences:
+
+- **The 58503B counts to a stored limit.**  Its averaging routine ends
+  the run when the count reaches the byte at `0x1032ae` rather than
+  ten; the one routine that writes that byte, an initializer
+  (`0x4c6de`), sets it to 10.  So the mean is still of ten readings.
+- **Fine acquisition writes the mean too in 3704 and the 58503B.**
+  The state machine that prints `i= %d, ti= %.1f, ...` (`loop.md`,
+  "Fine acquisition") stores into the mean and sets its flag in those
+  images (`0x454d4`, `0x4a356`).  What it stores is for the loop to
+  say.  The Z3815A's mean has four more writers, not yet identified;
+  in the other images the reference search found only the averaging
+  routine, and in the Z3816A a further writer of the flag (`0x4b088`)
+  that did not decompile.
