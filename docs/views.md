@@ -142,10 +142,10 @@ and the columns, so a reload or a shared link shows the same window,
 and links between pages carry the receiver and the range.  Grafana's
 forms are read too: `from=now-6h&to=now` (units s, m, h, d and w; not
 months, years or rounding such as `now/d`), epoch milliseconds, ISO
-times, with `to=now` keeping the range moving; so is the older
-`range=SECONDS`.  An ISO time without a zone, such as
-`2026-10-08T16:35`, is UTC, so a link means the same moment in every
-browser.  The stability page uses the same control; there the range is
+times in UTC, ending in `Z`, with `to=now` keeping the range moving;
+so is the older `range=SECONDS`.  The address carries times in UTC
+only, so a link means the same moment in every browser: an ISO time
+with another offset, or none, is not read.  The stability page uses the same control; there the range is
 the record the estimator runs on, so changing it recomputes.
 
 The host's sensors, from `smartclock-sensord`, are charted a quantity
