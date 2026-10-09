@@ -285,14 +285,23 @@ function settleWidths(charts, container) {
   }
 }
 
+// The width in seconds of the buckets the server divides the window
+// `win` into: the span plus one over the points, as the server divides
+// it, so a reading exactly on `to` falls in the last bucket.
+const bucketWidth = (win) => (win.to - win.from + 1) / (win.points ?? pointsFor(win.to - win.from));
+
+// The bucket a time falls in, numbered from 0 at the window's start.
+const bucketOf = (t, win) => Math.floor((t - win.from) / bucketWidth(win));
+
+// The middle of bucket `i`.
+const bucketCenter = (i, win) => win.from + (i + 0.5) * bucketWidth(win);
+
 // Each time moved to the center of its bucket, as the server numbers
 // them for the window `win`: the server reports the mean time of the
 // readings in a bucket, which differs between logs that share it, so
 // series from two logs land on one grid only once snapped to it.
 function onGrid(at, win) {
-  const points = win.points ?? pointsFor(win.to - win.from);
-  const width = (win.to - win.from + 1) / points;
-  return at.map((t) => win.from + (Math.floor((t - win.from) / width) + 0.5) * width);
+  return at.map((t) => bucketCenter(bucketOf(t, win), win));
 }
 
 // uPlot.join's mode that widens a null over the alignment points next
