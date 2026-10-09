@@ -27,6 +27,7 @@
 }
 body{background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.5;margin:0;padding-block:32px 64px;padding-inline:20px}
 main{max-width:920px;margin:0 auto;display:grid;gap:40px}
+main>*{min-width:0}
 h1{font-size:2rem;font-weight:600;line-height:1.15;margin:0 0 6px;text-wrap:balance}
 h2{font-size:1.25rem;font-weight:600;margin:0 0 12px;text-wrap:balance}
 h3{font-size:1rem;font-weight:600;margin:20px 0 6px}
@@ -34,6 +35,8 @@ p{margin:0 0 12px;max-width:66ch}
 .eyebrow{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
 .lede{color:var(--muted);max-width:66ch}
 code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.92em}
+.wide{overflow-x:auto}
+.sym{text-transform:none;letter-spacing:0;font-size:.95rem}
 .fig{border:1px solid var(--rule);background:var(--panel);padding:16px 12px 8px;overflow-x:auto}
 .fig svg{display:block;min-width:820px;width:100%;height:auto}
 .fig figcaption{font-size:.85rem;color:var(--muted);padding:8px 4px 4px;max-width:none}
@@ -54,7 +57,7 @@ a{color:var(--accent)}
 
 <main>
 <header>
-  <div class="eyebrow">HP / Symmetricom SmartClock · Z3816A firmware 4001, Z3801A 3543</div>
+  <div class="eyebrow">HP / Symmetricom SmartClock · firmware Z3816A 4001, Z3815A 4010, Z3801A 3543, Z3805A 3543B, 58503A 3633 and 3704, 58503B 1.01.04</div>
   <h1>SmartClock Disciplining Loop</h1>
   <p class="lede">How the receiver steers its 10811 oscillator to GPS, as read from the firmware images: a proportional–integral loop on the ten-second mean of the phase error, with the oscillator's own aging curve fed forward into the integrator. Every constant below is one the code contains.</p>
 </header>
@@ -78,22 +81,35 @@ u  = K·f + B + I + c₀·s                   K = 1 / (G·τ)</div>
 
 <section>
   <h2>Symbols and constants</h2>
-  <table>
-    <thead><tr><th>Symbol</th><th>Meaning</th><th>Z3816A</th><th>Z3801A</th></tr></thead>
+  <div class="wide"><table>
+    <thead><tr><th>Symbol</th><th>Meaning</th><th>Value</th></tr></thead>
     <tbody>
-      <tr><td>τ</td><td>loop time constant; <code>loop_time</code> on the console; kept across a warm restart</td><td>500 s</td><td>1000 s</td></tr>
-      <tr><td>G</td><td>oscillator gain the firmware assumes, fractional frequency per EFC unit</td><td>−1.25 × 10⁻¹² or −2.125 × 10⁻¹² by a hardware bit</td><td>+6.25 × 10⁻¹³</td></tr>
-      <tr><td>a</td><td>prefilter coefficient, 29.75 / τ per 10 s update</td><td>0.0595</td><td>0.02975</td></tr>
-      <tr><td>K</td><td>proportional gain, 1 / (G·τ)</td><td colspan="2">EFC units per second of error</td></tr>
-      <tr><td>k</td><td>integral gain per update, 1 / (4·G·τ²), applied ×10 for the ten seconds</td><td colspan="2"></td></tr>
-      <tr><td>M</td><td>clamp on the drift term, 6.25 × 10⁻¹⁰ / |G|</td><td colspan="2">±0.5 or ±0.29 EFC units per 2700 s</td></tr>
-      <tr><td>x₀</td><td>phase setpoint</td><td colspan="2">0 unless set from the console word <code>phase_off</code></td></tr>
-      <tr><td>c₀</td><td>coefficient on the oscillator current; <code>:DIAGnostic:ROSCillator:TCOefficient</code>, limits ±200, in EEPROM</td><td colspan="2">a calibration value per unit; −33.65 on the bench 58503A, whose loop does not appear to apply it this way</td></tr>
-      <tr><td>s</td><td>oscillator current as the health monitor holds it: an exponential average, not the fresh reading <code>:DIAGnostic:ROSCillator:CURRent?</code> returns</td><td>nominal 250</td><td>channel 3 of its own monitor</td></tr>
-      <tr><td>startup τ</td><td>the ramp <code>startup_pll</code> runs before handing over</td><td>150 s → 500 s, +5 s per update, ≈ 700 s</td><td>150 s → 1000 s, ≈ 1700 s</td></tr>
+      <tr><td>τ</td><td>loop time constant; <code>loop_time</code> on the console; kept across a warm restart</td><td>by model, below</td></tr>
+      <tr><td>G</td><td>oscillator gain the firmware assumes, fractional frequency per EFC unit</td><td>by model, below</td></tr>
+      <tr><td>a</td><td>prefilter coefficient, 29.75 / τ per 10 s update</td><td>by model, below</td></tr>
+      <tr><td>K</td><td>proportional gain, 1 / (G·τ)</td><td>EFC units per second of error</td></tr>
+      <tr><td>k</td><td>integral gain per update, 1 / (4·G·τ²), applied ×10 for the ten seconds</td><td></td></tr>
+      <tr><td>M</td><td>clamp on the drift term, 6.25 × 10⁻¹⁰ / |G|</td><td>Z3816A: ±0.5 or ±0.29 EFC units per 2700 s</td></tr>
+      <tr><td>x₀</td><td>phase setpoint</td><td>0 unless set from the console word <code>phase_off</code></td></tr>
+      <tr><td>c₀</td><td>coefficient on the oscillator current; <code>:DIAGnostic:ROSCillator:TCOefficient</code>, limits ±200, in EEPROM</td><td>a calibration value per unit; −33.65 on the bench 58503A, whose loop does not appear to apply it this way</td></tr>
+      <tr><td>s</td><td>oscillator current as the health monitor holds it: an exponential average, not the fresh reading <code>:DIAGnostic:ROSCillator:CURRent?</code> returns</td><td>Z3816A: nominal 250; Z3801A: channel 3 of its own monitor</td></tr>
+      <tr><td>startup τ</td><td>the constant <code>startup_pll</code> ramps from, +5 s per update, until within 5 s of τ</td><td>150 s</td></tr>
     </tbody>
-  </table>
-  <p class="note">The clamp figures come from M = 6.25 × 10⁻¹⁰ / |G| with the G values above. Which of the two Z3816A gains a given unit uses depends on bit 8 of a hardware word at <code>0x302000</code>; what that bit reads was not traced.</p>
+  </table></div>
+  <p class="note">The clamp figures come from M = 6.25 × 10⁻¹⁰ / |G| with the Z3816A's two gains.</p>
+
+  <h3>By model</h3>
+  <div class="wide"><table>
+    <thead><tr><th>Firmware</th><th class="sym">τ</th><th class="sym">G</th><th class="sym">a</th><th>Settling, <span class="sym">2τ</span></th><th>Startup ramp</th></tr></thead>
+    <tbody>
+      <tr><td>Z3816A 4001</td><td>500 s</td><td>−1.25 × 10⁻¹² or −2.125 × 10⁻¹², by bit 8 of the word at <code>0x302000</code></td><td>0.0595</td><td>1000 s</td><td>≈ 700 s</td></tr>
+      <tr><td>Z3815A 4010</td><td>500 or 1000 s, by bit 12 of that word</td><td>+1.2 × 10⁻¹² or −2.125 × 10⁻¹², by that bit</td><td>0.0595 or 0.02975</td><td>1000 or 2000 s</td><td>≈ 700 or 1700 s</td></tr>
+      <tr><td>Z3801A 3543, Z3805A 3543B</td><td>1000 s</td><td>+6.25 × 10⁻¹³</td><td>0.02975</td><td>2000 s</td><td>≈ 1700 s</td></tr>
+      <tr><td>58503A 3633, 3704</td><td>700 s</td><td>+6.25 × 10⁻¹³</td><td>0.0425</td><td>1400 s</td><td>≈ 1100 s</td></tr>
+      <tr><td>58503B 1.01.04</td><td>700 s, settable: <code>LTIMe:MAX</code>*</td><td>−1.25 × 10⁻¹² or +6.25 × 10⁻¹³, by <code>TYPE</code>*</td><td>0.0425</td><td>1400 s</td><td>≈ 1100 s, from <code>LTIMe:INIT</code>*</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">* Under <code>:DIAGnostic:ROSCillator</code>, undocumented; <code>LTIMe:INIT</code> defaults to 150 s. τ is each image's ROM default, used after a power-up. The startup ramp's 150 s is traced in the Z3816A, the Z3801A and the 58503B's defaults; the other images hold the value. The update law was transcribed from the Z3816A; the other images hold its strings and constants. What the bits of the word at <code>0x302000</code> read was not traced.</p>
 </section>
 
 <section>
@@ -103,7 +119,7 @@ u  = K·f + B + I + c₀·s                   K = 1 / (G·τ)</div>
       <p>Take the oscillator as an integrator: an EFC change of Δu shifts its fractional frequency by G·Δu, and frequency integrates into phase. With the proportional gain K = 1/(Gτ) and an integral gain of k per second, the closed loop is second order:</p>
       <div class="eq">s² + (G·K)·s + G·k = s² + s/τ + 1/(4τ²)
                     = (s + 1/(2τ))²</div>
-      <p>A double real pole at −1/(2τ): natural frequency 1/(2τ), damping ratio exactly 1. The loop's own settling time is 2τ — about 1000 s on the Z3816A and 2000 s on the Z3801A — and it does not overshoot.</p>
+      <p>A double real pole at −1/(2τ): natural frequency 1/(2τ), damping ratio exactly 1. The loop's own settling time is 2τ — 1000 s at τ = 500 s, 1400 s at 700 s, 2000 s at 1000 s — and it does not overshoot.</p>
     </div>
     <div>
       <p>Two things the continuous form leaves out:</p>
@@ -124,8 +140,8 @@ u  = K·f + B + I + c₀·s                   K = 1 / (G·τ)</div>
 
 <section>
   <h2>Starting up</h2>
-  <p>Before <code>pll_normal</code>, <code>startup_pll</code> runs the same update law with its own time constant, recomputing K, k and a from it every update. It first waits for sixteen consecutive ten-second means within ±150 ns, then lengthens its constant from 150 s by 5 s per update until it is within 5 s of τ, sets it to τ, and hands over. The Z3801A's firmware does the same.</p>
-  <p class="note">Source: <code>docs/firmware/loop.md</code> in smartclockmon, sections "The loop", "Starting up", "The aging fit" and "τ and G", with the addresses and the routine identities behind each number.</p>
+  <p>Before <code>pll_normal</code>, <code>startup_pll</code> runs the same update law with its own time constant, recomputing K, k and a from it every update. It first waits for sixteen consecutive ten-second means within ±150 ns, then lengthens its constant from 150 s by 5 s per update until it is within 5 s of τ, sets it to τ, and hands over. The Z3801A's firmware does the same; the 58503B starts from <code>:LTIMe:INIT</code> instead of a fixed 150 s.</p>
+  <p class="note">Source: <code>docs/firmware/loop.md</code> in smartclockmon, sections "The loop", "Starting up", "The aging fit", "τ and G" and "In every image", with the addresses and the routine identities behind each number.</p>
 </section>
 </main>
 
