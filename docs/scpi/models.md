@@ -35,13 +35,16 @@ receiver that has answered the path's `commands.toml` entry
 (evidence `hardware`); blank, no receiver has, or the path has no
 entry.  An image's cell is `q` where its node has a
 query handler, `s` a setter, `qs` both, `-` neither, and blank
-where the image has no such path.
+where the image has no such path.  A table for each top-level
+keyword keeps each one short.
 
 - A: 097-59551-02, the 58503A's manual
 - B: 097-58503-13, the 58503B's manual
 - Z: 097-z3801-01, the Z3801A's manual
 
-| Path | Manuals | Confirmed | 58503A 3633 | 58503A 3704 | 58503B 1.01.04 | Z3801A 3543 | Z3805A 3543B | Z3815A 4010 | Z3816A 4001 |
+### Common commands
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `*CLS` | A, B, Z |  | s | s | s | s | s | s | s |
 | `*ESE` | A, B, Z | 58503A | qs | qs | qs | qs | qs | qs | qs |
@@ -53,18 +56,21 @@ where the image has no such path.
 | `*STB` | A, B, Z | 58503A | q | q | q | q | q | q | q |
 | `*TST` | A, B, Z |  | q | q | q | q | q | q | q |
 | `*WAI` |  |  | s | s | s | s | s | s | s |
+
+### :ALARm
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `:ALARm` |  |  | q | q | q |  |  | q | - |
 | `:ALARm:ACO` |  |  | qs | qs | qs |  |  | qs | qs |
 | `:ALARm:EXTRactor` |  |  | s | s | s |  |  | q | s |
 | `:ALARm:HARDware` |  |  | s | s | s |  |  | q | q |
 | `:ALARm:OPERation` |  |  | s | s | s |  |  | q | s |
-| `:ANT1` |  |  | s | s | s |  |  | s |  |
-| `:AZEL` |  |  | s | s | s |  |  | s |  |
-| `:CALA` |  |  | q | q |  | q | q | q | q |
-| `:CEQU` |  |  | q | q |  | q | q | q | q |
-| `:CHOE` |  |  |  |  | q |  |  |  |  |
-| `:DACP` |  |  |  | s | s |  |  | s |  |
-| `:DANA` |  |  | q | q | q | q | q | q | q |
+
+### :DIAGnostic
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `:DIAGnostic` | Z |  | - | - | - | - | - | - | - |
 | `:DIAGnostic:ADC` |  |  |  |  | q |  |  | q |  |
 | `:DIAGnostic:CALibration` |  |  |  |  | - |  |  | - |  |
@@ -220,31 +226,49 @@ where the image has no such path.
 | `:DIAGnostic:TSET` |  |  | qs | qs | s |  |  | qs | qs |
 | `:DIAGnostic:TVALid` |  |  | - | - | - |  |  | - | - |
 | `:DIAGnostic:TVALid:NOW` |  |  | s | s | s |  |  | s | s |
+
+### :DOUGlas
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `:DOUGlas` |  |  | - | - | - | - | - | - | - |
 | `:DOUGlas:DURation` |  |  | qs | qs | qs | qs | qs | qs | qs |
 | `:DOUGlas:PROGress` |  |  | q | q | q | q | q | q | q |
 | `:DOUGlas:STATe` |  |  | qs | qs | qs | qs | qs | qs | qs |
 | `:DOUGlas:STATe:POWerup` |  |  | qs | qs | qs | qs | qs | qs | qs |
-| `:EFER` |  |  |  | s | s |  |  | s |  |
-| `:ESSD` |  |  |  | s | s |  |  | s |  |
-| `:ESSN` |  |  |  | s | s |  |  | s |  |
-| `:FMHO` |  |  | q | q |  | q | q | q | q |
+
+### :FORMat
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `:FORMat` |  |  | - | - | - | - | - | - | - |
 | `:FORMat:DATA` | A, B |  | qs | qs | qs | qs | qs | qs | qs |
+
+### :GARY
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `:GARY` |  |  | - | - | q | - | - | q | - |
 | `:GARY:CLEar` |  |  | s | s |  | s | s |  | s |
 | `:GARY:COUNt` |  |  | q | q |  | q | q |  | q |
 | `:GARY:READ` |  |  | q | q |  | q | q |  | q |
 | `:GARY:READ:ALL` |  |  | q | q |  | q | q |  | q |
 | `:GARY:WRITe` |  |  | s | s |  | s | s |  | s |
-| `:GDOP` |  |  |  | s | s |  |  | s |  |
-| `:IPSU` |  |  | q | q |  | q | q | q | q |
+
+### :KENneth
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `:KENneth` |  |  | - | - | - | - | - | - | - |
 | `:KENneth:MEASured` |  |  |  |  | q |  |  | q |  |
 | `:KENneth:PREDicted` |  |  | q | q | q | q | q | q | q |
 | `:KENneth:PREDicted:DURation` |  |  | qs | qs | qs | qs | qs | qs | qs |
 | `:KENneth:PRESent` |  |  | q | q | q | q | q | q | q |
-| `:LEAP` |  |  | s | s | s |  |  | s |  |
+
+### :LED
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `:LED` |  |  | - | - | - | - | - | - | - |
 | `:LED:ACTive` | Z |  | qs | qs | qs | qs | qs | qs | qs |
 | `:LED:ALARm` | A, B, Z | 58503A | q | q | q | q | q | q | q |
@@ -259,8 +283,11 @@ where the image has no such path.
 | `:LED:NGPS` |  |  |  |  | s |  |  | s |  |
 | `:LED:STANdby` |  |  |  |  | s |  |  | s |  |
 | `:LED:TMHValid` |  |  |  |  |  | q | q |  |  |
-| `:MANI` |  |  | s | s | s |  |  | s |  |
-| `:MATThew` |  |  | q | q | q |  |  | q |  |
+
+### :OUTPut
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `:OUTPut` |  |  | - | - | - | - | - | - | - |
 | `:OUTPut:ACTive` |  |  | s | s | s |  |  | s | s |
 | `:OUTPut:ACTive:DISable` |  |  | s | s | s |  |  | s | s |
@@ -300,20 +327,11 @@ where the image has no such path.
 | `:OUTPut:PINS:FREQuency` |  |  | qs | qs |  | qs | qs | qs | qs |
 | `:OUTPut:PRIMary` |  |  |  |  | s |  |  | s |  |
 | `:OUTPut:STATe` |  |  | qs | qs | qs | qs | qs | q | qs |
-| `:PAVG` |  |  | s | s | s |  |  | s |  |
-| `:PMD1` |  |  | s | s | s |  |  | s |  |
-| `:POS1` |  |  | s | s | s |  |  | s |  |
-| `:R1PO` |  |  | q | q |  | q | q | q | q |
-| `:RACD` |  |  | q | q |  | q | q | q | q |
-| `:RAST` |  |  | q | q |  | q | q | q | q |
-| `:RAT1` |  |  | q | q |  | q | q | q | q |
-| `:RAT2` |  |  | q | q |  | q | q | q | q |
-| `:RAT3` |  |  | q | q |  | q | q | q | q |
-| `:REAL` |  |  | q | q |  | q | q | q | q |
-| `:REQU` |  |  | q | q |  | q | q | q | q |
-| `:RFOU` |  |  | q | q |  | q | q | q | q |
-| `:RLOC` |  |  | q | q |  | q | q | q | q |
-| `:RMHO` |  |  | q | q |  | q | q | q | q |
+
+### :ROBin
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `:ROBin` |  |  | q | q | q | q | q | q | q |
 | `:ROBin:CLEar` |  |  | s | s | s | s | s | s | s |
 | `:ROBin:MEMory` |  |  | - | - | - | - | - | - | - |
@@ -322,17 +340,11 @@ where the image has no such path.
 | `:ROBin:MEMory:SAVE` |  |  | qs | qs | qs | qs | qs | qs | qs |
 | `:ROBin:POINts` |  |  | q | q | q | q | q | q | q |
 | `:ROBin:TSTamp` |  |  | q | q | q | q | q | q | q |
-| `:RPHS` |  |  | q | q |  | q | q | q | q |
-| `:RSPR` |  |  | q | q |  | q | q | q | q |
-| `:RSST` |  |  | q | q |  | q | q | q | q |
-| `:RSSU` |  |  | q | q |  | q | q | q | q |
-| `:RSTG` |  |  |  | s | s |  |  | s |  |
-| `:RTAD` |  |  | q | q |  | q | q | q | q |
-| `:RTCM` |  |  | q | q |  | q | q | q | q |
-| `:RTSA` |  |  | q | q |  | q | q | q | q |
-| `:RTZO` |  |  | q | q |  | q | q | q | q |
-| `:RVST` |  |  | q | q |  | q | q | q | q |
-| `:RWHO` |  |  | q | q |  | q | q | q | q |
+
+### :SAMPle
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `:SAMPle` |  |  |  |  |  | - | - |  |  |
 | `:SAMPle:ACTion` |  |  |  |  |  | s | s |  |  |
 | `:SAMPle:BARR` |  |  |  |  |  | qs | qs |  |  |
@@ -381,6 +393,11 @@ where the image has no such path.
 | `:SAMPle:TARRAY2` |  |  |  |  |  | qs | qs |  |  |
 | `:SAMPle:TARRAY3` |  |  |  |  |  | qs | qs |  |  |
 | `:SAMPle:TOGGle` |  |  |  |  |  | qs | qs |  |  |
+
+### :SENSe
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `:SENSe` |  |  | - | - | - | - | - | - | - |
 | `:SENSe:DATA` | A, B |  | q | q | q | q | q | q | q |
 | `:SENSe:DATA:CLEar` | A, B |  | s | s | s | s | s | s | s |
@@ -410,7 +427,11 @@ where the image has no such path.
 | `:SENSe:TSTAMP4` |  |  | - | - | - | - | - | - | - |
 | `:SENSe:TSTAMP4:EDGE` |  |  | qs | qs | qs | qs | qs | qs | qs |
 | `:SENSe:TSTAMP:EDGE` |  |  | qs | qs | qs | qs | qs | qs | qs |
-| `:SIGQ` |  |  | s | s | s |  |  | s |  |
+
+### :SOURce
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `:SOURce` |  |  | - | - | - | - | - | - | - |
 | `:SOURce:GPSystem` |  |  | - | - | - | - | - | - | - |
 | `:SOURce:GPSystem:ADELay` |  |  | qs | qs | qs | qs | qs | qs | qs |
@@ -684,6 +705,11 @@ where the image has no such path.
 | `:SOURce:SYNChronization:STATe` | A, B | 58503A | q | q | q | q | q | q | q |
 | `:SOURce:SYNChronization:TFOMerit` | A, B | 58503A | q | q | q | q | q | q | q |
 | `:SOURce:SYNChronization:TINTerval` | A, B | 58503A | q | q | q | q | q | q | q |
+
+### :STATus
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `:STATus` | Z |  | - | - | - | - | - | - | - |
 | `:STATus:AACKnowledge` |  |  |  |  | s |  |  |  |  |
 | `:STATus:OPERation` | Z |  | - | - | - | - | - | - | - |
@@ -738,6 +764,11 @@ where the image has no such path.
 | `:STATus:QUEStionable:MINor` |  |  | qs | qs |  |  |  | qs | qs |
 | `:STATus:QUEStionable:NTRansition` | A, B, Z | 58503A | qs | qs | qs | qs | qs | qs | qs |
 | `:STATus:QUEStionable:PTRansition` | A, B, Z | 58503A | qs | qs | qs | qs | qs | qs | qs |
+
+### :SYSTem
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `:SYSTem` | Z |  | - | - | - | - | - | - | - |
 | `:SYSTem:COMMunicate` | A, B | 58503A | q | q | q | q | q | q | q |
 | `:SYSTem:COMMunicate:ALARm` |  |  | q | q | q |  |  | q | q |
@@ -1087,11 +1118,63 @@ where the image has no such path.
 | `:SYSTem:STATus` | A, B | 58503A | q | q | q | q | q | q | q |
 | `:SYSTem:STATus:LENGth` | A, B | 58503A, Z3805A | q | q | q | q | q | q | q |
 | `:SYSTem:TIME` | A, B |  | q | q | q | q | q | q | q |
+
+### :TKN
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `:TKN` |  |  | q | q | q | q | q | q | q |
+| `:TKN:LENGth` |  |  | q | q | q | q | q | q | q |
+
+### Top-level keywords without children
+
+| Path | Manuals | Confirmed | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `:ANT1` |  |  | s | s | s |  |  | s |  |
+| `:AZEL` |  |  | s | s | s |  |  | s |  |
+| `:CALA` |  |  | q | q |  | q | q | q | q |
+| `:CEQU` |  |  | q | q |  | q | q | q | q |
+| `:CHOE` |  |  |  |  | q |  |  |  |  |
+| `:DACP` |  |  |  | s | s |  |  | s |  |
+| `:DANA` |  |  | q | q | q | q | q | q | q |
+| `:EFER` |  |  |  | s | s |  |  | s |  |
+| `:ESSD` |  |  |  | s | s |  |  | s |  |
+| `:ESSN` |  |  |  | s | s |  |  | s |  |
+| `:FMHO` |  |  | q | q |  | q | q | q | q |
+| `:GDOP` |  |  |  | s | s |  |  | s |  |
+| `:IPSU` |  |  | q | q |  | q | q | q | q |
+| `:LEAP` |  |  | s | s | s |  |  | s |  |
+| `:MANI` |  |  | s | s | s |  |  | s |  |
+| `:MATThew` |  |  | q | q | q |  |  | q |  |
+| `:PAVG` |  |  | s | s | s |  |  | s |  |
+| `:PMD1` |  |  | s | s | s |  |  | s |  |
+| `:POS1` |  |  | s | s | s |  |  | s |  |
+| `:R1PO` |  |  | q | q |  | q | q | q | q |
+| `:RACD` |  |  | q | q |  | q | q | q | q |
+| `:RAST` |  |  | q | q |  | q | q | q | q |
+| `:RAT1` |  |  | q | q |  | q | q | q | q |
+| `:RAT2` |  |  | q | q |  | q | q | q | q |
+| `:RAT3` |  |  | q | q |  | q | q | q | q |
+| `:REAL` |  |  | q | q |  | q | q | q | q |
+| `:REQU` |  |  | q | q |  | q | q | q | q |
+| `:RFOU` |  |  | q | q |  | q | q | q | q |
+| `:RLOC` |  |  | q | q |  | q | q | q | q |
+| `:RMHO` |  |  | q | q |  | q | q | q | q |
+| `:RPHS` |  |  | q | q |  | q | q | q | q |
+| `:RSPR` |  |  | q | q |  | q | q | q | q |
+| `:RSST` |  |  | q | q |  | q | q | q | q |
+| `:RSSU` |  |  | q | q |  | q | q | q | q |
+| `:RSTG` |  |  |  | s | s |  |  | s |  |
+| `:RTAD` |  |  | q | q |  | q | q | q | q |
+| `:RTCM` |  |  | q | q |  | q | q | q | q |
+| `:RTSA` |  |  | q | q |  | q | q | q | q |
+| `:RTZO` |  |  | q | q |  | q | q | q | q |
+| `:RVST` |  |  | q | q |  | q | q | q | q |
+| `:RWHO` |  |  | q | q |  | q | q | q | q |
+| `:SIGQ` |  |  | s | s | s |  |  | s |  |
 | `:TEMP` |  |  |  |  | s |  |  |  |  |
 | `:TIMD` |  |  | s | s | s |  |  | s |  |
 | `:TIME` |  |  | s | s | s |  |  | s |  |
-| `:TKN` |  |  | q | q | q | q | q | q | q |
-| `:TKN:LENGth` |  |  | q | q | q | q | q | q | q |
 | `:TMD1` |  |  |  | s | s |  |  | s |  |
 | `:UNSL` |  |  | s | s | s |  |  | s |  |
 | `:W1PO` |  |  | q | q |  | q | q | q | q |
@@ -1103,3 +1186,4 @@ where the image has no such path.
 | `:WFOU` |  |  | q | q |  | q | q | q | q |
 | `:WLOC` |  |  | q | q |  | q | q | q | q |
 | `:WTZO` |  |  | q | q |  | q | q | q | q |
+

@@ -53,6 +53,12 @@ const MANUALS: [Manual; 3] = [
 /// installer, not the primary firmware, speaks.
 const INSTALL: &str = "INSTALL";
 
+/// The section the path table puts the common commands in.
+const COMMON_SECTION: &str = "Common commands";
+/// The section it puts top-level keywords with no children in, which
+/// would otherwise each have a table of one row.
+const LEAVES_SECTION: &str = "Top-level keywords without children";
+
 /// The optional header a path may leave out.
 const OPTIONAL_HEADER: &str = "SOURce";
 
@@ -333,7 +339,8 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
          (evidence `hardware`); blank, no receiver has, or the path has no\n\
          entry.  An image's cell is `q` where its node has a\n\
          query handler, `s` a setter, `qs` both, `-` neither, and blank\n\
-         where the image has no such path.\n\n",
+         where the image has no such path.  A table for each top-level\n\
+         keyword keeps each one short.\n\n",
     );
     for manual in &MANUALS {
         let _ = writeln!(
@@ -345,42 +352,81 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
         );
     }
     out.push('\n');
-    let _ = writeln!(
-        out,
-        "| Path | Manuals | Confirmed | {} |",
-        images
-            .iter()
-            .map(|(name, _)| title(name))
-            .collect::<Vec<_>>()
-            .join(" | ")
-    );
-    let _ = writeln!(out, "|{}", " --- |".repeat(images.len() + 3));
     let paths: BTreeSet<(String, &str)> = images
         .iter()
         .flat_map(|(_, entries)| entries)
         .map(|entry| (entry.path.to_ascii_lowercase(), entry.path.as_str()))
         .collect();
-    for (_, path) in paths {
-        let cells: Vec<&str> = images
+    let branches: BTreeSet<&str> = paths
+        .iter()
+        .filter_map(|(_, path)| {
+            let (root, rest) = path.trim_start_matches(':').split_once(':')?;
+            (!path.starts_with('*') && !rest.is_empty()).then_some(root)
+        })
+        .collect();
+    let section = |path: &str| -> String {
+        let root = path
+            .trim_start_matches(':')
+            .split(':')
+            .next()
+            .unwrap_or_default();
+        if path.starts_with('*') {
+            COMMON_SECTION.to_owned()
+        } else if branches.contains(root) {
+            format!(":{root}")
+        } else {
+            LEAVES_SECTION.to_owned()
+        }
+    };
+    let mut sections: Vec<(String, Vec<&str>)> = Vec::new();
+    for (_, path) in &paths {
+        let name = section(path);
+        match sections.iter_mut().find(|(each, _)| *each == name) {
+            Some((_, members)) => members.push(path),
+            None => sections.push((name, vec![path])),
+        }
+    }
+    sections.sort_by_key(|(name, _)| {
+        (
+            name != COMMON_SECTION,
+            name == LEAVES_SECTION,
+            name.to_ascii_lowercase(),
+        )
+    });
+    let header = format!(
+        "| Path | Manuals | Confirmed | {} |\n|{}\n",
+        images
             .iter()
-            .map(|(_, entries)| cell(entries.iter().find(|entry| entry.path == path)))
-            .collect();
-        let manuals: Vec<String> = MANUALS
-            .iter()
-            .filter_map(|manual| {
-                manual.lists(path).map(|listed| match listed {
-                    Listed::Primary => manual.letter.to_string(),
-                    Listed::Install => format!("{} (INSTALL)", manual.letter),
+            .map(|(name, _)| title(name).replacen(' ', "<br>", 1))
+            .collect::<Vec<_>>()
+            .join(" | "),
+        " --- |".repeat(images.len() + 3)
+    );
+    for (name, members) in sections {
+        let _ = write!(out, "### {name}\n\n{header}");
+        for path in members {
+            let cells: Vec<&str> = images
+                .iter()
+                .map(|(_, entries)| cell(entries.iter().find(|entry| entry.path == path)))
+                .collect();
+            let manuals: Vec<String> = MANUALS
+                .iter()
+                .filter_map(|manual| {
+                    manual.lists(path).map(|listed| match listed {
+                        Listed::Primary => manual.letter.to_string(),
+                        Listed::Install => format!("{} (INSTALL)", manual.letter),
+                    })
                 })
-            })
-            .collect();
-        let _ = writeln!(
-            out,
-            "| `{path}` | {} | {} | {} |",
-            manuals.join(", "),
-            confirmed(path).join(", "),
-            cells.join(" | ")
-        );
+                .collect();
+            let _ = writeln!(
+                out,
+                "| `{path}` | {} | {} | {} |",
+                manuals.join(", "),
+                confirmed(path).join(", "),
+                cells.join(" | ")
+            );
+        }
+        out.push('\n');
     }
 }
 
