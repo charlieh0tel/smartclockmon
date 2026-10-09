@@ -1,3 +1,11 @@
+smartclockmon (1.5.2-1) unstable; urgency=low
+
+  * smartclock-sensord reads TEMPer sticks through temper-hid 2.0.0,
+    and so reads a TEMPer2 as well as a TEMPerGold or TEMPerHUM; a
+    TEMPer2's outer probe is not read yet.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Thu, 08 Oct 2026 23:30:28 -0700
+
 smartclockmon (1.5.1-1) unstable; urgency=low
 
   * smartclock-cli join-chips puts a flash image together from the four
