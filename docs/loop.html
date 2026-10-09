@@ -89,14 +89,14 @@ u  = K·f + B + I + c₀·s                   K = 1 / (G·τ)</div>
       <tr><td>a</td><td>prefilter coefficient, 29.75 / τ per 10 s update</td><td>by model, below</td></tr>
       <tr><td>K</td><td>proportional gain, 1 / (G·τ)</td><td>EFC units per second of error</td></tr>
       <tr><td>k</td><td>integral gain per update, 1 / (4·G·τ²), applied ×10 for the ten seconds</td><td></td></tr>
-      <tr><td>M</td><td>clamp on the drift term, 6.25 × 10⁻¹⁰ / |G|</td><td>Z3816A: ±0.5 or ±0.29 EFC units per 2700 s</td></tr>
+      <tr><td>M</td><td>clamp on the drift term, 6.25 × 10⁻¹⁰ / |G|</td><td>±500 or ±294 EFC units per 2700 s on the Z3816A; ±1000 where G is +6.25 × 10⁻¹³</td></tr>
       <tr><td>x₀</td><td>phase setpoint</td><td>0 unless set from the console word <code>phase_off</code></td></tr>
       <tr><td>c₀</td><td>coefficient on the oscillator current; <code>:DIAGnostic:ROSCillator:TCOefficient</code>, limits ±200, in EEPROM</td><td>a calibration value per unit; −33.65 on the bench 58503A, whose loop does not appear to apply it this way</td></tr>
       <tr><td>s</td><td>oscillator current as the health monitor holds it: an exponential average, not the fresh reading <code>:DIAGnostic:ROSCillator:CURRent?</code> returns</td><td>Z3816A: nominal 250; Z3801A: channel 3 of its own monitor</td></tr>
       <tr><td>startup τ</td><td>the constant <code>startup_pll</code> ramps from, +5 s per update, until within 5 s of τ</td><td>150 s</td></tr>
     </tbody>
   </table></div>
-  <p class="note">The clamp figures come from M = 6.25 × 10⁻¹⁰ / |G| with the Z3816A's two gains.</p>
+  <p class="note">The clamp figures come from M = 6.25 × 10⁻¹⁰ / |G| with the gains below. Evidence for each value: <a href="https://github.com/charlieh0tel/smartclockmon/blob/main/docs/firmware/loop.md#the-loop">The loop</a>, <a href="https://github.com/charlieh0tel/smartclockmon/blob/main/docs/firmware/loop.md#τ-and-g">τ and G</a>, <a href="https://github.com/charlieh0tel/smartclockmon/blob/main/docs/firmware/loop.md#s-the-oscillator-current">s, the oscillator current</a>.</p>
 
   <h3>By model</h3>
   <div class="wide"><table>
@@ -109,7 +109,7 @@ u  = K·f + B + I + c₀·s                   K = 1 / (G·τ)</div>
       <tr><td>58503B 1.01.04</td><td>700 s, settable: <code>LTIMe:MAX</code>*</td><td>−1.25 × 10⁻¹² or +6.25 × 10⁻¹³, by <code>TYPE</code>*</td><td>0.0425</td><td>1400 s</td><td>≈ 1100 s, from <code>LTIMe:INIT</code>*</td></tr>
     </tbody>
   </table></div>
-  <p class="note">* Under <code>:DIAGnostic:ROSCillator</code>, undocumented; <code>LTIMe:INIT</code> defaults to 150 s. τ is each image's ROM default, used after a power-up. The startup ramp's 150 s is traced in the Z3816A, the Z3801A and the 58503B's defaults; the other images hold the value. The update law was transcribed from the Z3816A; the other images hold its strings and constants. What the bits of the word at <code>0x302000</code> read was not traced.</p>
+  <p class="note">* Under <code>:DIAGnostic:ROSCillator</code>, undocumented; <code>LTIMe:INIT</code> defaults to 150 s. τ is each image's ROM default, used after a power-up. The startup ramp's 150 s is traced in the Z3816A, the Z3801A and the 58503B's defaults; the other images hold the value. The Z3801A, Z3805A and 58503A run the Z3816A's update; the Z3815A and 58503B ease the aging term in, below. What the bits of the word at <code>0x302000</code> read was not traced. Evidence: <a href="https://github.com/charlieh0tel/smartclockmon/blob/main/docs/firmware/loop.md#in-every-image">In every image</a>.</p>
 </section>
 
 <section>
@@ -135,13 +135,14 @@ u  = K·f + B + I + c₀·s                   K = 1 / (G·τ)</div>
   <p>The dashed path is what makes the receiver's holdover good. While the loop is closed, <code>pllp</code> averages the current-compensated EFC, u − c₀·s, over each 2700 s (45 min) window and pushes one sample into a ring of 64 — 48 hours. The <code>curv</code> task fits</p>
   <div class="eq">EFC(t) = a + b·y + c·ln y                y = t / 2700 s, t the seconds since cold start</div>
   <p>to those samples (a least-squares line, plus a one-dimensional search on c once there are enough points). The slope of that curve now, b + c/y, is d: the EFC change per 2700 s the fit predicts. Each update the integrator advances by 10·d/2700 — the predicted change over ten seconds — before the loop sees any phase error from it. In holdover the same curve keeps advancing the EFC with nothing to correct it; <code>startup_pll</code> also takes its first EFC from it after a restart.</p>
+  <p>The Z3815A and 58503B compute the same slope once per fit, not every ten seconds, and each update moves a running value toward it with time constant τ, so a new fit's change of slope reaches the oscillator over about τ rather than at once.</p>
   <p>Samples are weighted by how much of the window was averaged: 3 if all 2700 seconds, 2 if at least 675, else 1; and everything in the first three hours after a cold start gets weight 1. A fit needs at least three samples, so d is zero for the first hours after a power-up.</p>
 </section>
 
 <section>
   <h2>Starting up</h2>
   <p>Before <code>pll_normal</code>, <code>startup_pll</code> runs the same update law with its own time constant, recomputing K, k and a from it every update. It first waits for sixteen consecutive ten-second means within ±150 ns, then lengthens its constant from 150 s by 5 s per update until it is within 5 s of τ, sets it to τ, and hands over. The Z3801A's firmware does the same; the 58503B starts from <code>:LTIMe:INIT</code> instead of a fixed 150 s.</p>
-  <p class="note">Source: <code>docs/firmware/loop.md</code> in smartclockmon, sections "The loop", "Starting up", "The aging fit", "τ and G" and "In every image", with the addresses and the routine identities behind each number.</p>
+  <p class="note">Source: <a href="https://github.com/charlieh0tel/smartclockmon/blob/main/docs/firmware/loop.md"><code>docs/firmware/loop.md</code></a>, which holds the addresses and the routine identities behind each number; this page explains, that one is the evidence.</p>
 </section>
 </main>
 

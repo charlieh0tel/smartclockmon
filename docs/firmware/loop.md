@@ -97,12 +97,12 @@ slope of the fitted curve a + b·y + c·ln y now, in EFC units per
 2700 s.  The integrator's second term is then 10·d / 2700: the EFC
 change the fit predicts over the ten seconds between updates.
 
-That is a proportional-integral loop on the prefiltered interval error,
-with K ∝ 1/τ and the integral gain ∝ 1/(4τ²).  Taking the oscillator
-as the integrator that turns an EFC change into phase, with gain G,
-the loop gains are 1/τ and 1/(4τ²): in the continuous approximation, a
-second-order loop with damping ratio 1.  The factor 10 matches the ten
-seconds between updates.
+The factor 10 matches the ten seconds between updates.  What kind of
+loop this is -- proportional-integral on the prefiltered error, a
+double pole at −1/(2τ) -- is worked out in
+[`loop.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/loop.html),
+"What kind of loop that is"; this file is the evidence for its
+numbers.
 
 ## Starting up
 
