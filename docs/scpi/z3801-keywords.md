@@ -64,8 +64,8 @@ answered `+23`, `:SYSTem:LANGuage?` answered `"PRIMARY"`,
 answered `+9600` -- a second serial port, at a different rate from
 the first, which neither manual mentions.
 
-The whole tree, 595 paths, is `scpi/z3801a-3543.txt`, as
-`smartclock-cli dump-scpi` reads it (`scpi/README.md`).  Three points
+The whole tree, 595 paths, is `z3801a-3543.txt`, as
+`smartclock-cli dump-scpi` reads it (`README.md`).  Three points
 of method: only a child list that some node's `+4` points at is real,
 since searching the region for any window containing a target finds
 overlapping sub-arrays; a walk must keep nodes that are both a command
@@ -171,7 +171,7 @@ from a Z3805A.
 
 Candidate paths built from the keyword table and sent to a receiver
 show which it implements: an unknown header returns -113 and changes
-nothing.  A read can still change state; see `z3801-tree.md` on
+nothing.  A read can still change state; see `z3801a.md` on
 event registers.  1,530 candidates over the `:DIAGnostic` subtree
 found the commands below, none of which appear in any manual here.
 

@@ -493,7 +493,7 @@ fn raw_class(scpi: &str) -> Class {
     // Short forms cannot evade these: SCPI's mandatory abbreviations are
     // COMMunicate, PRESet, ERASe and LANGuage, so every legal spelling
     // still contains its needle.  The rest are from the receiver's own
-    // keyword table in docs/z3801-keywords.md: resets, anything that
+    // keyword table in docs/scpi/z3801-keywords.md: resets, anything that
     // writes non-volatile memory, and any other route to the UART,
     // since the gate's safety must not rest on COMMunicate being the
     // only one.  Turning the prompt off would strand the link as surely

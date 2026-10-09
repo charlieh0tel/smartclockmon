@@ -31,7 +31,7 @@ with a setter.  A node with neither is a branch the parser walks
 through, or a keyword with no handler of its own (`:DIAGnostic:SLOG`,
 which a 58503A answers as a query nonetheless).
 
-`:SOURce` is an optional header (`z3801-tree.md`): a path under it
+`:SOURce` is an optional header (`z3801a.md`): a path under it
 also answers without it, though only the form with it is listed.
 
 ## How it is read
@@ -129,10 +129,10 @@ Missing from every `hp58503` image: the three
 `:ROSCillator:HOLDover:DURation:MEASurement:THReshold`, and the six
 `:SYSTem:COMMunicate:SERial1:...` entries, whose settings sit under
 `:SER:RECeive:`; a 58503A answers both table spellings
-(`58503a-tree.md`).  `:DIAGnostic:ERASe` is missing from all but the
+(`58503a.md`).  `:DIAGnostic:ERASe` is missing from all but the
 58503B, and `:DIAGnostic:ROSCillator:EFControl:DATA` from 3633 only.
 
 Missing from the `z3801` images: the two
 `:ROSCillator:HOLDover:DURation:THReshold` entries, whose node has
-`MEASurement` between (`z3801-tree.md`), `:DIAGnostic:ERASe`, and in
+`MEASurement` between (`z3801a.md`), `:DIAGnostic:ERASe`, and in
 3543 `:SYSTem:PON`.

@@ -622,7 +622,7 @@ view cannot drift apart.  The library, bottom up:
 2. **How far the z3801 dialect is confirmed.**  Of the z3801 entries,
    18 are `evidence = "hardware"`, 63 `firmware` and one `manual`;
    those 64 stay unconfirmed until a receiver answers them.  The
-   keyword table they were checked against is `docs/z3801-keywords.md`.
+   keyword table they were checked against is `docs/scpi/z3801-keywords.md`.
 
 3. **Asserting a known antenna position from the configuration.**  A
    receiver told where it is goes straight to position hold and serves

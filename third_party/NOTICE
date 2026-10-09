@@ -48,7 +48,7 @@ Firmware images
 In `firmware/`, the EEPROM contents in `firmware/eeprom/`.
 
 Read-only images of the instruments' own program ROMs, from which the
-SCPI command tree in `docs/z3801-tree.md` was extracted and against
+SCPI command tree in `docs/scpi/z3801a.md` was extracted and against
 which claims about the command set are checked.  CPU32 code, big-endian, loaded at address zero; see
 `docs/firmware/` for which part.
 

@@ -253,7 +253,7 @@ driver: its host port is DUART channel B, with the exchanges `drtR`
 and `drtW` (`0x460c`) and the interrupt messages `DUARTB isr signaling
 ...` (`0x4686`), while `drta_get_byte` is still the GPS link on
 channel A.  The Z3805A's own `:DIAGnostic:OS` listing names both
-`sciR`/`sciW` and `drtR`/`drtW` (`z3801-tree.md`), so its firmware,
+`sciR`/`sciW` and `drtR`/`drtW` (`scpi/z3801a.md`), so its firmware,
 3543B, matches neither image exactly.
 
 ## The Z3801A image
@@ -414,7 +414,7 @@ image and is 42 % byte-identical to it, the block `0x70000` to
 `0x7ffff` wholly so.  The bench receiver reports 3704-C, a later
 revision, so what follows is read from 3633 and stated of it.  Its
 SCPI tree has the same node layout, so the paths resolve the same
-way; `scpi/58503a-3633.txt` lists them and `58503a-tree.md` checks
+way; `scpi/58503a-3633.txt` lists them and `scpi/58503a.md` checks
 them against the command table.
 
 - *The loop.*  `pll_normal` is `FUN_0004491e` (message `pll_normal -
