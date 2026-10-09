@@ -50,7 +50,10 @@ A **node** is a record:
     +18  u32   query handler, zero if none
 
 A **keyword pair** is the short form, a NUL, the rest of the long form
-and a NUL, both upper case: `SYST\0EM\0` is `SYSTem`.
+and a NUL, both upper case: `SYST\0EM\0` is `SYSTem`.  A keyword may
+also hold digits and `_`; none of these images uses `_`, but the HP
+53131A-family counters, whose firmware shares this parser, list a
+common command `_TRG`, and `dump-scpi` reads their trees too.
 
 A **child list** is:
 

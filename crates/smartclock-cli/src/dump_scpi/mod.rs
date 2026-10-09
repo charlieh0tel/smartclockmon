@@ -34,6 +34,11 @@ const CHILDREN_START: u32 = 6;
 /// a child list.
 const CHILDREN_LIMIT: u16 = 80;
 
+/// The one character besides letters and digits a keyword may hold:
+/// the HP 53131A-family counters, whose firmware shares this parser,
+/// list a common command `_TRG` beside `*TRG`.
+const KEYWORD_PUNCTUATION: u8 = b'_';
+
 /// The longest half of a keyword pair in any image.
 const KEYWORD_LIMIT: usize = 12;
 
@@ -135,8 +140,9 @@ impl Image<'_> {
     }
 
     /// The keyword spelled by the pair at `at`: the short form, a NUL,
-    /// the rest of the long form and a NUL, both upper case.  The rest
-    /// comes back lower case, as the manuals write it.
+    /// the rest of the long form and a NUL, both upper case, digits or
+    /// `KEYWORD_PUNCTUATION`.  The rest comes back lower case, as the
+    /// manuals write it.
     fn keyword(&self, at: u32) -> Option<String> {
         let half = |from: usize, least: usize| {
             let bytes = self.0.get(from..)?;
@@ -146,9 +152,11 @@ impl Image<'_> {
                 .position(|&byte| byte == 0)?;
             let text = &bytes[..length];
             (length >= least
-                && text
-                    .iter()
-                    .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit()))
+                && text.iter().all(|&byte| {
+                    byte.is_ascii_uppercase()
+                        || byte.is_ascii_digit()
+                        || byte == KEYWORD_PUNCTUATION
+                }))
             .then(|| String::from_utf8_lossy(text).into_owned())
         };
         let at = usize::try_from(at).ok()?;
@@ -468,6 +476,56 @@ mod tests {
                 "{heading} is in no image's tree"
             );
         }
+    }
+
+    /// A minimal image: a root pair at 0 naming a common list of `IDN`
+    /// and `_TRG` and a main list of `SYSTem`, each node with a query
+    /// handler.
+    fn tiny_image() -> Vec<u8> {
+        const KEYWORDS: u32 = 0x100;
+        const NODES: u32 = 0x200;
+        const NODE_SIZE: u32 = 0x20;
+        const COMMON: u32 = 0x300;
+        const MAIN: u32 = 0x320;
+        const HANDLER: u32 = 0x400;
+        let mut image = vec![0u8; 0x1000];
+        let mut put = |at: u32, bytes: &[u8]| {
+            let at = usize::try_from(at).expect("in range");
+            image[at..at + bytes.len()].copy_from_slice(bytes);
+        };
+        put(0, &COMMON.to_be_bytes());
+        put(4, &MAIN.to_be_bytes());
+        let pairs: [&[u8]; 3] = [b"IDN\0\0", b"_TRG\0\0", b"SYST\0EM\0"];
+        let mut keyword = KEYWORDS;
+        for (index, pair) in (0..).zip(pairs) {
+            let node = NODES + index * NODE_SIZE;
+            put(keyword, pair);
+            put(node, &keyword.to_be_bytes());
+            put(node + 18, &HANDLER.to_be_bytes());
+            keyword += 0x10;
+        }
+        for (list, nodes) in [(COMMON, &[0, 1][..]), (MAIN, &[2][..])] {
+            put(
+                list + 2,
+                &u16::try_from(nodes.len()).expect("small").to_be_bytes(),
+            );
+            put(list + 4, &[0xff, 0xff]);
+            for (slot, node) in (0..).zip(nodes) {
+                put(
+                    list + 6 + 4 * slot,
+                    &(NODES + node * NODE_SIZE).to_be_bytes(),
+                );
+            }
+        }
+        image
+    }
+
+    #[test]
+    fn a_keyword_may_hold_an_underscore() {
+        assert_eq!(
+            dump(&tiny_image()).expect("the image has a tree"),
+            ["*_TRG?", "*IDN?", ":SYSTem?"]
+        );
     }
 
     #[test]
