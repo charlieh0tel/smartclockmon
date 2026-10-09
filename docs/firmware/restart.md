@@ -166,18 +166,24 @@ Read from all five images; the bench check of entry and exit is below.
   order that reproduces `third_party/58503a-3633.bin` and
   `58503a-3704.bin` from their chip dumps (`third_party/NOTICE`).
   `smartclock-cli join-chips` puts four dumps together that way and
-  checks the result: lanes swapped within a pair keep the lane sums
-  below, since the stored sums swap with the bytes they cover, but
-  byte-swap the reset vector; pairs swapped fail the sums.
-  `split-chips` is its inverse, for programming the parts.  Z3816A: an
-  Intel-style part, one 16-bit wide.
+  `split-chips` takes an image apart, whatever the bytes hold, and
+  each then says what it finds rather than refusing: whose reset vector
+  the image starts with, which boot checksum below holds, and, when
+  neither does, which chips look swapped.  Lanes swapped within a pair
+  keep the lane sums, since the stored sums swap with the bytes they
+  cover, but byte-swap the reset vector; pairs swapped fail the sums.
+  Nor do the lane sums notice bytes shifted by an even count within a
+  bank, which keeps each byte in its lane.  Z3816A: an Intel-style
+  part, one 16-bit wide.
 - *Boot check.*  The AMD-flash reset code (`0x550`) sums each byte
   lane of each pair against the bytes at `0x3fffc` and `0x7fffc`.  A
   pass boots the primary; a failure stays in the installer.
   `LANG "PRIMARY"` re-runs the reset code, so a unit with a bad image
   comes back to the installer.  The Z3816A instead sums big-endian
   words from `0x20000` through `0x7fffc`, modulo 65536, against the
-  word at `0x7fffe` (reset code `0x526`--`0x53a`).  Its erase handler
+  word at `0x7fffe` (reset code `0x526`--`0x53a`).  The 58503B
+  1.01.04 and the Z3815A 4010 carry the same routine, instruction for
+  instruction, at `0x45e`.  Its erase handler
   starts at `0x20000` and erases three 128 KiB blocks.  All five
   images pass their own sums.
 

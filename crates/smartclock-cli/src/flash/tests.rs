@@ -18,7 +18,7 @@ use smartclock_sim::transport::SimTransport;
 
 use super::Link;
 use super::Mode;
-use super::chips::check;
+use super::chips::examine;
 use super::chips::join;
 use super::chips::split;
 use super::firmware::Firmware;
@@ -229,7 +229,7 @@ fn chip_dumps_join_in_their_labeled_order_and_split_back_and_swaps_are_told() {
     assert!(chips.iter().all(|chip| chip.len() == DUMP.len() / 4));
     let image = join(&chips).unwrap();
     assert_eq!(image, DUMP);
-    check(&image).unwrap();
+    assert!(examine(&image).sound);
     Firmware::validate(image).unwrap();
     let [chip_1l, chip_1m, chip_2l, chip_2m] = chips;
     // Lanes swapped within a pair keep the lane sums, so the reset
@@ -242,7 +242,13 @@ fn chip_dumps_join_in_their_labeled_order_and_split_back_and_swaps_are_told() {
     ])
     .unwrap();
     Layout::AmdLanes.verify(&lanes_swapped).unwrap();
-    assert!(check(&lanes_swapped).is_err());
+    let told = examine(&lanes_swapped);
+    assert!(!told.sound);
+    assert!(
+        told.lines[0].contains("pair 1 look swapped"),
+        "{:?}",
+        told.lines
+    );
     let pairs_swapped = join(&[
         chip_2l.clone(),
         chip_2m.clone(),
@@ -254,6 +260,13 @@ fn chip_dumps_join_in_their_labeled_order_and_split_back_and_swaps_are_told() {
         Layout::AmdLanes.verify(&pairs_swapped),
         Err(ImageError::Checksum { .. })
     ));
+    let told = examine(&pairs_swapped);
+    assert!(!told.sound);
+    assert!(
+        told.lines[1].contains("pairs 1 and 2 look swapped"),
+        "{:?}",
+        told.lines
+    );
     assert!(join(&[chip_1l[1..].to_vec(), chip_1m, chip_2l, chip_2m]).is_err());
     assert!(split(&DUMP[1..]).is_err());
 }
@@ -586,4 +599,13 @@ fn a_stopped_write_names_a_new_transcript_for_the_rerun() {
         rerun(args("smartclock-cli --capture=t.jsonl flash z.bin")),
         "smartclock-cli --capture=t.jsonl.rerun flash z.bin"
     );
+}
+
+#[test]
+fn an_image_checked_by_its_word_sum_is_split_and_joined_and_found_sound() {
+    let image = include_bytes!("../../../../third_party/58503b-1.01.04.bin").to_vec();
+    let told = examine(&image);
+    assert!(told.sound, "{:?}", told.lines);
+    assert!(told.lines[1].contains("word sum"), "{:?}", told.lines);
+    assert_eq!(join(&split(&image).unwrap()).unwrap(), image);
 }

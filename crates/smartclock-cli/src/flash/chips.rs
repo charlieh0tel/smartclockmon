@@ -1,13 +1,20 @@
-//! `join-chips` and `split-chips`: a flash image from, or into, the
-//! four AM29F010 chip dumps of a Z3801A, Z3805A or 58503A.
+//! `join-chips` and `split-chips`: a flash image from, or into, four
+//! chip dumps.
 //!
 //! The chips are in word-interleaved pairs, the M part holding the
 //! even bytes and the L part the odd ones; pair 1 is the low half of
 //! the image and pair 2 the high (docs/firmware/restart.md, "The
-//! installer").  Pairs swapped fail the boot code's lane checksums,
-//! which cover different ranges of each half.  Chips swapped within a
-//! pair do not, since the stored sums swap lanes with the bytes they
-//! cover; the reset vector tells that case, read byte-swapped.
+//! installer").  That is all either command does to the bytes, so it
+//! does it whatever they hold, and then says what the result looks
+//! like: whose reset vector it starts with, which boot checksum holds,
+//! and which chips look swapped if neither does.  Nothing it finds is
+//! a reason to refuse: these are files to look at, and `flash`, which
+//! programs a receiver, makes its own checks.
+//!
+//! Pairs swapped fail the boot checksums, which cover different ranges
+//! of each half.  Chips swapped within a pair keep the lane sums, since
+//! the stored sums swap lanes with the bytes they cover; the reset
+//! vector tells that case, read byte-swapped.
 
 use std::path::Path;
 use std::path::PathBuf;
@@ -25,10 +32,43 @@ use crate::flash::firmware::PROFILES;
 /// One AM29F010 holds a quarter of the image.
 const CHIP_SIZE: usize = IMAGE_SIZE / 4;
 
-/// The CPU32 reset vector every AMD-flash image starts with: the
-/// stack at the top of the 64 KB of RAM at `0x100000`, and entry at
-/// `0x550` (docs/firmware/restart.md, "The installer").
-const RESET_VECTOR: [u8; 8] = [0x00, 0x10, 0xff, 0xfe, 0x00, 0x00, 0x05, 0x50];
+/// The CPU32 reset vectors these receivers start with: the stack at
+/// the top of the 64 KB of RAM at `0x100000`, and entry at `0x550` on a
+/// 58503A, Z3801A or Z3805A, at `0x400` on a 58503B, Z3815A or Z3816A
+/// (docs/firmware/restart.md, "The installer").
+const RESET_VECTORS: [[u8; 8]; 2] = [
+    [0x00, 0x10, 0xff, 0xfe, 0x00, 0x00, 0x05, 0x50],
+    [0x00, 0x10, 0xff, 0xfe, 0x00, 0x00, 0x04, 0x00],
+];
+
+/// The boot checksums, each with the receivers whose boot code checks
+/// it (docs/firmware/restart.md, "Boot check").
+const CHECKSUMS: [(Layout, &str); 2] = [
+    (
+        Layout::AmdLanes,
+        "the lane sums of a 58503A, Z3801A or Z3805A",
+    ),
+    (
+        Layout::IntelWords,
+        "the word sum of a 58503B, Z3815A or Z3816A",
+    ),
+];
+
+/// Images known by their SHA-256 that are not audited for flashing:
+/// named when joined or split, never programmed.  Model, revision and
+/// hash, as `third_party/NOTICE` records them.
+const KNOWN: [(&str, &str, &str); 2] = [
+    (
+        "58503B",
+        "1.01.04",
+        "2ea754e9d5a8f1990a586aa43f78391ab89cc8a88ae9152a91d66f5dac521dd4",
+    ),
+    (
+        "Z3815A",
+        "U-4010.0",
+        "5aa9083d850128eefc2a1b9282e89f48c82c63c7abbe362862f8d88d70968e80",
+    ),
+];
 
 /// The four chip files, by the position printed on their labels.
 #[derive(Debug, clap::Args)]
@@ -122,42 +162,91 @@ pub(super) fn split(image: &[u8]) -> Result<Chips> {
     Ok([lane(low, 1), lane(low, 0), lane(high, 1), lane(high, 0)])
 }
 
-/// Whether the image starts and sums as one of these receivers boots.
-pub(super) fn check(image: &[u8]) -> Result<()> {
-    let vector = &image[..RESET_VECTOR.len()];
-    if vector != RESET_VECTOR {
-        let swapped: Vec<u8> = vector
-            .chunks(2)
-            .flat_map(|word| [word[1], word[0]])
-            .collect();
-        let why = if swapped == RESET_VECTOR {
-            "the L and M chips of pair 1 are swapped"
-        } else {
-            "not the image of a receiver with these chips (the Z3816A's is one part); \
-             from dumps, pair 1 may not be the low half, or a dump is bad"
-        };
-        anyhow::bail!("reset vector is {vector:02x?}, not {RESET_VECTOR:02x?}: {why}");
-    }
-    Layout::AmdLanes
-        .verify(image)
-        .context("boot checksums fail: the pairs may be swapped, or a dump is bad")?;
-    Ok(())
+/// What an image's bytes say about how it was put together: a line
+/// each, and whether all of them are as a receiver boots.
+#[derive(Debug)]
+pub(super) struct Findings {
+    /// What was found, for the reader.
+    pub(super) lines: Vec<String>,
+    /// Whether it starts with a reset vector and sums as one of these
+    /// receivers boots.
+    pub(super) sound: bool,
 }
 
-/// Say which audited image this is, if any.
+/// Look at an image as these receivers' boot code would.
+pub(super) fn examine(image: &[u8]) -> Findings {
+    let mut lines = Vec::new();
+    let vector = &image[..8];
+    let swapped: Vec<u8> = vector
+        .chunks(2)
+        .flat_map(|word| [word[1], word[0]])
+        .collect();
+    let started = RESET_VECTORS.iter().any(|known| known == vector);
+    lines.push(if started {
+        "reset vector: as these receivers start".to_owned()
+    } else if RESET_VECTORS.iter().any(|known| known.as_slice() == swapped) {
+        format!("reset vector {vector:02x?} is byte-swapped: the L and M chips of pair 1 look swapped")
+    } else {
+        format!(
+            "reset vector {vector:02x?} is none of these receivers': pair 1 may not be the low half, \
+             or a dump is bad"
+        )
+    });
+    let holds = |bytes: &[u8]| {
+        CHECKSUMS
+            .iter()
+            .find(|(layout, _)| layout.verify(bytes).is_ok())
+    };
+    let summed = holds(image);
+    lines.push(match summed {
+        Some((_, which)) => format!("boot checksum: {which} holds"),
+        None => {
+            let (low, high) = image.split_at(IMAGE_SIZE / 2);
+            if holds(&[high, low].concat()).is_some() {
+                "no boot checksum holds as joined, but one does with the halves exchanged: \
+                 pairs 1 and 2 look swapped"
+                    .to_owned()
+            } else {
+                "no boot checksum holds: the chips may be out of order, or a dump is bad".to_owned()
+            }
+        }
+    });
+    Findings {
+        lines,
+        sound: started && summed.is_some(),
+    }
+}
+
+/// Print what was found, a fault to standard error.
+fn report(findings: &Findings) {
+    for line in &findings.lines {
+        if findings.sound {
+            println!("{line}");
+        } else {
+            eprintln!("{line}");
+        }
+    }
+}
+
+/// Say which image this is, if it is known by its hash, and whether it
+/// is audited for flashing.
 fn identify(image: &[u8]) -> String {
     let hash: String = Sha256::digest(image)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect();
-    let known = PROFILES
+    let audited = PROFILES
         .iter()
         .find(|profile| profile.sha256 == hash)
-        .map_or_else(
-            || "not an audited image".to_string(),
-            |profile| format!("{} {}", profile.model, profile.revision),
-        );
-    format!("Image: {known}; SHA-256 {hash}")
+        .map(|profile| format!("{} {}", profile.model, profile.revision));
+    let known = KNOWN
+        .iter()
+        .find(|(_, _, sha256)| *sha256 == hash)
+        .map(|(model, revision, _)| format!("{model} {revision}, not audited for flashing"));
+    let named = audited
+        .or(known)
+        .unwrap_or_else(|| "not a known image".to_owned());
+    format!("Image: {named}; SHA-256 {hash}")
 }
 
 fn read(path: &Path) -> Result<Vec<u8>> {
@@ -168,10 +257,8 @@ fn write(path: &Path, bytes: &[u8]) -> Result<()> {
     std::fs::write(path, bytes).with_context(|| format!("writing {}", path.display()))
 }
 
-/// Read the four dumps, write the image, and say what it is: which
-/// audited image, if any, and whether it starts and sums as it
-/// should.  A failed check is reported after the image is written,
-/// since the bytes are still worth looking at.
+/// Read the four dumps, write the image, and say what it is and how it
+/// looks.
 pub(crate) fn run_join(args: &JoinArgs) -> Result<()> {
     let chips: Chips = args
         .chips
@@ -184,18 +271,17 @@ pub(crate) fn run_join(args: &JoinArgs) -> Result<()> {
     let image = join(&chips)?;
     write(&args.image, &image)?;
     println!("{}; written to {}", identify(&image), args.image.display());
-    check(&image)?;
-    println!("Reset vector and boot checksums valid.");
+    report(&examine(&image));
     Ok(())
 }
 
-/// Read an image, require it to be one these chips hold, and write
-/// the four dumps.
+/// Read an image, write the four dumps, and say what the image is and
+/// how it looks.
 pub(crate) fn run_split(args: &SplitArgs) -> Result<()> {
     let image = read(&args.image)?;
     let chips = split(&image)?;
     println!("{}", identify(&image));
-    check(&image)?;
+    report(&examine(&image));
     for ((name, path), chip) in args.chips.each().into_iter().zip(&chips) {
         write(path, chip)?;
         println!(
