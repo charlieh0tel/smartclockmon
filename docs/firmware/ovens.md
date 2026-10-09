@@ -173,3 +173,39 @@ every 0xcc passes (`FUN_00033ad0`: `GPS 1pps signal is dead`, `...
 frequency is incorrect`, expecting 8 to 12 in ten samples) and does
 the same for an internal 1 PPS (`FUN_00033c4a`, setting `0x102229`,
 which the loop treats as an error).
+
+## In every image
+
+Every image has the `doven` console word, setting and clearing bit 5
+of `0xfff907` (an `ori.b #0x20` and an `andi.b #0xdf`), the
+`internal oven warmup` and `external oven warmup` state names and
+`hdac_write`.  What differs is whether anything but the console raises
+that bit.  Each image's reset code sets the port's direction register,
+DDRGP at `0xfff906` (MC68331UM D.2.4: a 1 makes the pin an output), and
+its data, PORTGP at `0xfff907`.  Read on 2026-10-09:
+
+| Image | DDRGP, PORTGP at reset | Raised by the power-up and recovery machines |
+| ----- | ---------------------- | -------------------------------------------- |
+| Z3816A 4001 | `0xbc`, `0x80` (`0x22130`) | yes (`0x4996c`, `0x49c00`) |
+| Z3801A 3543 | `0xbc`, `0x80` (`0x12068`) | yes (`0x45f84`, `0x461fe`) |
+| Z3805A 3543B | `0xbc`, `0x80` (`0x12068`) | yes (`0x45f4c`, `0x461c6`) |
+| 58503A 3633 | `0xbc`, `0x80` (`0x12124`) | yes (`0x46016`, `0x462aa`) |
+| 58503A 3704 | `0xbc`, `0x80` (`0x121ae`) | no |
+| Z3815A 4010 | `0x00`, `0x00` (`0x221c6`) | no |
+| 58503B 1.01.04 | `0xbc`, `0x80` (`0x22204`) | no |
+
+`0xbc` makes PGP5 an output and `0x80` leaves it low, so every image
+but the Z3815A starts with the outer oven off.  In 3704 the two
+machines are 3633's with the `ori.b #0x20,0xfff907` taken out and
+nothing put in its place: each still enters `external oven warmup` and
+sets its flag (`0x101e75`, at `0x46136` and `0x463c6`), and the
+recovery machine's jump table is eight bytes, the one instruction,
+shorter.  So in 3704 and the 58503B only `doven` raises the outer
+oven's enable.  The Z3815A makes all of port GP inputs at reset, and
+nothing in its image changes DDRGP afterwards, so its `doven` writes a
+pin that does not drive.
+
+The Z3801A's "Secondary oven voltage" monitor is in the Z3801A and
+Z3805A images only; 58503A 3633 has the `adc_doven` word that reads
+it, but not the message.  The channel names are in `loop.md`, "In
+every image".
