@@ -80,9 +80,18 @@ the decisions behind it.
 
 ## The browser
 
-The browser view is read-only and is not the monitor in a window: it
-draws what a terminal cannot, mainly history that can be dragged to
-zoom, and the polar sky plot.
+The browser view is not the monitor in a window: it draws what a
+terminal cannot, mainly history that can be dragged to zoom, and the
+polar sky plot.  It reads the logs and never writes them, with one
+exception it passes on rather than makes: the journal's notes tab adds
+a note, and changes or deletes one (a delete takes a second click),
+through the daemon attached to the receiver, the log's only writer.
+What a changed note said before stays in the log.  A note of a
+receiver with no daemon attached cannot be written from the page, and
+a note changed elsewhere since the page read it is left alone, with
+the page saying so.  The server takes these only as JSON by POST, so a
+page on another site cannot submit a form to it; who may reach it at
+all is not restricted.
 
 Any number of series can be stacked, and they share a time axis by
 construction: one request buckets them all in the same pass, so their

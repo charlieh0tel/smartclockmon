@@ -616,9 +616,6 @@ view cannot drift apart.  The library, bottom up:
   without bound.
 - **Bench work:** the open items in `docs/hardware-investigations.md`,
   each with its TODO.
-- **Editing notes from the web view**, through the daemon socket.
-  Needs POST bodies in `smartclock-http`, `/api/notes` returning each
-  note's `id`, and edit requests keyed by it.
 
 ## Open questions
 

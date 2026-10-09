@@ -26,6 +26,7 @@ use clap::CommandFactory as _;
 use clap::FromArgMatches as _;
 use clap::Parser;
 use jiff::Timestamp;
+use serde::Deserialize;
 use smartclock::client;
 use smartclock::client::Daemon;
 use smartclock::client::Daemons;
@@ -183,6 +184,15 @@ fn main() -> Result<()> {
             "/api/journal" => json(journal(&logs, query)),
             "/api/facts" => json(facts(&logs, query)),
             "/api/notes" => json(notes(&logs, query)),
+            path if path.starts_with(NOTE_WRITES) => match request.method {
+                "POST" => json(write_note(
+                    &daemons,
+                    &cache,
+                    &path[NOTE_WRITES.len()..],
+                    request.body,
+                )),
+                _ => Response::refused("405 Method Not Allowed", "a note is written with POST"),
+            },
             "/api/receivers" => json(receivers(&logs, &daemons, &cache)),
             "/api/adev" => json(deviation(&logs, query)),
             "/api/sensors" => json(sensors(&sensor_log)),
@@ -370,7 +380,12 @@ fn live(daemons: &Daemons, cache: &Cache) -> Vec<Live> {
 /// and the page is told so.  Without one, the only daemon, or the
 /// first by instance name.
 fn choose(daemons: &Daemons, cache: &Cache, query: &str) -> Result<PathBuf> {
-    let asked = smartclock_http::value(query, "receiver");
+    daemon_for(daemons, cache, smartclock_http::value(query, "receiver"))
+}
+
+/// The daemon attached to receiver `asked`, by serial, or with none
+/// asked the first daemon running.
+fn daemon_for(daemons: &Daemons, cache: &Cache, asked: Option<String>) -> Result<PathBuf> {
     match asked {
         Some(serial) => live(daemons, cache)
             .into_iter()
@@ -384,6 +399,59 @@ fn choose(daemons: &Daemons, cache: &Cache, query: &str) -> Result<PathBuf> {
             .map(|instance| instance.endpoint)
             .ok_or_else(|| anyhow::anyhow!("no daemon is running")),
     }
+}
+
+/// Where a page adds, changes or deletes a note: `add`, `edit` or
+/// `delete` after it, by POST.
+const NOTE_WRITES: &str = "/api/notes/";
+
+/// What a page sends to add, change or delete a note, as JSON.
+#[derive(Debug, Deserialize)]
+struct NoteWrite {
+    /// The serial of the receiver whose log it is in, which picks the
+    /// daemon.
+    receiver: String,
+    /// Which note, for a change or a delete.
+    id: Option<i64>,
+    /// What it says, for an addition or a change.
+    #[serde(default)]
+    text: String,
+    /// When it happened: now for an addition and unchanged for a
+    /// change when absent.
+    at: Option<jiff::Timestamp>,
+    /// The text the page showed, so a note changed since is left alone.
+    was: Option<String>,
+}
+
+/// Add, change or delete a note, `action` saying which, through the
+/// daemon attached to its receiver: the daemon is the log's only
+/// writer, and this server only ever reads the logs.
+fn write_note(
+    daemons: &Daemons,
+    cache: &Cache,
+    action: &str,
+    body: &str,
+) -> Result<serde_json::Value> {
+    let asked: NoteWrite = serde_json::from_str(body)?;
+    let mut daemon = Daemon::connect(&daemon_for(daemons, cache, Some(asked.receiver.clone()))?)?;
+    let id = || {
+        asked
+            .id
+            .ok_or_else(|| anyhow::anyhow!("which note: no id was given"))
+    };
+    let filed = match action {
+        "add" => daemon.note(&asked.text, asked.at)?,
+        "edit" => daemon.edit_note(
+            id()?,
+            &asked.text,
+            asked.at,
+            asked.was.as_deref(),
+            Some(&asked.receiver),
+        )?,
+        "delete" => daemon.delete_note(id()?, asked.was.as_deref(), Some(&asked.receiver))?,
+        other => anyhow::bail!("there is no note action {other:?}"),
+    };
+    Ok(serde_json::json!({ "receiver": filed.receiver, "written": filed.written }))
 }
 
 /// How many of each journal stream the page is given.

@@ -87,6 +87,11 @@ footer { grid-column: 1 / -1; color: var(--dim); font-size: 11px; }
 #journal { max-height: 20rem; overflow-y: auto; }
 #journal table { font-variant-numeric: tabular-nums; }
 #journal td:first-child { color: var(--dim); white-space: nowrap; padding-right: 10px; }
+#journal .note-tools { white-space: nowrap; }
+#journal .note-tools button { padding: 0 6px; font-size: 11px; }
+#journal .note-new-text { min-width: 20ch; flex: 1; }
+#note-form { margin-bottom: 8px; }
+#note-form #note-text { flex: 1; min-width: 12ch; }
 #journal-tabs button.on { background: var(--line); color: var(--fg); }
 /* The panel heading sits on the controls row here, so it drops the
    bottom margin the standalone headings keep. */

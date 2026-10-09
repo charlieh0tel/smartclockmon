@@ -47,6 +47,12 @@
     <span class="grow"></span>
     <span id="journal-tabs"></span>
   </div>
+  <div id="note-form" class="controls" hidden>
+    <input id="note-text" placeholder="Add a note: what changed on the bench" aria-label="New note">
+    <input id="note-when" type="datetime-local" step="1" title="When it happened; now if left empty" aria-label="When">
+    <button id="note-add">Add</button>
+    <span id="note-said" class="muted"></span>
+  </div>
   <div id="journal"><span class="muted">waiting...</span></div>
 </div>
 
@@ -565,7 +571,10 @@ const rows = {
   notes: (r) => [
     local(r.at),
     `<span class="note-link" data-at="${Date.parse(r.at) / 1000}" ` +
-      `title="Show an hour either side on the charts">${esc(r.text)}</span>`,
+      `title="Show an hour either side on the charts">${esc(r.text)}</span>` +
+      ` <span class="note-tools"><span class="muted">#${r.id}</span>` +
+      ` <button class="note-edit" data-id="${r.id}">edit</button>` +
+      ` <button class="note-delete" data-id="${r.id}">delete</button></span>`,
   ],
 };
 
@@ -621,6 +630,105 @@ function showStream(journal) {
   for (const link of $("journal").querySelectorAll(".note-link")) {
     link.onclick = () => showNote(Number(link.dataset.at));
   }
+  $("note-form").hidden = stream !== "notes";
+  for (const button of $("journal").querySelectorAll(".note-edit")) {
+    button.onclick = () => editNote(list.find((n) => n.id === Number(button.dataset.id)), button);
+  }
+  for (const button of $("journal").querySelectorAll(".note-delete")) {
+    button.onclick = () => deleteNote(list.find((n) => n.id === Number(button.dataset.id)), button);
+  }
+}
+
+// ----------------------------------------------------------- writing notes
+//
+// Through the receiver's daemon, which is its log's only writer; this
+// page only ever reads the logs.  A note changed since the page read it
+// is left alone and the page says so, so two people editing at once do
+// not undo each other.
+
+// How long a delete waits for its second click before standing down.
+const CONFIRM_FOR = 4000;
+
+// A datetime-local field's value as an instant, or null when empty.
+const fromLocal = (value) => (value ? new Date(value).toISOString() : null);
+
+// An instant as a datetime-local field shows it, in local time.
+function toLocal(iso) {
+  const at = new Date(iso);
+  const shifted = new Date(at.getTime() - at.getTimezoneOffset() * 60000);
+  return shifted.toISOString().slice(0, 19);
+}
+
+// Say how a write went, and read the journal and the charts again.
+async function wrote(action, request) {
+  try {
+    const filed = await post(`/api/notes/${action}`, { receiver: unit, ...request });
+    $("note-said").textContent = filed.written
+      ? `${action === "add" ? "added" : action === "edit" ? "changed" : "deleted"}`
+      : "queued: the daemon is busy and writes it shortly";
+    renew(true);
+    return true;
+  } catch (e) {
+    $("note-said").textContent = `not written: ${e.message}`;
+    return false;
+  }
+}
+
+$("note-add").onclick = async () => {
+  const text = $("note-text").value.trim();
+  if (!text) {
+    $("note-said").textContent = "a note needs some text";
+    return;
+  }
+  const at = fromLocal($("note-when").value);
+  if (await wrote("add", { text, ...(at ? { at } : {}) })) {
+    $("note-text").value = "";
+    $("note-when").value = "";
+  }
+};
+$("note-text").onkeydown = (e) => {
+  if (e.key === "Enter") $("note-add").click();
+};
+
+// Replace a note's row with fields to change it in.
+function editNote(note, button) {
+  const cell = button.closest("td");
+  cell.innerHTML =
+    `<span class="controls">` +
+    `<input class="note-new-text" aria-label="Note" value="${esc(note.text)}">` +
+    `<input class="note-new-when" type="datetime-local" step="1" aria-label="When" value="${toLocal(note.at)}">` +
+    `<button class="note-save">save</button> <button class="note-cancel">cancel</button></span>`;
+  const text = cell.querySelector(".note-new-text");
+  text.focus();
+  cell.querySelector(".note-cancel").onclick = () => renew(true);
+  const save = async () => {
+    const changed = text.value.trim();
+    if (!changed) {
+      $("note-said").textContent = "a note needs some text; to remove it, delete it";
+      return;
+    }
+    const at = fromLocal(cell.querySelector(".note-new-when").value);
+    await wrote("edit", { id: note.id, text: changed, was: note.text, ...(at ? { at } : {}) });
+  };
+  cell.querySelector(".note-save").onclick = save;
+  text.onkeydown = (e) => {
+    if (e.key === "Enter") save();
+    if (e.key === "Escape") renew(true);
+  };
+}
+
+// Delete a note on a second click, so one stray click deletes nothing.
+function deleteNote(note, button) {
+  if (button.dataset.armed) {
+    wrote("delete", { id: note.id, was: note.text });
+    return;
+  }
+  button.dataset.armed = "1";
+  button.textContent = "really delete?";
+  setTimeout(() => {
+    delete button.dataset.armed;
+    button.textContent = "delete";
+  }, CONFIRM_FOR);
 }
 
 async function loadJournal(signal) {
@@ -641,7 +749,7 @@ async function loadJournal(signal) {
 async function loadAbout(signal) {
   const info = await ask("/api/info" + liveQuery(), signal);
   $("about").textContent =
-    [info.identity, info.dialect, `smartclockd ${info.version ?? "?"}`, "read only"]
+    [info.identity, info.dialect, `smartclockd ${info.version ?? "?"}`]
       .filter(Boolean)
       .join("  --  ");
 }

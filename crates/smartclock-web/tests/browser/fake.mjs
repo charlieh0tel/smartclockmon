@@ -64,6 +64,10 @@ export class Fake {
     // The host's sensors, [{ name, quantity, unit, value }], or null for
     // a host without the sensor service.
     this.sensors = null;
+    // Each note written through the page, { action, body }, in order.
+    this.writes = [];
+    // What a note write is answered with, unless a test says otherwise.
+    this.writeAnswer = { receiver: "HEWLETT-PACKARD,58503A,X,3704-C", written: true };
   }
 
   unit(serial) {
@@ -153,7 +157,7 @@ export class Fake {
         // it is.
         const at = RECORDED.history.at;
         const mid = at[Math.floor(at.length / 2)];
-        return { ...body, notes: [{ at: new Date(mid * 1000).toISOString(), text: `note of ${u.serial}` }] };
+        return { ...body, notes: [{ id: 7, at: new Date(mid * 1000).toISOString(), text: `note of ${u.serial}` }] };
       }
       default:
         return body;
@@ -168,6 +172,15 @@ export class Fake {
       const url = new URL(route.request().url());
       const endpoint = url.pathname.replace("/api/", "");
       this.seen[endpoint] = (this.seen[endpoint] ?? 0) + 1;
+      if (endpoint.startsWith("notes/") && route.request().method() === "POST") {
+        this.writes.push({
+          action: endpoint.slice("notes/".length),
+          body: JSON.parse(route.request().postData()),
+          type: route.request().headers()["content-type"],
+        });
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify(this.writeAnswer) });
+        return;
+      }
       const u = this.unit(url.searchParams.get("receiver"));
       // With no receiver at all, only the host's own endpoints answer.
       const host = endpoint === "receivers" || endpoint.startsWith("sensors");

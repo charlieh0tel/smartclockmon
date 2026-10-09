@@ -55,6 +55,27 @@ async function getJson(url) {
   }
 }
 
+// How long a write through a daemon may take: the daemon waits up to
+// fifteen seconds for its log thread before answering "queued".
+const WRITE_TIMEOUT = 20000;
+
+// Send `body` as JSON by POST and return the answer, or throw with the
+// server's reason.  For the few things a page writes, which go through
+// a daemon.
+async function post(url, body) {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(WRITE_TIMEOUT),
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error(text.trim() || `the server answered ${r.status}`);
+  const answer = JSON.parse(text);
+  if (answer?.error) throw new Error(answer.error);
+  return answer;
+}
+
 // An answer that arrived for a receiver or a range nobody is looking at
 // any more.  The lifecycle drops it without a word.
 class Superseded extends Error {}

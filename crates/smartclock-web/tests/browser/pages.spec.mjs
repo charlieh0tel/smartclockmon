@@ -757,3 +757,46 @@ test("a sensor read less often than the buckets are wide is still drawn as a lin
   expect(drawn.points).toBeGreaterThan(1);
   expect(drawn.missing).toBe(0);
 });
+
+test("a note is added, edited and deleted from the journal, through the receiver's daemon", async ({ page }) => {
+  const fake = twoUnits();
+  await open(page, fake, "/", B);
+  await page.locator('#journal-tabs button[data-stream="notes"]').click();
+  await expect(page.locator("#note-form")).toBeVisible();
+
+  await page.locator("#note-text").fill("moved the antenna");
+  await page.locator("#note-add").click();
+  await expect(page.locator("#note-said")).toHaveText("added");
+  expect(fake.writes[0]).toEqual({
+    action: "add",
+    body: { receiver: B, text: "moved the antenna" },
+    type: "application/json",
+  });
+
+  await page.locator(".note-edit").first().click();
+  await page.locator(".note-new-text").fill("moved the antenna 2 m");
+  await page.locator(".note-save").click();
+  await expect(page.locator("#note-said")).toHaveText("changed");
+  const edited = fake.writes[1];
+  expect(edited.action).toBe("edit");
+  expect(edited.body).toMatchObject({ receiver: B, id: 7, text: "moved the antenna 2 m", was: `note of ${B}` });
+
+  // One click arms the delete; only the second sends it.
+  await page.locator(".note-delete").first().click();
+  expect(fake.writes.length).toBe(2);
+  await page.locator(".note-delete").first().click();
+  await expect(page.locator("#note-said")).toHaveText("deleted");
+  expect(fake.writes[2]).toMatchObject({ action: "delete", body: { receiver: B, id: 7, was: `note of ${B}` } });
+});
+
+test("a note the daemon refuses says why", async ({ page }) => {
+  const fake = twoUnits();
+  fake.writeAnswer = { error: "note 7 has changed since it was read; read it again" };
+  await open(page, fake, "/", B);
+  await page.locator('#journal-tabs button[data-stream="notes"]').click();
+  await page.locator(".note-edit").first().click();
+  await page.locator(".note-new-text").fill("something else");
+  await page.locator(".note-save").click();
+  await expect(page.locator("#note-said")).toContainText("has changed since it was read");
+});
+
