@@ -11,7 +11,7 @@
 //! gets added to one server and forgotten in the other.  The daemon's
 //! own socket server learned all three of them the hard way.
 
-use std::io::BufRead as _;
+use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read as _;
 use std::io::Write as _;
@@ -31,6 +31,20 @@ use std::time::Instant;
 /// a hostile one never does: on a local network that is memory filling
 /// at wire speed from a single connection.
 const MAX_REQUEST: u64 = 8192;
+
+/// The most header bytes read, all lines together, for the same reason
+/// as [`MAX_REQUEST`].
+const MAX_HEADERS: u64 = 16384;
+
+/// The largest request body read.  A note is a line or two; this is
+/// generous.
+const MAX_BODY: usize = 16384;
+
+/// The only body this server reads.  Anything else is refused, which
+/// also keeps a page on another site from posting a form here: a
+/// browser asks first before sending JSON to another origin, and this
+/// server never says yes.
+const JSON: &str = "application/json";
 
 /// How long a client may take to send its request, or to read its
 /// answer, before it is dropped.
@@ -76,6 +90,8 @@ pub struct Request<'a> {
     pub method: &'a str,
     /// The target: the path and any query string.
     pub target: &'a str,
+    /// The body, JSON, for a POST; empty otherwise.
+    pub body: &'a str,
 }
 
 impl Request<'_> {
@@ -110,6 +126,17 @@ impl Response {
         Self {
             status: "200 OK",
             kind,
+            body,
+        }
+    }
+
+    /// A refusal, with the reason as its body.
+    pub fn refused(status: &'static str, why: impl Into<String>) -> Self {
+        let mut body = why.into();
+        body.push('\n');
+        Self {
+            status,
+            kind: "text/plain; charset=utf-8",
             body,
         }
     }
@@ -295,11 +322,85 @@ where
 
     // "GET /metrics HTTP/1.1".
     let mut words = line.split_whitespace();
+    let (method, target) = (words.next().unwrap_or("GET"), words.next().unwrap_or("/"));
+    let body = match read_body(&mut reader, method) {
+        Ok(body) => body,
+        Err(Some(refusal)) => {
+            let _ = write_response(stream, &refusal);
+            return;
+        }
+        Err(None) => return,
+    };
     let request = Request {
-        method: words.next().unwrap_or("GET"),
-        target: words.next().unwrap_or("/"),
+        method,
+        target,
+        body: &body,
     };
     let _ = write_response(stream, &answer(&request));
+}
+
+/// The headers, read and done with, and for a POST the body they
+/// announce: JSON, of a stated length, no longer than [`MAX_BODY`].
+/// `Err(None)` when the client went away, `Err(Some)` with what to tell
+/// it when the request is refused.
+fn read_body(reader: &mut impl BufRead, method: &str) -> Result<String, Option<Response>> {
+    let (mut length, mut kind) = (None, None);
+    let mut headers = reader.take(MAX_HEADERS);
+    loop {
+        let mut line = String::new();
+        match headers.read_line(&mut line) {
+            Ok(0) | Err(_) => return Err(None),
+            Ok(_) => {}
+        }
+        let line = line.trim_end();
+        if line.is_empty() {
+            break;
+        }
+        if let Some((name, value)) = line.split_once(':') {
+            let value = value.trim();
+            if name.eq_ignore_ascii_case("content-length") {
+                length = value.parse::<usize>().ok();
+            } else if name.eq_ignore_ascii_case("content-type") {
+                kind = Some(
+                    value
+                        .split(';')
+                        .next()
+                        .unwrap_or("")
+                        .trim()
+                        .to_ascii_lowercase(),
+                );
+            }
+        }
+    }
+    if method != "POST" {
+        return Ok(String::new());
+    }
+    if kind.as_deref() != Some(JSON) {
+        return Err(Some(Response::refused(
+            "415 Unsupported Media Type",
+            format!("a POST must be {JSON}"),
+        )));
+    }
+    let Some(length) = length else {
+        return Err(Some(Response::refused(
+            "411 Length Required",
+            "a POST must state its length",
+        )));
+    };
+    if length > MAX_BODY {
+        return Err(Some(Response::refused(
+            "413 Content Too Large",
+            format!("a body may not exceed {MAX_BODY} bytes"),
+        )));
+    }
+    let mut body = vec![0; length];
+    reader.read_exact(&mut body).map_err(|_| None)?;
+    String::from_utf8(body).map_err(|_| {
+        Some(Response::refused(
+            "400 Bad Request",
+            "the body is not UTF-8",
+        ))
+    })
 }
 
 /// A stream that stops reading at a fixed moment, however the bytes
@@ -422,5 +523,74 @@ mod tests {
         drop(server);
         let _ = client.join();
         assert!(took < Duration::from_secs(2), "held for {took:?}");
+    }
+
+    /// Send `raw` as a request to a handler that echoes the method and
+    /// body it was given, and return the response.
+    fn exchange(raw: &str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let address = listener.local_addr().expect("an address");
+        let raw = raw.to_owned();
+        let client = std::thread::spawn(move || {
+            let mut stream = TcpStream::connect(address).expect("connect");
+            stream.write_all(raw.as_bytes()).expect("send");
+            let mut answer = String::new();
+            std::io::Read::read_to_string(&mut stream, &mut answer).expect("read");
+            answer
+        });
+        let (server, _) = listener.accept().expect("accept");
+        handle_within(
+            &server,
+            &|request: &Request<'_>| {
+                Response::ok(
+                    "text/plain",
+                    format!("{} {} [{}]", request.method, request.target, request.body),
+                )
+            },
+            Duration::from_secs(5),
+        );
+        drop(server);
+        client.join().expect("the client")
+    }
+
+    #[test]
+    fn a_json_post_reaches_the_handler_with_its_body() {
+        let body = r#"{"text":"swapped the stick"}"#;
+        let answer = exchange(&format!(
+            "POST /api/notes HTTP/1.1\r\nHost: x\r\nContent-Type: application/json; charset=utf-8\r\n\
+             Content-Length: {}\r\n\r\n{body}",
+            body.len()
+        ));
+        assert!(answer.starts_with("HTTP/1.1 200"), "{answer}");
+        assert!(
+            answer.ends_with(&format!("POST /api/notes [{body}]")),
+            "{answer}"
+        );
+    }
+
+    #[test]
+    fn a_get_is_answered_as_before_whatever_its_headers() {
+        let answer = exchange("GET /api/notes?x=1 HTTP/1.1\r\nHost: x\r\nAccept: */*\r\n\r\n");
+        assert!(answer.ends_with("GET /api/notes?x=1 []"), "{answer}");
+    }
+
+    #[test]
+    fn a_post_of_anything_but_json_is_refused() {
+        let answer = exchange(
+            "POST /api/notes HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\
+             Content-Length: 4\r\n\r\na=bc",
+        );
+        assert!(answer.starts_with("HTTP/1.1 415"), "{answer}");
+    }
+
+    #[test]
+    fn a_post_without_a_length_or_too_long_is_refused() {
+        let unstated = exchange("POST /x HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{}");
+        assert!(unstated.starts_with("HTTP/1.1 411"), "{unstated}");
+        let long = exchange(&format!(
+            "POST /x HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+            super::MAX_BODY + 1
+        ));
+        assert!(long.starts_with("HTTP/1.1 413"), "{long}");
     }
 }
