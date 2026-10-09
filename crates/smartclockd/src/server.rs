@@ -23,6 +23,7 @@ use smartclock::command::Argument;
 use smartclock::command::Class;
 use smartclock::command::Dialect;
 use smartclock::command::Spec;
+use smartclock::control::names;
 use smartclock::protocol::Message;
 use smartclock::protocol::Op;
 use smartclock::server::Held;
@@ -490,19 +491,30 @@ fn check_argument(scpi: &str, spec: &Spec) -> Result<(), String> {
 /// guessing kindly could erase the receiver.
 fn raw_class(scpi: &str) -> Class {
     let upper = scpi.to_ascii_uppercase();
-    // Short forms cannot evade these: SCPI's mandatory abbreviations are
-    // COMMunicate, PRESet, ERASe and LANGuage, so every legal spelling
-    // still contains its needle.  The rest are from the receiver's own
-    // keyword table in docs/scpi/z3801-keywords.md: resets, anything that
-    // writes non-volatile memory, and any other route to the UART,
-    // since the gate's safety must not rest on COMMunicate being the
-    // only one.  Turning the prompt off would strand the link as surely
-    // as a baud change, because the session frames on it.
+    // Matched keyword by keyword (`names`), so short forms cannot evade
+    // these and a keyword merely beginning like one, `PRESent`, is not
+    // taken for it.  COMMunicate, PRESet, ERASe and LANGuage strand the
+    // link or the receiver; the rest are from the receiver's own keyword
+    // table in docs/scpi/z3801-keywords.md: resets, anything that writes
+    // non-volatile memory, and any other route to the UART, since the
+    // gate's safety must not rest on COMMunicate being the only one.
+    // Turning the prompt off would strand the link as surely as a baud
+    // change, because the session frames on it.
     const STRANDS: [&str; 12] = [
-        "COMM", "PRES", "ERAS", "LANG", "RST", "EEPR", "WRIT", "SAVE", "BAUD", "UART", "PROM",
-        "MEM",
+        "COMMunicate",
+        "PRESet",
+        "ERASe",
+        "LANGuage",
+        "RST",
+        "EEPRom",
+        "WRITe",
+        "SAVE",
+        "BAUD",
+        "UART",
+        "PROMpt",
+        "MEMory",
     ];
-    if STRANDS.iter().any(|needle| upper.contains(needle)) {
+    if STRANDS.iter().any(|keyword| names(scpi, keyword)) {
         return Class::Dangerous;
     }
     // Reading an event register, or the standard event status register,
@@ -755,6 +767,12 @@ mod tests {
         ] {
             assert_eq!(raw_class(dangerous), Class::Dangerous, "{dangerous}");
         }
+    }
+
+    #[test]
+    fn a_keyword_that_only_begins_like_a_stranding_one_is_not_taken_for_it() {
+        assert_eq!(raw_class(":KENneth:PRESent?"), Class::Query);
+        assert_eq!(raw_class(":KENneth:PRES?"), Class::Dangerous);
     }
 
     #[test]

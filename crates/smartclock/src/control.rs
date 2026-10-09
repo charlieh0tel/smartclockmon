@@ -131,30 +131,68 @@ impl<'a, T: Transport> Control<'a, T> {
 /// override: the daemon's `--allow-dangerous` is the one route to
 /// these, and a deliberate one.
 ///
-/// Matched on the mandatory abbreviations -- SYST, PRES, PON, COMM,
-/// ERAS, LANG -- anywhere in the string, so every legal spelling and a
-/// compound command hiding one after a semicolon are both caught.
+/// Matched keyword by keyword with `names`, so every legal spelling and
+/// a compound command hiding one after a semicolon are both caught,
+/// and `:KENneth:PRESent?` is not taken for `PRESet`.
 pub fn forbidden(scpi: &str) -> Option<&'static str> {
-    let upper = scpi.to_ascii_uppercase();
-    let bare_query = upper.ends_with('?') && !upper.contains(char::is_whitespace);
-    if upper.contains("COMM") {
+    let bare_query = scpi.ends_with('?') && !scpi.contains(char::is_whitespace);
+    if names(scpi, "COMMunicate") {
         Some(":SYSTem:COMMunicate")
-    } else if upper.contains("SYST") && upper.contains("PRES") {
+    } else if names(scpi, "SYSTem") && names(scpi, "PRESet") {
         Some(":SYSTem:PRESet")
-    } else if upper.contains("SYST") && upper.contains(":PON") {
+    } else if names(scpi, "SYSTem") && names(scpi, "PON") {
         Some(":SYSTem:PON")
-    } else if upper.contains("ERAS") {
+    } else if names(scpi, "ERASe") {
         Some(":DIAGnostic:ERASe")
-    } else if upper.contains("LANG") && !bare_query {
+    } else if names(scpi, "LANGuage") && !bare_query {
         Some(":SYSTem:LANGuage")
     } else {
         None
     }
 }
 
+/// Whether one of the keywords of `scpi` spells `keyword`, written as
+/// the manuals write it, short form upper case (`PRESet`).
+///
+/// A keyword of `scpi` is a run of letters and digits; a numeric suffix
+/// is set aside, and any length from the short form to the long one,
+/// in any case, spells it.  That is more than SCPI accepts, which
+/// errs toward finding the keyword: `PRES`, `PRESE` and `preset1` spell
+/// `PRESet`, `PRESent` and `PRE` do not.
+pub fn names(scpi: &str, keyword: &str) -> bool {
+    let long = keyword.to_ascii_uppercase();
+    let short: String = keyword
+        .chars()
+        .filter(|letter| !letter.is_ascii_lowercase())
+        .collect();
+    scpi.split(|letter: char| !letter.is_ascii_alphanumeric())
+        .map(|word| word.trim_end_matches(|letter: char| letter.is_ascii_digit()))
+        .filter(|word| !word.is_empty())
+        .any(|word| {
+            let word = word.to_ascii_uppercase();
+            word.starts_with(&short) && long.starts_with(&word)
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::forbidden;
+    use super::names;
+
+    #[test]
+    fn a_keyword_is_named_by_any_spelling_from_short_to_long() {
+        for scpi in [
+            ":SYST:PRES",
+            ":syst:preset",
+            "*IDN?;:SYSTem:PRESE",
+            ":X:PRESet1",
+        ] {
+            assert!(names(scpi, "PRESet"), "{scpi}");
+        }
+        for scpi in [":KENneth:PRESent?", ":PRE", ":REPRESet", ":PRESETS"] {
+            assert!(!names(scpi, "PRESet"), "{scpi}");
+        }
+    }
 
     #[test]
     fn the_five_are_refused_however_they_are_spelled() {
@@ -182,6 +220,7 @@ mod tests {
             ":STATus:PRESet",
             ":SYNChronization:TINTerval?",
             ":DIAGnostic:LOG:READ? 1",
+            ":SYSTem:STATus?;:KENneth:PRESent?",
         ] {
             assert_eq!(forbidden(scpi), None, "{scpi}");
         }
