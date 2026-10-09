@@ -1,3 +1,20 @@
+smartclockmon (1.5.4-1) unstable; urgency=low
+
+  * smartclock-cli dump-scpi prints every command path a flash image's
+    SCPI parser knows, read out of its own tables; with --models it
+    sets the trees of several images side by side against the
+    manuals and the command table, and lists the undocumented paths
+    that share a documented one's handlers and the stubs that only
+    refuse.  docs/scpi/ holds the tree of each image, checked by a
+    test, and docs/scpi/undocumented.md what is known of the commands
+    no manual has.
+  * The daemon and the direct-mode guard match a guarded keyword
+    whole, so :KENneth:PRESent? is no longer taken for :SYSTem:PRESet.
+  * Eleven undocumented 58503A queries, answered on hardware, are in
+    the command table.
+
+ -- Christopher Hoover <ch@murgatroid.com>  Fri, 09 Oct 2026 15:42:59 -0700
+
 smartclockmon (1.5.3-1) unstable; urgency=low
 
   * smartclock-cli join-chips and split-chips join or split any image
