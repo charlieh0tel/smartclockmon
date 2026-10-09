@@ -211,3 +211,16 @@ is ours.
 3. A color of the notes' own: which?
 4. `n` and Ctrl-click on this page: welcome?
 5. The phone in phase 2 alongside the desktop, or after it?
+6. Notes of several lines, or one line kept short?
+7. Is showing a note's earlier versions in the editor worth it?
+8. Should dragging a note's line or band on a chart move its time, or
+   is that too easy to do by accident?
+9. Automatic marks: which starts -- the daemon's, the host's, the
+   receiver's power-ups -- and on the charts or in the journal only?
+10. On a phone, a floating "+ note" button, or adding only from the
+    notes tab?
+11. Press-and-hold to read a chart on a phone: on every chart page, or
+    Live only?
+12. Delete by a second click, as now, or remove at once with a few
+    seconds to undo?  The design keeps the second click: an undo held
+    in the page is lost if the tab is closed.
