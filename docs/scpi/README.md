@@ -68,13 +68,13 @@ image.
 
 | Image | Paths | Query | Set | Root pair at |
 | ----- | ----- | ----- | --- | ------------ |
-| [`z3801a-3543`](z3801a-3543.txt) | 595 | 414 | 303 | `0x5cfae` |
-| [`z3805a-3543b`](z3805a-3543b.txt) | 595 | 414 | 303 | `0x5d014` |
-| [`z3816a-4001`](z3816a-4001.txt) | 902 | 638 | 507 | `0x64ae8` |
-| [`58503a-3633`](58503a-3633.txt) | 914 | 639 | 519 | `0x60d48` |
-| [`58503a-3704`](58503a-3704.txt) | 931 | 646 | 533 | `0x61218` |
-| [`z3815a-4010`](z3815a-4010.txt) | 965 | 680 | 552 | `0x6cd16` |
-| [`58503b-1.01.04`](58503b-1.01.04.txt) | 831 | 525 | 477 | `0x68316` |
+| [Z3801A 3543](z3801a-3543.txt) | 595 | 414 | 303 | `0x5cfae` |
+| [Z3805A 3543B](z3805a-3543b.txt) | 595 | 414 | 303 | `0x5d014` |
+| [Z3816A 4001](z3816a-4001.txt) | 902 | 638 | 507 | `0x64ae8` |
+| [58503A 3633](58503a-3633.txt) | 914 | 639 | 519 | `0x60d48` |
+| [58503A 3704](58503a-3704.txt) | 931 | 646 | 533 | `0x61218` |
+| [Z3815A 4010](z3815a-4010.txt) | 965 | 680 | 552 | `0x6cd16` |
+| [58503B 1.01.04](58503b-1.01.04.txt) | 831 | 525 | 477 | `0x68316` |
 
 ## Between images
 
@@ -112,19 +112,19 @@ Counted by path, ignoring handlers.
 
 ## Against the command table
 
-Each `commands.toml` entry of a dialect, looked for in that dialect's
-images, with `:SOURce` optional:
+Each `commands.toml` entry, looked for in the images of its models,
+with `:SOURce` optional:
 
-| Dialect | Image | Found |
-| ------- | ----- | ----- |
-| `hp58503` | 58503A 3633 | 119 of 130 |
-| `hp58503` | 58503A 3704 | 120 of 130 |
-| `hp58503` | Z3815A 4010 | 120 of 130 |
-| `hp58503` | 58503B 1.01.04 | 121 of 130 |
-| `z3801` | Z3801A 3543 | 78 of 82 |
-| `z3801` | Z3816A 4001 | 79 of 82 |
+| Command table entries | Image | Found |
+| --------------------- | ----- | ----- |
+| 58503A/B | 58503A 3633 | 119 of 130 |
+| 58503A/B | 58503A 3704 | 120 of 130 |
+| 58503A/B | Z3815A 4010 | 120 of 130 |
+| 58503A/B | 58503B 1.01.04 | 121 of 130 |
+| Z3801A | Z3801A 3543 | 78 of 82 |
+| Z3801A | Z3816A 4001 | 79 of 82 |
 
-Missing from every `hp58503` image: the three
+Missing from every image checked against the 58503A/B entries: the three
 `:SYNChronization:HOLDover:DURation:THReshold` entries, whose node is
 `:ROSCillator:HOLDover:DURation:MEASurement:THReshold`, and the six
 `:SYSTem:COMMunicate:SERial1:...` entries, whose settings sit under
@@ -132,7 +132,7 @@ Missing from every `hp58503` image: the three
 (`58503a.md`).  `:DIAGnostic:ERASe` is missing from all but the
 58503B, and `:DIAGnostic:ROSCillator:EFControl:DATA` from 3633 only.
 
-Missing from the `z3801` images: the two
+Missing from the images checked against the Z3801A entries: the two
 `:ROSCillator:HOLDover:DURation:THReshold` entries, whose node has
 `MEASurement` between (`z3801a.md`), `:DIAGnostic:ERASe`, and in
 3543 `:SYSTem:PON`.

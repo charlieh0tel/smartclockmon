@@ -158,19 +158,31 @@ fn spells(written: &str, path: &str) -> bool {
     matches(&keywords) || (keywords.first() == Some(&OPTIONAL_HEADER) && matches(&keywords[1..]))
 }
 
-/// The dialects whose command table entry for `path` a receiver has
-/// answered.
-fn answered(path: &str) -> Vec<&'static str> {
-    [Dialect::Hp58503, Dialect::Z3801]
+/// The receiver each dialect's `hardware` evidence came from: the
+/// 58503A is the only one of its dialect on the bench, and every
+/// `z3801` entry with that evidence cites the Z3805A.
+const CONFIRMED_ON: [(Dialect, &str); 2] =
+    [(Dialect::Hp58503, "58503A"), (Dialect::Z3801, "Z3805A")];
+
+/// The receivers that have answered the command table's entry for
+/// `path`.
+fn confirmed(path: &str) -> Vec<&'static str> {
+    CONFIRMED_ON
         .into_iter()
-        .filter(|dialect| {
+        .filter(|(dialect, _)| {
             dialect
                 .specs()
                 .iter()
                 .any(|spec| spec.evidence == Evidence::Hardware && spells(spec.scpi, path))
         })
-        .map(Dialect::name)
+        .map(|(_, model)| model)
         .collect()
+}
+
+/// An image's name as a heading: model and revision upper case, as
+/// the receivers print them, `z3805a-3543b` as `Z3805A 3543B`.
+fn title(name: &str) -> String {
+    name.to_ascii_uppercase().replacen('-', " ", 1)
 }
 
 /// A tree's cell for one path: `q` for a query handler, `s` for a
@@ -257,6 +269,7 @@ fn summary(out: &mut String, images: &[(String, Vec<Entry>)]) {
             .filter(|entry| entry.query || entry.setter)
             .map(|entry| entry.node)
             .collect();
+        let heading = title(name);
         let own = MANUALS.iter().find(|manual| manual.covers(name));
         let borrowed = || {
             MANUALS.iter().find_map(|manual| {
@@ -270,9 +283,10 @@ fn summary(out: &mut String, images: &[(String, Vec<Entry>)]) {
             borrowed().map(|(manual, lender)| {
                 let note = notes.len() + 1;
                 notes.push(format!(
-                    "[^{note}]: {name} has no manual of its own.  Its tree is \
-                         {lender}'s, path for path and handler for handler, so it is \
-                         counted against {}.",
+                    "[^{note}]: The {heading} has no manual of its own.  Its tree is \
+                     the {}'s, path for path and handler for handler, so it is \
+                     counted against {}.",
+                    title(lender),
                     manual.name
                 ));
                 (manual, format!("[^{note}]"))
@@ -283,7 +297,7 @@ fn summary(out: &mut String, images: &[(String, Vec<Entry>)]) {
                 let counts = count(manual, entries);
                 let _ = writeln!(
                     out,
-                    "| {name} | {}{note} | {} | {} | {} | {} | {} | {} |",
+                    "| {heading} | {}{note} | {} | {} | {} | {} | {} | {} |",
                     manual.name,
                     entries.len(),
                     counts.paths_listed,
@@ -296,7 +310,7 @@ fn summary(out: &mut String, images: &[(String, Vec<Entry>)]) {
             None => {
                 let _ = writeln!(
                     out,
-                    "| {name} | none | {} | | | {} | | |",
+                    "| {heading} | none | {} | | | {} | | |",
                     entries.len(),
                     handlers.len(),
                 );
@@ -312,11 +326,12 @@ fn summary(out: &mut String, images: &[(String, Vec<Entry>)]) {
 fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
     out.push_str(
         "## Every path\n\n\
-         Manuals names each manual listing the path by a letter, lower case\n\
-         where it lists it only among the installer's commands; blank, the\n\
-         path is in no manual.  Answered names each dialect whose\n\
-         `commands.toml` entry for the path a receiver has answered\n\
-         (evidence `hardware`).  An image's cell is `q` where its node has a\n\
+         Manuals names each manual listing the path by a letter, with\n\
+         `(INSTALL)` where it lists it only among the installer's commands;\n\
+         blank, the path is in no manual.  Confirmed names the bench\n\
+         receiver that has answered the path's `commands.toml` entry\n\
+         (evidence `hardware`); blank, no receiver has, or the path has no\n\
+         entry.  An image's cell is `q` where its node has a\n\
          query handler, `s` a setter, `qs` both, `-` neither, and blank\n\
          where the image has no such path.\n\n",
     );
@@ -332,10 +347,10 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
     out.push('\n');
     let _ = writeln!(
         out,
-        "| Path | Manuals | Answered | {} |",
+        "| Path | Manuals | Confirmed | {} |",
         images
             .iter()
-            .map(|(name, _)| name.as_str())
+            .map(|(name, _)| title(name))
             .collect::<Vec<_>>()
             .join(" | ")
     );
@@ -350,19 +365,20 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
             .iter()
             .map(|(_, entries)| cell(entries.iter().find(|entry| entry.path == path)))
             .collect();
-        let manuals: String = MANUALS
+        let manuals: Vec<String> = MANUALS
             .iter()
             .filter_map(|manual| {
                 manual.lists(path).map(|listed| match listed {
-                    Listed::Primary => manual.letter,
-                    Listed::Install => manual.letter.to_ascii_lowercase(),
+                    Listed::Primary => manual.letter.to_string(),
+                    Listed::Install => format!("{} (INSTALL)", manual.letter),
                 })
             })
             .collect();
         let _ = writeln!(
             out,
-            "| `{path}` | {manuals} | {} | {} |",
-            answered(path).join(", "),
+            "| `{path}` | {} | {} | {} |",
+            manuals.join(", "),
+            confirmed(path).join(", "),
             cells.join(" | ")
         );
     }
