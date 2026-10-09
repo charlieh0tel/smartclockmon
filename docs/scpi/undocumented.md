@@ -201,11 +201,31 @@ image that has it.
 - **Handler:** maps a mode byte (`0x10217a`) to one of three values.
 - **Read:** 58503A 3704-C, 2026-10-09: `NORM`.
 
+### `:DIAGnostic:ROSCillator:LTIMe`
+
+- **Images:** 58503B.
+- **Handler:** the loop's time constants, in `58503b-1.01.04.bin`
+  (`firmware/loop.md`, "In every image").  `:INIT` is the constant the
+  start-up ramp begins from (`0x1028cc`, 10 to 1000 s, default 150 s)
+  and `:MAX` the one the loop settles at (`0x1028d0`, 10 to 10000 s,
+  default 700 s); each setter keeps `:INIT` at or below `:MAX`.
+  `:DATA?` returns the constant in force (`0x10328a`).
+- **Read:** no 58503B on the bench.
+
 ### `:DIAGnostic:ROSCillator:TCOefficient`
 
 - **Images:** 58503A 3633 and 3704, Z3801A, Z3805A, Z3815A, Z3816A.
 - **Read:** 58503A, written up 2026-09-20: `-3.36500E+001`, the
   oven-current constant (`firmware/loop.md`).
+
+### `:DIAGnostic:ROSCillator:TYPE`
+
+- **Images:** 58503B.
+- **Handler:** the oscillator type, the byte at `0x102726` in
+  `58503b-1.01.04.bin`, which selects the loop's gain G from a table
+  (`firmware/loop.md`, "In every image").  The setter accepts 0 or 1;
+  type 0 has the Z3816A's G, type 1 the 58503A's.
+- **Read:** no 58503B on the bench.
 
 ### `:DIAGnostic:SER1:RESTricted`
 
