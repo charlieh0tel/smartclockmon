@@ -28,1072 +28,1077 @@ listed if any of its paths is.
 
 ## Every path
 
-A cell is `q` where that image's node has a query handler, `s` a
-setter, `qs` both, `-` neither, and blank where the image has no
-such path.  Manuals names each manual listing the path, with
-`(INSTALL)` where it lists it only among the installer's commands.
-Answered names each dialect whose `commands.toml` entry for the
-path a receiver has answered (evidence `hardware`).
+Manuals names each manual listing the path by a letter, lower case
+where it lists it only among the installer's commands; blank, the
+path is in no manual.  Answered names each dialect whose
+`commands.toml` entry for the path a receiver has answered
+(evidence `hardware`).  An image's cell is `q` where its node has a
+query handler, `s` a setter, `qs` both, `-` neither, and blank
+where the image has no such path.
 
-| Path | 58503a-3633 | 58503a-3704 | 58503b-1.01.04 | z3801a-3543 | z3805a-3543b | z3815a-4010 | z3816a-4001 | Manuals | Answered |
+- A: 097-59551-02, the 58503A's manual
+- B: 097-58503-13, the 58503B's manual
+- Z: 097-z3801-01, the Z3801A's manual
+
+| Path | Manuals | Answered | 58503a-3633 | 58503a-3704 | 58503b-1.01.04 | z3801a-3543 | z3805a-3543b | z3815a-4010 | z3816a-4001 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `*CLS` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13, 097-z3801-01 |  |
-| `*ESE` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `*ESR` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `*IDN` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `*OPC` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `*RST` | s | s | s | s | s | s | s |  |  |
-| `*SRE` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `*STB` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `*TST` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 |  |
-| `*WAI` | s | s | s | s | s | s | s |  |  |
-| `:ALARm` | q | q | q |  |  | q | - |  |  |
-| `:ALARm:ACO` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:ALARm:EXTRactor` | s | s | s |  |  | q | s |  |  |
-| `:ALARm:HARDware` | s | s | s |  |  | q | q |  |  |
-| `:ALARm:OPERation` | s | s | s |  |  | q | s |  |  |
-| `:ANT1` | s | s | s |  |  | s |  |  |  |
-| `:AZEL` | s | s | s |  |  | s |  |  |  |
-| `:CALA` | q | q |  | q | q | q | q |  |  |
-| `:CEQU` | q | q |  | q | q | q | q |  |  |
-| `:CHOE` |  |  | q |  |  |  |  |  |  |
-| `:DACP` |  | s | s |  |  | s |  |  |  |
-| `:DANA` | q | q | q | q | q | q | q |  |  |
-| `:DIAGnostic` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:DIAGnostic:ADC` |  |  | q |  |  | q |  |  |  |
-| `:DIAGnostic:CALibration` |  |  | - |  |  | - |  |  |  |
-| `:DIAGnostic:CALibration:ROSCillator` |  |  | s |  |  | s |  |  |  |
-| `:DIAGnostic:DCOMplete` |  |  | s |  |  |  |  |  |  |
-| `:DIAGnostic:DOWNload` |  |  | s |  |  |  |  | 097-59551-02 (INSTALL), 097-58503-13 (INSTALL), 097-z3801-01 (INSTALL) |  |
-| `:DIAGnostic:ERASe` |  |  | s |  |  |  |  | 097-59551-02 (INSTALL), 097-58503-13 (INSTALL), 097-z3801-01 (INSTALL) |  |
-| `:DIAGnostic:FAIL` |  |  | - |  |  |  |  |  |  |
-| `:DIAGnostic:FAIL:CHECksum` |  |  | s |  |  |  |  |  |  |
-| `:DIAGnostic:FAIL:CODE` |  |  | s |  |  |  |  |  |  |
-| `:DIAGnostic:GPSystem` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:GPSystem:ACURrent` | q | q | q |  |  | q | q |  |  |
-| `:DIAGnostic:GPSystem:ACURrent:ALARm` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:DIAGnostic:GPSystem:ACURrent:STATe` |  |  | q |  |  | q |  |  |  |
-| `:DIAGnostic:GPSystem:DCXO` |  |  | qs |  |  |  |  |  |  |
-| `:DIAGnostic:GPSystem:POSition` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:GPSystem:POSition:DEGRees` | q | q | q | q | q | q | q |  |  |
-| `:DIAGnostic:GPSystem:POSition:HOLD` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:GPSystem:POSition:HOLD:RAIM` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:GPSystem:POSition:HOLD:RAIM:STATe` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:GPSystem:POSition:HOLD:RAIM:THReshold` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:GPSystem:POSition:MSEConds` | q | q | q | q | q | q | q |  |  |
-| `:DIAGnostic:GPSystem:POSition:SURVey` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:GPSystem:POSition:SURVey:RAIM` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:GPSystem:POSition:SURVey:RAIM:STATe` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:GPSystem:POSition:SURVey:RAIM:THReshold` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:GPSystem:TIME` | q | q | q | q | q | q | q |  | hp58503 |
-| `:DIAGnostic:GPSystem:TRACking` | - | - | - |  |  | - | - |  |  |
-| `:DIAGnostic:GPSystem:TRACking:LOG` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:DIAGnostic:GPSystem:UTC` | qs | qs | qs | qs | qs | qs | qs |  | hp58503 |
-| `:DIAGnostic:IDENtification` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:DIAGnostic:IDENtification:DEFault` | q | q | q | q | q | q | q |  | hp58503 |
-| `:DIAGnostic:IDENtification:GPSystem` | q | q | q | q | q | q | q | 097-z3801-01 | hp58503, z3801 |
-| `:DIAGnostic:IDENtification:HARDware` | s | s | s | s | s | s | s |  |  |
-| `:DIAGnostic:IDENtification:MODel` | s | s | s | s | s | s | s |  |  |
-| `:DIAGnostic:IDENtification:SERial` | s | s | s | s | s | s | s |  |  |
-| `:DIAGnostic:INPut` | - | - | - |  |  | - | - |  |  |
-| `:DIAGnostic:INPut:DATA` | q | q | q |  |  | q | q |  |  |
-| `:DIAGnostic:LIFetime` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:DIAGnostic:LIFetime:COUNt` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:DIAGnostic:LOG` | - | - | - | - | - | - | - | 097-59551-02, 097-58503-13, 097-z3801-01 |  |
-| `:DIAGnostic:LOG:CLEar` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13, 097-z3801-01 |  |
-| `:DIAGnostic:LOG:COUNt` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:DIAGnostic:LOG:READ` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:DIAGnostic:LOG:READ:ALL` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503, z3801 |
-| `:DIAGnostic:LOG:WRAP` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:LOG:WRITe` | s | s | s | s | s | s | s |  |  |
-| `:DIAGnostic:ME` | qs | qs | s | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:OS` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:OS:MEMory` | q | q | q | q | q | q | q |  |  |
-| `:DIAGnostic:OS:PROCess` | q | q | q | q | q | q | q |  |  |
-| `:DIAGnostic:OS:STACk` | q | q | q | q | q | q | q |  |  |
-| `:DIAGnostic:OUTPut` | s | s | s |  |  | qs | s |  |  |
-| `:DIAGnostic:PRINt` |  |  | s |  |  |  |  |  |  |
-| `:DIAGnostic:PTIMe` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:PTIMe:TINTerval` | q | q | q | q | q | q | q |  | hp58503, z3801 |
-| `:DIAGnostic:QUERy` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:DIAGnostic:QUERy:RESPonse` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:DIAGnostic:REFerence` | - | - | - |  |  | - | - |  |  |
-| `:DIAGnostic:REFerence:CPORt` |  |  | s |  |  |  |  |  |  |
-| `:DIAGnostic:REFerence:EXTernal` | - | - | - |  |  | - | - |  |  |
-| `:DIAGnostic:REFerence:EXTernal:QUEStionable` | - | - | - |  |  | - | - |  |  |
-| `:DIAGnostic:REFerence:EXTernal:QUEStionable:HYSTeresis` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:DIAGnostic:REFerence:GPSystem` | - | - | - |  |  | - | - |  |  |
-| `:DIAGnostic:REFerence:GPSystem:QUEStionable` | - | - | - |  |  | - | - |  |  |
-| `:DIAGnostic:REFerence:GPSystem:QUEStionable:HYSTeresis` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:DIAGnostic:REFerence:STATus` |  |  | s |  |  |  |  |  |  |
-| `:DIAGnostic:ROSCillator` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:DIAGnostic:ROSCillator:CURRent` | q | q | q | q | q | q | q |  | hp58503, z3801 |
-| `:DIAGnostic:ROSCillator:EFControl` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:DIAGnostic:ROSCillator:EFControl:ABSolute` | q | q | q | q | q | q | q |  | hp58503, z3801 |
-| `:DIAGnostic:ROSCillator:EFControl:ASLOPe` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:EFControl:BSLOPe` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:EFControl:DADC` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:EFControl:DATA` |  | qs | qs |  |  | qs |  |  | hp58503 |
-| `:DIAGnostic:ROSCillator:EFControl:FPGA` |  |  | s |  |  |  |  |  |  |
-| `:DIAGnostic:ROSCillator:EFControl:MODE` |  | qs | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:EFControl:RELative` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:DIAGnostic:ROSCillator:LTIMe` |  |  | - |  |  |  |  |  |  |
-| `:DIAGnostic:ROSCillator:LTIMe:DATA` |  |  | q |  |  |  |  |  |  |
-| `:DIAGnostic:ROSCillator:LTIMe:INIT` |  |  | qs |  |  |  |  |  |  |
-| `:DIAGnostic:ROSCillator:LTIMe:MAX` |  |  | qs |  |  |  |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt` |  |  | - |  |  | - |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:COUNt` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:DURation` |  |  | q |  |  | q |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:MODE` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:PTHR` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:PTHR1` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:PTHR2` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:PTHRESHOLD` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:PTHRESHOLD1` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:PTHRESHOLD2` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:STATe` |  |  | q |  |  | q |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:TTHR` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:TTHR1` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:TTHR2` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:TTHRESHOLD` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:TTHRESHOLD1` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:TTHRESHOLD2` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:PTESt:TYPE` |  |  | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:ROSCillator:TCO` |  |  | qs |  |  |  |  |  |  |
-| `:DIAGnostic:ROSCillator:TCO1` |  |  | qs |  |  |  |  |  |  |
-| `:DIAGnostic:ROSCillator:TCO2` |  |  | qs |  |  |  |  |  |  |
-| `:DIAGnostic:ROSCillator:TCOEFFICIENT` |  |  | qs |  |  |  |  |  | hp58503, z3801 |
-| `:DIAGnostic:ROSCillator:TCOefficient` | qs | qs |  | qs | qs | qs | qs |  | hp58503, z3801 |
-| `:DIAGnostic:ROSCillator:TYPE` |  |  | qs |  |  |  |  |  |  |
-| `:DIAGnostic:SER` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:SER1` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:SER1:EGResponse` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:SER1:RESTricted` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:SER2` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:SER2:EGResponse` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:SER2:RESTricted` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:SER:EGResponse` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:SER:RESTricted` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:SERIAL` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:SERIAL1` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:SERIAL1:EGResponse` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:SERIAL1:RESTricted` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:SERIAL2` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:SERIAL2:EGResponse` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:SERIAL2:RESTricted` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:SERIAL:EGResponse` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:SERIAL:RESTricted` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:SLOG` | - | - | - | - | - | - | - |  | hp58503, z3801 |
-| `:DIAGnostic:SLOG:CLEar` | s | s | s | s | s | s | s |  |  |
-| `:DIAGnostic:SLOG:COUNt` | q | q | q | q | q | q | q |  |  |
-| `:DIAGnostic:SLOG:READ` | q | q | q | q | q | q | q |  |  |
-| `:DIAGnostic:SLOG:READ:ALL` | q | q | q | q | q | q | q |  |  |
-| `:DIAGnostic:STATus` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:STATus:ERRor` | s | s | s | s | s | s | s |  |  |
-| `:DIAGnostic:STATus:HAPPening` | s | s | s | s | s | s | s |  |  |
-| `:DIAGnostic:SYSTem` | - | - | - | - | - | - | - |  |  |
-| `:DIAGnostic:SYSTem:DOUTput` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:SYSTem:PDEBug` |  |  | s |  |  | s |  |  |  |
-| `:DIAGnostic:SYSTem:PSTartup` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:DIAGnostic:TCODe` |  | - | - |  |  | - |  |  |  |
-| `:DIAGnostic:TCODe:ASCii` |  |  | qs |  |  |  |  |  |  |
-| `:DIAGnostic:TCODe:ERRor` |  | - | - |  |  | - |  |  |  |
-| `:DIAGnostic:TCODe:ERRor:AMASk` |  | qs | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:TCODe:ERRor:OMASk` |  | qs | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:TCODe:STATus` |  | - | - |  |  | - |  |  |  |
-| `:DIAGnostic:TCODe:STATus:AMASk` |  | qs | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:TCODe:STATus:OMASk` |  | qs | qs |  |  | qs |  |  |  |
-| `:DIAGnostic:TEMPerature` | q | q | q | q | q | q | q |  | hp58503 |
-| `:DIAGnostic:TEST` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 |  |
-| `:DIAGnostic:TEST:FLASh` |  |  | q |  |  | q |  |  |  |
-| `:DIAGnostic:TEST:RESult` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:DIAGnostic:TMODe` | - | - | - |  |  | - | - |  |  |
-| `:DIAGnostic:TMODe:DATA` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:DIAGnostic:TMODe:STATe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:DIAGnostic:TOFFset` | qs | qs | qs | qs | qs | qs | qs |  | hp58503 |
-| `:DIAGnostic:TSET` | qs | qs | s |  |  | qs | qs |  |  |
-| `:DIAGnostic:TVALid` | - | - | - |  |  | - | - |  |  |
-| `:DIAGnostic:TVALid:NOW` | s | s | s |  |  | s | s |  |  |
-| `:DOUGlas` | - | - | - | - | - | - | - |  |  |
-| `:DOUGlas:DURation` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:DOUGlas:PROGress` | q | q | q | q | q | q | q |  |  |
-| `:DOUGlas:STATe` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:DOUGlas:STATe:POWerup` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:EFER` |  | s | s |  |  | s |  |  |  |
-| `:ESSD` |  | s | s |  |  | s |  |  |  |
-| `:ESSN` |  | s | s |  |  | s |  |  |  |
-| `:FMHO` | q | q |  | q | q | q | q |  |  |
-| `:FORMat` | - | - | - | - | - | - | - |  |  |
-| `:FORMat:DATA` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 |  |
-| `:GARY` | - | - | q | - | - | q | - |  |  |
-| `:GARY:CLEar` | s | s |  | s | s |  | s |  |  |
-| `:GARY:COUNt` | q | q |  | q | q |  | q |  |  |
-| `:GARY:READ` | q | q |  | q | q |  | q |  |  |
-| `:GARY:READ:ALL` | q | q |  | q | q |  | q |  |  |
-| `:GARY:WRITe` | s | s |  | s | s |  | s |  |  |
-| `:GDOP` |  | s | s |  |  | s |  |  |  |
-| `:IPSU` | q | q |  | q | q | q | q |  |  |
-| `:KENneth` | - | - | - | - | - | - | - |  |  |
-| `:KENneth:MEASured` |  |  | q |  |  | q |  |  |  |
-| `:KENneth:PREDicted` | q | q | q | q | q | q | q |  |  |
-| `:KENneth:PREDicted:DURation` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:KENneth:PRESent` | q | q | q | q | q | q | q |  |  |
-| `:LEAP` | s | s | s |  |  | s |  |  |  |
-| `:LED` | - | - | - | - | - | - | - |  |  |
-| `:LED:ACTive` | qs | qs | qs | qs | qs | qs | qs | 097-z3801-01 |  |
-| `:LED:ALARm` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:LED:ALARm:ACO` | q | q | s |  |  | q | q |  |  |
-| `:LED:ALARm:CRITical` | q | q | s |  |  | q | q |  |  |
-| `:LED:ALARm:MAJor` | q | q | q | q | q | q | q |  |  |
-| `:LED:ALARm:MINor` | q | q | q | q | q | q | q |  |  |
-| `:LED:ALARm:USER` | qs | qs | s | qs | qs | qs | qs | 097-z3801-01 |  |
-| `:LED:ENABled` | qs | qs | qs | qs | qs | qs | qs | 097-z3801-01 |  |
-| `:LED:GPSLock` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:LED:HOLDover` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:LED:NGPS` |  |  | s |  |  | s |  |  |  |
-| `:LED:STANdby` |  |  | s |  |  | s |  |  |  |
-| `:LED:TMHValid` |  |  |  | q | q |  |  |  |  |
-| `:MANI` | s | s | s |  |  | s |  |  |  |
-| `:MATThew` | q | q | q |  |  | q |  |  |  |
-| `:OUTPut` | - | - | - | - | - | - | - |  |  |
-| `:OUTPut:ACTive` | s | s | s |  |  | s | s |  |  |
-| `:OUTPut:ACTive:DISable` | s | s | s |  |  | s | s |  |  |
-| `:OUTPut:ACTive:ENABle` | s | s | s |  |  | s | s |  |  |
-| `:OUTPut:ACTive:HOLDover` | - | - | - |  |  | - | - |  |  |
-| `:OUTPut:ACTive:HOLDover:DURation` | - | - | - |  |  | - | - |  |  |
-| `:OUTPut:ACTive:HOLDover:DURation:THReshold` | s | s | s |  |  | qs | s |  |  |
-| `:OUTPut:HPOWer` |  |  | s |  |  | s |  |  |  |
-| `:OUTPut:INACtive` | s | s | s |  |  | qs | s |  |  |
-| `:OUTPut:PIN1` | - | - |  | - | - | - | - |  |  |
-| `:OUTPut:PIN1:DELay` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN1:DELay:ALIGnment` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN1:FREQuency` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN2` | - | - |  | - | - | - | - |  |  |
-| `:OUTPut:PIN2:DELay` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN2:DELay:ALIGnment` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN2:FREQuency` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN3` | - | - |  | - | - | - | - |  |  |
-| `:OUTPut:PIN3:DELay` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN3:DELay:ALIGnment` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN3:FREQuency` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN6` | - | - |  | - | - | - | - |  |  |
-| `:OUTPut:PIN6:DELay` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN6:DELay:ALIGnment` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN6:FREQuency` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN7` | - | - |  | - | - | - | - |  |  |
-| `:OUTPut:PIN7:DELay` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN7:DELay:ALIGnment` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN7:FREQuency` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN8` | - | - |  | - | - | - | - |  |  |
-| `:OUTPut:PIN8:DELay` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN8:DELay:ALIGnment` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PIN8:FREQuency` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PINS` | - | - |  | - | - | - | - |  |  |
-| `:OUTPut:PINS:DELay` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PINS:DELay:ALIGnment` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PINS:FREQuency` | qs | qs |  | qs | qs | qs | qs |  |  |
-| `:OUTPut:PRIMary` |  |  | s |  |  | s |  |  |  |
-| `:OUTPut:STATe` | qs | qs | qs | qs | qs | q | qs |  |  |
-| `:PAVG` | s | s | s |  |  | s |  |  |  |
-| `:PMD1` | s | s | s |  |  | s |  |  |  |
-| `:POS1` | s | s | s |  |  | s |  |  |  |
-| `:R1PO` | q | q |  | q | q | q | q |  |  |
-| `:RACD` | q | q |  | q | q | q | q |  |  |
-| `:RAST` | q | q |  | q | q | q | q |  |  |
-| `:RAT1` | q | q |  | q | q | q | q |  |  |
-| `:RAT2` | q | q |  | q | q | q | q |  |  |
-| `:RAT3` | q | q |  | q | q | q | q |  |  |
-| `:REAL` | q | q |  | q | q | q | q |  |  |
-| `:REQU` | q | q |  | q | q | q | q |  |  |
-| `:RFOU` | q | q |  | q | q | q | q |  |  |
-| `:RLOC` | q | q |  | q | q | q | q |  |  |
-| `:RMHO` | q | q |  | q | q | q | q |  |  |
-| `:ROBin` | q | q | q | q | q | q | q |  |  |
-| `:ROBin:CLEar` | s | s | s | s | s | s | s |  |  |
-| `:ROBin:MEMory` | - | - | - | - | - | - | - |  |  |
-| `:ROBin:MEMory:OVERflow` | - | - | - | - | - | - | - |  |  |
-| `:ROBin:MEMory:OVERflow:COUNt` | q | q | q | q | q | q | q |  |  |
-| `:ROBin:MEMory:SAVE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:ROBin:POINts` | q | q | q | q | q | q | q |  |  |
-| `:ROBin:TSTamp` | q | q | q | q | q | q | q |  |  |
-| `:RPHS` | q | q |  | q | q | q | q |  |  |
-| `:RSPR` | q | q |  | q | q | q | q |  |  |
-| `:RSST` | q | q |  | q | q | q | q |  |  |
-| `:RSSU` | q | q |  | q | q | q | q |  |  |
-| `:RSTG` |  | s | s |  |  | s |  |  |  |
-| `:RTAD` | q | q |  | q | q | q | q |  |  |
-| `:RTCM` | q | q |  | q | q | q | q |  |  |
-| `:RTSA` | q | q |  | q | q | q | q |  |  |
-| `:RTZO` | q | q |  | q | q | q | q |  |  |
-| `:RVST` | q | q |  | q | q | q | q |  |  |
-| `:RWHO` | q | q |  | q | q | q | q |  |  |
-| `:SAMPle` |  |  |  | - | - |  |  |  |  |
-| `:SAMPle:ACTion` |  |  |  | s | s |  |  |  |  |
-| `:SAMPle:BARR` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:BARR1` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:BARR2` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:BARRAY` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:BARRAY1` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:BARRAY2` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:BOOLean` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:DARR` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:DARR1` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:DARR2` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:DARR3` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:DARRAY` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:DARRAY1` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:DARRAY2` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:DARRAY3` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:DOUBle` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:FARR` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:FARR1` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:FARR2` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:FARR3` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:FARRAY` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:FARRAY1` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:FARRAY2` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:FARRAY3` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:FLOat` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:IARR` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:IARR1` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:IARR2` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:IARR3` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:IARR4` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:IARRAY` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:IARRAY1` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:IARRAY2` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:IARRAY3` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:IARRAY4` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:IMULtiple` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:INTeger` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:TARR` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:TARR1` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:TARR2` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:TARR3` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:TARRAY` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:TARRAY1` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:TARRAY2` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:TARRAY3` |  |  |  | qs | qs |  |  |  |  |
-| `:SAMPle:TOGGle` |  |  |  | qs | qs |  |  |  |  |
-| `:SENSe` | - | - | - | - | - | - | - |  |  |
-| `:SENSe:DATA` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 |  |
-| `:SENSe:DATA:CLEar` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:SENSe:DATA:MEMory` | - | - | - | - | - | - | - |  |  |
-| `:SENSe:DATA:MEMory:OVERflow` | - | - | - | - | - | - | - |  |  |
-| `:SENSe:DATA:MEMory:OVERflow:COUNt` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 |  |
-| `:SENSe:DATA:MEMory:SAVE` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 |  |
-| `:SENSe:DATA:POINts` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 |  |
-| `:SENSe:DATA:TSTamp` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 |  |
-| `:SENSe:TST` | - | - | - | - | - | - | - |  |  |
-| `:SENSe:TST1` | - | - | - | - | - | - | - |  |  |
-| `:SENSe:TST1:EDGE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SENSe:TST2` | - | - | - | - | - | - | - |  |  |
-| `:SENSe:TST2:EDGE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SENSe:TST3` | - | - | - | - | - | - | - |  |  |
-| `:SENSe:TST3:EDGE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SENSe:TST4` | - | - | - | - | - | - | - |  |  |
-| `:SENSe:TST4:EDGE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SENSe:TST:EDGE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SENSe:TSTAMP` | - | - | - | - | - | - | - | 097-59551-02, 097-58503-13 |  |
-| `:SENSe:TSTAMP1` | - | - | - | - | - | - | - |  |  |
-| `:SENSe:TSTAMP1:EDGE` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 |  |
-| `:SENSe:TSTAMP2` | - | - | - | - | - | - | - |  |  |
-| `:SENSe:TSTAMP2:EDGE` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 |  |
-| `:SENSe:TSTAMP3` | - | - | - | - | - | - | - |  |  |
-| `:SENSe:TSTAMP3:EDGE` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 |  |
-| `:SENSe:TSTAMP4` | - | - | - | - | - | - | - |  |  |
-| `:SENSe:TSTAMP4:EDGE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SENSe:TSTAMP:EDGE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SIGQ` | s | s | s |  |  | s |  |  |  |
-| `:SOURce` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:GPSystem` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:GPSystem:ADELay` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:GPSystem:ADELay:FEET` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:GPSystem:EMANgle` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:GPSystem:INITial` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:GPSystem:INITial:DATE` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:GPSystem:INITial:POSition` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:GPSystem:INITial:TIME` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:GPSystem:INITial:VPOSition` |  |  | s |  |  |  |  |  |  |
-| `:SOURce:GPSystem:POSition` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:POSition:ACTual` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:POSition:BINary` | q | q | s |  |  | q | q |  |  |
-| `:SOURce:GPSystem:POSition:HOLD` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:GPSystem:POSition:HOLD:LAST` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:POSition:HOLD:STATe` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:POSition:SURVey` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:GPSystem:POSition:SURVey:DURation` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:GPSystem:POSition:SURVey:PROGress` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:POSition:SURVey:STATe` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:POSition:SURVey:STATe:POWerup` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:REFerence` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:GPSystem:REFerence:ADELay` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:REFerence:ADELay:FEET` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:GPSystem:REFerence:BIAS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:GPSystem:REFerence:VALid` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:SATellite` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:GPSystem:SATellite:TRACking` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:SATellite:TRACking:COUNt` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:SATellite:TRACking:DATA` |  |  | q |  |  |  |  |  |  |
-| `:SOURce:GPSystem:SATellite:TRACking:EMANgle` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:SATellite:TRACking:IGNore` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:SATellite:TRACking:IGNore:ALL` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:GPSystem:SATellite:TRACking:IGNore:COUNt` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:SATellite:TRACking:IGNore:NONE` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:GPSystem:SATellite:TRACking:IGNore:STATe` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:GPSystem:SATellite:TRACking:INCLude` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:SATellite:TRACking:INCLude:ALL` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:GPSystem:SATellite:TRACking:INCLude:COUNt` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:GPSystem:SATellite:TRACking:INCLude:NONE` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:GPSystem:SATellite:TRACking:INCLude:STATe` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:GPSystem:SATellite:VISible` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:GPSystem:SATellite:VISible:PREDicted` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:GPSystem:SATellite:VISible:PREDicted:COUNt` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:PTIMe` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:PTIMe:DATE` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503, z3801 |
-| `:SOURce:PTIMe:FFOMerit` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:ADELay` | qs | qs | qs | qs | qs | qs | qs | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:ADELay:FEET` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:PTIMe:GPSystem:EMANgle` | qs | qs | qs | qs | qs | qs | qs | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:INITial` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:INITial:DATE` | s | s | s | s | s | s | s | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:INITial:POSition` | s | s | s | s | s | s | s | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:INITial:TIME` | s | s | s | s | s | s | s | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:INITial:VPOSition` |  |  | s |  |  |  |  |  |  |
-| `:SOURce:PTIMe:GPSystem:POSition` | qs | qs | qs | qs | qs | qs | qs | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:POSition:ACTual` | q | q | q | q | q | q | q |  |  |
-| `:SOURce:PTIMe:GPSystem:POSition:BINary` | q | q | s |  |  | q | q |  |  |
-| `:SOURce:PTIMe:GPSystem:POSition:HOLD` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:POSition:HOLD:LAST` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:POSition:HOLD:STATe` | q | q | q | q | q | q | q |  | z3801 |
-| `:SOURce:PTIMe:GPSystem:POSition:SURVey` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:POSition:SURVey:DURation` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:PTIMe:GPSystem:POSition:SURVey:PROGress` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:POSition:SURVey:STATe` | qs | qs | qs | qs | qs | qs | qs | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:POSition:SURVey:STATe:POWerup` | qs | qs | qs | qs | qs | qs | qs |  | z3801 |
-| `:SOURce:PTIMe:GPSystem:REFerence` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:PTIMe:GPSystem:REFerence:ADELay` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:PTIMe:GPSystem:REFerence:ADELay:FEET` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:PTIMe:GPSystem:REFerence:BIAS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:PTIMe:GPSystem:REFerence:VALid` | q | q | q | q | q | q | q |  |  |
-| `:SOURce:PTIMe:GPSystem:SATellite` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:COUNt` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:DATA` |  |  | q |  |  |  |  |  |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:EMANgle` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore` | qs | qs | qs | qs | qs | qs | qs | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore:ALL` | s | s | s | s | s | s | s |  |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore:COUNt` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore:NONE` | s | s | s | s | s | s | s |  |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore:STATe` | q | q | q | q | q | q | q |  |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude` | qs | qs | qs | qs | qs | qs | qs | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude:ALL` | s | s | s | s | s | s | s |  |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude:COUNt` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude:NONE` | s | s | s | s | s | s | s |  |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude:STATe` | q | q | q | q | q | q | q |  |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:VISible` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:VISible:PREDicted` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:PTIMe:GPSystem:SATellite:VISible:PREDicted:COUNt` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:PTIMe:LEAPsecond` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:PTIMe:LEAPsecond:ACCumulated` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:SOURce:PTIMe:LEAPsecond:ACCumulated:CALCulate` | s | s | s | s | s | s | s |  |  |
-| `:SOURce:PTIMe:LEAPsecond:DATE` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503, z3801 |
-| `:SOURce:PTIMe:LEAPsecond:DURation` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503, z3801 |
-| `:SOURce:PTIMe:LEAPsecond:GPSTime` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:PTIMe:LEAPsecond:STATe` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503, z3801 |
-| `:SOURce:PTIMe:PPS` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:PTIMe:PPS:EDGE` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:PTIMe:SYNChronization` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:PTIMe:SYNChronization:IMMediate` | s | s | s | s | s | s | s | 097-z3801-01 |  |
-| `:SOURce:PTIMe:TCODe` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:SOURce:PTIMe:TCODe:CONTinuous` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:PTIMe:TCODe:FORMat` | qs | qs | qs | qs | qs | qs | qs | 097-z3801-01 | hp58503 |
-| `:SOURce:PTIMe:TDATe` |  |  | - |  |  | - |  |  |  |
-| `:SOURce:PTIMe:TDATe:DEFault` |  |  | q |  |  | q |  |  |  |
-| `:SOURce:PTIMe:TDATe:GPS` |  |  | q |  |  | q |  |  |  |
-| `:SOURce:PTIMe:TDATe:UTC` |  |  | q |  |  | q |  |  |  |
-| `:SOURce:PTIMe:TFOMerit` | q | q | q | q | q | q | q |  | z3801 |
-| `:SOURce:PTIMe:TIME` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503, z3801 |
-| `:SOURce:PTIMe:TIME:STRing` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503, z3801 |
-| `:SOURce:PTIMe:TINTerval` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:PTIMe:TZONe` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 | hp58503, z3801 |
-| `:SOURce:PTIMe:UTC` |  | qs | qs |  |  | qs |  |  |  |
-| `:SOURce:PULSe` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:PULSe:CONTinuous` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:PULSe:CONTinuous:PERiod` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:PULSe:CONTinuous:STATe` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:PULSe:REFerence` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:PULSe:REFerence:EDGE` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:PULSe:STARt` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:PULSe:STARt:DATE` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:PULSe:STARt:TIME` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:ROSCillator` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:ROSCillator:HOLDover` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:ROSCillator:HOLDover:DURation` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:MEASurement` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:MEASurement:THReshold` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1:ACTion` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1:ALAR1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1:ALAR3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1:ALARM1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1:ALARM3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1:EXCeeded` | q | q | q |  |  | q | q |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2:ACTion` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2:ALAR1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2:ALAR3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2:ALARM1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2:ALARM3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2:EXCeeded` | q | q | q |  |  | q | q |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR:ACTion` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR:ALAR1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR:ALAR3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR:ALARM1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR:ALARM3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR:EXCeeded` | q | q | q |  |  | q | q |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THReshold` |  |  |  | qs | qs |  |  |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1:ACTion` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1:ALAR1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1:ALAR3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1:ALARM1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1:ALARM3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1:EXCeeded` | q | q | q |  |  | q | q |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2:ACTion` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2:ALAR1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2:ALAR3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2:ALARM1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2:ALARM3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2:EXCeeded` | q | q | q |  |  | q | q |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD:ACTion` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD:ALAR1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THReshold:ALAR1` |  |  |  | qs | qs |  |  |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD:ALAR3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THReshold:ALAR3` |  |  |  | qs | qs |  |  |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD:ALARM1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THReshold:ALARM1` |  |  |  | qs | qs |  |  |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD:ALARM3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THReshold:ALARM3` |  |  |  | qs | qs |  |  |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD:EXCeeded` | q | q | q |  |  | q | q |  |  |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THReshold:EXCeeded` |  |  |  | q | q |  |  |  |  |
-| `:SOURce:ROSCillator:HOLDover:HYSTeresis` | qs | qs | s | qs | qs | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:INITiate` | s | s | s | s | s | s | s | 097-z3801-01 |  |
-| `:SOURce:ROSCillator:HOLDover:LIMit` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:ROSCillator:HOLDover:LIMit:STATe` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:LIMit:THReshold` | qs | qs | qs | qs | qs | qs | qs | 097-z3801-01 |  |
-| `:SOURce:ROSCillator:HOLDover:RECovery` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:ROSCillator:HOLDover:RECovery:AUTO` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:RECovery:INITiate` | s | s | s | s | s | s | s | 097-z3801-01 |  |
-| `:SOURce:ROSCillator:HOLDover:RECovery:LIMit` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:ROSCillator:HOLDover:RECovery:LIMit:IGNore` | s | s | s | s | s | s | s | 097-z3801-01 |  |
-| `:SOURce:ROSCillator:HOLDover:TUNCertainty` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SOURce:ROSCillator:HOLDover:TUNCertainty:MEASured` |  |  | q |  |  | q |  |  |  |
-| `:SOURce:ROSCillator:HOLDover:TUNCertainty:PREDicted` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:ROSCillator:HOLDover:TUNCertainty:PREDicted:DURation` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:ROSCillator:HOLDover:TUNCertainty:PRESent` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:ROSCillator:HOLDover:WAITing` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:ROSCillator:LIMit` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:ROSCillator:LIMit:THReshold` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:ROSCillator:STATe` | q | q | q | q | q | q | q | 097-z3801-01 |  |
-| `:SOURce:SYNChronization` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:SYNChronization:FFOMerit` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:SYNChronization:HOLDover` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:SYNChronization:HOLDover:DURation:MEASurement` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:MEASurement:THReshold` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1:ACTion` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1:ALAR1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1:ALAR3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1:ALARM1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1:ALARM3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1:EXCeeded` | q | q | q |  |  | q | q |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2:ACTion` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2:ALAR1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2:ALAR3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2:ALARM1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2:ALARM3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2:EXCeeded` | q | q | q |  |  | q | q |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR:ACTion` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR:ALAR1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR:ALAR3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR:ALARM1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR:ALARM3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR:EXCeeded` | q | q | q |  |  | q | q |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THReshold` |  |  |  | qs | qs |  |  |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1:ACTion` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1:ALAR1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1:ALAR3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1:ALARM1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1:ALARM3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1:EXCeeded` | q | q | q |  |  | q | q |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2:ACTion` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2:ALAR1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2:ALAR3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2:ALARM1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2:ALARM3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2:EXCeeded` | q | q | q |  |  | q | q |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD:ACTion` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD:ALAR1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THReshold:ALAR1` |  |  |  | qs | qs |  |  |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD:ALAR3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THReshold:ALAR3` |  |  |  | qs | qs |  |  |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD:ALARM1` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THReshold:ALARM1` |  |  |  | qs | qs |  |  |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD:ALARM3` | qs | qs |  |  |  | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THReshold:ALARM3` |  |  |  | qs | qs |  |  |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD:EXCeeded` | q | q | q |  |  | q | q |  |  |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THReshold:EXCeeded` |  |  |  | q | q |  |  |  |  |
-| `:SOURce:SYNChronization:HOLDover:HYSTeresis` | qs | qs | s | qs | qs | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:INITiate` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:SYNChronization:HOLDover:LIMit` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:SYNChronization:HOLDover:LIMit:STATe` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:LIMit:THReshold` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:RECovery` | - | - | - | - | - | - | - | 097-58503-13 |  |
-| `:SOURce:SYNChronization:HOLDover:RECovery:AUTO` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:RECovery:INITiate` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:SYNChronization:HOLDover:RECovery:LIMit` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:SYNChronization:HOLDover:RECovery:LIMit:IGNore` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:SYNChronization:HOLDover:TUNCertainty` | - | - | - | - | - | - | - | 097-58503-13 |  |
-| `:SOURce:SYNChronization:HOLDover:TUNCertainty:MEASured` |  |  | q |  |  | q |  |  |  |
-| `:SOURce:SYNChronization:HOLDover:TUNCertainty:PREDicted` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:SYNChronization:HOLDover:TUNCertainty:PREDicted:DURation` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:SYNChronization:HOLDover:TUNCertainty:PRESent` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:SYNChronization:HOLDover:WAITing` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:SYNChronization:IMMediate` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:SOURce:SYNChronization:LIMit` | - | - | - | - | - | - | - |  |  |
-| `:SOURce:SYNChronization:LIMit:THReshold` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SOURce:SYNChronization:STATe` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:SYNChronization:TFOMerit` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SOURce:SYNChronization:TINTerval` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:STATus` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:STATus:AACKnowledge` |  |  | s |  |  |  |  |  |  |
-| `:STATus:OPERation` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:STATus:OPERation:CONDition` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:OPERation:CRITical` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:OPERation:ENABle` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 |  |
-| `:STATus:OPERation:EVENt` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:OPERation:HARDware` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:STATus:OPERation:HARDware:CONDition` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:OPERation:HARDware:CONDition:EEPRom` | s | s |  |  |  | s | s |  |  |
-| `:STATus:OPERation:HARDware:CONDition:TI` | s | s |  |  |  | s | s |  |  |
-| `:STATus:OPERation:HARDware:CRITical` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:OPERation:HARDware:ENABle` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 |  |
-| `:STATus:OPERation:HARDware:EVENt` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:OPERation:HARDware:MAJor` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:OPERation:HARDware:MINor` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:OPERation:HARDware:NTRansition` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:OPERation:HARDware:PTRansition` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:OPERation:HOLDover` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:STATus:OPERation:HOLDover:CONDition` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:OPERation:HOLDover:CRITical` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:OPERation:HOLDover:ENABle` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 |  |
-| `:STATus:OPERation:HOLDover:EVENt` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:OPERation:HOLDover:MAJor` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:OPERation:HOLDover:MINor` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:OPERation:HOLDover:NTRansition` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:OPERation:HOLDover:PTRansition` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:OPERation:MAJor` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:OPERation:MINor` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:OPERation:NTRansition` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:OPERation:POWerup` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:STATus:OPERation:POWerup:CONDition` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:OPERation:POWerup:CRITical` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:OPERation:POWerup:ENABle` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 |  |
-| `:STATus:OPERation:POWerup:EVENt` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 |  |
-| `:STATus:OPERation:POWerup:MAJor` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:OPERation:POWerup:MINor` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:OPERation:POWerup:NTRansition` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:OPERation:POWerup:PTRansition` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:OPERation:PTRansition` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:PRESet` | s | s | s | s | s | s | s | 097-z3801-01 |  |
-| `:STATus:PRESet:ALARm` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13, 097-z3801-01 |  |
-| `:STATus:QUEStionable` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:STATus:QUEStionable:CONDition` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:QUEStionable:CONDition:TRESet` | s | s |  |  |  | s | s |  |  |
-| `:STATus:QUEStionable:CONDition:USER` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13, 097-z3801-01 |  |
-| `:STATus:QUEStionable:CRITical` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:QUEStionable:ENABle` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 |  |
-| `:STATus:QUEStionable:EVENt` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:QUEStionable:EVENt:USER` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:STATus:QUEStionable:MAJor` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:QUEStionable:MINor` | qs | qs |  |  |  | qs | qs |  |  |
-| `:STATus:QUEStionable:NTRansition` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:STATus:QUEStionable:PTRansition` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:SYSTem` | - | - | - | - | - | - | - | 097-z3801-01 |  |
-| `:SYSTem:COMMunicate` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SYSTem:COMMunicate:ALARm` | q | q | q |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:ALARm:ADDRess` | q | q |  |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:ALARm:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:ALARm:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:ALARm:FDUPlex` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:ALARm:PRESet` | s | s | s |  |  | s | s |  |  |
-| `:SYSTem:COMMunicate:ALARm:PROMpt` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:ALARm:RECeive` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:ALARm:RECeive:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:ALARm:RECeive:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:ALARm:RECeive:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:ALARm:RECeive:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:ALARm:RECeive:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:ALARm:RECeive:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:ALARm:TRANsmit` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:ALARm:TRANsmit:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:ALARm:TRANsmit:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:ALARm:TRANsmit:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:ALARm:TRANsmit:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:ALARm:TRANsmit:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:ALARm:TRANsmit:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:AUX` | q | q | q |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:AUX:ADDRess` | q | q |  |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:AUX:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:AUX:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:AUX:FDUPlex` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:AUX:PRESet` | s | s | s |  |  | s | s |  |  |
-| `:SYSTem:COMMunicate:AUX:PROMpt` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:AUX:RECeive` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:AUX:RECeive:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:AUX:RECeive:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:AUX:RECeive:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:AUX:RECeive:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:AUX:RECeive:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:AUX:RECeive:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:AUX:TRANsmit` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:AUX:TRANsmit:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:AUX:TRANsmit:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:AUX:TRANsmit:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:AUX:TRANsmit:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:AUX:TRANsmit:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:AUX:TRANsmit:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:BOOT` | q | q | q |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:BOOT:ADDRess` | q | q |  |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:BOOT:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:BOOT:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:BOOT:FDUPlex` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:BOOT:PRESet` | s | s | s |  |  | s | s |  |  |
-| `:SYSTem:COMMunicate:BOOT:PROMpt` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:BOOT:RECeive` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:BOOT:RECeive:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:BOOT:RECeive:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:BOOT:RECeive:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:BOOT:RECeive:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:BOOT:RECeive:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:BOOT:RECeive:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:BOOT:TRANsmit` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:BOOT:TRANsmit:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:BOOT:TRANsmit:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:BOOT:TRANsmit:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:BOOT:TRANsmit:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:BOOT:TRANsmit:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:BOOT:TRANsmit:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:CRAFt` | q | q | q |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:CRAFt:ADDRess` | q | q |  |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:CRAFt:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:CRAFt:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:CRAFt:FDUPlex` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:CRAFt:PRESet` | s | s | s |  |  | s | s |  |  |
-| `:SYSTem:COMMunicate:CRAFt:PROMpt` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:CRAFt:RECeive` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:CRAFt:RECeive:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:CRAFt:RECeive:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:CRAFt:RECeive:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:CRAFt:RECeive:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:CRAFt:RECeive:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:CRAFt:RECeive:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:CRAFt:TRANsmit` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:CRAFt:TRANsmit:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:CRAFt:TRANsmit:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:CRAFt:TRANsmit:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:CRAFt:TRANsmit:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:CRAFt:TRANsmit:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:CRAFt:TRANsmit:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:DRTB` | q | q | q |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:DRTB:ADDRess` | q | q |  |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:DRTB:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:DRTB:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:DRTB:FDUPlex` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:DRTB:PRESet` | s | s | s |  |  | s | s |  |  |
-| `:SYSTem:COMMunicate:DRTB:PROMpt` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:DRTB:RECeive` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:DRTB:RECeive:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:DRTB:RECeive:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:DRTB:RECeive:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:DRTB:RECeive:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:DRTB:RECeive:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:DRTB:RECeive:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:DRTB:TRANsmit` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:DRTB:TRANsmit:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:DRTB:TRANsmit:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:DRTB:TRANsmit:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:DRTB:TRANsmit:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:DRTB:TRANsmit:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:DRTB:TRANsmit:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:LOCal` | q | q | q |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:LOCal:ADDRess` | q | q |  |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:LOCal:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:LOCal:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:LOCal:FDUPlex` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:LOCal:PRESet` | s | s | s |  |  | s | s |  |  |
-| `:SYSTem:COMMunicate:LOCal:PROMpt` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:LOCal:RECeive` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:LOCal:RECeive:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:LOCal:RECeive:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:LOCal:RECeive:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:LOCal:RECeive:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:LOCal:RECeive:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:LOCal:RECeive:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:LOCal:TRANsmit` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:LOCal:TRANsmit:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:LOCal:TRANsmit:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:LOCal:TRANsmit:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:LOCal:TRANsmit:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:LOCal:TRANsmit:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:LOCal:TRANsmit:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:PFORth` | q | q | q |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:PFORth:ADDRess` | q | q |  |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:PFORth:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:PFORth:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:PFORth:FDUPlex` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:PFORth:PRESet` | s | s | s |  |  | s | s |  |  |
-| `:SYSTem:COMMunicate:PFORth:PROMpt` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:PFORth:RECeive` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:PFORth:RECeive:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:PFORth:RECeive:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:PFORth:RECeive:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:PFORth:RECeive:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:PFORth:RECeive:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:PFORth:RECeive:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:PFORth:TRANsmit` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:PFORth:TRANsmit:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:PFORth:TRANsmit:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:PFORth:TRANsmit:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:PFORth:TRANsmit:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:PFORth:TRANsmit:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:PFORth:TRANsmit:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:REMote` | q | q | q |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:REMote:ADDRess` | q | q |  |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:REMote:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:REMote:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:REMote:FDUPlex` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:REMote:PRESet` | s | s | s |  |  | s | s |  |  |
-| `:SYSTem:COMMunicate:REMote:PROMpt` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:REMote:RECeive` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:REMote:RECeive:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:REMote:RECeive:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:REMote:RECeive:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:REMote:RECeive:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:REMote:RECeive:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:REMote:RECeive:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:REMote:TRANsmit` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:REMote:TRANsmit:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:REMote:TRANsmit:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:REMote:TRANsmit:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:REMote:TRANsmit:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:REMote:TRANsmit:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:REMote:TRANsmit:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SCI` | q | q | q |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:SCI:ADDRess` | q | q |  |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:SCI:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:SCI:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SCI:FDUPlex` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SCI:PRESet` | s | s | s |  |  | s | s |  |  |
-| `:SYSTem:COMMunicate:SCI:PROMpt` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SCI:RECeive` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:SCI:RECeive:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SCI:RECeive:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SCI:RECeive:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SCI:RECeive:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:SCI:RECeive:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SCI:RECeive:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SCI:TRANsmit` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:SCI:TRANsmit:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SCI:TRANsmit:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SCI:TRANsmit:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SCI:TRANsmit:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:SCI:TRANsmit:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SCI:TRANsmit:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER` | q | q | q | - | - | q | q |  |  |
-| `:SYSTem:COMMunicate:SER1` | q | q | q | - | - | q | q |  |  |
-| `:SYSTem:COMMunicate:SER1:ADDRess` | q | q |  | q | q | q | q |  |  |
-| `:SYSTem:COMMunicate:SER1:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:SER1:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER1:FDUPlex` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER1:PRESet` | s | s | s | s | s | s | s |  |  |
-| `:SYSTem:COMMunicate:SER1:PROMpt` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER1:RECeive` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SER1:RECeive:BAUD` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER1:RECeive:BITS` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER1:RECeive:PACE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER1:RECeive:PARity` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SER1:RECeive:PARity:TYPE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER1:RECeive:SBITs` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER1:TRANsmit` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SER1:TRANsmit:BAUD` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER1:TRANsmit:BITS` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER1:TRANsmit:PACE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER1:TRANsmit:PARity` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SER1:TRANsmit:PARity:TYPE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER1:TRANsmit:SBITs` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER2` | q | q | q | - | - | q | q |  |  |
-| `:SYSTem:COMMunicate:SER2:ADDRess` | q | q |  | q | q | q | q |  |  |
-| `:SYSTem:COMMunicate:SER2:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:SER2:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER2:FDUPlex` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER2:PRESet` | s | s | s | s | s | s | s |  |  |
-| `:SYSTem:COMMunicate:SER2:PROMpt` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER2:RECeive` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SER2:RECeive:BAUD` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER2:RECeive:BITS` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER2:RECeive:PACE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER2:RECeive:PARity` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SER2:RECeive:PARity:TYPE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER2:RECeive:SBITs` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER2:TRANsmit` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SER2:TRANsmit:BAUD` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER2:TRANsmit:BITS` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER2:TRANsmit:PACE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER2:TRANsmit:PARity` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SER2:TRANsmit:PARity:TYPE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER2:TRANsmit:SBITs` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER:ADDRess` | q | q |  | q | q | q | q |  |  |
-| `:SYSTem:COMMunicate:SER:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:SER:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER:FDUPlex` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER:PRESet` | s | s | s | s | s | s | s |  |  |
-| `:SYSTem:COMMunicate:SER:PROMpt` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER:RECeive` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SER:RECeive:BAUD` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER:RECeive:BITS` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER:RECeive:PACE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER:RECeive:PARity` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SER:RECeive:PARity:TYPE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER:RECeive:SBITs` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER:TRANsmit` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SER:TRANsmit:BAUD` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER:TRANsmit:BITS` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER:TRANsmit:PACE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER:TRANsmit:PARity` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SER:TRANsmit:PARity:TYPE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SER:TRANsmit:SBITs` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL` | q | q | q | - | - | q | q | 097-58503-13 |  |
-| `:SYSTem:COMMunicate:SERIAL1` | q | q | q | - | - | q | q |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:ADDRess` | q | q |  | q | q | q | q |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:FDUPlex` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SYSTem:COMMunicate:SERIAL1:PRESet` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:SYSTem:COMMunicate:SERIAL1:PROMpt` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:RECeive` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:RECeive:BAUD` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:RECeive:BITS` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:RECeive:PACE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:RECeive:PARity` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:RECeive:PARity:TYPE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:RECeive:SBITs` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:TRANsmit` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:TRANsmit:BAUD` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:TRANsmit:BITS` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:TRANsmit:PACE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:TRANsmit:PARity` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:TRANsmit:PARity:TYPE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL1:TRANsmit:SBITs` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL2` | q | q | q | - | - | q | q |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:ADDRess` | q | q |  | q | q | q | q |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:FDUPlex` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13 |  |
-| `:SYSTem:COMMunicate:SERIAL2:PRESet` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13 |  |
-| `:SYSTem:COMMunicate:SERIAL2:PROMpt` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:RECeive` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:RECeive:BAUD` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:RECeive:BITS` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:RECeive:PACE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:RECeive:PARity` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:RECeive:PARity:TYPE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:RECeive:SBITs` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:TRANsmit` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:TRANsmit:BAUD` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:TRANsmit:BITS` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:TRANsmit:PACE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:TRANsmit:PARity` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:TRANsmit:PARity:TYPE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL2:TRANsmit:SBITs` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL:ADDRess` | q | q |  | q | q | q | q |  |  |
-| `:SYSTem:COMMunicate:SERIAL:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL:FDUPlex` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL:PRESet` | s | s | s | s | s | s | s |  |  |
-| `:SYSTem:COMMunicate:SERIAL:PROMpt` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL:RECeive` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL:RECeive:BAUD` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL:RECeive:BITS` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL:RECeive:PACE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL:RECeive:PARity` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL:RECeive:PARity:TYPE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL:RECeive:SBITs` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL:TRANsmit` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL:TRANsmit:BAUD` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL:TRANsmit:BITS` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL:TRANsmit:PACE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL:TRANsmit:PARity` | - | - | - | - | - | - | - |  |  |
-| `:SYSTem:COMMunicate:SERIAL:TRANsmit:PARity:TYPE` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:SERIAL:TRANsmit:SBITs` | qs | qs | qs | qs | qs | qs | qs |  |  |
-| `:SYSTem:COMMunicate:TOD` | q | q | q |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:TOD:ADDRess` | q | q |  |  |  | q | q |  |  |
-| `:SYSTem:COMMunicate:TOD:CONTrol` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:TOD:CONTrol:HPACe` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:TOD:FDUPlex` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:TOD:PRESet` | s | s | s |  |  | s | s |  |  |
-| `:SYSTem:COMMunicate:TOD:PROMpt` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:TOD:RECeive` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:TOD:RECeive:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:TOD:RECeive:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:TOD:RECeive:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:TOD:RECeive:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:TOD:RECeive:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:TOD:RECeive:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:TOD:TRANsmit` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:TOD:TRANsmit:BAUD` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:TOD:TRANsmit:BITS` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:TOD:TRANsmit:PACE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:TOD:TRANsmit:PARity` | - | - | - |  |  | - | - |  |  |
-| `:SYSTem:COMMunicate:TOD:TRANsmit:PARity:TYPE` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:COMMunicate:TOD:TRANsmit:SBITs` | qs | qs | qs |  |  | qs | qs |  |  |
-| `:SYSTem:DATE` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 |  |
-| `:SYSTem:ERRor` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:SYSTem:LANGuage` | qs | qs | qs | qs | qs | qs | qs | 097-59551-02, 097-58503-13, 097-z3801-01 | hp58503 |
-| `:SYSTem:PON` | s | s | s |  |  | s | s |  |  |
-| `:SYSTem:PRESet` | s | s | s | s | s | s | s | 097-59551-02, 097-58503-13, 097-z3801-01 |  |
-| `:SYSTem:PRINt` | q | q | q | q | q | q | q |  |  |
-| `:SYSTem:PRINt:LENGth` | q | q | q | q | q | q | q |  |  |
-| `:SYSTem:SRESet` |  |  | s |  |  |  |  |  |  |
-| `:SYSTem:STATus` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503 |
-| `:SYSTem:STATus:LENGth` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 | hp58503, z3801 |
-| `:SYSTem:TIME` | q | q | q | q | q | q | q | 097-59551-02, 097-58503-13 |  |
-| `:TEMP` |  |  | s |  |  |  |  |  |  |
-| `:TIMD` | s | s | s |  |  | s |  |  |  |
-| `:TIME` | s | s | s |  |  | s |  |  |  |
-| `:TKN` | q | q | q | q | q | q | q |  |  |
-| `:TKN:LENGth` | q | q | q | q | q | q | q |  |  |
-| `:TMD1` |  | s | s |  |  | s |  |  |  |
-| `:UNSL` | s | s | s |  |  | s |  |  |  |
-| `:W1PO` | q | q |  | q | q | q | q |  |  |
-| `:WACD` | q | q |  | q | q | q | q |  |  |
-| `:WAT1` | q | q |  | q | q | q | q |  |  |
-| `:WAT2` | q | q |  | q | q | q | q |  |  |
-| `:WAT3` | q | q |  | q | q | q | q |  |  |
-| `:WEAL` | q | q |  | q | q | q | q |  |  |
-| `:WFOU` | q | q |  | q | q | q | q |  |  |
-| `:WLOC` | q | q |  | q | q | q | q |  |  |
-| `:WTZO` | q | q |  | q | q | q | q |  |  |
+| `*CLS` | ABZ |  | s | s | s | s | s | s | s |
+| `*ESE` | ABZ | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `*ESR` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `*IDN` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `*OPC` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `*RST` |  |  | s | s | s | s | s | s | s |
+| `*SRE` | ABZ | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `*STB` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `*TST` | ABZ |  | q | q | q | q | q | q | q |
+| `*WAI` |  |  | s | s | s | s | s | s | s |
+| `:ALARm` |  |  | q | q | q |  |  | q | - |
+| `:ALARm:ACO` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:ALARm:EXTRactor` |  |  | s | s | s |  |  | q | s |
+| `:ALARm:HARDware` |  |  | s | s | s |  |  | q | q |
+| `:ALARm:OPERation` |  |  | s | s | s |  |  | q | s |
+| `:ANT1` |  |  | s | s | s |  |  | s |  |
+| `:AZEL` |  |  | s | s | s |  |  | s |  |
+| `:CALA` |  |  | q | q |  | q | q | q | q |
+| `:CEQU` |  |  | q | q |  | q | q | q | q |
+| `:CHOE` |  |  |  |  | q |  |  |  |  |
+| `:DACP` |  |  |  | s | s |  |  | s |  |
+| `:DANA` |  |  | q | q | q | q | q | q | q |
+| `:DIAGnostic` | Z |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:ADC` |  |  |  |  | q |  |  | q |  |
+| `:DIAGnostic:CALibration` |  |  |  |  | - |  |  | - |  |
+| `:DIAGnostic:CALibration:ROSCillator` |  |  |  |  | s |  |  | s |  |
+| `:DIAGnostic:DCOMplete` |  |  |  |  | s |  |  |  |  |
+| `:DIAGnostic:DOWNload` | abz |  |  |  | s |  |  |  |  |
+| `:DIAGnostic:ERASe` | abz |  |  |  | s |  |  |  |  |
+| `:DIAGnostic:FAIL` |  |  |  |  | - |  |  |  |  |
+| `:DIAGnostic:FAIL:CHECksum` |  |  |  |  | s |  |  |  |  |
+| `:DIAGnostic:FAIL:CODE` |  |  |  |  | s |  |  |  |  |
+| `:DIAGnostic:GPSystem` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:GPSystem:ACURrent` |  |  | q | q | q |  |  | q | q |
+| `:DIAGnostic:GPSystem:ACURrent:ALARm` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:DIAGnostic:GPSystem:ACURrent:STATe` |  |  |  |  | q |  |  | q |  |
+| `:DIAGnostic:GPSystem:DCXO` |  |  |  |  | qs |  |  |  |  |
+| `:DIAGnostic:GPSystem:POSition` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:GPSystem:POSition:DEGRees` |  |  | q | q | q | q | q | q | q |
+| `:DIAGnostic:GPSystem:POSition:HOLD` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:GPSystem:POSition:HOLD:RAIM` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:GPSystem:POSition:HOLD:RAIM:STATe` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:DIAGnostic:GPSystem:POSition:HOLD:RAIM:THReshold` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:DIAGnostic:GPSystem:POSition:MSEConds` |  |  | q | q | q | q | q | q | q |
+| `:DIAGnostic:GPSystem:POSition:SURVey` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:GPSystem:POSition:SURVey:RAIM` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:GPSystem:POSition:SURVey:RAIM:STATe` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:DIAGnostic:GPSystem:POSition:SURVey:RAIM:THReshold` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:DIAGnostic:GPSystem:TIME` |  | hp58503 | q | q | q | q | q | q | q |
+| `:DIAGnostic:GPSystem:TRACking` |  |  | - | - | - |  |  | - | - |
+| `:DIAGnostic:GPSystem:TRACking:LOG` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:DIAGnostic:GPSystem:UTC` |  | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:DIAGnostic:IDENtification` | Z |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:IDENtification:DEFault` |  | hp58503 | q | q | q | q | q | q | q |
+| `:DIAGnostic:IDENtification:GPSystem` | Z | hp58503, z3801 | q | q | q | q | q | q | q |
+| `:DIAGnostic:IDENtification:HARDware` |  |  | s | s | s | s | s | s | s |
+| `:DIAGnostic:IDENtification:MODel` |  |  | s | s | s | s | s | s | s |
+| `:DIAGnostic:IDENtification:SERial` |  |  | s | s | s | s | s | s | s |
+| `:DIAGnostic:INPut` |  |  | - | - | - |  |  | - | - |
+| `:DIAGnostic:INPut:DATA` |  |  | q | q | q |  |  | q | q |
+| `:DIAGnostic:LIFetime` | Z |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:LIFetime:COUNt` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:DIAGnostic:LOG` | ABZ |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:LOG:CLEar` | ABZ |  | s | s | s | s | s | s | s |
+| `:DIAGnostic:LOG:COUNt` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:DIAGnostic:LOG:READ` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:DIAGnostic:LOG:READ:ALL` | AB | hp58503, z3801 | q | q | q | q | q | q | q |
+| `:DIAGnostic:LOG:WRAP` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:LOG:WRITe` |  |  | s | s | s | s | s | s | s |
+| `:DIAGnostic:ME` |  |  | qs | qs | s | qs | qs | qs | qs |
+| `:DIAGnostic:OS` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:OS:MEMory` |  |  | q | q | q | q | q | q | q |
+| `:DIAGnostic:OS:PROCess` |  |  | q | q | q | q | q | q | q |
+| `:DIAGnostic:OS:STACk` |  |  | q | q | q | q | q | q | q |
+| `:DIAGnostic:OUTPut` |  |  | s | s | s |  |  | qs | s |
+| `:DIAGnostic:PRINt` |  |  |  |  | s |  |  |  |  |
+| `:DIAGnostic:PTIMe` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:PTIMe:TINTerval` |  | hp58503, z3801 | q | q | q | q | q | q | q |
+| `:DIAGnostic:QUERy` | Z |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:QUERy:RESPonse` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:DIAGnostic:REFerence` |  |  | - | - | - |  |  | - | - |
+| `:DIAGnostic:REFerence:CPORt` |  |  |  |  | s |  |  |  |  |
+| `:DIAGnostic:REFerence:EXTernal` |  |  | - | - | - |  |  | - | - |
+| `:DIAGnostic:REFerence:EXTernal:QUEStionable` |  |  | - | - | - |  |  | - | - |
+| `:DIAGnostic:REFerence:EXTernal:QUEStionable:HYSTeresis` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:DIAGnostic:REFerence:GPSystem` |  |  | - | - | - |  |  | - | - |
+| `:DIAGnostic:REFerence:GPSystem:QUEStionable` |  |  | - | - | - |  |  | - | - |
+| `:DIAGnostic:REFerence:GPSystem:QUEStionable:HYSTeresis` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:DIAGnostic:REFerence:STATus` |  |  |  |  | s |  |  |  |  |
+| `:DIAGnostic:ROSCillator` | Z |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:ROSCillator:CURRent` |  | hp58503, z3801 | q | q | q | q | q | q | q |
+| `:DIAGnostic:ROSCillator:EFControl` | Z |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:ROSCillator:EFControl:ABSolute` |  | hp58503, z3801 | q | q | q | q | q | q | q |
+| `:DIAGnostic:ROSCillator:EFControl:ASLOPe` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:EFControl:BSLOPe` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:EFControl:DADC` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:EFControl:DATA` |  | hp58503 |  | qs | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:EFControl:FPGA` |  |  |  |  | s |  |  |  |  |
+| `:DIAGnostic:ROSCillator:EFControl:MODE` |  |  |  | qs | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:EFControl:RELative` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:DIAGnostic:ROSCillator:LTIMe` |  |  |  |  | - |  |  |  |  |
+| `:DIAGnostic:ROSCillator:LTIMe:DATA` |  |  |  |  | q |  |  |  |  |
+| `:DIAGnostic:ROSCillator:LTIMe:INIT` |  |  |  |  | qs |  |  |  |  |
+| `:DIAGnostic:ROSCillator:LTIMe:MAX` |  |  |  |  | qs |  |  |  |  |
+| `:DIAGnostic:ROSCillator:PTESt` |  |  |  |  | - |  |  | - |  |
+| `:DIAGnostic:ROSCillator:PTESt:COUNt` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:PTESt:DURation` |  |  |  |  | q |  |  | q |  |
+| `:DIAGnostic:ROSCillator:PTESt:MODE` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:PTESt:PTHR` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:PTESt:PTHR1` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:PTESt:PTHR2` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:PTESt:PTHRESHOLD` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:PTESt:PTHRESHOLD1` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:PTESt:PTHRESHOLD2` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:PTESt:STATe` |  |  |  |  | q |  |  | q |  |
+| `:DIAGnostic:ROSCillator:PTESt:TTHR` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:PTESt:TTHR1` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:PTESt:TTHR2` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:PTESt:TTHRESHOLD` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:PTESt:TTHRESHOLD1` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:PTESt:TTHRESHOLD2` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:PTESt:TYPE` |  |  |  |  | qs |  |  | qs |  |
+| `:DIAGnostic:ROSCillator:TCO` |  |  |  |  | qs |  |  |  |  |
+| `:DIAGnostic:ROSCillator:TCO1` |  |  |  |  | qs |  |  |  |  |
+| `:DIAGnostic:ROSCillator:TCO2` |  |  |  |  | qs |  |  |  |  |
+| `:DIAGnostic:ROSCillator:TCOEFFICIENT` |  | hp58503, z3801 |  |  | qs |  |  |  |  |
+| `:DIAGnostic:ROSCillator:TCOefficient` |  | hp58503, z3801 | qs | qs |  | qs | qs | qs | qs |
+| `:DIAGnostic:ROSCillator:TYPE` |  |  |  |  | qs |  |  |  |  |
+| `:DIAGnostic:SER` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:SER1` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:SER1:EGResponse` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:DIAGnostic:SER1:RESTricted` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:DIAGnostic:SER2` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:SER2:EGResponse` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:DIAGnostic:SER2:RESTricted` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:DIAGnostic:SER:EGResponse` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:DIAGnostic:SER:RESTricted` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:DIAGnostic:SERIAL` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:SERIAL1` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:SERIAL1:EGResponse` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:DIAGnostic:SERIAL1:RESTricted` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:DIAGnostic:SERIAL2` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:SERIAL2:EGResponse` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:DIAGnostic:SERIAL2:RESTricted` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:DIAGnostic:SERIAL:EGResponse` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:DIAGnostic:SERIAL:RESTricted` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:DIAGnostic:SLOG` |  | hp58503, z3801 | - | - | - | - | - | - | - |
+| `:DIAGnostic:SLOG:CLEar` |  |  | s | s | s | s | s | s | s |
+| `:DIAGnostic:SLOG:COUNt` |  |  | q | q | q | q | q | q | q |
+| `:DIAGnostic:SLOG:READ` |  |  | q | q | q | q | q | q | q |
+| `:DIAGnostic:SLOG:READ:ALL` |  |  | q | q | q | q | q | q | q |
+| `:DIAGnostic:STATus` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:STATus:ERRor` |  |  | s | s | s | s | s | s | s |
+| `:DIAGnostic:STATus:HAPPening` |  |  | s | s | s | s | s | s | s |
+| `:DIAGnostic:SYSTem` |  |  | - | - | - | - | - | - | - |
+| `:DIAGnostic:SYSTem:DOUTput` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:DIAGnostic:SYSTem:PDEBug` |  |  |  |  | s |  |  | s |  |
+| `:DIAGnostic:SYSTem:PSTartup` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:DIAGnostic:TCODe` |  |  |  | - | - |  |  | - |  |
+| `:DIAGnostic:TCODe:ASCii` |  |  |  |  | qs |  |  |  |  |
+| `:DIAGnostic:TCODe:ERRor` |  |  |  | - | - |  |  | - |  |
+| `:DIAGnostic:TCODe:ERRor:AMASk` |  |  |  | qs | qs |  |  | qs |  |
+| `:DIAGnostic:TCODe:ERRor:OMASk` |  |  |  | qs | qs |  |  | qs |  |
+| `:DIAGnostic:TCODe:STATus` |  |  |  | - | - |  |  | - |  |
+| `:DIAGnostic:TCODe:STATus:AMASk` |  |  |  | qs | qs |  |  | qs |  |
+| `:DIAGnostic:TCODe:STATus:OMASk` |  |  |  | qs | qs |  |  | qs |  |
+| `:DIAGnostic:TEMPerature` |  | hp58503 | q | q | q | q | q | q | q |
+| `:DIAGnostic:TEST` | AB |  | q | q | q | q | q | q | q |
+| `:DIAGnostic:TEST:FLASh` |  |  |  |  | q |  |  | q |  |
+| `:DIAGnostic:TEST:RESult` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:DIAGnostic:TMODe` |  |  | - | - | - |  |  | - | - |
+| `:DIAGnostic:TMODe:DATA` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:DIAGnostic:TMODe:STATe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:DIAGnostic:TOFFset` |  | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:DIAGnostic:TSET` |  |  | qs | qs | s |  |  | qs | qs |
+| `:DIAGnostic:TVALid` |  |  | - | - | - |  |  | - | - |
+| `:DIAGnostic:TVALid:NOW` |  |  | s | s | s |  |  | s | s |
+| `:DOUGlas` |  |  | - | - | - | - | - | - | - |
+| `:DOUGlas:DURation` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:DOUGlas:PROGress` |  |  | q | q | q | q | q | q | q |
+| `:DOUGlas:STATe` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:DOUGlas:STATe:POWerup` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:EFER` |  |  |  | s | s |  |  | s |  |
+| `:ESSD` |  |  |  | s | s |  |  | s |  |
+| `:ESSN` |  |  |  | s | s |  |  | s |  |
+| `:FMHO` |  |  | q | q |  | q | q | q | q |
+| `:FORMat` |  |  | - | - | - | - | - | - | - |
+| `:FORMat:DATA` | AB |  | qs | qs | qs | qs | qs | qs | qs |
+| `:GARY` |  |  | - | - | q | - | - | q | - |
+| `:GARY:CLEar` |  |  | s | s |  | s | s |  | s |
+| `:GARY:COUNt` |  |  | q | q |  | q | q |  | q |
+| `:GARY:READ` |  |  | q | q |  | q | q |  | q |
+| `:GARY:READ:ALL` |  |  | q | q |  | q | q |  | q |
+| `:GARY:WRITe` |  |  | s | s |  | s | s |  | s |
+| `:GDOP` |  |  |  | s | s |  |  | s |  |
+| `:IPSU` |  |  | q | q |  | q | q | q | q |
+| `:KENneth` |  |  | - | - | - | - | - | - | - |
+| `:KENneth:MEASured` |  |  |  |  | q |  |  | q |  |
+| `:KENneth:PREDicted` |  |  | q | q | q | q | q | q | q |
+| `:KENneth:PREDicted:DURation` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:KENneth:PRESent` |  |  | q | q | q | q | q | q | q |
+| `:LEAP` |  |  | s | s | s |  |  | s |  |
+| `:LED` |  |  | - | - | - | - | - | - | - |
+| `:LED:ACTive` | Z |  | qs | qs | qs | qs | qs | qs | qs |
+| `:LED:ALARm` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:LED:ALARm:ACO` |  |  | q | q | s |  |  | q | q |
+| `:LED:ALARm:CRITical` |  |  | q | q | s |  |  | q | q |
+| `:LED:ALARm:MAJor` |  |  | q | q | q | q | q | q | q |
+| `:LED:ALARm:MINor` |  |  | q | q | q | q | q | q | q |
+| `:LED:ALARm:USER` | Z |  | qs | qs | s | qs | qs | qs | qs |
+| `:LED:ENABled` | Z |  | qs | qs | qs | qs | qs | qs | qs |
+| `:LED:GPSLock` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:LED:HOLDover` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:LED:NGPS` |  |  |  |  | s |  |  | s |  |
+| `:LED:STANdby` |  |  |  |  | s |  |  | s |  |
+| `:LED:TMHValid` |  |  |  |  |  | q | q |  |  |
+| `:MANI` |  |  | s | s | s |  |  | s |  |
+| `:MATThew` |  |  | q | q | q |  |  | q |  |
+| `:OUTPut` |  |  | - | - | - | - | - | - | - |
+| `:OUTPut:ACTive` |  |  | s | s | s |  |  | s | s |
+| `:OUTPut:ACTive:DISable` |  |  | s | s | s |  |  | s | s |
+| `:OUTPut:ACTive:ENABle` |  |  | s | s | s |  |  | s | s |
+| `:OUTPut:ACTive:HOLDover` |  |  | - | - | - |  |  | - | - |
+| `:OUTPut:ACTive:HOLDover:DURation` |  |  | - | - | - |  |  | - | - |
+| `:OUTPut:ACTive:HOLDover:DURation:THReshold` |  |  | s | s | s |  |  | qs | s |
+| `:OUTPut:HPOWer` |  |  |  |  | s |  |  | s |  |
+| `:OUTPut:INACtive` |  |  | s | s | s |  |  | qs | s |
+| `:OUTPut:PIN1` |  |  | - | - |  | - | - | - | - |
+| `:OUTPut:PIN1:DELay` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN1:DELay:ALIGnment` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN1:FREQuency` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN2` |  |  | - | - |  | - | - | - | - |
+| `:OUTPut:PIN2:DELay` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN2:DELay:ALIGnment` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN2:FREQuency` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN3` |  |  | - | - |  | - | - | - | - |
+| `:OUTPut:PIN3:DELay` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN3:DELay:ALIGnment` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN3:FREQuency` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN6` |  |  | - | - |  | - | - | - | - |
+| `:OUTPut:PIN6:DELay` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN6:DELay:ALIGnment` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN6:FREQuency` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN7` |  |  | - | - |  | - | - | - | - |
+| `:OUTPut:PIN7:DELay` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN7:DELay:ALIGnment` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN7:FREQuency` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN8` |  |  | - | - |  | - | - | - | - |
+| `:OUTPut:PIN8:DELay` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN8:DELay:ALIGnment` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PIN8:FREQuency` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PINS` |  |  | - | - |  | - | - | - | - |
+| `:OUTPut:PINS:DELay` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PINS:DELay:ALIGnment` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PINS:FREQuency` |  |  | qs | qs |  | qs | qs | qs | qs |
+| `:OUTPut:PRIMary` |  |  |  |  | s |  |  | s |  |
+| `:OUTPut:STATe` |  |  | qs | qs | qs | qs | qs | q | qs |
+| `:PAVG` |  |  | s | s | s |  |  | s |  |
+| `:PMD1` |  |  | s | s | s |  |  | s |  |
+| `:POS1` |  |  | s | s | s |  |  | s |  |
+| `:R1PO` |  |  | q | q |  | q | q | q | q |
+| `:RACD` |  |  | q | q |  | q | q | q | q |
+| `:RAST` |  |  | q | q |  | q | q | q | q |
+| `:RAT1` |  |  | q | q |  | q | q | q | q |
+| `:RAT2` |  |  | q | q |  | q | q | q | q |
+| `:RAT3` |  |  | q | q |  | q | q | q | q |
+| `:REAL` |  |  | q | q |  | q | q | q | q |
+| `:REQU` |  |  | q | q |  | q | q | q | q |
+| `:RFOU` |  |  | q | q |  | q | q | q | q |
+| `:RLOC` |  |  | q | q |  | q | q | q | q |
+| `:RMHO` |  |  | q | q |  | q | q | q | q |
+| `:ROBin` |  |  | q | q | q | q | q | q | q |
+| `:ROBin:CLEar` |  |  | s | s | s | s | s | s | s |
+| `:ROBin:MEMory` |  |  | - | - | - | - | - | - | - |
+| `:ROBin:MEMory:OVERflow` |  |  | - | - | - | - | - | - | - |
+| `:ROBin:MEMory:OVERflow:COUNt` |  |  | q | q | q | q | q | q | q |
+| `:ROBin:MEMory:SAVE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:ROBin:POINts` |  |  | q | q | q | q | q | q | q |
+| `:ROBin:TSTamp` |  |  | q | q | q | q | q | q | q |
+| `:RPHS` |  |  | q | q |  | q | q | q | q |
+| `:RSPR` |  |  | q | q |  | q | q | q | q |
+| `:RSST` |  |  | q | q |  | q | q | q | q |
+| `:RSSU` |  |  | q | q |  | q | q | q | q |
+| `:RSTG` |  |  |  | s | s |  |  | s |  |
+| `:RTAD` |  |  | q | q |  | q | q | q | q |
+| `:RTCM` |  |  | q | q |  | q | q | q | q |
+| `:RTSA` |  |  | q | q |  | q | q | q | q |
+| `:RTZO` |  |  | q | q |  | q | q | q | q |
+| `:RVST` |  |  | q | q |  | q | q | q | q |
+| `:RWHO` |  |  | q | q |  | q | q | q | q |
+| `:SAMPle` |  |  |  |  |  | - | - |  |  |
+| `:SAMPle:ACTion` |  |  |  |  |  | s | s |  |  |
+| `:SAMPle:BARR` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:BARR1` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:BARR2` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:BARRAY` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:BARRAY1` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:BARRAY2` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:BOOLean` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:DARR` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:DARR1` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:DARR2` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:DARR3` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:DARRAY` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:DARRAY1` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:DARRAY2` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:DARRAY3` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:DOUBle` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:FARR` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:FARR1` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:FARR2` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:FARR3` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:FARRAY` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:FARRAY1` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:FARRAY2` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:FARRAY3` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:FLOat` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:IARR` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:IARR1` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:IARR2` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:IARR3` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:IARR4` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:IARRAY` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:IARRAY1` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:IARRAY2` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:IARRAY3` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:IARRAY4` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:IMULtiple` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:INTeger` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:TARR` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:TARR1` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:TARR2` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:TARR3` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:TARRAY` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:TARRAY1` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:TARRAY2` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:TARRAY3` |  |  |  |  |  | qs | qs |  |  |
+| `:SAMPle:TOGGle` |  |  |  |  |  | qs | qs |  |  |
+| `:SENSe` |  |  | - | - | - | - | - | - | - |
+| `:SENSe:DATA` | AB |  | q | q | q | q | q | q | q |
+| `:SENSe:DATA:CLEar` | AB |  | s | s | s | s | s | s | s |
+| `:SENSe:DATA:MEMory` |  |  | - | - | - | - | - | - | - |
+| `:SENSe:DATA:MEMory:OVERflow` |  |  | - | - | - | - | - | - | - |
+| `:SENSe:DATA:MEMory:OVERflow:COUNt` | AB |  | q | q | q | q | q | q | q |
+| `:SENSe:DATA:MEMory:SAVE` | AB |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SENSe:DATA:POINts` | AB |  | q | q | q | q | q | q | q |
+| `:SENSe:DATA:TSTamp` | AB |  | q | q | q | q | q | q | q |
+| `:SENSe:TST` |  |  | - | - | - | - | - | - | - |
+| `:SENSe:TST1` |  |  | - | - | - | - | - | - | - |
+| `:SENSe:TST1:EDGE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SENSe:TST2` |  |  | - | - | - | - | - | - | - |
+| `:SENSe:TST2:EDGE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SENSe:TST3` |  |  | - | - | - | - | - | - | - |
+| `:SENSe:TST3:EDGE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SENSe:TST4` |  |  | - | - | - | - | - | - | - |
+| `:SENSe:TST4:EDGE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SENSe:TST:EDGE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SENSe:TSTAMP` | AB |  | - | - | - | - | - | - | - |
+| `:SENSe:TSTAMP1` |  |  | - | - | - | - | - | - | - |
+| `:SENSe:TSTAMP1:EDGE` | AB |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SENSe:TSTAMP2` |  |  | - | - | - | - | - | - | - |
+| `:SENSe:TSTAMP2:EDGE` | AB |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SENSe:TSTAMP3` |  |  | - | - | - | - | - | - | - |
+| `:SENSe:TSTAMP3:EDGE` | AB |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SENSe:TSTAMP4` |  |  | - | - | - | - | - | - | - |
+| `:SENSe:TSTAMP4:EDGE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SENSe:TSTAMP:EDGE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SIGQ` |  |  | s | s | s |  |  | s |  |
+| `:SOURce` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:GPSystem` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:GPSystem:ADELay` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:GPSystem:ADELay:FEET` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:GPSystem:EMANgle` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:GPSystem:INITial` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:GPSystem:INITial:DATE` | AB |  | s | s | s | s | s | s | s |
+| `:SOURce:GPSystem:INITial:POSition` | AB |  | s | s | s | s | s | s | s |
+| `:SOURce:GPSystem:INITial:TIME` | AB |  | s | s | s | s | s | s | s |
+| `:SOURce:GPSystem:INITial:VPOSition` |  |  |  |  | s |  |  |  |  |
+| `:SOURce:GPSystem:POSition` | AB | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:GPSystem:POSition:ACTual` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:GPSystem:POSition:BINary` |  |  | q | q | s |  |  | q | q |
+| `:SOURce:GPSystem:POSition:HOLD` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:GPSystem:POSition:HOLD:LAST` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:GPSystem:POSition:HOLD:STATe` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:GPSystem:POSition:SURVey` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:GPSystem:POSition:SURVey:DURation` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:GPSystem:POSition:SURVey:PROGress` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:GPSystem:POSition:SURVey:STATe` | AB | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:GPSystem:POSition:SURVey:STATe:POWerup` | AB | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:GPSystem:REFerence` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:GPSystem:REFerence:ADELay` | AB | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:GPSystem:REFerence:ADELay:FEET` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:GPSystem:REFerence:BIAS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:GPSystem:REFerence:VALid` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:GPSystem:SATellite` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:GPSystem:SATellite:TRACking` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:GPSystem:SATellite:TRACking:COUNt` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:GPSystem:SATellite:TRACking:DATA` |  |  |  |  | q |  |  |  |  |
+| `:SOURce:GPSystem:SATellite:TRACking:EMANgle` | AB | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:GPSystem:SATellite:TRACking:IGNore` | AB | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:GPSystem:SATellite:TRACking:IGNore:ALL` | AB |  | s | s | s | s | s | s | s |
+| `:SOURce:GPSystem:SATellite:TRACking:IGNore:COUNt` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:GPSystem:SATellite:TRACking:IGNore:NONE` | AB |  | s | s | s | s | s | s | s |
+| `:SOURce:GPSystem:SATellite:TRACking:IGNore:STATe` | AB |  | q | q | q | q | q | q | q |
+| `:SOURce:GPSystem:SATellite:TRACking:INCLude` | AB | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:GPSystem:SATellite:TRACking:INCLude:ALL` | AB |  | s | s | s | s | s | s | s |
+| `:SOURce:GPSystem:SATellite:TRACking:INCLude:COUNt` | AB |  | q | q | q | q | q | q | q |
+| `:SOURce:GPSystem:SATellite:TRACking:INCLude:NONE` | AB |  | s | s | s | s | s | s | s |
+| `:SOURce:GPSystem:SATellite:TRACking:INCLude:STATe` | AB |  | q | q | q | q | q | q | q |
+| `:SOURce:GPSystem:SATellite:VISible` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:GPSystem:SATellite:VISible:PREDicted` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:GPSystem:SATellite:VISible:PREDicted:COUNt` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:PTIMe:DATE` | AB | hp58503, z3801 | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:FFOMerit` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:GPSystem` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:PTIMe:GPSystem:ADELay` | Z |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PTIMe:GPSystem:ADELay:FEET` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:PTIMe:GPSystem:EMANgle` | Z |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PTIMe:GPSystem:INITial` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:PTIMe:GPSystem:INITial:DATE` | Z |  | s | s | s | s | s | s | s |
+| `:SOURce:PTIMe:GPSystem:INITial:POSition` | Z |  | s | s | s | s | s | s | s |
+| `:SOURce:PTIMe:GPSystem:INITial:TIME` | Z |  | s | s | s | s | s | s | s |
+| `:SOURce:PTIMe:GPSystem:INITial:VPOSition` |  |  |  |  | s |  |  |  |  |
+| `:SOURce:PTIMe:GPSystem:POSition` | Z |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PTIMe:GPSystem:POSition:ACTual` |  |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:GPSystem:POSition:BINary` |  |  | q | q | s |  |  | q | q |
+| `:SOURce:PTIMe:GPSystem:POSition:HOLD` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:PTIMe:GPSystem:POSition:HOLD:LAST` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:GPSystem:POSition:HOLD:STATe` |  | z3801 | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:GPSystem:POSition:SURVey` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:PTIMe:GPSystem:POSition:SURVey:DURation` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PTIMe:GPSystem:POSition:SURVey:PROGress` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:GPSystem:POSition:SURVey:STATe` | Z |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PTIMe:GPSystem:POSition:SURVey:STATe:POWerup` |  | z3801 | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PTIMe:GPSystem:REFerence` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:PTIMe:GPSystem:REFerence:ADELay` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PTIMe:GPSystem:REFerence:ADELay:FEET` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:PTIMe:GPSystem:REFerence:BIAS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:PTIMe:GPSystem:REFerence:VALid` |  |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:GPSystem:SATellite` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:COUNt` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:DATA` |  |  |  |  | q |  |  |  |  |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:EMANgle` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore` | Z |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore:ALL` |  |  | s | s | s | s | s | s | s |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore:COUNt` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore:NONE` |  |  | s | s | s | s | s | s | s |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore:STATe` |  |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude` | Z |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude:ALL` |  |  | s | s | s | s | s | s | s |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude:COUNt` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude:NONE` |  |  | s | s | s | s | s | s | s |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude:STATe` |  |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:GPSystem:SATellite:VISible` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:PTIMe:GPSystem:SATellite:VISible:PREDicted` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:GPSystem:SATellite:VISible:PREDicted:COUNt` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:LEAPsecond` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:PTIMe:LEAPsecond:ACCumulated` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:LEAPsecond:ACCumulated:CALCulate` |  |  | s | s | s | s | s | s | s |
+| `:SOURce:PTIMe:LEAPsecond:DATE` | AB | hp58503, z3801 | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:LEAPsecond:DURation` | AB | hp58503, z3801 | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:LEAPsecond:GPSTime` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:LEAPsecond:STATe` | AB | hp58503, z3801 | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:PPS` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:PTIMe:PPS:EDGE` | AB |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PTIMe:SYNChronization` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:PTIMe:SYNChronization:IMMediate` | Z |  | s | s | s | s | s | s | s |
+| `:SOURce:PTIMe:TCODe` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:TCODe:CONTinuous` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:PTIMe:TCODe:FORMat` | Z | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PTIMe:TDATe` |  |  |  |  | - |  |  | - |  |
+| `:SOURce:PTIMe:TDATe:DEFault` |  |  |  |  | q |  |  | q |  |
+| `:SOURce:PTIMe:TDATe:GPS` |  |  |  |  | q |  |  | q |  |
+| `:SOURce:PTIMe:TDATe:UTC` |  |  |  |  | q |  |  | q |  |
+| `:SOURce:PTIMe:TFOMerit` |  | z3801 | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:TIME` | AB | hp58503, z3801 | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:TIME:STRing` | AB | hp58503, z3801 | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:TINTerval` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:PTIMe:TZONe` | AB | hp58503, z3801 | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PTIMe:UTC` |  |  |  | qs | qs |  |  | qs |  |
+| `:SOURce:PULSe` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:PULSe:CONTinuous` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:PULSe:CONTinuous:PERiod` | AB |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PULSe:CONTinuous:STATe` | AB |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PULSe:REFerence` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:PULSe:REFerence:EDGE` | AB |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PULSe:STARt` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:PULSe:STARt:DATE` | AB |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:PULSe:STARt:TIME` | AB |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:ROSCillator` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:ROSCillator:HOLDover` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:ROSCillator:HOLDover:DURation` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:ROSCillator:HOLDover:DURation:MEASurement` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:ROSCillator:HOLDover:DURation:MEASurement:THReshold` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1:ACTion` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1:ALAR1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1:ALAR3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1:ALARM1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1:ALARM3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1:EXCeeded` |  |  | q | q | q |  |  | q | q |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2:ACTion` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2:ALAR1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2:ALAR3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2:ALARM1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2:ALARM3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2:EXCeeded` |  |  | q | q | q |  |  | q | q |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR:ACTion` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR:ALAR1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR:ALAR3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR:ALARM1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR:ALARM3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR:EXCeeded` |  |  | q | q | q |  |  | q | q |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THReshold` |  |  |  |  |  | qs | qs |  |  |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1:ACTion` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1:ALAR1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1:ALAR3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1:ALARM1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1:ALARM3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1:EXCeeded` |  |  | q | q | q |  |  | q | q |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2:ACTion` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2:ALAR1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2:ALAR3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2:ALARM1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2:ALARM3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2:EXCeeded` |  |  | q | q | q |  |  | q | q |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD:ACTion` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD:ALAR1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THReshold:ALAR1` |  |  |  |  |  | qs | qs |  |  |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD:ALAR3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THReshold:ALAR3` |  |  |  |  |  | qs | qs |  |  |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD:ALARM1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THReshold:ALARM1` |  |  |  |  |  | qs | qs |  |  |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD:ALARM3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THReshold:ALARM3` |  |  |  |  |  | qs | qs |  |  |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD:EXCeeded` |  |  | q | q | q |  |  | q | q |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THReshold:EXCeeded` |  |  |  |  |  | q | q |  |  |
+| `:SOURce:ROSCillator:HOLDover:HYSTeresis` |  |  | qs | qs | s | qs | qs | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:INITiate` | Z |  | s | s | s | s | s | s | s |
+| `:SOURce:ROSCillator:HOLDover:LIMit` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:ROSCillator:HOLDover:LIMit:STATe` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:LIMit:THReshold` | Z |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:RECovery` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:ROSCillator:HOLDover:RECovery:AUTO` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:RECovery:INITiate` | Z |  | s | s | s | s | s | s | s |
+| `:SOURce:ROSCillator:HOLDover:RECovery:LIMit` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:ROSCillator:HOLDover:RECovery:LIMit:IGNore` | Z |  | s | s | s | s | s | s | s |
+| `:SOURce:ROSCillator:HOLDover:TUNCertainty` | Z |  | - | - | - | - | - | - | - |
+| `:SOURce:ROSCillator:HOLDover:TUNCertainty:MEASured` |  |  |  |  | q |  |  | q |  |
+| `:SOURce:ROSCillator:HOLDover:TUNCertainty:PREDicted` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:ROSCillator:HOLDover:TUNCertainty:PREDicted:DURation` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:ROSCillator:HOLDover:TUNCertainty:PRESent` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:ROSCillator:HOLDover:WAITing` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:ROSCillator:LIMit` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:ROSCillator:LIMit:THReshold` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:ROSCillator:STATe` | Z |  | q | q | q | q | q | q | q |
+| `:SOURce:SYNChronization` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:SYNChronization:FFOMerit` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:SYNChronization:HOLDover` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:SYNChronization:HOLDover:DURation` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:SYNChronization:HOLDover:DURation:MEASurement` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:SYNChronization:HOLDover:DURation:MEASurement:THReshold` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1:ACTion` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1:ALAR1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1:ALAR3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1:ALARM1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1:ALARM3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1:EXCeeded` |  |  | q | q | q |  |  | q | q |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2:ACTion` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2:ALAR1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2:ALAR3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2:ALARM1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2:ALARM3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2:EXCeeded` |  |  | q | q | q |  |  | q | q |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR:ACTion` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR:ALAR1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR:ALAR3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR:ALARM1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR:ALARM3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR:EXCeeded` |  |  | q | q | q |  |  | q | q |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THReshold` |  |  |  |  |  | qs | qs |  |  |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1:ACTion` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1:ALAR1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1:ALAR3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1:ALARM1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1:ALARM3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1:EXCeeded` |  |  | q | q | q |  |  | q | q |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2:ACTion` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2:ALAR1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2:ALAR3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2:ALARM1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2:ALARM3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2:EXCeeded` |  |  | q | q | q |  |  | q | q |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD:ACTion` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD:ALAR1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THReshold:ALAR1` |  |  |  |  |  | qs | qs |  |  |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD:ALAR3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THReshold:ALAR3` |  |  |  |  |  | qs | qs |  |  |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD:ALARM1` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THReshold:ALARM1` |  |  |  |  |  | qs | qs |  |  |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD:ALARM3` |  |  | qs | qs |  |  |  | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THReshold:ALARM3` |  |  |  |  |  | qs | qs |  |  |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD:EXCeeded` |  |  | q | q | q |  |  | q | q |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THReshold:EXCeeded` |  |  |  |  |  | q | q |  |  |
+| `:SOURce:SYNChronization:HOLDover:HYSTeresis` |  |  | qs | qs | s | qs | qs | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:INITiate` | AB |  | s | s | s | s | s | s | s |
+| `:SOURce:SYNChronization:HOLDover:LIMit` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:SYNChronization:HOLDover:LIMit:STATe` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:LIMit:THReshold` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:RECovery` | B |  | - | - | - | - | - | - | - |
+| `:SOURce:SYNChronization:HOLDover:RECovery:AUTO` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:RECovery:INITiate` | AB |  | s | s | s | s | s | s | s |
+| `:SOURce:SYNChronization:HOLDover:RECovery:LIMit` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:SYNChronization:HOLDover:RECovery:LIMit:IGNore` | AB |  | s | s | s | s | s | s | s |
+| `:SOURce:SYNChronization:HOLDover:TUNCertainty` | B |  | - | - | - | - | - | - | - |
+| `:SOURce:SYNChronization:HOLDover:TUNCertainty:MEASured` |  |  |  |  | q |  |  | q |  |
+| `:SOURce:SYNChronization:HOLDover:TUNCertainty:PREDicted` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:SYNChronization:HOLDover:TUNCertainty:PREDicted:DURation` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:SYNChronization:HOLDover:TUNCertainty:PRESent` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:SYNChronization:HOLDover:WAITing` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:SYNChronization:IMMediate` | AB |  | s | s | s | s | s | s | s |
+| `:SOURce:SYNChronization:LIMit` |  |  | - | - | - | - | - | - | - |
+| `:SOURce:SYNChronization:LIMit:THReshold` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SOURce:SYNChronization:STATe` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:SYNChronization:TFOMerit` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SOURce:SYNChronization:TINTerval` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:STATus` | Z |  | - | - | - | - | - | - | - |
+| `:STATus:AACKnowledge` |  |  |  |  | s |  |  |  |  |
+| `:STATus:OPERation` | Z |  | - | - | - | - | - | - | - |
+| `:STATus:OPERation:CONDition` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:STATus:OPERation:CRITical` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:OPERation:ENABle` | ABZ |  | qs | qs | qs | qs | qs | qs | qs |
+| `:STATus:OPERation:EVENt` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:STATus:OPERation:HARDware` | Z |  | - | - | - | - | - | - | - |
+| `:STATus:OPERation:HARDware:CONDition` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:STATus:OPERation:HARDware:CONDition:EEPRom` |  |  | s | s |  |  |  | s | s |
+| `:STATus:OPERation:HARDware:CONDition:TI` |  |  | s | s |  |  |  | s | s |
+| `:STATus:OPERation:HARDware:CRITical` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:OPERation:HARDware:ENABle` | ABZ |  | qs | qs | qs | qs | qs | qs | qs |
+| `:STATus:OPERation:HARDware:EVENt` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:STATus:OPERation:HARDware:MAJor` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:OPERation:HARDware:MINor` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:OPERation:HARDware:NTRansition` | ABZ | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:STATus:OPERation:HARDware:PTRansition` | ABZ | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:STATus:OPERation:HOLDover` | Z |  | - | - | - | - | - | - | - |
+| `:STATus:OPERation:HOLDover:CONDition` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:STATus:OPERation:HOLDover:CRITical` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:OPERation:HOLDover:ENABle` | ABZ |  | qs | qs | qs | qs | qs | qs | qs |
+| `:STATus:OPERation:HOLDover:EVENt` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:STATus:OPERation:HOLDover:MAJor` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:OPERation:HOLDover:MINor` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:OPERation:HOLDover:NTRansition` | ABZ | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:STATus:OPERation:HOLDover:PTRansition` | ABZ | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:STATus:OPERation:MAJor` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:OPERation:MINor` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:OPERation:NTRansition` | ABZ | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:STATus:OPERation:POWerup` | Z |  | - | - | - | - | - | - | - |
+| `:STATus:OPERation:POWerup:CONDition` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:STATus:OPERation:POWerup:CRITical` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:OPERation:POWerup:ENABle` | ABZ |  | qs | qs | qs | qs | qs | qs | qs |
+| `:STATus:OPERation:POWerup:EVENt` | ABZ |  | q | q | q | q | q | q | q |
+| `:STATus:OPERation:POWerup:MAJor` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:OPERation:POWerup:MINor` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:OPERation:POWerup:NTRansition` | ABZ | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:STATus:OPERation:POWerup:PTRansition` | ABZ | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:STATus:OPERation:PTRansition` | ABZ | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:STATus:PRESet` | Z |  | s | s | s | s | s | s | s |
+| `:STATus:PRESet:ALARm` | ABZ |  | s | s | s | s | s | s | s |
+| `:STATus:QUEStionable` | Z |  | - | - | - | - | - | - | - |
+| `:STATus:QUEStionable:CONDition` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:STATus:QUEStionable:CONDition:TRESet` |  |  | s | s |  |  |  | s | s |
+| `:STATus:QUEStionable:CONDition:USER` | ABZ |  | s | s | s | s | s | s | s |
+| `:STATus:QUEStionable:CRITical` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:QUEStionable:ENABle` | ABZ |  | qs | qs | qs | qs | qs | qs | qs |
+| `:STATus:QUEStionable:EVENt` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:STATus:QUEStionable:EVENt:USER` | AB |  | s | s | s | s | s | s | s |
+| `:STATus:QUEStionable:MAJor` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:QUEStionable:MINor` |  |  | qs | qs |  |  |  | qs | qs |
+| `:STATus:QUEStionable:NTRansition` | ABZ | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:STATus:QUEStionable:PTRansition` | ABZ | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem` | Z |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SYSTem:COMMunicate:ALARm` |  |  | q | q | q |  |  | q | q |
+| `:SYSTem:COMMunicate:ALARm:ADDRess` |  |  | q | q |  |  |  | q | q |
+| `:SYSTem:COMMunicate:ALARm:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:ALARm:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:ALARm:FDUPlex` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:ALARm:PRESet` |  |  | s | s | s |  |  | s | s |
+| `:SYSTem:COMMunicate:ALARm:PROMpt` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:ALARm:RECeive` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:ALARm:RECeive:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:ALARm:RECeive:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:ALARm:RECeive:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:ALARm:RECeive:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:ALARm:RECeive:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:ALARm:RECeive:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:ALARm:TRANsmit` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:ALARm:TRANsmit:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:ALARm:TRANsmit:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:ALARm:TRANsmit:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:ALARm:TRANsmit:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:ALARm:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:ALARm:TRANsmit:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:AUX` |  |  | q | q | q |  |  | q | q |
+| `:SYSTem:COMMunicate:AUX:ADDRess` |  |  | q | q |  |  |  | q | q |
+| `:SYSTem:COMMunicate:AUX:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:AUX:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:AUX:FDUPlex` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:AUX:PRESet` |  |  | s | s | s |  |  | s | s |
+| `:SYSTem:COMMunicate:AUX:PROMpt` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:AUX:RECeive` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:AUX:RECeive:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:AUX:RECeive:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:AUX:RECeive:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:AUX:RECeive:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:AUX:RECeive:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:AUX:RECeive:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:AUX:TRANsmit` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:AUX:TRANsmit:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:AUX:TRANsmit:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:AUX:TRANsmit:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:AUX:TRANsmit:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:AUX:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:AUX:TRANsmit:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:BOOT` |  |  | q | q | q |  |  | q | q |
+| `:SYSTem:COMMunicate:BOOT:ADDRess` |  |  | q | q |  |  |  | q | q |
+| `:SYSTem:COMMunicate:BOOT:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:BOOT:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:BOOT:FDUPlex` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:BOOT:PRESet` |  |  | s | s | s |  |  | s | s |
+| `:SYSTem:COMMunicate:BOOT:PROMpt` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:BOOT:RECeive` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:BOOT:RECeive:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:BOOT:RECeive:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:BOOT:RECeive:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:BOOT:RECeive:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:BOOT:RECeive:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:BOOT:RECeive:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:BOOT:TRANsmit` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:BOOT:TRANsmit:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:BOOT:TRANsmit:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:BOOT:TRANsmit:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:BOOT:TRANsmit:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:BOOT:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:BOOT:TRANsmit:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:CRAFt` |  |  | q | q | q |  |  | q | q |
+| `:SYSTem:COMMunicate:CRAFt:ADDRess` |  |  | q | q |  |  |  | q | q |
+| `:SYSTem:COMMunicate:CRAFt:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:CRAFt:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:CRAFt:FDUPlex` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:CRAFt:PRESet` |  |  | s | s | s |  |  | s | s |
+| `:SYSTem:COMMunicate:CRAFt:PROMpt` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:CRAFt:RECeive` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:CRAFt:RECeive:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:CRAFt:RECeive:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:CRAFt:RECeive:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:CRAFt:RECeive:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:CRAFt:RECeive:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:CRAFt:RECeive:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:CRAFt:TRANsmit` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:CRAFt:TRANsmit:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:CRAFt:TRANsmit:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:CRAFt:TRANsmit:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:CRAFt:TRANsmit:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:CRAFt:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:CRAFt:TRANsmit:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:DRTB` |  |  | q | q | q |  |  | q | q |
+| `:SYSTem:COMMunicate:DRTB:ADDRess` |  |  | q | q |  |  |  | q | q |
+| `:SYSTem:COMMunicate:DRTB:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:DRTB:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:DRTB:FDUPlex` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:DRTB:PRESet` |  |  | s | s | s |  |  | s | s |
+| `:SYSTem:COMMunicate:DRTB:PROMpt` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:DRTB:RECeive` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:DRTB:RECeive:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:DRTB:RECeive:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:DRTB:RECeive:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:DRTB:RECeive:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:DRTB:RECeive:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:DRTB:RECeive:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:DRTB:TRANsmit` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:DRTB:TRANsmit:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:DRTB:TRANsmit:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:DRTB:TRANsmit:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:DRTB:TRANsmit:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:DRTB:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:DRTB:TRANsmit:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:LOCal` |  |  | q | q | q |  |  | q | q |
+| `:SYSTem:COMMunicate:LOCal:ADDRess` |  |  | q | q |  |  |  | q | q |
+| `:SYSTem:COMMunicate:LOCal:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:LOCal:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:LOCal:FDUPlex` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:LOCal:PRESet` |  |  | s | s | s |  |  | s | s |
+| `:SYSTem:COMMunicate:LOCal:PROMpt` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:LOCal:RECeive` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:LOCal:RECeive:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:LOCal:RECeive:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:LOCal:RECeive:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:LOCal:RECeive:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:LOCal:RECeive:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:LOCal:RECeive:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:LOCal:TRANsmit` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:LOCal:TRANsmit:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:LOCal:TRANsmit:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:LOCal:TRANsmit:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:LOCal:TRANsmit:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:LOCal:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:LOCal:TRANsmit:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:PFORth` |  |  | q | q | q |  |  | q | q |
+| `:SYSTem:COMMunicate:PFORth:ADDRess` |  |  | q | q |  |  |  | q | q |
+| `:SYSTem:COMMunicate:PFORth:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:PFORth:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:PFORth:FDUPlex` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:PFORth:PRESet` |  |  | s | s | s |  |  | s | s |
+| `:SYSTem:COMMunicate:PFORth:PROMpt` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:PFORth:RECeive` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:PFORth:RECeive:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:PFORth:RECeive:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:PFORth:RECeive:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:PFORth:RECeive:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:PFORth:RECeive:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:PFORth:RECeive:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:PFORth:TRANsmit` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:PFORth:TRANsmit:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:PFORth:TRANsmit:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:PFORth:TRANsmit:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:PFORth:TRANsmit:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:PFORth:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:PFORth:TRANsmit:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:REMote` |  |  | q | q | q |  |  | q | q |
+| `:SYSTem:COMMunicate:REMote:ADDRess` |  |  | q | q |  |  |  | q | q |
+| `:SYSTem:COMMunicate:REMote:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:REMote:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:REMote:FDUPlex` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:REMote:PRESet` |  |  | s | s | s |  |  | s | s |
+| `:SYSTem:COMMunicate:REMote:PROMpt` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:REMote:RECeive` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:REMote:RECeive:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:REMote:RECeive:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:REMote:RECeive:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:REMote:RECeive:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:REMote:RECeive:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:REMote:RECeive:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:REMote:TRANsmit` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:REMote:TRANsmit:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:REMote:TRANsmit:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:REMote:TRANsmit:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:REMote:TRANsmit:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:REMote:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:REMote:TRANsmit:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SCI` |  |  | q | q | q |  |  | q | q |
+| `:SYSTem:COMMunicate:SCI:ADDRess` |  |  | q | q |  |  |  | q | q |
+| `:SYSTem:COMMunicate:SCI:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:SCI:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SCI:FDUPlex` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SCI:PRESet` |  |  | s | s | s |  |  | s | s |
+| `:SYSTem:COMMunicate:SCI:PROMpt` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SCI:RECeive` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:SCI:RECeive:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SCI:RECeive:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SCI:RECeive:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SCI:RECeive:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:SCI:RECeive:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SCI:RECeive:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SCI:TRANsmit` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:SCI:TRANsmit:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SCI:TRANsmit:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SCI:TRANsmit:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SCI:TRANsmit:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:SCI:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SCI:TRANsmit:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SER` |  |  | q | q | q | - | - | q | q |
+| `:SYSTem:COMMunicate:SER1` |  |  | q | q | q | - | - | q | q |
+| `:SYSTem:COMMunicate:SER1:ADDRess` |  |  | q | q |  | q | q | q | q |
+| `:SYSTem:COMMunicate:SER1:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:SER1:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SER1:FDUPlex` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER1:PRESet` |  |  | s | s | s | s | s | s | s |
+| `:SYSTem:COMMunicate:SER1:PROMpt` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER1:RECeive` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SER1:RECeive:BAUD` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER1:RECeive:BITS` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER1:RECeive:PACE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER1:RECeive:PARity` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SER1:RECeive:PARity:TYPE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER1:RECeive:SBITs` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER1:TRANsmit` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SER1:TRANsmit:BAUD` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER1:TRANsmit:BITS` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER1:TRANsmit:PACE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER1:TRANsmit:PARity` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SER1:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER1:TRANsmit:SBITs` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER2` |  |  | q | q | q | - | - | q | q |
+| `:SYSTem:COMMunicate:SER2:ADDRess` |  |  | q | q |  | q | q | q | q |
+| `:SYSTem:COMMunicate:SER2:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:SER2:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SER2:FDUPlex` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER2:PRESet` |  |  | s | s | s | s | s | s | s |
+| `:SYSTem:COMMunicate:SER2:PROMpt` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER2:RECeive` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SER2:RECeive:BAUD` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER2:RECeive:BITS` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER2:RECeive:PACE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER2:RECeive:PARity` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SER2:RECeive:PARity:TYPE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER2:RECeive:SBITs` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER2:TRANsmit` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SER2:TRANsmit:BAUD` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER2:TRANsmit:BITS` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER2:TRANsmit:PACE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER2:TRANsmit:PARity` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SER2:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER2:TRANsmit:SBITs` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER:ADDRess` |  |  | q | q |  | q | q | q | q |
+| `:SYSTem:COMMunicate:SER:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:SER:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SER:FDUPlex` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER:PRESet` |  |  | s | s | s | s | s | s | s |
+| `:SYSTem:COMMunicate:SER:PROMpt` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER:RECeive` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SER:RECeive:BAUD` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER:RECeive:BITS` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER:RECeive:PACE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER:RECeive:PARity` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SER:RECeive:PARity:TYPE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER:RECeive:SBITs` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER:TRANsmit` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SER:TRANsmit:BAUD` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER:TRANsmit:BITS` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER:TRANsmit:PACE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER:TRANsmit:PARity` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SER:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SER:TRANsmit:SBITs` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL` | B |  | q | q | q | - | - | q | q |
+| `:SYSTem:COMMunicate:SERIAL1` |  |  | q | q | q | - | - | q | q |
+| `:SYSTem:COMMunicate:SERIAL1:ADDRess` |  |  | q | q |  | q | q | q | q |
+| `:SYSTem:COMMunicate:SERIAL1:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:SERIAL1:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL1:FDUPlex` | AB | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL1:PRESet` | AB |  | s | s | s | s | s | s | s |
+| `:SYSTem:COMMunicate:SERIAL1:PROMpt` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL1:RECeive` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SERIAL1:RECeive:BAUD` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL1:RECeive:BITS` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL1:RECeive:PACE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL1:RECeive:PARity` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SERIAL1:RECeive:PARity:TYPE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL1:RECeive:SBITs` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL1:TRANsmit` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SERIAL1:TRANsmit:BAUD` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL1:TRANsmit:BITS` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL1:TRANsmit:PACE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL1:TRANsmit:PARity` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SERIAL1:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL1:TRANsmit:SBITs` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL2` |  |  | q | q | q | - | - | q | q |
+| `:SYSTem:COMMunicate:SERIAL2:ADDRess` |  |  | q | q |  | q | q | q | q |
+| `:SYSTem:COMMunicate:SERIAL2:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:SERIAL2:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL2:FDUPlex` | AB |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL2:PRESet` | AB |  | s | s | s | s | s | s | s |
+| `:SYSTem:COMMunicate:SERIAL2:PROMpt` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL2:RECeive` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SERIAL2:RECeive:BAUD` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL2:RECeive:BITS` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL2:RECeive:PACE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL2:RECeive:PARity` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SERIAL2:RECeive:PARity:TYPE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL2:RECeive:SBITs` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL2:TRANsmit` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SERIAL2:TRANsmit:BAUD` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL2:TRANsmit:BITS` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL2:TRANsmit:PACE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL2:TRANsmit:PARity` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SERIAL2:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL2:TRANsmit:SBITs` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL:ADDRess` |  |  | q | q |  | q | q | q | q |
+| `:SYSTem:COMMunicate:SERIAL:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:SERIAL:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL:FDUPlex` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL:PRESet` |  |  | s | s | s | s | s | s | s |
+| `:SYSTem:COMMunicate:SERIAL:PROMpt` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL:RECeive` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SERIAL:RECeive:BAUD` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL:RECeive:BITS` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL:RECeive:PACE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL:RECeive:PARity` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SERIAL:RECeive:PARity:TYPE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL:RECeive:SBITs` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL:TRANsmit` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SERIAL:TRANsmit:BAUD` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL:TRANsmit:BITS` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL:TRANsmit:PACE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL:TRANsmit:PARity` |  |  | - | - | - | - | - | - | - |
+| `:SYSTem:COMMunicate:SERIAL:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:SERIAL:TRANsmit:SBITs` |  |  | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:COMMunicate:TOD` |  |  | q | q | q |  |  | q | q |
+| `:SYSTem:COMMunicate:TOD:ADDRess` |  |  | q | q |  |  |  | q | q |
+| `:SYSTem:COMMunicate:TOD:CONTrol` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:TOD:CONTrol:HPACe` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:TOD:FDUPlex` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:TOD:PRESet` |  |  | s | s | s |  |  | s | s |
+| `:SYSTem:COMMunicate:TOD:PROMpt` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:TOD:RECeive` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:TOD:RECeive:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:TOD:RECeive:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:TOD:RECeive:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:TOD:RECeive:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:TOD:RECeive:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:TOD:RECeive:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:TOD:TRANsmit` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:TOD:TRANsmit:BAUD` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:TOD:TRANsmit:BITS` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:TOD:TRANsmit:PACE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:TOD:TRANsmit:PARity` |  |  | - | - | - |  |  | - | - |
+| `:SYSTem:COMMunicate:TOD:TRANsmit:PARity:TYPE` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:COMMunicate:TOD:TRANsmit:SBITs` |  |  | qs | qs | qs |  |  | qs | qs |
+| `:SYSTem:DATE` | AB |  | q | q | q | q | q | q | q |
+| `:SYSTem:ERRor` | ABZ | hp58503 | q | q | q | q | q | q | q |
+| `:SYSTem:LANGuage` | ABZ | hp58503 | qs | qs | qs | qs | qs | qs | qs |
+| `:SYSTem:PON` |  |  | s | s | s |  |  | s | s |
+| `:SYSTem:PRESet` | ABZ |  | s | s | s | s | s | s | s |
+| `:SYSTem:PRINt` |  |  | q | q | q | q | q | q | q |
+| `:SYSTem:PRINt:LENGth` |  |  | q | q | q | q | q | q | q |
+| `:SYSTem:SRESet` |  |  |  |  | s |  |  |  |  |
+| `:SYSTem:STATus` | AB | hp58503 | q | q | q | q | q | q | q |
+| `:SYSTem:STATus:LENGth` | AB | hp58503, z3801 | q | q | q | q | q | q | q |
+| `:SYSTem:TIME` | AB |  | q | q | q | q | q | q | q |
+| `:TEMP` |  |  |  |  | s |  |  |  |  |
+| `:TIMD` |  |  | s | s | s |  |  | s |  |
+| `:TIME` |  |  | s | s | s |  |  | s |  |
+| `:TKN` |  |  | q | q | q | q | q | q | q |
+| `:TKN:LENGth` |  |  | q | q | q | q | q | q | q |
+| `:TMD1` |  |  |  | s | s |  |  | s |  |
+| `:UNSL` |  |  | s | s | s |  |  | s |  |
+| `:W1PO` |  |  | q | q |  | q | q | q | q |
+| `:WACD` |  |  | q | q |  | q | q | q | q |
+| `:WAT1` |  |  | q | q |  | q | q | q | q |
+| `:WAT2` |  |  | q | q |  | q | q | q | q |
+| `:WAT3` |  |  | q | q |  | q | q | q | q |
+| `:WEAL` |  |  | q | q |  | q | q | q | q |
+| `:WFOU` |  |  | q | q |  | q | q | q | q |
+| `:WLOC` |  |  | q | q |  | q | q | q | q |
+| `:WTZO` |  |  | q | q |  | q | q | q | q |

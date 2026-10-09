@@ -13,6 +13,8 @@ use super::Entry;
 struct Manual {
     /// Its document number.
     name: &'static str,
+    /// The letter the path table names it by, to stay narrow.
+    letter: char,
     /// The models it is the manual of, as an image's name starts.
     models: &'static [&'static str],
     /// Models with no manual of their own, counted against this one
@@ -26,18 +28,21 @@ struct Manual {
 const MANUALS: [Manual; 3] = [
     Manual {
         name: "097-59551-02",
+        letter: 'A',
         models: &["58503a"],
         borrowers: &[],
         paths: include_str!("../../../../docs/scpi/manual-097-59551-02.txt"),
     },
     Manual {
         name: "097-58503-13",
+        letter: 'B',
         models: &["58503b"],
         borrowers: &[],
         paths: include_str!("../../../../docs/scpi/manual-097-58503-13.txt"),
     },
     Manual {
         name: "097-z3801-01",
+        letter: 'Z',
         models: &["z3801a"],
         borrowers: &["z3805a"],
         paths: include_str!("../../../../docs/scpi/manual-097-z3801-01.txt"),
@@ -307,16 +312,27 @@ fn summary(out: &mut String, images: &[(String, Vec<Entry>)]) {
 fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
     out.push_str(
         "## Every path\n\n\
-         A cell is `q` where that image's node has a query handler, `s` a\n\
-         setter, `qs` both, `-` neither, and blank where the image has no\n\
-         such path.  Manuals names each manual listing the path, with\n\
-         `(INSTALL)` where it lists it only among the installer's commands.\n\
-         Answered names each dialect whose `commands.toml` entry for the\n\
-         path a receiver has answered (evidence `hardware`).\n\n",
+         Manuals names each manual listing the path by a letter, lower case\n\
+         where it lists it only among the installer's commands; blank, the\n\
+         path is in no manual.  Answered names each dialect whose\n\
+         `commands.toml` entry for the path a receiver has answered\n\
+         (evidence `hardware`).  An image's cell is `q` where its node has a\n\
+         query handler, `s` a setter, `qs` both, `-` neither, and blank\n\
+         where the image has no such path.\n\n",
     );
+    for manual in &MANUALS {
+        let _ = writeln!(
+            out,
+            "- {}: {}, the {}'s manual",
+            manual.letter,
+            manual.name,
+            manual.models.join(", ").to_ascii_uppercase()
+        );
+    }
+    out.push('\n');
     let _ = writeln!(
         out,
-        "| Path | {} | Manuals | Answered |",
+        "| Path | Manuals | Answered | {} |",
         images
             .iter()
             .map(|(name, _)| name.as_str())
@@ -334,21 +350,20 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
             .iter()
             .map(|(_, entries)| cell(entries.iter().find(|entry| entry.path == path)))
             .collect();
-        let manuals: Vec<String> = MANUALS
+        let manuals: String = MANUALS
             .iter()
             .filter_map(|manual| {
                 manual.lists(path).map(|listed| match listed {
-                    Listed::Primary => manual.name.to_owned(),
-                    Listed::Install => format!("{} (INSTALL)", manual.name),
+                    Listed::Primary => manual.letter,
+                    Listed::Install => manual.letter.to_ascii_lowercase(),
                 })
             })
             .collect();
         let _ = writeln!(
             out,
-            "| `{path}` | {} | {} | {} |",
-            cells.join(" | "),
-            manuals.join(", "),
-            answered(path).join(", ")
+            "| `{path}` | {manuals} | {} | {} |",
+            answered(path).join(", "),
+            cells.join(" | ")
         );
     }
 }
