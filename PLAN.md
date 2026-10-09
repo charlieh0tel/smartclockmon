@@ -640,9 +640,13 @@ view cannot drift apart.  The library, bottom up:
      survey-on-powerup, or the next power cycle discards it; with both
      set, a receiver whose antenna has moved never notices.  Whatever
      asserts a position must be able to release it.
-   - The 58503B reports height above the ellipsoid where the others use
-     mean sea level, so a geodetic setting must name its datum.
-     Earth-centered coordinates sidestep that.
+   - The 58503B's manuals give its heights above the GPS ellipsoid
+     where the 58503A's and 59551A's give mean sea level
+     (097-58503-13 3-17 and 4-5, 097-58503-12), but its firmware
+     1.01.04 labels them MSL (`third_party/58503b-1.01.04.bin`: `HGT
+     (msl)`, `MSL HGT`) and says ellipsoid nowhere.  Which is true is
+     not established; a geodetic setting must name its datum either
+     way.  Earth-centered coordinates sidestep that.
 
 4. **Whether acknowledging from the monitor is wanted.**  Reading an
    event register says which bit latched rather than which group, and
