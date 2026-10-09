@@ -612,6 +612,9 @@ view cannot drift apart.  The library, bottom up:
 
 ## Next
 
+- **Notes on the timeline** (`docs/notes.md`): spans, bench notes and
+  automatic marks; a marker strip and one editor on every chart page;
+  a phone interface.  Built in phases.
 - **Later: compacting old logs**, perhaps into Parquet.  The logs grow
   without bound.
 - **Bench work:** the open items in `docs/hardware-investigations.md`,

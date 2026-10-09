@@ -103,6 +103,7 @@ describes the bench.
 | [`docs/efc.md`](docs/efc.md) | how the receiver reports its control voltage, measured at the oscillator's EFC pin |
 | [`docs/ocxo.md`](docs/ocxo.md) | the oscillator |
 | [`docs/sensors.md`](docs/sensors.md) | logging the host's sensors beside the receivers |
+| [`docs/notes.md`](docs/notes.md) | notes on the timeline: what they are for, and the design they are moving to |
 | [`docs/firmware/`](docs/firmware/) | the firmware: the 1 PPS measurement, the disciplining loop, the GPS engine interface and the pForth console |
 | [`docs/loop.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/loop.html) | the disciplining loop as a block diagram, with its update law, constants and closed-loop poles |
 | [`docs/hardware-investigations.md`](docs/hardware-investigations.md) | what only a bench can settle |
