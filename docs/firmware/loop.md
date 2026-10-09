@@ -350,6 +350,54 @@ reads the address.  What the sign of G stands for was not traced.
 5.787 × 10⁻¹⁴ / G -- 5.787 × 10⁻¹⁴ being 5 × 10⁻⁹ per day expressed per
 second.  Its one caller is `FUN_0004b088`.
 
+## In every image
+
+Every image holds the loop's strings -- the stage names through `fine
+fine slew` and `normal pll`, `pll_normal - Error with measurement`,
+the fit's `pts= %d a=` and `failed line fit`, the sampler's `e_avg= `,
+the console's `loop_time` -- and the constants of the update and the
+fit: 29.75, 2700.0, the clamp's 6.25 × 10⁻¹⁰ and HQ's 4.32 × 10⁻⁴.  The
+update law above was transcribed from the Z3816A only; in the others
+these show the same code is there, not that it is unchanged.  What
+does differ is where τ and G come from.  Read on 2026-10-09.
+
+| Image | τ, as the ROM block sets it | Startup's constant | G |
+| ----- | --------------------------- | ------------------ | - |
+| Z3816A 4001 | 500 s (`0x40174`) | 150 s | −1.25 × 10⁻¹² or −2.125 × 10⁻¹², bit 8 of the word at `0x302000` |
+| Z3801A 3543 | 1000 s (`0x2f846`) | 150 s | +6.25 × 10⁻¹³ (`0x475be`) |
+| Z3805A 3543B | 1000 s (`0x3094c`) | 150.0 present, not traced | +6.25 × 10⁻¹³ (`0x475f4`) |
+| 58503A 3633 | 700 s (`0x305ae`) | 150.0 present, not traced | +6.25 × 10⁻¹³ (`0x476bc`) |
+| 58503A 3704 | 700 s (`0x30840`) | 150.0 present, not traced | +6.25 × 10⁻¹³ (`0x477dc`) |
+| Z3815A 4010 | 500 s (`0x44c9e`); 1000 or 500 s by bit 12 of the word at `0x302000` (`0x50be8`) | 150.0 present, not traced | +1.2 × 10⁻¹² or −2.125 × 10⁻¹², bit 12 of the same word (`0x4503c`) |
+| 58503B 1.01.04 | 700 s, `:DIAGnostic:ROSCillator:LTIMe:MAX` | 150 s, `:LTIMe:INIT` | by oscillator type: −1.25 × 10⁻¹² or +6.25 × 10⁻¹³ |
+
+The τ block has the 25-byte layout above in every image but the
+58503B, whose block (ROM `0x407b4`, copied to `0x1028b8` at
+`0x22d6e`) has 29 bytes: the startup constant at +0x14 and τ at +0x18.
+Two SCPI parameters, undocumented, write them: `:DIAGnostic:
+ROSCillator:LTIMe:INIT` (`0x1028cc`, 10 to 1000 s) and `:LTIMe:MAX`
+(`0x1028d0`, 10 to 10000 s); each setter keeps the start at or below
+the maximum (`0x4aa84`, `0x4aaf6`), and the time constant in force is
+at `0x10328a`.  The Z3816A and Z3801A hard-code the start, 150 s.
+
+The 58503B takes G from a table of 12-byte entries at `0x40dfc` --
+G and two limits -- indexed by the byte at `0x102726` (`0x40b8e`).
+That byte is what `:DIAGnostic:ROSCillator:TYPE?` returns, and its
+setter accepts a value below the number of types (`0x3b58c`).  Two
+entries are filled: G −1.25 × 10⁻¹², the Z3816A's, with limits
+±10⁻¹¹, and +6.25 × 10⁻¹³, the 58503A's; the type selects which.
+
+The Z3815A reads the word at `0x302000` as the Z3816A does, but bit 12
+where the Z3816A reads bit 8, and with it chooses τ as well as G.  A
+second routine stores −2.125 × 10⁻¹² unconditionally (`0x50c14`);
+which runs when was not traced.
+
+Channel names differ.  The `Oscillator current` table of "s, the
+oscillator current" is in the Z3816A, Z3815A and 58503B; the Z3801A,
+Z3805A and 58503A 3633 name `Double oven` instead, and 3704 neither.
+The console word `xcal` is in the Z3816A only, and its `tempco = `
+message in all but the Z3815A and 58503B.
+
 ## How this was read
 
 A software floating-point library does the arithmetic; the decompiler
