@@ -6,6 +6,7 @@
 //! address: the tables are found by their shape, and an image whose
 //! tables are not found exactly once is refused rather than guessed at.
 
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -36,6 +37,42 @@ const CHILDREN_LIMIT: u16 = 80;
 /// The longest half of a keyword pair in any image.
 const KEYWORD_LIMIT: usize = 12;
 
+/// A handler that does nothing but refuse, as these images compile one:
+/// `move.l (12,sp),-(sp)`, `move.b #n,-(sp)`, `jsr` to the routine
+/// every such handler calls, `addq.l #6,sp`, `rts`.  `None` stands for
+/// the byte `n` and the four of the routine's address, which vary.
+const REFUSAL: [Option<u8>; 18] = [
+    Some(0x2f),
+    Some(0x2f),
+    Some(0x00),
+    Some(0x0c),
+    Some(0x1f),
+    Some(0x3c),
+    Some(0x00),
+    None,
+    Some(0x4e),
+    Some(0xb9),
+    None,
+    None,
+    None,
+    None,
+    Some(0x5c),
+    Some(0x8f),
+    Some(0x4e),
+    Some(0x75),
+];
+
+/// Where in a `REFUSAL` stub the routine's address is.
+const REFUSAL_TARGET: u32 = 10;
+/// `rts`.
+const RTS: u16 = 0x4e75;
+/// `jsr` to an absolute long address.
+const JSR_ABSOLUTE: u16 = 0x4eb9;
+/// `jsr` relative to the program counter.
+const JSR_RELATIVE: u16 = 0x4eba;
+/// How far `calls` looks for the end of a routine.
+const CALLS_LIMIT: u32 = 64;
+
 /// A keyword the common-command list holds and the main tree does not,
 /// which tells the two root lists apart.
 const COMMON_MARKER: &str = "IDN";
@@ -57,6 +94,44 @@ impl Image<'_> {
     /// Whether `at` is inside the image.
     fn holds(&self, at: u32) -> bool {
         usize::try_from(at).is_ok_and(|at| at < self.0.len())
+    }
+
+    /// The routine the handler at `at` passes its refusal to, if the
+    /// handler is the `REFUSAL` stub.
+    fn refusal_target(&self, at: u32) -> Option<u32> {
+        let start = usize::try_from(at).ok()?;
+        let code = self.0.get(start..start + REFUSAL.len())?;
+        code.iter()
+            .zip(REFUSAL)
+            .all(|(byte, wanted)| wanted.is_none_or(|wanted| *byte == wanted))
+            .then(|| self.u32(at + REFUSAL_TARGET))
+            .flatten()
+    }
+
+    /// The routines the code at `at` calls, in order, up to its first
+    /// `rts`, and how many bytes that is; `None` if no `rts` comes
+    /// within `CALLS_LIMIT` bytes.  Calls are `jsr` to an absolute long
+    /// address or relative to the program counter.
+    fn calls(&self, at: u32) -> Option<(Vec<u32>, u32)> {
+        let mut calls = Vec::new();
+        let mut offset = 0;
+        while offset < CALLS_LIMIT {
+            match self.u16(at + offset)? {
+                RTS => return Some((calls, offset + 2)),
+                JSR_ABSOLUTE => {
+                    calls.push(self.u32(at + offset + 2)?);
+                    offset += 6;
+                }
+                JSR_RELATIVE => {
+                    let base = at + offset + 2;
+                    let displacement = i16::from_be_bytes(self.u16(base)?.to_be_bytes());
+                    calls.push(base.checked_add_signed(i32::from(displacement))?);
+                    offset += 4;
+                }
+                _ => offset += 2,
+            }
+        }
+        None
     }
 
     /// The keyword spelled by the pair at `at`: the short form, a NUL,
@@ -161,6 +236,9 @@ pub(crate) struct Entry {
     pub(crate) query: Option<u32>,
     /// The node's setter, if it has one.
     pub(crate) setter: Option<u32>,
+    /// Whether it has a handler and every one it has only refuses: a
+    /// path the parser knows and the firmware does not implement.
+    pub(crate) refuses: bool,
 }
 
 impl Entry {
@@ -209,10 +287,49 @@ fn walk(
             node: at,
             query: (node.query != 0).then_some(node.query),
             setter: (node.setter != 0).then_some(node.setter),
+            refuses: false,
         });
     }
     above.pop();
     Ok(())
+}
+
+/// Mark each entry whose every handler only refuses.
+///
+/// The image's refusal routine is the one its `REFUSAL` stubs call, if
+/// they all call one.  A handler refuses if it is such a stub, or if it
+/// is no longer than the routine and makes exactly the routine's calls
+/// in the same order: the routine written out in place, as some
+/// setters are.
+fn mark_refusals(image: &Image, entries: &mut [Entry]) {
+    let handlers = || {
+        entries
+            .iter()
+            .flat_map(|entry| [entry.query, entry.setter])
+            .flatten()
+    };
+    let targets: BTreeSet<u32> = handlers()
+        .filter_map(|handler| image.refusal_target(handler))
+        .collect();
+    let routine = match targets.into_iter().collect::<Vec<_>>().as_slice() {
+        [one] => image.calls(*one),
+        _ => None,
+    };
+    let refuses = |handler: u32| {
+        image.refusal_target(handler).is_some()
+            || routine.as_ref().is_some_and(|(calls, length)| {
+                image
+                    .calls(handler)
+                    .is_some_and(|(made, made_length)| made == *calls && made_length <= *length)
+            })
+    };
+    for entry in entries {
+        entry.refuses = (entry.query.is_some() || entry.setter.is_some())
+            && [entry.query, entry.setter]
+                .into_iter()
+                .flatten()
+                .all(refuses);
+    }
 }
 
 /// Every path the image's parser knows, the common commands as `*`
@@ -223,6 +340,7 @@ fn entries(bytes: &[u8]) -> Result<Vec<Entry>> {
     let mut entries = Vec::new();
     walk(&image, common, "*", &mut Vec::new(), &mut entries)?;
     walk(&image, main, ":", &mut Vec::new(), &mut entries)?;
+    mark_refusals(&image, &mut entries);
     entries.sort_by_cached_key(|entry| entry.path.to_ascii_lowercase());
     entries.dedup_by(|later, earlier| later.path == earlier.path);
     Ok(entries)

@@ -59,6 +59,9 @@ const COMMON_SECTION: &str = "Common commands";
 /// would otherwise each have a table of one row.
 const LEAVES_SECTION: &str = "Top-level keywords without children";
 
+/// How many documented paths the alias table names for each alias.
+const ALIASES_SHOWN: usize = 2;
+
 /// The optional header a path may leave out.
 const OPTIONAL_HEADER: &str = "SOURce";
 
@@ -255,8 +258,152 @@ pub(super) fn markdown(images: &[(String, Vec<Entry>)]) -> String {
          how the trees are read.\n\n",
     );
     summary(&mut out, images);
+    aliases(&mut out, images);
+    stubs(&mut out, images);
     table(&mut out, images);
     out
+}
+
+/// Whether any manual lists `path`, in either language.
+fn in_a_manual(path: &str) -> bool {
+    MANUALS.iter().any(|manual| manual.lists(path).is_some())
+}
+
+/// Whether any manual lists `path` among the primary firmware's
+/// commands.
+fn in_a_primary_list(path: &str) -> bool {
+    MANUALS
+        .iter()
+        .any(|manual| manual.lists(path) == Some(Listed::Primary))
+}
+
+/// The images, by heading, in which `holds` is true of an entry for
+/// `path`.
+fn holding(
+    images: &[(String, Vec<Entry>)],
+    path: &str,
+    holds: impl Fn(&Entry) -> bool,
+) -> Vec<String> {
+    images
+        .iter()
+        .filter(|(_, entries)| {
+            entries
+                .iter()
+                .any(|entry| entry.path == path && holds(entry))
+        })
+        .map(|(name, _)| title(name))
+        .collect()
+}
+
+/// Paths in no manual whose node has the very handlers of a path a
+/// manual lists.
+fn aliases(out: &mut String, images: &[(String, Vec<Entry>)]) {
+    out.push_str(
+        "## Same handlers as a documented path\n\n\
+         Each path here is in no manual, and its node has the same query\n\
+         handler and setter, at the same addresses, as the node of a path\n\
+         a manual lists among the primary firmware's commands -- up to two\n\
+         of which are named.  A shared child list reaching one node by\n\
+         several paths is not counted.  A handler is passed its node, so\n\
+         this makes the path another name for the documented one only\n\
+         where the handler does not tell them apart; the\n\
+         `:SYSTem:COMMunicate` ports, for one, share a query that does.\n\n\
+         | Path | Same handlers as | Images |\n\
+         | ---- | ---------------- | ------ |\n",
+    );
+    let mut found: Vec<(String, BTreeSet<String>)> = Vec::new();
+    for (_, entries) in images {
+        for entry in entries {
+            if entry.refuses
+                || entry.query.is_none() && entry.setter.is_none()
+                || in_a_manual(&entry.path)
+            {
+                continue;
+            }
+            let documented: BTreeSet<String> = entries
+                .iter()
+                .filter(|other| {
+                    other.node != entry.node
+                        && other.query == entry.query
+                        && other.setter == entry.setter
+                        && in_a_primary_list(&other.path)
+                })
+                .map(|other| other.path.clone())
+                .collect();
+            if documented.is_empty() {
+                continue;
+            }
+            match found.iter_mut().find(|(path, _)| *path == entry.path) {
+                Some((_, all)) => all.extend(documented),
+                None => found.push((entry.path.clone(), documented)),
+            }
+        }
+    }
+    found.sort_by_key(|(path, _)| path.to_ascii_lowercase());
+    for (path, documented) in found {
+        let shown: Vec<String> = documented
+            .iter()
+            .take(ALIASES_SHOWN)
+            .map(|other| format!("`{other}`"))
+            .collect();
+        let more = documented.len().saturating_sub(ALIASES_SHOWN);
+        let _ = writeln!(
+            out,
+            "| `{path}` | {}{} | {} |",
+            shown.join(", "),
+            if more == 0 {
+                String::new()
+            } else {
+                format!(" and {more} more")
+            },
+            holding(images, &path, |entry| entry.query.is_some()
+                || entry.setter.is_some())
+            .join(", ")
+        );
+    }
+    out.push('\n');
+}
+
+/// Paths whose every handler only refuses.
+fn stubs(out: &mut String, images: &[(String, Vec<Entry>)]) {
+    out.push_str(
+        "## Stubs\n\n\
+         Each path here has handlers, and each of them does nothing but\n\
+         call the routine every such handler calls to refuse: the parser\n\
+         knows the path and the firmware does not implement it.  Images\n\
+         names those where it is a stub.\n\n\
+         | Path | Manuals | Images |\n\
+         | ---- | ------- | ------ |\n",
+    );
+    let paths: BTreeSet<(String, &str)> = images
+        .iter()
+        .flat_map(|(_, entries)| entries)
+        .filter(|entry| entry.refuses)
+        .map(|entry| (entry.path.to_ascii_lowercase(), entry.path.as_str()))
+        .collect();
+    for (_, path) in paths {
+        let _ = writeln!(
+            out,
+            "| `{path}` | {} | {} |",
+            letters(path).join(", "),
+            holding(images, path, |entry| entry.refuses).join(", ")
+        );
+    }
+    out.push('\n');
+}
+
+/// The manuals listing `path`, each by its letter, `(INSTALL)` where
+/// only among the installer's commands.
+fn letters(path: &str) -> Vec<String> {
+    MANUALS
+        .iter()
+        .filter_map(|manual| {
+            manual.lists(path).map(|listed| match listed {
+                Listed::Primary => manual.letter.to_string(),
+                Listed::Install => format!("{} (INSTALL)", manual.letter),
+            })
+        })
+        .collect()
 }
 
 fn summary(out: &mut String, images: &[(String, Vec<Entry>)]) {
@@ -411,15 +558,7 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
                 .iter()
                 .map(|(_, entries)| cell(entries.iter().find(|entry| entry.path == path)))
                 .collect();
-            let manuals: Vec<String> = MANUALS
-                .iter()
-                .filter_map(|manual| {
-                    manual.lists(path).map(|listed| match listed {
-                        Listed::Primary => manual.letter.to_string(),
-                        Listed::Install => format!("{} (INSTALL)", manual.letter),
-                    })
-                })
-                .collect();
+            let manuals = letters(path);
             let _ = writeln!(
                 out,
                 "| `{path}` | {} | {} | {} |",

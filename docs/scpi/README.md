@@ -13,7 +13,10 @@ with the manuals that list each path and whether a receiver has
 answered it; `smartclock-cli dump-scpi --models` writes it from the
 images, the `manual-*.txt` lists beside it and the command table, and
 a test checks it as it does the trees.  `make docs` regenerates all of
-them.
+them.  It also lists the paths in no manual whose node has the same
+handlers as a documented one, and the stubs: paths whose every handler
+only refuses, which a receiver answers with -113, "Undefined header"
+(`undocumented.md`).
 
 Each `manual-*.txt` is the command paths a manual writes from the
 root, one `LANGUAGE PATH` a line, PRIMARY or INSTALL, with a comment
