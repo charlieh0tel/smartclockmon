@@ -43,7 +43,7 @@ so a stored pointer is a file offset as it stands.
 A **node** lives in `0x57000`..`0x5e000`:
 
     +0   u32   pointer to the keyword pair
-    +4   u32   pointer to the child list, or out of range for a leaf
+    +4   u32   pointer to the child list, zero for a leaf
 
 A **child list** lives in `0x52000`..`0x53100`:
 
@@ -64,12 +64,14 @@ answered `+23`, `:SYSTem:LANGuage?` answered `"PRIMARY"`,
 answered `+9600` -- a second serial port, at a different rate from
 the first, which neither manual mentions.
 
-The whole tree, 513 paths, is `z3801-tree.md`.  Two points of method:
-only a child list that some node's `+4` points at is real, since
-searching the region for any window containing a target finds
-overlapping sub-arrays; and a walk must keep nodes that are both a
-command and a parent, such as `:PTIMe:GPSystem:POSition`, not only
-leaves.
+The whole tree, 595 paths, is `scpi/z3801a-3543.txt`, as
+`smartclock-cli dump-scpi` reads it (`scpi/README.md`).  Three points
+of method: only a child list that some node's `+4` points at is real,
+since searching the region for any window containing a target finds
+overlapping sub-arrays; a walk must keep nodes that are both a command
+and a parent, such as `:PTIMe:GPSystem:POSition`, not only leaves; and
+it must follow every parent of a shared list, such as `SER`, `SER1`
+and `SERIAL`, not only the first.
 
 `:SOURce` is an optional header: `PTIMe`, `PULSe`, `ROSCillator` and
 `SYNChronization` all hang beneath it.  Both forms answer --

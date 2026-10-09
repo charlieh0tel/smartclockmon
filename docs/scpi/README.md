@@ -1,0 +1,123 @@
+# SCPI trees
+
+Every command path each firmware image's parser knows, one file per
+image in `third_party/firmware/`, as `smartclock-cli dump-scpi IMAGE`
+prints it.  A test regenerates each and fails if it differs from the
+file here, so the files and the images cannot drift apart.
+
+A path here means the parser knows it, not that a receiver answers it.
+Nothing here was sent to a receiver.
+
+## Format
+
+One path a line, sorted without regard to case.  Common commands start
+`*`, the rest `:`.  `?` marks a node with a query handler, `(set)` one
+with a setter.  A node with neither is a branch the parser walks
+through, or a keyword with no handler of its own (`:DIAGnostic:SLOG`,
+which a 58503A answers as a query nonetheless).
+
+`:SOURce` is an optional header (`z3801-tree.md`): a path under it
+also answers without it, though only the form with it is listed.
+
+## How it is read
+
+Pointers in the image are absolute and it is not relocated, so a
+stored pointer is a file offset as it stands.
+
+A **node** is a record:
+
+    +0   u32   pointer to the keyword pair
+    +4   u32   pointer to the child list, zero for a leaf
+    +8   u32   setter, zero if none
+    +18  u32   query handler, zero if none
+
+A **keyword pair** is the short form, a NUL, the rest of the long form
+and a NUL, both upper case: `SYST\0EM\0` is `SYSTem`.
+
+A **child list** is:
+
+    +0   u16        an id
+    +2   u16        how many children
+    +4   u16        flags
+    +6   u32 x n    pointers to the child nodes
+
+The parser keeps two pointers side by side: one to the common-command
+list (`*CLS` to `*WAI`) and one to the main tree.  `dump-scpi` finds
+that pair by shape -- two child lists, the first holding `IDN` -- and
+refuses an image where it is not found exactly once.  It follows every
+parent's pointer, since several parents share one list (`SER`, `SER1`,
+`SERIAL` and the rest under `:DIAGnostic` and `:SYSTem:COMMunicate`),
+and refuses a children slot holding anything but zero or a child list,
+and a handler slot holding anything but zero or an even address in the
+image.
+
+| Image | Paths | Query | Set | Root pair at |
+| ----- | ----- | ----- | --- | ------------ |
+| [`z3801a-3543`](z3801a-3543.txt) | 595 | 414 | 303 | `0x5cfae` |
+| [`z3805a-3543b`](z3805a-3543b.txt) | 595 | 414 | 303 | `0x5d014` |
+| [`z3816a-4001`](z3816a-4001.txt) | 902 | 638 | 507 | `0x64ae8` |
+| [`58503a-3633`](58503a-3633.txt) | 914 | 639 | 519 | `0x60d48` |
+| [`58503a-3704`](58503a-3704.txt) | 931 | 646 | 533 | `0x61218` |
+| [`z3815a-4010`](z3815a-4010.txt) | 965 | 680 | 552 | `0x6cd16` |
+| [`58503b-1.01.04`](58503b-1.01.04.txt) | 831 | 525 | 477 | `0x68316` |
+
+## Between images
+
+Counted by path, ignoring handlers.
+
+- **Z3801A 3543 and Z3805A 3543B** have the same tree, line for line.
+- **58503A 3633 to 3704** adds 17 and removes none: `:DIAGnostic:TCODe`
+  and its error and status masks, `:DIAGnostic:ROSCillator:EFControl:
+  DATA` and `:MODE`, `:SOURce:PTIMe:UTC`, and the four-letter tokens
+  `DACP`, `EFER`, `ESSD`, `ESSN`, `GDOP`, `RSTG` and `TMD1`.
+- **Z3801A 3543 against 58503A 3633**: 534 in common.  Only in the
+  Z3801A's: `:LED:TMHValid` and `:SAMPle` with its 48 array and
+  value words.  Only in the 58503A's: `:ALARm`, `:SYSTem:PON`, the
+  `:DIAGnostic:REFerence`, `:TMODe`, `:TSET` and `:TVALid` branches,
+  `:OUTPut:ACTive`, more of `:SYSTem:COMMunicate` and
+  `:STATus:OPERation`, and the tokens `ANT1`, `AZEL`, `LEAP`, `MANI`,
+  `MATThew`, `PAVG`, `PMD1`, `POS1`, `SIGQ`, `TIMD`, `TIME`, `UNSL`.
+- **Z3815A 4010** is nearest the 58503A 3704: it has every path of
+  3704 but the five under `:GARY`, and adds 39, 21 of them under
+  `:DIAGnostic:ROSCillator`, with `:DIAGnostic:ADC`, `:CALibration`,
+  `:TEST`, `:LED:NGPS`, `:LED:STANdby`, `:OUTPut:HPOWer` and
+  `:OUTPut:PRIMary`.  Against the Z3816A 4001 it adds 68 and removes
+  the same five.
+- **58503B 1.01.04** against the 58503A 3704 removes 168 and adds 68.
+  Gone: the `R...`/`W...` tokens, `CALA`, `CEQU`, `FMHO`, `IPSU`,
+  `:GARY`'s children, the `:OUTPut:PINn` branches, the `SER*` ports
+  under `:DIAGnostic`, and much of `:SOURce`, `:STATus` and
+  `:SYSTem:COMMunicate`.  New: `:DIAGnostic:DOWNload`, `:ERASe` and
+  `:DCOMplete` in the primary's own tree, `:SYSTem:SRESet`,
+  `:STATus:AACKnowledge`, `:DIAGnostic:FAIL`, `:DIAGnostic:ROSCillator:
+  LTIMe`, `:TEMP` and `CHOE`.  40 of the 68 are among the Z3815A's
+  additions too: `:DIAGnostic:ROSCillator:PTESt` and its thresholds,
+  `:DIAGnostic:ADC`, `:CALibration`, `:LED:NGPS`, `:OUTPut:HPOWer` and
+  `:SOURce:PTIMe:TDATe` among them.
+
+## Against the command table
+
+Each `commands.toml` entry of a dialect, looked for in that dialect's
+images, with `:SOURce` optional:
+
+| Dialect | Image | Found |
+| ------- | ----- | ----- |
+| `hp58503` | 58503A 3633 | 119 of 130 |
+| `hp58503` | 58503A 3704 | 120 of 130 |
+| `hp58503` | Z3815A 4010 | 120 of 130 |
+| `hp58503` | 58503B 1.01.04 | 121 of 130 |
+| `z3801` | Z3801A 3543 | 78 of 82 |
+| `z3801` | Z3816A 4001 | 79 of 82 |
+
+Missing from every `hp58503` image: the three
+`:SYNChronization:HOLDover:DURation:THReshold` entries, whose node is
+`:ROSCillator:HOLDover:DURation:MEASurement:THReshold`, and the six
+`:SYSTem:COMMunicate:SERial1:...` entries, whose settings sit under
+`:SER:RECeive:`; a 58503A answers both table spellings
+(`58503a-tree.md`).  `:DIAGnostic:ERASe` is missing from all but the
+58503B, and `:DIAGnostic:ROSCillator:EFControl:DATA` from 3633 only.
+
+Missing from the `z3801` images: the two
+`:ROSCillator:HOLDover:DURation:THReshold` entries, whose node has
+`MEASurement` between (`z3801-tree.md`), `:DIAGnostic:ERASe`, and in
+3543 `:SYSTem:PON`.

@@ -106,7 +106,7 @@ describes the bench.
 | [`docs/firmware/`](docs/firmware/) | the firmware: the 1 PPS measurement, the disciplining loop, the GPS engine interface and the pForth console |
 | [`docs/loop.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/loop.html) | the disciplining loop as a block diagram, with its update law, constants and closed-loop poles |
 | [`docs/hardware-investigations.md`](docs/hardware-investigations.md) | what only a bench can settle |
-| [`docs/z3801-keywords.md`](docs/z3801-keywords.md), [`docs/z3801-tree.md`](docs/z3801-tree.md), [`docs/58503a-tree.md`](docs/58503a-tree.md) | SCPI keywords and command paths read from the firmware |
+| [`docs/z3801-keywords.md`](docs/z3801-keywords.md), [`docs/z3801-tree.md`](docs/z3801-tree.md), [`docs/58503a-tree.md`](docs/58503a-tree.md), [`docs/scpi/`](docs/scpi/) | SCPI keywords and command paths read from the firmware, every image's tree as `smartclock-cli dump-scpi` prints it |
 | [`docs/screen-format-strings.md`](docs/screen-format-strings.md) | the status screen's printf templates |
 
 Vendor manuals are in `third_party/`; `097-59551-02` (59551A/58503A)

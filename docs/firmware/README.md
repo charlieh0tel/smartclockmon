@@ -55,7 +55,8 @@ byte at `0x10261d`: no parity for 0, even for 1, odd for 2.
 The Z3816A image describes the design family; the 58503A's own code is
 in `console.md`, "The 58503A image".
 
-Two images are kept but not yet read: the Z3815A's (`z3815a-4010.bin`),
+Two images are read only for their command trees (`scpi/README.md`)
+and boot checksums: the Z3815A's (`z3815a-4010.bin`),
 whose GPS engine is a Furuno GT-74 rather than an Oncore, and the
 58503B's (`58503b-1.01.04.bin`), rebuilt from a console dump of another
 owner's unit.  Both are checksummed as the Z3816A's is, a sum of
