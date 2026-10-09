@@ -8,6 +8,20 @@ file here, so the files and the images cannot drift apart.
 A path here means the parser knows it, not that a receiver answers it.
 Nothing here was sent to a receiver.
 
+[`models.md`](models.md) sets the trees side by side, path by path,
+with the manuals that list each path and whether a receiver has
+answered it; `smartclock-cli dump-scpi --models` writes it from the
+images, the `manual-*.txt` lists beside it and the command table, and
+a test checks it as it does the trees.  `make docs` regenerates all of
+them.
+
+Each `manual-*.txt` is the command paths a manual writes from the
+root, one `LANGUAGE PATH` a line, PRIMARY or INSTALL, with a comment
+saying how they were drawn from it.  A model counts against its own
+manual: 097-59551-02 for the 58503A, 097-58503-13 for the 58503B,
+097-z3801-01 for the Z3801A.  None here is the Z3805A's, Z3815A's or
+Z3816A's.
+
 ## Format
 
 One path a line, sorted without regard to case.  Common commands start

@@ -164,9 +164,14 @@ enum Command {
     /// Print every command path a flash image's SCPI parser knows, read
     /// out of its tables (docs/scpi/README.md).  Needs no receiver.
     DumpScpi {
-        /// A full 512 KiB image, as `read-flash` writes or `join-chips`
-        /// makes.
-        image: PathBuf,
+        /// Full 512 KiB images, as `read-flash` writes or `join-chips`
+        /// makes: one, or with `--models` any number.
+        #[arg(required = true)]
+        images: Vec<PathBuf>,
+        /// Print the trees side by side against the manuals and the
+        /// command table, as Markdown (docs/scpi/models.md).
+        #[arg(long)]
+        models: bool,
     },
     /// Read the whole flash, 512 KiB from address 0, as `read-memory`
     /// does.
@@ -311,8 +316,8 @@ fn main() -> Result<()> {
     if let Command::SplitChips(args) = &cli.command {
         return flash::chips::run_split(args);
     }
-    if let Command::DumpScpi { image } = &cli.command {
-        return dump_scpi::run(image);
+    if let Command::DumpScpi { images, models } = &cli.command {
+        return dump_scpi::run(images, *models);
     }
 
     if let Some(daemon) = cli.daemon.clone() {
@@ -972,7 +977,7 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
         Command::Sensors { sensord } => sensors(sensord),
         Command::JoinChips(args) => flash::chips::run_join(args),
         Command::SplitChips(args) => flash::chips::run_split(args),
-        Command::DumpScpi { image } => dump_scpi::run(image),
+        Command::DumpScpi { images, models } => dump_scpi::run(images, *models),
         Command::Probe { .. } | Command::Sweep { .. } => anyhow::bail!(
             "probe and sweep send hundreds of commands and need the port to themselves; \
              stop smartclockd and use --device"

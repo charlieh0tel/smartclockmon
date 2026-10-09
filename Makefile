@@ -76,6 +76,12 @@ doc:
 # A test fails if docs/commands.md and the table disagree.
 docs:
 	$(CARGO) run -q -p smartclock-cli -- commands > docs/commands.md
+	for image in third_party/firmware/*.bin; do \
+		$(CARGO) run -q -p smartclock-cli -- dump-scpi $$image \
+			> docs/scpi/$$(basename $$image .bin).txt || exit 1; \
+	done
+	$(CARGO) run -q -p smartclock-cli -- dump-scpi --models third_party/firmware/*.bin \
+		> docs/scpi/models.md
 
 clean:
 	$(CARGO) clean

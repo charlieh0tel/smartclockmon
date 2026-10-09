@@ -7,11 +7,14 @@
 //! tables are not found exactly once is refused rather than guessed at.
 
 use std::path::Path;
+use std::path::PathBuf;
 
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
 use anyhow::ensure;
+
+mod models;
 
 /// Where a node keeps the pointer to its keyword pair.
 const KEYWORD_SLOT: u32 = 0;
@@ -146,15 +149,41 @@ fn roots(image: &Image) -> Result<(u32, u32)> {
     }
 }
 
-/// Every path the tree under `list` holds, prefixed by `prefix`, with
-/// `?` where the node has a query handler and ` (set)` where it has a
-/// setter.  `above` is the lists the walk is inside, to refuse a cycle.
+/// One path of the tree, and the node it reaches.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Entry {
+    /// The path, `*` or `:` first, keywords long form.
+    pub(crate) path: String,
+    /// Where the node is in the image; a node under a list several
+    /// parents share is reached by several paths.
+    pub(crate) node: u32,
+    /// Whether the node has a query handler.
+    pub(crate) query: bool,
+    /// Whether the node has a setter.
+    pub(crate) setter: bool,
+}
+
+impl Entry {
+    /// The path with `?` where the node has a query handler and
+    /// ` (set)` where it has a setter.
+    fn line(&self) -> String {
+        format!(
+            "{}{}{}",
+            self.path,
+            if self.query { "?" } else { "" },
+            if self.setter { " (set)" } else { "" }
+        )
+    }
+}
+
+/// Every path the tree under `list` holds, prefixed by `prefix`.
+/// `above` is the lists the walk is inside, to refuse a cycle.
 fn walk(
     image: &Image,
     list: u32,
     prefix: &str,
     above: &mut Vec<u32>,
-    paths: &mut Vec<String>,
+    entries: &mut Vec<Entry>,
 ) -> Result<()> {
     ensure!(
         !above.contains(&list),
@@ -172,50 +201,78 @@ fn walk(
                 "{path} (node at {at:#x}) has {slot} {handler:#x}, neither zero nor code"
             );
         }
-        paths.push(format!(
-            "{path}{}{}",
-            if node.query == 0 { "" } else { "?" },
-            if node.setter == 0 { "" } else { " (set)" }
-        ));
         if node.children != 0 {
-            walk(image, node.children, &format!("{path}:"), above, paths)?;
+            walk(image, node.children, &format!("{path}:"), above, entries)?;
         }
+        entries.push(Entry {
+            path,
+            node: at,
+            query: node.query != 0,
+            setter: node.setter != 0,
+        });
     }
     above.pop();
     Ok(())
 }
 
-/// Every path the image's parser knows, the common commands first as
-/// `*` and the rest as `:`, ordered as a case-blind sort of the paths.
-pub(crate) fn dump(bytes: &[u8]) -> Result<Vec<String>> {
+/// Every path the image's parser knows, the common commands as `*`
+/// and the rest as `:`, ordered as a case-blind sort of the paths.
+fn entries(bytes: &[u8]) -> Result<Vec<Entry>> {
     let image = Image(bytes);
     let (common, main) = roots(&image)?;
-    let mut paths = Vec::new();
-    walk(&image, common, "*", &mut Vec::new(), &mut paths)?;
-    walk(&image, main, ":", &mut Vec::new(), &mut paths)?;
-    let key = |line: &String| {
-        line.split(['?', ' '])
-            .next()
-            .unwrap_or_default()
-            .to_ascii_lowercase()
-    };
-    paths.sort_by_cached_key(key);
-    paths.dedup();
-    Ok(paths)
+    let mut entries = Vec::new();
+    walk(&image, common, "*", &mut Vec::new(), &mut entries)?;
+    walk(&image, main, ":", &mut Vec::new(), &mut entries)?;
+    entries.sort_by_cached_key(|entry| entry.path.to_ascii_lowercase());
+    entries.dedup_by(|later, earlier| later.path == earlier.path);
+    Ok(entries)
 }
 
-/// Read an image and print its paths, one a line.
-pub(crate) fn run(image: &Path) -> Result<()> {
-    let bytes = std::fs::read(image).with_context(|| format!("reading {}", image.display()))?;
-    for path in dump(&bytes).with_context(|| format!("reading {}", image.display()))? {
-        println!("{path}");
+/// An image read from `path`, with its tree.
+fn read(path: &Path) -> Result<Vec<Entry>> {
+    let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+    entries(&bytes).with_context(|| format!("reading {}", path.display()))
+}
+
+/// Print one image's paths, one a line; with `models`, the trees of
+/// all of them side by side as Markdown instead.
+pub(crate) fn run(images: &[PathBuf], models: bool) -> Result<()> {
+    if models {
+        let trees = images
+            .iter()
+            .map(|path| Ok((name(path)?, read(path)?)))
+            .collect::<Result<Vec<_>>>()?;
+        print!("{}", models::markdown(&trees));
+        return Ok(());
+    }
+    let [image] = images else {
+        bail!("give one image, or --models and any number");
+    };
+    for entry in read(image)? {
+        println!("{}", entry.line());
     }
     Ok(())
 }
 
+/// An image's name: its file name without the extension.
+fn name(path: &Path) -> Result<String> {
+    path.file_stem()
+        .and_then(|stem| stem.to_str())
+        .map(str::to_owned)
+        .with_context(|| format!("{} has no usable name", path.display()))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::dump;
+    use anyhow::Result;
+
+    use super::Entry;
+    use super::entries;
+
+    /// The tree as `dump-scpi` prints it, a line a path.
+    fn dump(bytes: &[u8]) -> Result<Vec<String>> {
+        Ok(entries(bytes)?.iter().map(Entry::line).collect())
+    }
 
     /// Each image in `third_party/firmware/`, by the name its tree has
     /// in `docs/scpi/`.
@@ -240,6 +297,29 @@ mod tests {
             let read = dump(&image).expect("the image has a tree");
             assert_eq!(read, held.lines().collect::<Vec<_>>(), "{name}");
         }
+    }
+
+    #[test]
+    fn the_models_document_is_what_the_images_give() {
+        let root = format!("{}/../..", env!("CARGO_MANIFEST_DIR"));
+        let trees: Vec<(String, Vec<Entry>)> = IMAGES
+            .iter()
+            .map(|name| {
+                let image = std::fs::read(format!("{root}/third_party/firmware/{name}.bin"))
+                    .expect("the image is in the repository");
+                (
+                    (*name).to_owned(),
+                    entries(&image).expect("the image has a tree"),
+                )
+            })
+            .collect();
+        let held = std::fs::read_to_string(format!("{root}/docs/scpi/models.md"))
+            .expect("the document is in the repository");
+        assert_eq!(
+            super::models::markdown(&trees).lines().collect::<Vec<_>>(),
+            held.lines().collect::<Vec<_>>(),
+            "docs/scpi/models.md is stale; run make docs"
+        );
     }
 
     #[test]
