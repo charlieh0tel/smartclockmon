@@ -371,6 +371,31 @@ does differ is where τ and G come from.  Read on 2026-10-09.
 | Z3815A 4010 | 500 s (`0x44c9e`); 1000 or 500 s by bit 12 of the word at `0x302000` (`0x50be8`) | 150.0 present, not traced | +1.2 × 10⁻¹² or −2.125 × 10⁻¹², bit 12 of the same word (`0x4503c`) |
 | 58503B 1.01.04 | 700 s, `:DIAGnostic:ROSCillator:LTIMe:MAX` | 150 s, `:LTIMe:INIT` | by oscillator type: −1.25 × 10⁻¹² or +6.25 × 10⁻¹³ |
 
+**The update, compared.**  Each image's `pll_normal` and fit
+dispatcher (`pts= %d a=`) were compared with the Z3816A's instruction
+by instruction, with every address and branch target masked and each
+call named by a hash of the routine it calls, so the same float
+routine compares equal across images and a different one does not.
+
+- The fit dispatcher is identical, callees included, in the Z3801A,
+  Z3805A and both 58503As.
+- `pll_normal` in 58503A 3633 differs in two places: it reads the
+  oscillator current through channel 3 of another routine, and stores
+  1 × 10⁻⁸ (`0x322bcc77`) where the Z3816A stores 1 × 10⁻⁷ at offset
+  0x46 of the loop block.  The Z3801A and Z3805A differ the same way
+  and in their hardware routines -- the reading (`0x489de` in the
+  Z3816A), the DAC conversion (`0x33798`) and `0x4782e` -- with every
+  float operation the same.  3704 adds a field that moves the block's
+  later offsets by two.  So these four run the update above.
+- The Z3815A and 58503B differ in the arithmetic.  Both compute K, k
+  and a from a τ held in a register each pass, as `startup_pll` does,
+  and both replace the drift term: where the Z3816A forms
+  d = p·2700/q + r, the 58503B forms v ← ((τ − 10)·v + 10·x)/τ -- a
+  running average with time constant τ, updated every ten seconds --
+  then clamps it to ±M and divides by 2700 before it reaches the
+  integrator.  What x is was not traced.  Their fit dispatchers differ
+  from the Z3816A's too, and from each other.
+
 The τ block has the 25-byte layout above in every image but the
 58503B, whose block (ROM `0x407b4`, copied to `0x1028b8` at
 `0x22d6e`) has 29 bytes: the startup constant at +0x14 and τ at +0x18.
