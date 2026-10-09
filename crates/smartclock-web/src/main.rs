@@ -160,9 +160,9 @@ fn main() -> Result<()> {
     };
     let cache = Cache::default();
     let (sensor_log, sensor_socket) = (cli.sensor_log.clone(), cli.sensord.clone());
-    smartclock_http::serve(&cli.listen, move |target| {
-        let (path, query) = target.split_once('?').unwrap_or((target, ""));
-        match path {
+    smartclock_http::serve(&cli.listen, move |request| {
+        let query = request.query();
+        match request.path() {
             "/" => Response::ok("text/html; charset=utf-8", PAGE.to_owned()),
             "/status" => Response::ok("text/html; charset=utf-8", STATUS_PAGE.to_owned()),
             "/adev" => Response::ok("text/html; charset=utf-8", DEVIATION.to_owned()),

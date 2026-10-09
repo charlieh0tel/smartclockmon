@@ -1,7 +1,7 @@
 //! The little HTTP server the exporter and the web view share.
 //!
 //! Not a web framework and not trying to be: it accepts a connection,
-//! hands the caller a path, and writes back a status and a body.  That
+//! hands the caller the request, and writes back a status and a body.  That
 //! is the whole of what either program needs, and an async runtime and
 //! a routing crate would be a large dependency for it.
 //!
@@ -67,6 +67,29 @@ pub enum ServeError {
         #[source]
         source: std::io::Error,
     },
+}
+
+/// What a client asked for.
+#[derive(Debug)]
+pub struct Request<'a> {
+    /// The method, such as `GET`, as sent.
+    pub method: &'a str,
+    /// The target: the path and any query string.
+    pub target: &'a str,
+}
+
+impl Request<'_> {
+    /// The path, without the query string.
+    pub fn path(&self) -> &str {
+        self.target
+            .split_once('?')
+            .map_or(self.target, |(path, _)| path)
+    }
+
+    /// The query string, empty if there is none.
+    pub fn query(&self) -> &str {
+        self.target.split_once('?').map_or("", |(_, query)| query)
+    }
 }
 
 /// What the caller wants sent back.
@@ -179,13 +202,12 @@ impl Drop for Slot {
 
 /// Serve `answer` on `listen` until the process ends.
 ///
-/// `answer` is given the request path, including any query string, and
-/// returns what to send.  It runs on its own thread per request, so it
+/// `answer` is given the request and returns what to send.  It runs on its own thread per request, so it
 /// may block; the timeouts above bound how long a client can make it
 /// wait, not how long it may take.
 pub fn serve<F>(listen: &str, answer: F) -> Result<(), ServeError>
 where
-    F: Fn(&str) -> Response + Send + Sync + 'static,
+    F: Fn(&Request<'_>) -> Response + Send + Sync + 'static,
 {
     let listener = TcpListener::bind(listen).map_err(|source| ServeError::Bind {
         listen: listen.to_owned(),
@@ -236,7 +258,7 @@ where
 /// Read one request and write one answer.
 fn handle<F>(stream: &TcpStream, answer: &F)
 where
-    F: Fn(&str) -> Response,
+    F: Fn(&Request<'_>) -> Response,
 {
     handle_within(stream, answer, REQUEST_DEADLINE);
 }
@@ -244,7 +266,7 @@ where
 /// As [`handle`], with the whole request due within `deadline`.
 fn handle_within<F>(stream: &TcpStream, answer: &F, deadline: Duration)
 where
-    F: Fn(&str) -> Response,
+    F: Fn(&Request<'_>) -> Response,
 {
     let _ = stream.set_write_timeout(Some(WRITE_TIMEOUT));
 
@@ -271,10 +293,13 @@ where
         return;
     }
 
-    // "GET /metrics HTTP/1.1".  Only the path is of interest; neither
-    // server reads a body or needs a header.
-    let path = line.split_whitespace().nth(1).unwrap_or("/");
-    let _ = write_response(stream, &answer(path));
+    // "GET /metrics HTTP/1.1".
+    let mut words = line.split_whitespace();
+    let request = Request {
+        method: words.next().unwrap_or("GET"),
+        target: words.next().unwrap_or("/"),
+    };
+    let _ = write_response(stream, &answer(&request));
 }
 
 /// A stream that stops reading at a fixed moment, however the bytes
@@ -362,6 +387,7 @@ mod tests {
         assert_eq!(pairs(query).count(), 3);
     }
 
+    use super::Request;
     use super::Response;
     use super::handle_within;
     use std::io::Write as _;
@@ -389,7 +415,7 @@ mod tests {
         let started = Instant::now();
         handle_within(
             &server,
-            &|_: &str| Response::not_found(),
+            &|_: &Request<'_>| Response::not_found(),
             Duration::from_secs(1),
         );
         let took = started.elapsed();

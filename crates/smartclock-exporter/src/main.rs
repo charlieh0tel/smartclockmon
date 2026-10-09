@@ -110,7 +110,7 @@ fn main() -> Result<()> {
     let seen = Mutex::new(BTreeSet::new());
     let sensord_seen = AtomicBool::new(false);
     let sensor_socket = cli.sensord.clone();
-    smartclock_http::serve(&cli.listen, move |path| match path {
+    smartclock_http::serve(&cli.listen, move |request| match request.target {
         "/metrics" => {
             let (scrapes, sensors) = thread::scope(|scope| {
                 let sensors = scope.spawn(|| scrape_sensors(&sensor_socket, &sensord_seen));
