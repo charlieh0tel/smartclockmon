@@ -157,10 +157,10 @@ pub(crate) struct Entry {
     /// Where the node is in the image; a node under a list several
     /// parents share is reached by several paths.
     pub(crate) node: u32,
-    /// Whether the node has a query handler.
-    pub(crate) query: bool,
-    /// Whether the node has a setter.
-    pub(crate) setter: bool,
+    /// The node's query handler, if it has one.
+    pub(crate) query: Option<u32>,
+    /// The node's setter, if it has one.
+    pub(crate) setter: Option<u32>,
 }
 
 impl Entry {
@@ -170,8 +170,8 @@ impl Entry {
         format!(
             "{}{}{}",
             self.path,
-            if self.query { "?" } else { "" },
-            if self.setter { " (set)" } else { "" }
+            if self.query.is_some() { "?" } else { "" },
+            if self.setter.is_some() { " (set)" } else { "" }
         )
     }
 }
@@ -207,8 +207,8 @@ fn walk(
         entries.push(Entry {
             path,
             node: at,
-            query: node.query != 0,
-            setter: node.setter != 0,
+            query: (node.query != 0).then_some(node.query),
+            setter: (node.setter != 0).then_some(node.setter),
         });
     }
     above.pop();

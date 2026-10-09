@@ -130,7 +130,9 @@ fn is_model(image: &str, models: &[&str]) -> bool {
 fn same_tree(one: &[Entry], other: &[Entry]) -> bool {
     one.len() == other.len()
         && one.iter().zip(other).all(|(one, other)| {
-            one.path == other.path && one.query == other.query && one.setter == other.setter
+            one.path == other.path
+                && one.query.is_some() == other.query.is_some()
+                && one.setter.is_some() == other.setter.is_some()
         })
 }
 
@@ -196,7 +198,7 @@ fn title(name: &str) -> String {
 fn cell(entry: Option<&Entry>) -> &'static str {
     match entry {
         None => "",
-        Some(entry) => match (entry.query, entry.setter) {
+        Some(entry) => match (entry.query.is_some(), entry.setter.is_some()) {
             (true, true) => "qs",
             (true, false) => "q",
             (false, true) => "s",
@@ -224,7 +226,7 @@ fn count(manual: &Manual, entries: &[Entry]) -> Counts {
     let paths_listed = entries.iter().filter(|entry| primary(entry)).count();
     let handlers: BTreeSet<u32> = entries
         .iter()
-        .filter(|entry| entry.query || entry.setter)
+        .filter(|entry| entry.query.is_some() || entry.setter.is_some())
         .map(|entry| entry.node)
         .collect();
     let listed: BTreeSet<u32> = entries
@@ -272,7 +274,7 @@ fn summary(out: &mut String, images: &[(String, Vec<Entry>)]) {
     for (name, entries) in images {
         let handlers: BTreeSet<u32> = entries
             .iter()
-            .filter(|entry| entry.query || entry.setter)
+            .filter(|entry| entry.query.is_some() || entry.setter.is_some())
             .map(|entry| entry.node)
             .collect();
         let heading = title(name);
