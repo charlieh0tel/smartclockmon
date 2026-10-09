@@ -1920,9 +1920,9 @@ dependencies = [
 
 [[package]]
 name = "temper-hid"
-version = "1.2.0"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d67c8e208af4caa06f94803f9c84a3a586295af4e26ad1c5b6446cebcb1b1c8b"
+checksum = "dcfe40c966c23adc857ad9c4e5dc6c7fd7f0d6e402255910c9860133c847b929"
 dependencies = [
  "hidapi",
  "rustix",

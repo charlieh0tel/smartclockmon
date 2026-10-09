@@ -141,9 +141,9 @@ impl Source for Temper {
         };
         let temperature = Measure {
             quantity: Quantity::Temperature,
-            value: reading.temperature.get(),
+            value: reading.inner.temperature.get(),
         };
-        let humidity = reading.humidity.map(|humidity| Measure {
+        let humidity = reading.inner.humidity.map(|humidity| Measure {
             quantity: Quantity::Humidity,
             value: humidity.get(),
         });

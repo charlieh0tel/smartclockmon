@@ -46,14 +46,15 @@ Repeatable switches, one per kind of sensor:
   for every channel of its type (`in_temp0_scale`, then
   `in_temp_scale`), with `_offset` 0 when absent and `_scale` required.
 - `--temper NAME[=PATH]` (`SMARTCLOCK_SENSORD_TEMPER`): a PCsensor
-  TEMPerGold or TEMPerHUM USB stick (3553:a001), read through
+  TEMPerGold, TEMPerHUM or TEMPer2 USB stick (3553:a001), read through
   [`temper-hid`](https://crates.io/crates/temper-hid).  With a path, the
   stick at that hidraw node, such as a udev link; without one, the first
   stick found that no other process holds.  Several found is said once
   in the journal.  It logs temperature, and humidity from a TEMPerHUM,
-  which appears the first time the stick is read.  The stick is held
-  open, and locked, between reads, and found again after an error, so
-  a replug is picked up.  Access comes from the `temper` package, which the Debian package
+  which appears the first time the stick is read; a TEMPer2's outer
+  probe is not read.  The stick is held open, and locked, between
+  reads, and found again after an error, so a replug is picked up.
+  Access comes from the `temper` package, which the Debian package
   depends on: its udev rules give the stick's hidraw node to group
   `temper`, which the service joins, and turn off the stick's keyboard
   interface.
