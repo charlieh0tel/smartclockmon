@@ -104,8 +104,8 @@ magnitude less.
 Everything else is eliminated, each by measurement against the 58503A
 on the same cables: both antennas, the distribution amp
 drop, the cable, the adapter, the antenna bias (4.8 V at the N
-connector against a 4.5 V specification -- `097-58503-13` Antenna Power
-Verification), the supply (28 V at 3 A, no rail fault bit in ten
+connector, "a little less than +5 Volts" as `097-z3801-01` 2-12 says
+it should read), the supply (28 V at 3 A, no rail fault bit in ten
 hours), the asserted position (reads back correct, agrees with the
 58503A's survey to within a meter), the elevation mask (10 degrees,
 nothing ignored, all 32 included), and the health monitor (six of six

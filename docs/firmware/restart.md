@@ -157,8 +157,8 @@ Read from all five images; the bench check of entry and exit is below.
   4 DUART), `:DIAGnostic:ERASe`, `:DIAGnostic:ERASe?` (1 when the
   writable range is blank) and `:DIAGnostic:DOWNload "<S-record>"`,
   one Motorola S-record per command, checked record by record and
-  refused outside the writable range.  As 097-58503-13, 4-15 and
-  5-115.
+  refused outside the writable range.  As 097-59551-02, 4-15 and
+  5-89 to 5-91.
 - *Flash.*  Z3801A, Z3805A and 58503A: AM29F010s in word-interleaved
   pairs, labeled 1L, 1M, 2L and 2M (U12, U14, U11 and U13 on a
   58503A): the M part holds the even bytes and the L part the odd;
@@ -199,7 +199,7 @@ run or accept the command to enter INSTALL; that case is below.  A
 dump written back a lane per part carries its own valid sums.
 `:DIAGnostic:TEST? 1` names the failing lane.  Not established: which
 part is which lane on the board, and how the new primary resets the
-settings after an upgrade, which 097-58503-13 appendix C says it does.
+settings after an upgrade, which 097-59551-02 appendix C says it does.
 
 ## Forced installer entry with an unusable primary
 
@@ -435,7 +435,7 @@ The tool does not restore settings.
 Cross-revision flashing is allowed between catalog images of the same
 model and layout, but has not been tried on hardware.  Simulator tests
 cover 58503A 3633 to 3704 and 3704 to 3633, comparing the downloaded
-primary bytes and the original protected boot bytes.  097-58503-13
+primary bytes and the original protected boot bytes.  097-59551-02
 appendix C, page C-3, says new firmware resets settings to
 system-preset defaults; the same-revision Z3801A reinstall below kept
 every setting checked.  Whether a revision change resets settings is
