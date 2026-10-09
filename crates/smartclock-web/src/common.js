@@ -1036,7 +1036,13 @@ function schedule() {
 
 function due() {
   if (document.hidden) return;
-  if (running || document.querySelector(".u-over:hover") || String(getSelection() ?? "")) {
+  // Put off, too, while the reader is part way through changing
+  // something a read would draw over, which marks itself `data-editing`.
+  if (
+    running ||
+    document.querySelector(".u-over:hover, [data-editing]") ||
+    String(getSelection() ?? "")
+  ) {
     refreshTimer = setTimeout(due, PUT_OFF_WAIT);
     return;
   }

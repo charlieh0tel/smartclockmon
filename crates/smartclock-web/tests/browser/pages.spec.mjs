@@ -800,3 +800,16 @@ test("a note the daemon refuses says why", async ({ page }) => {
   await expect(page.locator("#note-said")).toContainText("has changed since it was read");
 });
 
+
+test("a note being edited is not drawn over by the page refreshing", async ({ page }) => {
+  const fake = twoUnits();
+  await fake.install(page);
+  await page.goto(`/?receiver=${B}&refresh=5s`);
+  await page.locator('#journal-tabs button[data-stream="notes"]').click();
+  await page.locator(".note-edit").first().click();
+  await page.locator(".note-new-text").fill("half typed");
+  const reads = fake.seen.journal;
+  await page.waitForTimeout(7000);
+  await expect(page.locator(".note-new-text")).toHaveValue("half typed");
+  expect(fake.seen.journal).toBe(reads);
+});

@@ -117,7 +117,7 @@ faster than the page can afford (5 s for history, a minute where each
 read measures stability).  The correlation page has no picker: it is
 read when its range or measures change.  ⟳ reads at once.  Reading pauses while the
 tab is hidden, while a read is still running, while the pointer is on
-a chart, and while text is selected.
+a chart, while text is selected, and while a note is being changed.
 
 Two things differ from Grafana.  A range moved or zoomed out to end
 within half its length of now becomes the moving range of that length,

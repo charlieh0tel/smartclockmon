@@ -693,6 +693,9 @@ $("note-text").onkeydown = (e) => {
 // Replace a note's row with fields to change it in.
 function editNote(note, button) {
   const cell = button.closest("td");
+  // Until saved or cancelled, which read the journal again and so
+  // draw a fresh cell without this.
+  cell.dataset.editing = "1";
   cell.innerHTML =
     `<span class="controls">` +
     `<input class="note-new-text" aria-label="Note" value="${esc(note.text)}">` +
@@ -724,9 +727,11 @@ function deleteNote(note, button) {
     return;
   }
   button.dataset.armed = "1";
+  button.dataset.editing = "1";
   button.textContent = "really delete?";
   setTimeout(() => {
     delete button.dataset.armed;
+    delete button.dataset.editing;
     button.textContent = "delete";
   }, CONFIRM_FOR);
 }
