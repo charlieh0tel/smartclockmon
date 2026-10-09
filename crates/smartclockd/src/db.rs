@@ -34,6 +34,13 @@ pub(crate) fn newer_schema(e: &anyhow::Error) -> bool {
     )
 }
 
+/// The id a new note is given: past every id a note has had, a deleted
+/// one's included.  SQLite would otherwise give the newest note's id
+/// again once it was deleted, and its changes, and an edit sent for
+/// it, would then be taken for the new note's.
+const NEXT_NOTE: &str = "(SELECT max(coalesce((SELECT max(id) FROM note), 0),
+                         coalesce((SELECT max(note_id) FROM note_change), 0)) + 1)";
+
 /// The first schema whose timestamps all carry nine fractional digits.
 const FIXED_WIDTH_STAMPS: i64 = 8;
 
@@ -389,7 +396,9 @@ impl Log {
     /// Write a person's note, under the receiver noted now.
     pub(crate) fn note(&mut self, at: jiff::Timestamp, text: &str) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO note (at, text, receiver_id) VALUES (?1, ?2, ?3)",
+            &format!(
+                "INSERT INTO note (id, at, text, receiver_id) VALUES ({NEXT_NOTE}, ?1, ?2, ?3)"
+            ),
             params![Stored(at), text, self.current],
         )?;
         Ok(())
@@ -473,7 +482,9 @@ impl Log {
             params![Stored(since), key, value, self.current],
         )?;
         tx.execute(
-            "INSERT INTO note (at, text, receiver_id) VALUES (?1, ?2, ?3)",
+            &format!(
+                "INSERT INTO note (id, at, text, receiver_id) VALUES ({NEXT_NOTE}, ?1, ?2, ?3)"
+            ),
             params![Stored(since), format!("{key} = {value}"), self.current],
         )?;
         tx.commit()?;
@@ -1429,5 +1440,23 @@ mod tests {
             )
             .expect("read");
         assert_eq!((version.as_str(), tables), ("13", 1));
+    }
+
+    #[test]
+    fn a_deleted_notes_id_is_not_given_again() {
+        let scratch = Scratch::new("note-ids");
+        let mut log = Log::open(scratch.path()).expect("open");
+        log.note_receiver("HEWLETT-PACKARD,58503A,A,3704-C")
+            .expect("A");
+        log.note(jiff::Timestamp::now(), "first").expect("a note");
+        log.change_note(1, None, None).expect("delete it");
+        log.note(jiff::Timestamp::now(), "second").expect("another");
+        let id: i64 = log
+            .conn
+            .query_row("SELECT id FROM note WHERE text = 'second'", [], |row| {
+                row.get(0)
+            })
+            .expect("its id");
+        assert_eq!(id, 2);
     }
 }
