@@ -355,7 +355,7 @@ function drawScatter(win, x, y, pairs, fit) {
             const i = u.cursor.idxs?.[1];
             $("readout").innerHTML = i == null
               ? ""
-              : `<span class="k">at</span> <span class="v">${esc(new Date(pairs[i].at * 1000).toISOString().slice(0, 16).replace("T", " "))}Z</span>` +
+              : `<span class="k">at</span> <span class="v">${esc(showTime(pairs[i].at * 1000))}</span>` +
                 `<span class="k">${esc(x.name)}</span> <span class="v">${fmt(pairs[i].x, 4)}</span>` +
                 `<span class="k">${esc(y.name)}</span> <span class="v">${fmt(pairs[i].y, 4)}</span>`;
           },

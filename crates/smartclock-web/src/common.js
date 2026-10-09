@@ -103,6 +103,59 @@ async function ask(url, signal, timeout = QUICK_TIMEOUT) {
   return body;
 }
 
+// ------------------------------------------------------------ time zone
+//
+// The zone times are shown and entered in: the viewer's own, or UTC.
+// Every time is stored and served in UTC, so this changes only how one
+// is shown or read from a field.  In the address as `tz=utc`, carried
+// between pages like the range.
+
+let zone = new URLSearchParams(location.search).get("tz") === "utc" ? "utc" : "local";
+const HOUR_MS = 3600000;
+
+// The viewer's zone's short name now, such as PDT.
+const localZoneName = () =>
+  new Intl.DateTimeFormat([], { timeZoneName: "short" })
+    .formatToParts(new Date())
+    .find((p) => p.type === "timeZoneName")?.value ?? "local";
+
+// The chosen zone's short name.
+const zoneName = () => (zone === "utc" ? "UTC" : localZoneName());
+
+// What `Intl` is given to show a time in the chosen zone.
+const inZone = () => (zone === "utc" ? { timeZone: "UTC" } : {});
+
+// A time as a person reads it, in the chosen zone, the zone named.
+const showTime = (when) =>
+  new Date(when).toLocaleString(undefined, { ...inZone(), timeZoneName: "short" });
+// The time of day alone, and the date alone.
+const showClock = (when) => new Date(when).toLocaleTimeString(undefined, inZone());
+const showDate = (when) => new Date(when).toLocaleDateString(undefined, inZone());
+
+// A time as a time field holds it, to the minute, in the chosen zone.
+function toField(when) {
+  const at = new Date(when).getTime();
+  const shift = zone === "utc" ? 0 : new Date(at).getTimezoneOffset() * 60000;
+  return new Date(at - shift).toISOString().slice(0, 16);
+}
+
+// A time field's value as an instant, or null when empty.  A local time
+// a clock change skips, or passes twice, is not one instant, and is
+// refused with the reason, to be given in UTC instead.
+function fromField(value) {
+  if (!value) return null;
+  const minute = value.slice(0, 16);
+  if (zone === "utc") return new Date(`${minute}:00Z`).toISOString();
+  const at = new Date(minute);
+  if (toField(at) !== minute) {
+    throw new Error(`${minute} is skipped when the clocks go forward; give it in UTC`);
+  }
+  if (toField(at.getTime() + HOUR_MS) === minute || toField(at.getTime() - HOUR_MS) === minute) {
+    throw new Error(`${minute} happens twice when the clocks go back; give it in UTC`);
+  }
+  return at.toISOString();
+}
+
 // ------------------------------------------------------------- receiver
 
 // The receiver every page is about.  Null until the list has been read,
@@ -150,7 +203,7 @@ let remembered = location.search;
 // What the links between pages carry from this one's address: the
 // receiver and the range, which mean the same on every page.  The
 // columns and the series are one page's own.
-const CARRIED = ["receiver", "last", "from", "to"];
+const CARRIED = ["receiver", "last", "from", "to", "tz"];
 
 // Point the links between pages at the same receiver and range, so
 // moving from history to stability keeps both rather than falling back
@@ -730,9 +783,7 @@ function splitLength(secs) {
 }
 
 function shortTime(t) {
-  const d = new Date(t * 1000);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
-    `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return toField(t * 1000).replace("T", " ");
 }
 
 // The control's element and what the page does on a change, kept so
@@ -862,7 +913,18 @@ function drawRangeControl() {
       refreshOptions().map(([value, label]) =>
         `<option value="${value}"${value === refreshChoice ? " selected" : ""}>${label}</option>`).join("") +
       `</select>`) +
-    `</span>`;
+    `</span> <select id="range-zone" title="the zone times are shown and entered in">` +
+    [["local", localZoneName()], ["utc", "UTC"]].map(([value, label]) =>
+      `<option value="${value}"${value === zone ? " selected" : ""}>${label}</option>`).join("") +
+    `</select>`;
+  $("range-zone").onchange = () => {
+    zone = $("range-zone").value;
+    remember({ tz: zone === "utc" ? "utc" : null });
+    carry();
+    drawRangeControl();
+    page?.zoned?.();
+    renew(true);
+  };
   for (const b of el.querySelectorAll("button[data-last]")) {
     b.onclick = () =>
       setRange({ last: b.dataset.last === "all" ? "all" : Number(b.dataset.last), from: null, to: null });

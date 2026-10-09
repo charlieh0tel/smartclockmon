@@ -198,7 +198,7 @@ content({
       screen(s.screen);
       fit();
       $("state").innerHTML =
-        `<span class="pill ok">read at ${esc(new Date().toLocaleTimeString())}</span>` +
+        `<span class="pill ok">read at ${esc(showClock(Date.now()))}</span>` +
         (s.screen.satellites_suspect
           ? ` <span class="pill stale">the table disagrees with its own counts</span>`
           : "");

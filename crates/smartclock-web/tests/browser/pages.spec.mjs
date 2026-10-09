@@ -824,7 +824,7 @@ test("a note's time is now unless set, in the zone shown, and never in the futur
 
   await page.locator("#note-text").fill("tomorrow");
   await page.locator("#note-when").fill(
-    await page.evaluate(() => toLocal(Date.now() + 86400000)),
+    await page.evaluate(() => toField(Date.now() + 86400000)),
   );
   await page.locator("#note-add").click();
   await expect(page.locator("#note-said")).toContainText("in the future");
@@ -853,10 +853,43 @@ test("a note's time can be picked by clicking a chart", async ({ page }) => {
     return {
       x: box.left + left,
       y: box.top + box.height / 2,
-      expected: toLocal(chart.posToVal(left, "x") * 1000),
+      expected: toField(chart.posToVal(left, "x") * 1000),
     };
   });
   await page.mouse.click(x, y);
   await expect(page.locator("#note-when")).toHaveValue(expected);
   expect(await page.evaluate(() => document.body.dataset.picking)).toBeUndefined();
+});
+
+test.describe("in Los Angeles", () => {
+  test.use({ timezoneId: "America/Los_Angeles" });
+
+  test("times can be shown and entered in UTC, and the choice is kept in the address", async ({ page }) => {
+    await open(page, twoUnits(), "/", B);
+    await page.locator('#journal-tabs button[data-stream="notes"]').click();
+    await expect(page.locator("#journal td").first()).toContainText(/P[DS]T/);
+    await page.locator("#range-zone").selectOption("utc");
+    await expect.poll(() => new URL(page.url()).searchParams.get("tz")).toBe("utc");
+    await expect(page.locator("#journal td").first()).toContainText("UTC");
+    expect(await page.evaluate(() => fromField("2026-10-08T16:35"))).toBe("2026-10-08T16:35:00.000Z");
+    expect(await page.evaluate(() => toField(Date.parse("2026-10-08T16:35:00Z")))).toBe("2026-10-08T16:35");
+    for (const a of await page.locator("nav a").all()) {
+      expect(new URL(await a.getAttribute("href"), page.url()).searchParams.get("tz")).toBe("utc");
+    }
+  });
+
+  test("a local time a clock change skips or doubles is refused", async ({ page }) => {
+    await open(page, twoUnits(), "/", B);
+    const refusal = (value) =>
+      page.evaluate((v) => {
+        try {
+          return fromField(v);
+        } catch (e) {
+          return e.message;
+        }
+      }, value);
+    expect(await refusal("2026-03-08T02:30")).toContain("skipped");
+    expect(await refusal("2026-11-01T01:30")).toContain("happens twice");
+    expect(await refusal("2026-10-08T09:35")).toBe("2026-10-08T16:35:00.000Z");
+  });
 });

@@ -483,7 +483,7 @@ function readout() {
   const under = charts.find((c) => c.over.matches(":hover"));
   noteTip(under, under ? noteNear(under) : null);
   el.innerHTML =
-    `<span class="v">${at ? esc(at.toLocaleTimeString()) : "--:--:--"}</span>` +
+    `<span class="v">${at ? esc(showClock(at)) : "--:--:--"}</span>` +
     cells.join("") +
     (note ? `<span><span class="k" style="color:${NOTE}">note</span> ${esc(note)}</span>` : "");
 }
@@ -599,10 +599,7 @@ function stamped(r) {
   return `<span title="${esc(r.stamp)}">${esc(at.toISOString().slice(0, 19).replace("T", " "))} GPS</span>`;
 }
 
-const local = (iso) => {
-  const at = new Date(iso);
-  return isNaN(at) ? esc(iso) : esc(at.toLocaleString(undefined, { timeZoneName: "short" }));
-};
+const local = (iso) => (isNaN(new Date(iso)) ? esc(iso) : esc(showTime(iso)));
 
 function drawJournal(journal) {
   if (stream === null || !(journal[stream] ?? []).length) {
@@ -660,22 +657,11 @@ const CONFIRM_FOR = 4000;
 // daemon allows: a clock a little ahead is not a note about the future.
 const NOTE_AHEAD = 60000;
 
-// The browser's time zone, as the time fields are in it, such as PDT.
-const ZONE =
-  new Intl.DateTimeFormat([], { timeZoneName: "short" })
-    .formatToParts(new Date())
-    .find((p) => p.type === "timeZoneName")?.value ?? "local";
-for (const zone of document.querySelectorAll(".note-zone")) zone.textContent = ZONE;
-
-// A time field's value as an instant, or null when empty.
-const fromLocal = (value) => (value ? new Date(value).toISOString() : null);
-
-// An instant as a time field shows it, to the minute, in local time.
-function toLocal(when) {
-  const at = new Date(when);
-  const shifted = new Date(at.getTime() - at.getTimezoneOffset() * 60000);
-  return shifted.toISOString().slice(0, 16);
+// Label the time fields with the zone they are read in.
+function labelZones() {
+  for (const label of document.querySelectorAll(".note-zone")) label.textContent = zoneName();
 }
+labelZones();
 
 // Why a time is refused, if it is.
 const tooLate = (iso) =>
@@ -692,7 +678,7 @@ function pickInto(field) {
   picking = field;
   document.body.dataset.picking = "1";
   $("note-form").dataset.editing = "1";
-  $("note-said").textContent = `click a moment on any chart (${ZONE}); Esc to stop`;
+  $("note-said").textContent = `click a moment on any chart (${zoneName()}); Esc to stop`;
 }
 
 function stopPicking() {
@@ -708,7 +694,7 @@ $("charts").addEventListener(
     const chart = charts.find((c) => c.over.contains(e.target));
     if (!chart) return;
     const at = chart.posToVal(chart.cursor.left, "x");
-    picking.value = toLocal(at * 1000);
+    picking.value = toField(at * 1000);
     $("note-said").textContent = "";
     stopPicking();
   },
@@ -724,7 +710,7 @@ addEventListener("keydown", (e) => {
 $("note-earlier").onclick = () => {
   $("note-now").hidden = true;
   $("note-then").hidden = false;
-  $("note-when").value = toLocal(Date.now());
+  $("note-when").value = toField(Date.now());
 };
 $("note-now-again").onclick = () => {
   $("note-then").hidden = true;
@@ -755,7 +741,13 @@ $("note-add").onclick = async () => {
     $("note-said").textContent = "a note needs some text";
     return;
   }
-  const at = $("note-then").hidden ? null : fromLocal($("note-when").value);
+  let at;
+  try {
+    at = $("note-then").hidden ? null : fromField($("note-when").value);
+  } catch (e) {
+    $("note-said").textContent = e.message;
+    return;
+  }
   const late = tooLate(at);
   if (late) {
     $("note-said").textContent = late;
@@ -779,8 +771,8 @@ function editNote(note, button) {
   cell.innerHTML =
     `<span class="controls">` +
     `<input class="note-new-text" aria-label="Note" value="${esc(note.text)}">` +
-    `<input class="note-new-when" type="datetime-local" step="60" aria-label="When" value="${toLocal(note.at)}">` +
-    `<span class="muted">${esc(ZONE)}</span> <button class="note-repick">pick on chart</button> ` +
+    `<input class="note-new-when" type="datetime-local" step="60" aria-label="When" value="${toField(note.at)}">` +
+    `<span class="note-zone muted">${esc(zoneName())}</span> <button class="note-repick">pick on chart</button> ` +
     `<button class="note-save">save</button> <button class="note-cancel">cancel</button></span>`;
   const text = cell.querySelector(".note-new-text");
   const when = cell.querySelector(".note-new-when");
@@ -796,7 +788,13 @@ function editNote(note, button) {
       $("note-said").textContent = "a note needs some text; to remove it, delete it";
       return;
     }
-    const at = when.value === shown ? null : fromLocal(when.value);
+    let at;
+    try {
+      at = when.value === shown ? null : fromField(when.value);
+    } catch (e) {
+      $("note-said").textContent = e.message;
+      return;
+    }
     const late = tooLate(at);
     if (late) {
       $("note-said").textContent = late;
@@ -855,7 +853,7 @@ async function loadAbout(signal) {
 async function loadFacts(signal) {
   const facts = await ask("/api/facts?" + withUnit(new URLSearchParams()), signal);
   $("facts").textContent = facts
-    .map((f) => `${f.key} ${f.value} (since ${new Date(f.since).toLocaleDateString()})`)
+    .map((f) => `${f.key} ${f.value} (since ${showDate(f.since)})`)
     .join("  --  ");
 }
 
@@ -891,6 +889,7 @@ const HISTORY_FLOOR = 5;
     daemon: false,
     floor: HISTORY_FLOOR,
     chosen: () => pickers(plottable),
+    zoned: labelZones,
     clear(why) {
       clearCharts(why);
       notes = [];
