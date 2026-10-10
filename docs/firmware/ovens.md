@@ -196,12 +196,16 @@ its data, PORTGP at `0xfff907`.  Read on 2026-10-09:
 
 `0xbc` makes PGP5 an output and `0x80` leaves it low, so every image
 but the Z3815A starts with the outer oven off.  In 3704 the two
-machines are 3633's with the `ori.b #0x20,0xfff907` taken out and
-nothing put in its place: each still enters `external oven warmup` and
-sets its flag (`0x101e75`, at `0x46136` and `0x463c6`), and the
-recovery machine's jump table is eight bytes, the one instruction,
-shorter.  So in 3704 and the 58503B only `doven` raises the outer
-oven's enable.  The Z3815A makes all of port GP inputs at reset, and
+machines are 3633's, compared word by word (3633 from `0x45f00`, 3704
+from `0x46020`), with four changes besides addresses and offsets that
+moved: the `ori.b #0x20,0xfff907` is gone from both, leaving nothing in
+its place -- each still enters `external oven warmup` and sets its flag
+(`0x101e75`, at `0x46136` and `0x463c6`), and the recovery machine's
+jump table is eight bytes, that instruction, shorter; a status byte at
++0x11 of the loop block became a word at +0x10, as in 3704's
+`pll_normal`; a `clr.b 0x102862`, 3704's interval-mean flag
+(`interval.md`), was added; and one `tst.b (A2)` was dropped.  So in
+3704 and the 58503B only `doven` raises the outer oven's enable.  The Z3815A makes all of port GP inputs at reset, and
 nothing in its image changes DDRGP afterwards, so its `doven` writes a
 pin that does not drive.
 
