@@ -109,6 +109,8 @@ console is gone.
 | 58503A 3633 | `0x19282` | `0x100bda` | `0x52584` (`0x1306a`) | `0x29450` |
 | 58503A 3704 | `0x193f0` | `0x100bde` | `0x13124` (`0x13194`) | `0x294f8` |
 | Z3816A 4001 | `0x29468` | `0x100c4e` | `0x2305a` (`0x230d0`) | `0x39732` |
+| Z3815A 4010 | `0x29a2a` | `0x100cb6` | `0x23116` (`0x23192`) | `0x3cb3c` |
+| 58503B 1.01.04 | `0x294f6` | `0x100f6e` | `0x23112` (`0x2318e`) | `0x38e1c` |
 
 So `halt` returns the port to SCPI without restarting the processor,
 without the installer, without an EEPROM write and without the
@@ -117,9 +119,14 @@ two things undone.  The console's 4 KB dictionary, allocated with pSOS
 call 8 (Z3801A `0x1aa40`), is never returned -- the only callers of
 call 9 are the SCPI task's own parser buffer and the C library's
 `free`.  Yet two visits per unit on 2026-10-04 showed no loss in
-`mem_rep` (below).  And the console does not close device 0 before
-deleting itself, whereas the SCPI task frees its buffer and closes its
-stream before handing over (`0x28fac` to `0x28fbc`).
+`mem_rep` (below).  And in the first five images the console does not
+close device 0 before deleting itself, whereas the SCPI task frees its
+buffer and closes its stream before handing over (`0x28fac` to
+`0x28fbc`).  The Z3815A's and 58503B's hooks add one call between
+raising the priority and handing back, `0x309a0` and `0x2e8de`: each
+passes device 0 and function code 2 to the `trap #4` device
+supervisor, a close (`de_close(0)`), so those two consoles close their
+device before they go.
 
 On 2026-10-04 the bench Z3805A (3625A01487, 3543B-A, 19200 8N1) was
 taken into the console and out with `halt` twice.  Each time `halt`
@@ -510,3 +517,37 @@ different current; its cause is not worked out.  The running unit's
 average at `0x101fc0`, its live flag at `0x101fc4` and the coefficient
 at `0x102014` are readable in the console with `hex 101FC0 @ .` and
 the like.
+
+## In every image
+
+Every image carries `pForth $Revision: 1.2 $`, the `PFORTH` value of
+`:SYSTem:LANGuage` and the kernel word list with `halt`, whose code is
+the same five instructions in each (the table in "Leaving it").  The
+diagnostic words differ.  Against the Z3816A's, from the table of code
+addresses and names around `loop_time` (read on 2026-10-09):
+
+| Image | Words | Adds | Lacks |
+| ----- | ----- | ---- | ----- |
+| Z3816A 4001 | 80 | | |
+| Z3801A 3543, Z3805A 3543B | 85 | `adc_5v`, `adc_ant_curr`, `adc_doven`, `adc_m15v`, `adc_oven`, `adc_p15v`, `adc_temp`, `force_1pps`, `pr_1pps` | `clr_satview`, `force_ext_1pps`, `force_gps_1pps`, `pr_satview` |
+| 58503A 3633 | 86 | the seven `adc_` words, `pr_1pps` | `clr_satview`, `pr_satview` |
+| 58503A 3704 | 79 | `pr_1pps` | `clr_satview`, `pr_satview` |
+| Z3815A 4010 | 89 | `efc_comp`, `efc_comp_debug`, `n3_duart_res`, `n3_phase`, `pr_1pps`, `pr_bad_act`, `puck`, `s3_gps_avail`, `s3_hw_fail`, `s3_out_reg`, `s3_testmode`, `set_mux` | `cal`, `clr_satview`, `pr_satview` |
+| 58503B 1.01.04 | 78 | | `cal`, `phase_off` |
+
+So the 58503B has no `phase_off`, the one writer of the loop's phase
+setpoint x₀ (`loop.md`, "The loop"), and 3704 drops the `adc_` words
+3633 has.
+
+The 58503B's own console session is
+`third_party/firmware/58503b-L85376-console.log`, from another owner's
+unit, L85376 at 1.01.04-D: it entered with `:SYST:LANG "PFORTH"`, which
+answered with the banner; the prompt reads `p4th D >` and, after `hex`,
+`p4th X >`, giving the number base; it read the flash with three words
+of its own, as "Reading memory through it" does; and it left with
+`watch`, after which the port answered `scpi >` and `:SYST:LANG?` gave
+`"PRIMARY"`.  `watch` is a kernel word in every image (`0x2a0fa` in the
+58503B's) that begins by saving every register to a block at
+`0x101098`; what it does after that, and whether the unit restarted on
+the way back to SCPI, was not traced.
+
