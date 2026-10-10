@@ -170,3 +170,35 @@ format strings are:
 `SIGMA EST` is read from record offset 24 and `SAWT ERR` from offset
 26, matching the layout above.  The page is reached through a pointer
 table; the command that shows it has not been identified.
+
+## In every image
+
+The Z3801A, Z3805A, both 58503As, the Z3816A and the 58503B talk to an
+Oncore in its binary `@@` messages; the 58503B names the engine
+`Oncore`, as the Z3816A does.  The Z3815A's engine is a Furuno GT-74
+(its identification template reads `MODEL # FURUNO GT-74`), on NMEA
+sentences: it takes `GGA`, `GSA`, `GSV`, `RMC` and Furuno's own `anc`,
+`ssd`, `tst`, `tps`, `rrm` and `rsd` (`0x5e398`), and sends `$PFEC,GP`
+commands -- `set`, `srq`, `rrs`, `rrq`, `clr`, `ZDA`, `GLL`, and
+`int,` with a sentence name to set its interval (`0x5e64c` to
+`0x5e6ca`).  It keeps a `GT-74 Command Log` and a `GT-74 Messages`
+screen.  Read on 2026-10-10.
+
+**Time RAIM.**  The 58503B carries the Z3816A's `@@En` program, byte
+for byte, at `0x5a1e7`.  The Z3815A, with no `@@` messages, fills a
+record of the same layout from its engine's sentences: its Time RAIM
+page reads the sawtooth as `move.b (0x1a,A3)` at `0x53df0`, offset 26
+as in the others, and prints it on the same `SAWT ERR  %+d ns` line;
+it has no `SIGMA EST` line.
+
+**Where the sawtooth goes.**  A search of each image for byte reads at
+offset `0x1a` from an address register finds, in the Z3816A, the
+58503B and the Z3815A, one read of the decoded record each -- the Time
+RAIM page (`0x4c2b4`, `0x4e5da`, `0x53df0`) -- and no other: the rest
+read offset `0x1a` of a message-table descriptor (`0x504ae`,
+`0x527ec`, `0x575c6`), or, in the Z3815A, the loop's state byte, in the
+console's state printer at `0x2c3bc`, whose names include a state the
+others lack, `n3 lock pll`.  So in those three, as in the Z3816A, the
+sawtooth is displayed and not applied to the interval.  A read in
+another form -- a word, or through an index -- would escape this
+search.
