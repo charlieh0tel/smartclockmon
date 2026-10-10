@@ -310,6 +310,128 @@ image that has it.
 - **Read:** Z3805A, written up 2026-09-22: the whole status screen
   again.
 
+## Only in the Z3815A and 58503B
+
+Neither model is on the bench, so these are read from the images
+alone.  Addresses are in `58503b-1.01.04.bin` unless the Z3815A's are
+named; most handlers get or set a cell through a parameter record of
+the kind `:DIAGnostic:ROSCillator:TCOefficient` uses -- a cell,
+limits, a getter and a setter -- and the limits given are the record's.
+
+### `:DIAGnostic:ROSCillator:EFControl:ASLOPe`
+
+- **Images:** 58503B, Z3815A.
+- **Handler:** the loop's gain G (`../firmware/loop.md`, "In every
+  image").  In the 58503B its record (`0x43eb8`) names the cell the
+  oscillator type loads G into, `0x10271e`, with limits held in RAM
+  (`0x1026ee`, `0x1026f2`); in the Z3815A its record (`0x48374`) names
+  `0x1023c8`, where bit 12 of the word at `0x302000` puts G, with
+  limits ±10⁻¹¹.  So both models let G be read and set.
+
+### `:DIAGnostic:ROSCillator:EFControl:BSLOPe`
+
+- **Images:** 58503B, Z3815A.
+- **Handler:** a second coefficient beside G: the 58503B's record
+  (`0x43eec`) names `0x102722`, which choosing the oscillator type
+  clears; its limits too are held in RAM.
+
+### `:DIAGnostic:ROSCillator:EFControl:DADC`
+
+- **Images:** 58503B, Z3815A.
+- **Handler:** a value with limits ±20 (`0x43e84`, cell `0x10271a`);
+  choosing the oscillator type sets it to 16.0.
+
+### `:DIAGnostic:ROSCillator:TCO`
+
+- **Images:** 58503B, with `TCO1`, `TCO2` and `TCOEFFICIENT` beside
+  it.
+- **Handler:** the 58503B's `TCOefficient`: its record (`0x43e48`)
+  names `0x10270a`, limits ±200 as in every image, and both handlers
+  pass the keyword's numeric suffix as an index, a coefficient for each
+  of the two oscillator types.
+
+### `:DIAGnostic:ROSCillator:PTESt`
+
+- **Images:** 58503B, Z3815A.
+- **Handler:** settings of a test: `:PTHR` (and `PTHR1`, `PTHR2`,
+  `PTHRESHOLD...`), limits 10⁻⁹ to 10⁻³ (`0x44076`, cell `0x1028ae`);
+  `:TTHR` and its kin, 0 to 240 (`0x4402a`, cell `0x1028a6`); `:COUNt`,
+  an integer at `0x1028a2`; `:MODE`, a byte at `0x10289f`; `:TYPE`, a
+  byte at `0x1028a0`, answered as 0 when it is 1 and 1 otherwise.
+  `:STATe?` and `:DURation?` were not decompiled.  What the test does
+  was not traced.
+
+### `:DIAGnostic:SYSTem:PDEBug`
+
+- **Images:** 58503B, Z3815A.
+- **Handler:** a setter only: sets the byte at `0x1032b7` to whether
+  its argument is non-zero.  `pll_normal` (`0x498ee`) and the
+  fine-acquisition machine (`0x4a356`) test that byte; what each test
+  guards was not traced.
+
+### `:DIAGnostic:TCODe:ASCii`
+
+- **Images:** 58503B.
+- **Handler:** a flag at `0x1044be`, set to whether the argument is
+  non-zero and read back by the query.
+
+### `:DIAGnostic:LOG:WRAP`
+
+- **Images:** 58503B, Z3815A.
+- **Handler:** a byte at `0x102974`, set through a parameter record
+  (`0x44660`) and read back by the query.
+
+### `:DIAGnostic:ADC`
+
+- **Images:** 58503B, Z3815A.
+- **Handler:** answers 0 after running `0x3ab96`, passing it the
+  console's print routine; what that prints was not traced.
+
+### `:DIAGnostic:TEST:FLASh`
+
+- **Images:** 58503B, Z3815A.
+- **Handler:** prints, as `%d`, what `0x3b944` computes, and answers 0.
+
+### `:DIAGnostic:CALibration:ROSCillator`
+
+- **Images:** 58503B, Z3815A.
+- **Handler:** a setter only, which passes the action list at
+  `0x45ae4`, as `:SYSTem:PRESet`'s handler passes its own
+  (`../firmware/restart.md`); what the actions do was not traced.
+
+### `:DIAGnostic:GPSystem:ACURrent:STATe`
+
+- **Images:** 58503B, Z3815A.
+- **Handler:** maps a state from `0x31aa6` to 0, 1, 2 or 3.
+
+### `:DIAGnostic:GPSystem:DCXO`
+
+- **Images:** 58503B.
+- **Handler:** only while bit 1 of the byte at `0x1017e8` is set: the
+  query returns three values (`0x101746`, `0x101748`, `0x10174a`) once
+  any is non-zero, and the setter stores three for the port
+  (`0x1037b4` on) and hands them to the parameter record at
+  `0x446cc`.
+
+### `:SOURce:PTIMe:TDATe:GPS`
+
+- **Images:** 58503B, Z3815A, with `:DEFault` and `:UTC` beside it.
+- **Handler:** one handler for all three: the date and time, converted
+  to GPS time for one argument and to UTC for another (`0x3dddc`).
+
+### `:SOURce:GPSystem:SATellite:TRACking:DATA`
+
+- **Images:** 58503B; `:CHOE?` runs the same handler.
+- **Handler:** the tracking data, as a string built by `0x57648`.
+
+### `:KENneth:MEASured`
+
+- **Images:** 58503B, Z3815A; the handler of
+  `:SYNChronization:HOLDover:TUNCertainty:MEASured`, which the older
+  images lack.
+- **Handler:** reads its value through `0x4781c` and refuses when that
+  fails.
+
 ## Stubs a receiver refused
 
 | Query | Receivers | Reply |
