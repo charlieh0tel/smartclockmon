@@ -642,11 +642,13 @@ view cannot drift apart.  The library, bottom up:
      asserts a position must be able to release it.
    - The 58503B's manuals give its heights above the GPS ellipsoid
      where the 58503A's and 59551A's give mean sea level
-     (097-58503-13 3-17 and 4-5, 097-58503-12), but its firmware
-     1.01.04 labels them MSL (`third_party/firmware/58503b-1.01.04.bin`: `HGT
-     (msl)`, `MSL HGT`) and says ellipsoid nowhere.  Which is true is
-     not established; a geodetic setting must name its datum either
-     way.  Earth-centered coordinates sidestep that.
+     (097-58503-13 3-17 and 4-5, 097-58503-12), and firmware 1.01.04
+     agrees: it surveys the Oncore's ellipsoid height, returns it from
+     `:GPS:POSition?` and sends height type 0, ellipsoid, in `@@As`.
+     An MSL mode, bit 4 of `0x1017e8`, would switch all three, but no
+     code found sets it (`docs/firmware/gps.md`).  A geodetic setting
+     must still name its datum, since the models differ.
+     Earth-centered coordinates sidestep that.
 
 4. **Whether acknowledging from the monitor is wanted.**  Reading an
    event register says which bit latched rather than which group, and

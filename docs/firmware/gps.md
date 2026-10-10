@@ -171,6 +171,39 @@ format strings are:
 26, matching the layout above.  The page is reached through a pointer
 table; the command that shows it has not been identified.
 
+## The 58503B's height datum
+
+The `@@Ba` and `@@Ea` descriptors (`0x591e8`, `0x596d4`) unpack into
+`0x1012b4` through the byte programs at `0x5a1b0` and `0x5a1ba`
+(`04 00 1d 00 ...`): month, day and year, a skipped byte, then 29
+message bytes from the hour on.  Against the layout in
+`VPCommands.pdf`, the GPS-ellipsoid height `hhhh` lands at `0x1012c8`
+and the MSL height `mmmm` at `0x1012cc`.
+
+Bit 4 of `0x1017e8` (`0x608` off `0x1011e0`) chooses between them:
+
+| Clear | Set | Where |
+| ----- | --- | ----- |
+| averages `0x1012c8` into `0x101762` and copies it to `0x10176a` | averages `0x1012cc` into `0x10176a` | survey, `FUN_00057942` |
+| zeroes the last byte, the height type (0 = GPS ellipsoid), of `@@Af`, `@@As` and `@@Au` (commands 5, 18 and 20) | leaves it as encoded | sender, `FUN_000584c0` |
+| `%+9.2f m  (GPS)` | `%+9.2f m  (MSL)` | status screen, `0x51160` and `FUN_0005011a` |
+| `GPS` | `MSL` | `Position hold started.  [%s Hgt = %+8d cm]`, `0x41bc8` |
+
+The held position comes from the survey average, `0x101762`
+(`FUN_0004ba9e`, `0x4bea2`), into `0x1028c0` and `0x1028fc`, which
+`:GPS:POSition?` (`FUN_0003cbae`) returns.  Two diagnostic reports
+print both heights regardless: `GPS HGT` and `MSL HGT` (`0x4e8fe`),
+`HGT (msl)` and `HGT (gps)` (`0x4f276`).
+
+No code found sets the bit.  The only writes to it are clears
+(`0x56f5a`, `0x56f86`, `0x56fb6`), one on each engine-type path of
+`FUN_00058098`.  A scan of every disassembled store whose operand can
+reach `0x1017e8` and a byte search for set, OR and move encodings by
+absolute address or displacement from `0x1011e0` found no other, and
+cold start zeroes the byte.  So 1.01.04 surveys, holds, reports and
+commands the ellipsoid height, as 097-58503-13 (3-17, 4-5) says.  A
+write through a computed pointer would escape this search.
+
 ## In every image
 
 The Z3801A, Z3805A, both 58503As, the Z3816A and the 58503B talk to an
