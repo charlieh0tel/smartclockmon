@@ -140,8 +140,19 @@ What sets each bit, in the Z3816A (stage + `0x11` is `0x10283d`):
 | 2 | `startup_pll` and `pll_normal`, after ten seconds with no reading accepted and one that failed; `coarse` (`0x48da6`) and `fine` (`0x49444`) when they fail; `FUN_000498a8` when its reading fails and the byte at `0x100ebc` is clear | `internal hardware problem` |
 | 3 | `startup_pll` and `pll_normal`, after ten seconds with no reading accepted and none failed: each was beyond the hold threshold at `0x10256e` (the screen's `HOLD THR`), unless the byte at `0x102572` is set, or was skipped while `0x102c22` was set | `1PPS TI exceeds hold threshold` |
 | 4 | `startup_pll` and `pll_normal` while `0x102229`, the internal 1 PPS's error (`firmware/ovens.md`), is set; `FUN_000498a8` while the byte at `0x100ebc` is set | `internal hardware problem` |
-| 5 | `0x49520`, which also sets `0x10283f` and the holdover request at `0x102c21`; the `:GPS:REFerence:ADELay` setter (`FUN_0003bbd6`, and its aliases) and the `:DIAGnostic:TOFFset` setter (`0x3b52e`) post it, then post their parameter record (`0x4341c`, `0x43458`) to the same queue, whose setter (`0x4953a`, and `0x4946c`, which calls it) clears it once the value is stored; the holdover request stays set | no; it keeps power-up waiting for GPS (`firmware/ovens.md`) |
+| 5 | `0x49520`, which also sets `0x10283f` and the pass count at `0x102c21` (`firmware/restart.md`); the `:GPS:REFerence:ADELay` setter (`FUN_0003bbd6`, and its aliases) and the `:DIAGnostic:TOFFset` setter (`0x3b52e`) post it, then post their parameter record (`0x4341c`, `0x43458`) to the same queue, whose setter (`0x4953a`, and `0x4946c`, which calls it) clears it once the value is stored | no; it keeps power-up waiting for GPS (`firmware/ovens.md`) |
 | 7 | holdover recovery (`FUN_000478ce`, `0x47a06`) while `0x1014a3` is set | no |
+
+So setting the antenna delay or `:DIAGnostic:TOFFset` while locked
+puts the receiver into holdover.  The loop task drains its queue at
+the end of each pass (`0x4b5ee`), after the stage code; with the count
+at `0x102c21` set, the setter is held a pass before its record is
+posted, so the next pass's `pll_normal` sees bit 5, returns 2, and
+`FUN_00047296` makes the stage 3, holdover.  The record then clears
+bit 5, leaving a holdover with no cause and no suffix.  Every image
+has the routine that sets bit 5 (Z3801A `0x45b28`, Z3805A `0x45af0`,
+3633 `0x45bca`, 3704 `0x45cbc`, 58503B `0x4ac66`, Z3815A `0x4f34e`);
+that their antenna-delay setters post it was read only in the Z3816A.
 
 Holdover recovery sets bits 1 and 4 as `pll_normal` does (`0x47a54`,
 `0x47a62`), and bit 2 when its count of failed readings passes 5

@@ -71,7 +71,15 @@ and calls the setter at `+0x1a`.  Type 1, `toggle_change`
 (`FUN_00046514`), takes a value no larger than `+0x06` and marks a
 change when it differs from the current one in the table at `+0x0c`.
 Type 3 does nothing, and any other is `unknown structure type`.
-`FUN_00039552` posts a record as `FUN_00039524` posts an entry.  Every
+`FUN_00039552` posts a record as `FUN_00039524` posts an entry, both
+through `FUN_000394ac`, which then waits for event `0x20`.  The loop
+task's drain, `FUN_00046cc8`, run once a pass at the end of its loop
+(`0x4b5ee`), takes one message, handles it and sends that event to
+the waiting task (`0x1026e2`); while the count at `0x102c21` is
+nonzero it instead counts it down a pass at a time and takes no
+message, so an action that sets it -- a manual holdover's start
+(`0x494da`), bit 5's (`0x49520`) -- holds its sender, and the queue
+behind it, for that many passes.  Every
 entry from `0x44c70` to `0x44cb2` is type 2.  The `:GPS:POSition`
 handler `FUN_0003c268` posts the entry at `0x44c9a`, six bytes before
 `:SYSTem:PON`'s, whose function is `FUN_00049da2`.  `PON` is a keyword of the
