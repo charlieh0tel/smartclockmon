@@ -55,15 +55,17 @@ byte at `0x10261d`: no parity for 0, even for 1, odd for 2.
 The Z3816A image describes the design family; the 58503A's own code is
 in `console.md`, "The 58503A image".
 
-Two images are read only for their command trees (`scpi/README.md`)
-and boot checksums: the Z3815A's (`z3815a-4010.bin`),
-whose GPS engine is a Furuno GT-74 rather than an Oncore, and the
-58503B's (`58503b-1.01.04.bin`), rebuilt from a console dump of another
-owner's unit.  Both are checksummed as the Z3816A's is, a sum of
-words, not as the 58503A's two lanes: each carries the Z3816A's
-routine, instruction for instruction, at `0x45e` (`restart.md`, "Boot
-check").  Their provenance is in
-`third_party/NOTICE`.
+Two images came later: the Z3815A's (`z3815a-4010.bin`), whose GPS
+engine is a Furuno GT-74 rather than an Oncore, and the 58503B's
+(`58503b-1.01.04.bin`), rebuilt from a console dump of another owner's
+unit; their provenance is in `third_party/NOTICE`.  Both are
+checksummed as the Z3816A's is, a sum of words, not as the 58503A's two
+lanes: each carries the Z3816A's routine, instruction for instruction,
+at `0x45e` (`restart.md`, "Boot check").  `interval.md`, `loop.md`,
+`ovens.md` and `console.md` each end with an "In every image" section
+setting all seven images side by side, `restart.md`'s tables cover all
+seven, their command trees are in `scpi/` and their console words in
+`pforth/`.  Their GPS links (`gps.md`) are not read.
 
 ## Contents
 
