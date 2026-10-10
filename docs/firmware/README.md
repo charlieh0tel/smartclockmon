@@ -62,10 +62,10 @@ unit; their provenance is in `third_party/NOTICE`.  Both are
 checksummed as the Z3816A's is, a sum of words, not as the 58503A's two
 lanes: each carries the Z3816A's routine, instruction for instruction,
 at `0x45e` (`restart.md`, "Boot check").  `interval.md`, `loop.md`,
-`ovens.md` and `console.md` each end with an "In every image" section
-setting all seven images side by side, `restart.md`'s tables cover all
-seven, their command trees are in `scpi/` and their console words in
-`pforth/`.  Their GPS links (`gps.md`) are not read.
+`ovens.md`, `console.md` and `gps.md` each end with an "In every image"
+section setting all seven images side by side, `restart.md`'s tables
+cover all seven, their command trees are in `scpi/` and their console
+words in `pforth/`.
 
 ## Contents
 
