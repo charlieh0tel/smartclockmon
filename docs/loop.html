@@ -71,7 +71,7 @@ a{color:var(--accent)}
 <section>
   <h2>The loop</h2>
   <figure class="fig">
-    <svg id="loop" viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Block diagram of the disciplining loop"></svg>
+    <svg id="loop" viewBox="0 0 1020 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Block diagram of the disciplining loop"></svg>
     <div class="legend"><span>signal path, one update every 10 s</span><span class="ffl">aging feed-forward, one sample every 2700 s</span></div>
     <figcaption>x is the interval between the GPS 1 PPS and the 1 PPS derived from the oscillator. Everything left of the DAC runs in the <code>pllp</code> task in single-precision floating point; the aging fit runs in the <code>curv</code> task.</figcaption>
   </figure>
@@ -227,15 +227,15 @@ a{color:var(--accent)}
   const bI=block(828,Y+30,94,40,['integrator','I ← I+…'],true);
   wire([s3.r,bI.l]);
   // output sum: I from the left, K·f from above, B + c₀·s from below
-  const s4=sum(945,Y+50,{l:'+',t:'+',b:'+'});
+  const s4=sum(985,Y+50,{l:'+',t:'+',b:'+'});
   wire([bI.r,s4.l]);
-  wire([bK.r,[945,Y-50],s4.t]); label(935,Y-56,'K·f',{mono:true,anchor:'end'});
-  label(964,Y+112,'B + c₀·s',{mono:true,anchor:'end'});
-  wire([[945,Y+98],s4.b]);
+  wire([bK.r,[985,Y-50],s4.t]); label(975,Y-56,'K·f',{mono:true,anchor:'end'});
+  label(1004,Y+112,'B + c₀·s',{mono:true,anchor:'end'});
+  wire([[985,Y+98],s4.b]);
   // ---- return path: DAC, OCXO, divider (row y = 250) ----
   const Y2=250;
   const bD=block(800,Y2-22,120,44,['DAC','FUN_33798(u)'],true);
-  wire([s4.r,[972,Y+50],[972,Y2],bD.r]);  label(966,Y+42,'u',{mono:true,anchor:'end',size:13});
+  wire([s4.r,[1012,Y+50],[1012,Y2],bD.r]);  label(1006,Y+42,'u',{mono:true,anchor:'end',size:13});
   const bO=block(540,Y2-22,224,44,['10811 OCXO','Δf/f = G·Δu, ∫ → phase'],true);
   wire([bD.l,bO.r]);
   const bP=block(300,Y2-22,190,44,['1 PPS divider','t₍OCXO₎ from 10 MHz'],true);
@@ -251,7 +251,7 @@ a{color:var(--accent)}
   const fD=block(690,Y3-22,120,44,['d = b + c/y','clamp ±M'],true);
   wire([fA.r,fB.l],{ff:true}); wire([fB.r,fC.l],{ff:true}); wire([fC.r,fD.l],{ff:true});
   // tap of u from the DAC path down to the fit
-  dot(972,Y2); wire([[972,Y2],[972,Y3+60],[60,Y3+60],[60,Y3],fA.l],{ff:true});
+  dot(1012,Y2); wire([[1012,Y2],[1012,Y3+60],[60,Y3+60],[60,Y3],fA.l],{ff:true});
   label(470,Y3+48,'u − c₀·s, sampled every 2700 s',{mono:true,anchor:'middle',color:ff});
   // d into the integrator sum
   wire([fD.r,[850,Y3],[850,Y3-40],[792,Y3-40],s3.b],{ff:true});
