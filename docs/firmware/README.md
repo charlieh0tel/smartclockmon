@@ -112,8 +112,8 @@ request scripts in `oncore/`.
 following, and how.
 
 - Whether the port's second open matters.
-- What PE6 drives, pulsed only on a cold start; what bit 1 of
-  `0xfff925` does on 3704.
+- What PE6 drives, pulsed only on a cold start; what 3704's PWMA pin,
+  low while the holdover-recovery flag is set, is wired to (`loop.md`).
 - Whether a fatal stop from the console ends in the watchdog: the
   console task's priority against the heartbeat tasks' (`restart.md`,
   "The watchdog").
