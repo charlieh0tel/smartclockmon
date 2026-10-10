@@ -73,9 +73,9 @@ a{color:var(--accent)}
   <p>Once a second the firmware reads one interval from the FPGA counter. Every tenth second it takes the mean x̄ of the ten readings — the number <code>:SYNChronization:TINTerval?</code> reports — and runs one update:</p>
   <div class="eq">e  = x̄ − x₀                              x₀ is a setpoint, normally 0
 f ← (1 − a)·f + a·e                      a = 29.75 / τ
-d  = clamp(b + c / y, −M, +M)             y = t / 2700 s, from the aging fit
+d  = clamp(b + c / y, −M, +M)            y = t / 2700 s, from the aging fit
 I ← I + 10·k·f + 10·d / 2700             k = 1 / (4·G·τ²)
-u  = K·f + B + I + c₀·s                   K = 1 / (G·τ)</div>
+u  = K·f + B + I + c₀·s                  K = 1 / (G·τ)</div>
   <p>u is the EFC word sent to the DAC. B is the EFC that was in force when the loop closed, less c₀·s, so closing the loop does not move the oscillator; s is the health monitor's exponential average of the oscillator's oven current (0.1 of each fresh reading, 0.9 of the last), and c₀ is the value <code>:DIAGnostic:ROSCillator:TCOefficient</code> reads and writes — a calibration constant in the EEPROM block, in EFC units per unit of the current channel, applied at every update and adjusted by nothing but its own setter. That term tracks the oven rather than the phase; the console word <code>xcal</code> measures it by fitting EFC against current.</p>
 </section>
 

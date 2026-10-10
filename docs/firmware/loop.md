@@ -79,7 +79,7 @@ point.  The values and their addresses:
 The update:
 
     e  = x̄ − x₀
-    f ← (1 − a)·f + a·e                     a = 29.75 / τ
+    f ← (1 − a)·f + a·e                      a = 29.75 / τ
     d  = clamp(p·2700 / q + r, −M, M)        p = [0x102bdc], r = [0x102bd8],
                                              q = [0x100c08], seconds
     I ← I + 10·k·(f + d / (2700·k))          k = 1 / (4·G·τ²)
