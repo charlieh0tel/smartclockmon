@@ -82,6 +82,8 @@ docs:
 	done
 	$(CARGO) run -q -p smartclock-cli -- dump-scpi --models third_party/firmware/*.bin \
 		> docs/scpi/models.md
+	$(CARGO) run -q -p smartclock-cli -- dump-scpi --models --html third_party/firmware/*.bin \
+		> docs/scpi/models.html
 
 # Fail if an HTML page in docs/ scrolls sideways at desktop width.
 # Needs Chrome; not part of ci.

@@ -542,6 +542,37 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
     }
 }
 
+/// The page `html` fills: everything but the data, which replaces
+/// `DATA_MARK`.
+const PAGE: &str = include_str!("models.html");
+
+/// Where in `PAGE` the data goes.
+const DATA_MARK: &str = "__DATA__";
+
+/// The trees of `images` side by side as a page that filters them: the
+/// path table's rows as JSON in `PAGE`.
+pub(super) fn html(images: &[(String, Vec<Entry>)]) -> String {
+    let data = serde_json::json!({
+        "images": images.iter().map(|(name, _)| title(name)).collect::<Vec<_>>(),
+        "manuals": MANUALS.iter().map(|manual| serde_json::json!({
+            "letter": manual.letter.to_string(),
+            "name": manual.name,
+            "model": manual.models.join(", ").to_ascii_uppercase(),
+        })).collect::<Vec<_>>(),
+        "sections": sections(images).into_iter().map(|(name, rows)| serde_json::json!({
+            "name": name,
+            "rows": rows.into_iter().map(|row| serde_json::json!({
+                "lead": row.lead,
+                "also": row.also,
+                "cells": row.cells,
+                "manuals": row.manuals,
+                "confirmed": row.confirmed,
+            })).collect::<Vec<_>>(),
+        })).collect::<Vec<_>>(),
+    });
+    PAGE.replacen(DATA_MARK, &data.to_string(), 1)
+}
+
 /// One row of the path table: the paths that reach the same node in
 /// every image that holds any of them.
 #[derive(Debug)]

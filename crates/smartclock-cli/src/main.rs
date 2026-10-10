@@ -172,6 +172,10 @@ enum Command {
         /// command table, as Markdown (docs/scpi/models.md).
         #[arg(long)]
         models: bool,
+        /// With `--models`, print a page that filters the table instead
+        /// of Markdown (docs/scpi/models.html).
+        #[arg(long, requires = "models")]
+        html: bool,
     },
     /// Read the whole flash, 512 KiB from address 0, as `read-memory`
     /// does.
@@ -316,8 +320,13 @@ fn main() -> Result<()> {
     if let Command::SplitChips(args) = &cli.command {
         return flash::chips::run_split(args);
     }
-    if let Command::DumpScpi { images, models } = &cli.command {
-        return dump_scpi::run(images, *models);
+    if let Command::DumpScpi {
+        images,
+        models,
+        html,
+    } = &cli.command
+    {
+        return dump_scpi::run(images, *models, *html);
     }
 
     if let Some(daemon) = cli.daemon.clone() {
@@ -977,7 +986,11 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
         Command::Sensors { sensord } => sensors(sensord),
         Command::JoinChips(args) => flash::chips::run_join(args),
         Command::SplitChips(args) => flash::chips::run_split(args),
-        Command::DumpScpi { images, models } => dump_scpi::run(images, *models),
+        Command::DumpScpi {
+            images,
+            models,
+            html,
+        } => dump_scpi::run(images, *models, *html),
         Command::Probe { .. } | Command::Sweep { .. } => anyhow::bail!(
             "probe and sweep send hundreds of commands and need the port to themselves; \
              stop smartclockd and use --device"

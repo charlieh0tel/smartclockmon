@@ -361,14 +361,18 @@ fn read(path: &Path) -> Result<Vec<Entry>> {
 }
 
 /// Print one image's paths, one a line; with `models`, the trees of
-/// all of them side by side as Markdown instead.
-pub(crate) fn run(images: &[PathBuf], models: bool) -> Result<()> {
+/// all of them side by side, as Markdown or with `html` as a page.
+pub(crate) fn run(images: &[PathBuf], models: bool, html: bool) -> Result<()> {
     if models {
         let trees = images
             .iter()
             .map(|path| Ok((name(path)?, read(path)?)))
             .collect::<Result<Vec<_>>>()?;
-        print!("{}", models::markdown(&trees));
+        if html {
+            print!("{}", models::html(&trees));
+        } else {
+            print!("{}", models::markdown(&trees));
+        }
         return Ok(());
     }
     let [image] = images else {
@@ -445,6 +449,13 @@ mod tests {
             super::models::markdown(&trees).lines().collect::<Vec<_>>(),
             held.lines().collect::<Vec<_>>(),
             "docs/scpi/models.md is stale; run make docs"
+        );
+        let page = std::fs::read_to_string(format!("{root}/docs/scpi/models.html"))
+            .expect("the page is in the repository");
+        assert_eq!(
+            super::models::html(&trees).lines().collect::<Vec<_>>(),
+            page.lines().collect::<Vec<_>>(),
+            "docs/scpi/models.html is stale; run make docs"
         );
     }
 
