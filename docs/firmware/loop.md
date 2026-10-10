@@ -428,9 +428,12 @@ over SCPI within its limits (`../scpi/undocumented.md`).
 coefficient B (`BSLOPe`, the 58503B's `0x102722`) and a DAC-to-ADC
 ratio (`DADC`, `0x10271a`).  An EFC calibration in both sets them: in
 the 58503B, the state machine `0x4d310` (called from `0x4c6b6`) steps
-the EFC through ten points, measuring the frequency offset at each
-(`point= %d delta_f= %e efc=  %d`), and fits a and b (`0x4d1c8`, `a= %e
-b= %e`), writing G and B; measures the ratio at a low and a high EFC
+the EFC through ten points 116508 counts apart, measuring the
+frequency offset at each (`point= %d delta_f= %e efc=  %d`), and fits a
+straight line to them (`0x4d1c8`): the least-squares slope of offset
+against EFC, (Σx·Σy − 10·Σxy) / ((Σx)² − 10·Σx²) in double precision,
+becomes G, the intercept is not kept, and B is cleared, not computed
+-- the `a= %e b= %e` line that follows prints that 0; measures the ratio at a low and a high EFC
 (`low= %d high= %d dac/adc= %e`); and, finishing, replaces a with the
 type's G when it falls outside the type's limits (`OCXO cal a out of
 range`), reports it (`OCXO cal, a= %e`), clears B (`0x4d744`), saves,
@@ -452,8 +455,9 @@ this image's counterpart of the Z3816A's `FUN_0004b022`, which derives
 1/G and the clamp from G -- has two callers, the loop's start
 (`0x4c924`), which passes G alone, and the end of the calibration,
 which passes A + B·u² just after clearing B.  The `BSLOPe` setter only
-stores and saves.  So B is fitted and then discarded, stays 0 unless
-`:BSLOPe` sets it, and enters only the measured-uncertainty sum.
+stores and saves.  So nothing in the firmware computes B: both the
+calibration and the type selection set it to 0, it changes only when
+`:BSLOPe` sets it, and it enters only the measured-uncertainty sum.
 
 **The Z3815A's extra stage.**  The Z3815A's state printer names one
 stage more than the others, between `startup pll` and `normal pll`:

@@ -333,9 +333,9 @@ limits, a getter and a setter -- and the limits given are the record's.
 - **Images:** 58503B, Z3815A.
 - **Handler:** a second coefficient B beside G: the 58503B's record
   (`0x43eec`) names `0x102722`, which choosing the oscillator type
-  clears and the EFC calibration fits and then clears again before it
-  finishes; its limits too are held in RAM, and the setter only stores
-  and saves.  The loop never applies it; the measured holdover
+  clears and the EFC calibration clears too -- it fits only a straight
+  line, whose slope becomes G; its limits too are held in RAM, and the
+  setter only stores and saves.  The loop never applies it; the measured holdover
   uncertainty does, taking the oscillator's gain as A + B·e² at EFC e,
   which is A unless this command has set B (`../firmware/loop.md`, "In
   every image").
