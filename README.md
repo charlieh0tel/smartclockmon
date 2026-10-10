@@ -1,8 +1,8 @@
 # smartclockmon
 
 A Rust library, logging daemon, terminal monitor and browser view for
-HP / Symmetricom SmartClock GPS time and frequency receivers, over
-RS-232.
+HP / Symmetricom SmartClock GPS time and frequency receivers, over a
+serial port.
 
 ![The live page: the 1 PPS interval, EFC and satellites of a locked Z3805A](docs/images/web-live.png)
 
