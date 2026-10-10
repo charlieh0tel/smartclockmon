@@ -66,7 +66,9 @@ Without a receiver, use the simulator; every tool takes
 
 `make ci` runs CI's checks; `make test-web` runs the browser tests,
 after `make web-deps` once.  `make hooks`, once per clone, sets up the
-repository's git hooks.
+repository's git hooks.  `make check-pages` loads each HTML page in `docs/`
+in headless Chrome and fails if anything on it scrolls sideways at
+desktop width.
 
 ## Hardware
 

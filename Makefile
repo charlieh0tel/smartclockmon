@@ -17,7 +17,7 @@ CARGO ?= cargo
 # identical version as a no-op: the binaries change or they do not, and
 # nothing from the outside says which.
 
-.PHONY: all build windows hooks ci fmt fmt-check clippy test test-hw web-deps test-web doc docs clean deb release release-notes install-service
+.PHONY: all build windows hooks ci fmt fmt-check clippy test test-hw web-deps test-web doc docs check-pages clean deb release release-notes install-service
 
 all: build
 
@@ -82,6 +82,11 @@ docs:
 	done
 	$(CARGO) run -q -p smartclock-cli -- dump-scpi --models third_party/firmware/*.bin \
 		> docs/scpi/models.md
+
+# Fail if an HTML page in docs/ scrolls sideways at desktop width.
+# Needs Chrome; not part of ci.
+check-pages:
+	./tools/check-pages.sh
 
 clean:
 	$(CARGO) clean
