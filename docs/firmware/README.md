@@ -146,9 +146,6 @@ following, and how.
 - What a Z380x engine does with `@@Ci` format 0, which the init
   scripts send and `VPCommands.pdf` does not define (`gps.md`,
   "Requests").
-- What the action entries of type 0 do (`FUN_00046560`) and what
-  `toggle_change`, type 1, changes (`restart.md`, "Restarting"; types 2
-  and 3 are read there).
 - What the Z3801A's `Oven` and `Secondary oven voltage` channels
   measure, beyond the ADC inputs and coefficients above.
 - The units of the oscillator current: nominal 250 and limit 650 after

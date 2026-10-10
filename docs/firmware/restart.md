@@ -60,9 +60,18 @@ address, an index and a value to the `pllc` queue (id at `0x103d6a`),
 and the loop task checks it in `FUN_00046652`, whose messages name it
 `pll_scpi: validate_or_doaction()`.  The entry's first byte is a type
 and its second the largest index it takes (`setup index > max index`
-otherwise); type 2 calls the entry's function with the index and the
-value, type 1 is `toggle_change`, type 0 goes to `FUN_00046560`, type
-3 does nothing, and any other is `unknown structure type`.  Every
+otherwise).  Type 2, an action, calls the entry's function with the
+index and the value.  Type 0 is a numeric parameter record -- the
+records the `:DIAGnostic:ROSCillator:TCOefficient` and antenna-delay
+setters name are of this type -- which `FUN_00046560`, `validate_num`,
+passes to the validator at `+0x0e`, up to four values when `+0x26` is
+2 or 3 (`too many in multiple`), and which `finish_scpi_cmd`
+(`0x46a54` on) then stores into the cells at `+0x16`, calls `+0x12`
+and calls the setter at `+0x1a`.  Type 1, `toggle_change`
+(`FUN_00046514`), takes a value no larger than `+0x06` and marks a
+change when it differs from the current one in the table at `+0x0c`.
+Type 3 does nothing, and any other is `unknown structure type`.
+`FUN_00039552` posts a record as `FUN_00039524` posts an entry.  Every
 entry from `0x44c70` to `0x44cb2` is type 2.  The `:GPS:POSition`
 handler `FUN_0003c268` posts the entry at `0x44c9a`, six bytes before
 `:SYSTem:PON`'s, whose function is `FUN_00049da2`.  `PON` is a keyword of the
