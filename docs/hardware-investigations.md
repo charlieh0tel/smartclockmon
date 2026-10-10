@@ -540,3 +540,17 @@ scratch file:
   reattached as the Z3805A.  Five rows from 21:22:51.5 to 21:22:54.5,
   with the Z3805A's EFC of 45.476 %, are filed under the 58503A: the
   window up to one slow pass that PLAN.md states.
+
+## 16. What the Z380x engines do with `@@Ci` format 0 -- low priority
+
+*Open item:* the Z3801A's and Z3805A's init scripts open with `@@Ci`,
+switch I/O format, with format 0, which `VPCommands.pdf` does not
+define (`firmware/gps.md`, "Requests").  The message has no binary
+response, so the firmware cannot say what the engine makes of it.
+
+- [ ] TODO: capture the engine's serial line through a Z380x init
+  script, or send `@@Ci` with 0 to a bare VP Oncore, and see whether it
+  stays in Motorola binary, answers, or changes format.
+
+*Changes:* closes "What a Z380x engine does with `@@Ci` format 0".
+Nothing in this project depends on it.

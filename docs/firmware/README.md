@@ -143,6 +143,9 @@ following, and how.
   (`gps.md`, "Requests"): the step jump table at `0x512b0` sends it to
   `0x513dc`, which clears `0x1016ee` and calls `FUN_00050274` and
   `FUN_0005059e`, not traced.
+- What a Z380x engine does with `@@Ci` format 0, which the init
+  scripts send and `VPCommands.pdf` does not define (`gps.md`,
+  "Requests").
 - The six-byte descriptor entries: `FUN_00046652` switches on the
   first byte of the word (0 to 3) and compares the second with the
   byte at `0x1026e0` before the loop task honors the entry; what the
