@@ -729,10 +729,10 @@ doc = "Oscillator EFC output, percent, -100 to +100."
   evidence = "hardware"
   [command.dialect.z3801]
   scpi = ":DIAGnostic:ROSCillator:EFControl:RELative?"
-  response = "int"
+  response = "real"
   models = ["Z3801A", "Z3816A"]
-  cite = "097-z3801-01 4-2"
-  evidence = "firmware"
+  cite = "097-z3801-01 4-2; a real on a Z3805A, as the handler (z3801a-3543.bin 0x2a8d0) is the 58503A's"
+  evidence = "hardware"
 
 [[command]]
 id = "led_gpslock"

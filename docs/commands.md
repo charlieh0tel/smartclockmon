@@ -8,7 +8,7 @@ to regenerate; a test fails if this file and the table disagree.
 | Tree | Commands | Hardware | Firmware | Manual |
 | ---- | -------- | -------- | -------- | ------ |
 | 58503A/B, 59551A | 141 | 103 | 0 | 38 |
-| Z3801A, Z3816A | 82 | 18 | 63 | 1 |
+| Z3801A, Z3816A | 82 | 19 | 62 | 1 |
 
 **H** means the receiver answered it.  **F** means every keyword
 appears in the firmware's own keyword table, so the spelling is
@@ -99,7 +99,7 @@ anything reaching the receiver.
 | initial time set | Control | `:GPS:INITial:TIME` M | `:PTIMe:GPSystem:INITial:TIME` F |
 | initial pos set | Control | `:GPS:INITial:POSition` M | `:PTIMe:GPSystem:INITial:POSition` F |
 | sync state | Query | `:SYNChronization:STATe?` H | `:ROSCillator:STATe?` F |
-| efc | Query | `:DIAGnostic:ROSCillator:EFControl:RELative?` H | `:DIAGnostic:ROSCillator:EFControl:RELative?` F |
+| efc | Query | `:DIAGnostic:ROSCillator:EFControl:RELative?` H | `:DIAGnostic:ROSCillator:EFControl:RELative?` H |
 | led gpslock | Query | `:LED:GPSLock?` H | `:LED:GPSLock?` F |
 | led holdover | Query | `:LED:HOLDover?` H | `:LED:HOLDover?` F |
 | ffom | Query | `:SYNChronization:FFOMerit?` H | `:PTIMe:FFOMerit?` F |

@@ -81,7 +81,7 @@ in SCPI.
 | 58503A | yes | Primary development target |
 | Z3801A | yes | Different response formats |
 | Z3805A | yes | Answers as the Z3801A |
-| 58503B | no; may work | Firmware studied; heights above the ellipsoid |
+| 58503B | no; may work | Firmware studied |
 | 59551A | no; may work | No commands for its pulse output or time tags |
 | Z3816A | no; may work | Firmware studied |
 | Z3815A | no; may work | Firmware studied; Furuno GPS engine |

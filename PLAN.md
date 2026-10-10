@@ -620,8 +620,8 @@ view cannot drift apart.  The library, bottom up:
    remains is in `docs/firmware/README.md`, "What is not established".
 
 2. **How far the z3801 dialect is confirmed.**  Of the z3801 entries,
-   18 are `evidence = "hardware"`, 63 `firmware` and one `manual`;
-   those 64 stay unconfirmed until a receiver answers them.  The
+   19 are `evidence = "hardware"`, 62 `firmware` and one `manual`;
+   those 63 stay unconfirmed until a receiver answers them.  The
    keyword table they were checked against is `docs/scpi/z3801-keywords.md`.
 
 3. **Asserting a known antenna position from the configuration.**  A

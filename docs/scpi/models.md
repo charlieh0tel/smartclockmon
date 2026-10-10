@@ -389,7 +389,7 @@ one short.
 | `:DIAGnostic:ROSCillator:EFControl:DATA` |  | 58503A |  | qs | qs |  |  | qs |  |
 | `:DIAGnostic:ROSCillator:EFControl:FPGA` |  |  |  |  | s |  |  |  |  |
 | `:DIAGnostic:ROSCillator:EFControl:MODE` |  | 58503A |  | qs | qs |  |  | qs |  |
-| `:DIAGnostic:ROSCillator:EFControl:RELative` | A, B, Z | 58503A | q | q | q | q | q | q | q |
+| `:DIAGnostic:ROSCillator:EFControl:RELative` | A, B, Z | 58503A, Z3805A | q | q | q | q | q | q | q |
 | `:DIAGnostic:ROSCillator:LTIMe` |  |  |  |  | - |  |  |  |  |
 | `:DIAGnostic:ROSCillator:LTIMe:DATA` |  |  |  |  | q |  |  |  |  |
 | `:DIAGnostic:ROSCillator:LTIMe:INIT` |  |  |  |  | qs |  |  |  |  |
