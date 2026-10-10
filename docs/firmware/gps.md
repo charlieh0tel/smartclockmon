@@ -291,6 +291,11 @@ read offset `0x1a` of a message-table descriptor (`0x504ae`,
 `0x527ec`, `0x575c6`), or, in the Z3815A, the loop's state byte, in the
 console's state printer at `0x2c3bc`, whose names include a state the
 others lack, `n3 lock pll`.  So in those three, as in the Z3816A, the
-sawtooth is displayed and not applied to the interval.  A read in
-another form -- a word, or through an index -- would escape this
-search.
+sawtooth is displayed and not applied to the interval.  In the
+Z3816A a wider sweep -- every byte, word and long read whose
+displacement reaches offset 26, through any address register, indexed
+or not -- finds no other: nothing points into the record but its two
+descriptors (`0x570f0`, `0x573c0`), and the other reads in the GPS
+code at those displacements are of other blocks (`0x4cff0`,
+`0x4d1d2`, `0x4f0c2`, `0x5191c`).  A reader stepping a pointer, or a
+copy of the whole record, would still escape it.

@@ -165,9 +165,10 @@ following, and how.
 - What drives the 59551A's PORT 2.  DUART channel B, idle here, is the
   device a single-port unit would leave spare, but no image of a
   59551A's firmware is at hand.
-- Only byte loads of offset 26 of the form `move.b (0x1a,An),Dn` were
-  searched for; a reader using another addressing form would have
-  been missed.
+- Whether anything reads the sawtooth by stepping a pointer or
+  copying the record: the Z3816A's sweep covers every displacement
+  form (`gps.md`, "In every image"), the other images only byte
+  loads.
 - 3704, the bench 58503A's own revision, has been compared with 3633
   only where this document says so.
 
