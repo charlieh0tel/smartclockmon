@@ -35,11 +35,12 @@ restores it -- the τ block, the loop block, the health records -- only
 when four things hold: the region's checksum is good, RSR shows
 neither an external nor a power-up reset (`RSR & 0xc0` is zero; a
 software, halt-monitor or loss-of-clock reset passes), the flag word at
-`0x100002` is 1, and, on the 58503A and Z3816A, a settings byte is
-clear (3633 `0x102270`, 3704 `0x102276`, Z3816A `0x10262c`).  With the
-checksum good and the flag 0, a second branch loads the ROM defaults;
-on the 58503A and Z3816A that branch also requires RSR to be exactly
-SYS, which `RESET` gives.  Anything else is a cold start, which also
+`0x100002` is 1, and, on the 58503A, Z3816A, Z3815A and 58503B, a
+settings byte is clear (3633 `0x102270`, 3704 `0x102276`, Z3816A
+`0x10262c`, Z3815A `0x102652`, 58503B `0x1029b4`, each tested just
+after the first read of RSR).  With the checksum good and the flag 0, a
+second branch loads the ROM defaults; on those four models that branch
+also requires RSR to be exactly SYS, which `RESET` gives.  Anything else is a cold start, which also
 pulses PE6.  The checksum is an 8-bit sum stored as sum and
 complement, so a zeroed region fails it.  So `:SYSTem:PRESet`, which
 clears the flag, restarts into the defaults, and `:SYSTem:PON`, which
