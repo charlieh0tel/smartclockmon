@@ -23,6 +23,12 @@ through the boot ROM's vector 43:
 | 58503A 3633 | `0x14856` | `0x14866` | `0x12166` | `0x143bc` |
 | 58503A 3704 | `0x149ce` | `0x149de` | `0x121f0` | `0x14534` |
 | Z3816A 4001 | `0x24b18` | `0x24b28` | `0x22172` | `0x2466e` |
+| Z3815A 4010 | `0x24fe0` | `0x24ff0` | `0x22204` | `0x24b36` |
+| 58503B 1.01.04 | `0x24a4a` | `0x24a5a` | `0x22246` | `0x245ac` |
+
+The 58503B's `trap #12` also reloads the stack pointer from its
+table's first entry (`movea.l (A0),A7`) before jumping through the
+reset vector; the others only jump.
 
 The reset code clears RAM above a preserved region at `0x100000` and
 restores it -- the τ block, the loop block, the health records -- only
@@ -51,8 +57,8 @@ and a function), are:
 The `:GPS:POSition` handler `FUN_0003c268` passes the list starting at
 `0x44c9a`, six bytes before `:SYSTem:PON`'s; what the parser does with
 a list and where it stops were not traced.  `PON` is a keyword of the
-Z3816A image (`0x5a280`) and both 58503A images (`console.md`, "The
-58503A image"); the Z3801A's image has the same `:SYSTem:PRESet` action,
+Z3816A image (`0x5a280`), both 58503A images (`console.md`, "The
+58503A image"), the Z3815A's and the 58503B's (`../scpi/`); the Z3801A's image has the same `:SYSTem:PRESet` action,
 `FUN_00045cca` (`0x2f66a` passes its list at `0x41392`), and no `PON`,
 nor has the Z3805A's.  Owners report that newer firmware accepts
 `:SYSTem:PON` and older refuses it, which matches: on 2026-09-27 the
@@ -103,7 +109,9 @@ the daemon calls neither.
 The software watchdog is on (SYPCR `0xcc`) and, after start-up, is
 serviced in one place: a routine of the `hmon` task, priority 200, the
 highest of the application's tasks (Z3801A `0x2323e`, Z3805A
-`0x2437a`, 3633 `0x2345a`, 3704 `0x2369e`, Z3816A `0x338a4`).  The
+`0x2437a`, 3633 `0x2345a`, 3704 `0x2369e`, Z3816A `0x338a4`, Z3815A
+`0x36664`, 58503B `0x32eaa`; each image's only SWSR writes outside its
+start-up code).  The
 PIT, 1024 ticks a second, signals `hmon` every ten ticks, and every
 112 of those, about 1.1 s, the routine checks heartbeat bytes the
 clock, GPS, loop, monitor and spool tasks set (Z3801A block
@@ -151,7 +159,15 @@ Read from all five images; the bench check of entry and exit is below.
   `0x302000`; see "The switch byte at `0x302000`".
 - *Telling it apart.*  `*IDN?` names a place, not a revision: `Peru`
   on the Z3801A, `Oman` on 58503A 3633, `USA` on 3704 and the Z3816A;
-  `:SYSTem:LANGuage?` always answers `INSTALL`.
+  `:SYSTem:LANGuage?` always answers `INSTALL`.  The Z3815A's and
+58503B's installers are stored packed, as the others are, and were not
+unpacked here, so their names are not known.
+- *Which share one.*  Compared byte for byte below `0x10000` (the
+  Z3816A, Z3815A and 58503B: `0x20000`): the Z3801A's and Z3805A's are
+  identical, and the Z3815A's and 58503B's differ only in four bytes at
+  `0x4000`, `55 55 aa aa` in the Z3815A where the 58503B's are erased.
+  The rest differ from each other: 3633 and 3704 share 37 % of their
+  bytes, the Z3816A and Z3815A 70 %.
 - *Commands.*  `*IDN?`, `*CLS`, `:SYSTem:LANGuage`, `:SYSTem:ERRor?`,
   `:DIAGnostic:TEST? n` (0 summary, 1 checksum flags, 2 CPU, 3 RAM,
   4 DUART), `:DIAGnostic:ERASe`, `:DIAGnostic:ERASe?` (1 when the
@@ -320,10 +336,18 @@ codes are 1200, 2400, 9600 and 19200 baud at the part's standard
 read each time the installer starts and is not stored.
 
 The Peru installer (Z3801A 3543, Z3805A 3543B) and the USA installer
-(58503A 3704, Z3816A 4001) do not read `0x302000`.  Nor does any
-primary except the Z3816A's, which reads bit 8 of the word at
-`0x302000` to pick G (see `loop.md`, "τ and G").  So no firmware on the bench
-units reads this byte.  Whether it is S1 has not been established.
+(58503A 3704, Z3816A 4001) do not read `0x302000`; the Z3815A's and
+58503B's installers were not unpacked.  Of the primaries, the Z3801A,
+Z3805A and both 58503As never read it.  The Z3816A reads bit 8 of the
+word there once, to pick G (see `loop.md`, "τ and G").  The Z3815A
+reads the word in ten places (`0x33c04` to `0x50bf4`), testing bits 7,
+12, 13 and 14; bit 12 picks its τ and G (`loop.md`, "In every image").
+The 58503B reads the byte once in its EFC writer, `0x2dba0`, after
+sending the value to the DAC over the QSPI and pulsing port E bit 7;
+the console word `efc_write` and the loop's EFC conversion (`0x32cd0`)
+call it, so the byte is read at every EFC write, and what that read
+does was not traced.  So no firmware on the bench units reads this
+byte.  Whether it is S1 has not been established.
 097-55300-01 figures 3-14 and 3-15A give the related 55300A's S1 B1 as
 "Preset All Serial Ports at Powerup", the same kind of function.
 
