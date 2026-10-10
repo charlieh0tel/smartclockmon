@@ -419,7 +419,9 @@ G and two limits -- indexed by the byte at `0x102726` (`0x40b8e`).
 That byte is what `:DIAGnostic:ROSCillator:TYPE?` returns, and its
 setter accepts a value below the number of types (`0x3b58c`).  Two
 entries are filled: G −1.25 × 10⁻¹², the Z3816A's, with limits
-±10⁻¹¹, and +6.25 × 10⁻¹³, the 58503A's; the type selects which.
+±10⁻¹¹, and +6.25 × 10⁻¹³, the 58503A's; the type selects which.  In both the 58503B and the Z3815A the cell holding G is also
+`:DIAGnostic:ROSCillator:EFControl:ASLOPe`'s, so G can be read and set
+over SCPI within its limits (`../scpi/undocumented.md`).
 
 The Z3815A reads the word at `0x302000` as the Z3816A does, but bit 12
 where the Z3816A reads bit 8, and with it chooses τ as well as G.  A
