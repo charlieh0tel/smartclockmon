@@ -91,6 +91,7 @@ a{color:var(--accent)}
       <tr><td>a</td><td>prefilter coefficient, 29.75 / τ per 10 s update</td><td>by model, below</td></tr>
       <tr><td>K</td><td>proportional gain, 1 / (G·τ)</td><td>EFC units per second of error</td></tr>
       <tr><td>k</td><td>integral gain per update, 1 / (4·G·τ²), applied ×10 for the ten seconds</td><td></td></tr>
+      <tr><td>B</td><td>base EFC: the EFC in force when <code>pll_normal</code> takes over, less c₀·s, so closing the loop does not move the oscillator</td><td>set once at the hand-over, then fixed; drift accumulates in I</td></tr>
       <tr><td>M</td><td>clamp on the drift term, 6.25 × 10⁻¹⁰ / |G|</td><td>±500 or ±294 EFC units per 2700 s on the Z3816A; ±1000 where G is +6.25 × 10⁻¹³</td></tr>
       <tr><td>x₀</td><td>phase setpoint</td><td>0 unless set from the console word <code>phase_off</code></td></tr>
       <tr><td>c₀</td><td>coefficient on the oscillator current; <code>:DIAGnostic:ROSCillator:TCOefficient</code>, limits ±200, in EEPROM</td><td>a calibration value per unit; −33.65 on the bench 58503A, whose loop does not appear to apply it this way</td></tr>

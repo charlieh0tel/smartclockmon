@@ -68,7 +68,7 @@ point.  The values and their addresses:
 | x₀ | `0x102c1c` | the setpoint subtracted from it: cleared at `0x4b1dc`, otherwise written only by the console word `phase_off` (`0x2b87c`), which nothing else calls |
 | f | `0x102be0` | the filtered error, kept between updates |
 | I | `0x102728` | the integrator |
-| B | `0x102be4` | a base EFC |
+| B | `0x102be4` | a base EFC, set once as `pll_normal` takes over |
 | τ | `0x102548` | the loop's time constant |
 | G | `0x102c28` | a gain; `0x102c30` and `0x102c34` hold 1/G |
 | c | `0x1023cc` | the value `:DIAGnostic:ROSCillator:TCOefficient?` reports, from the checksummed block at `0x400080`; see "s, the oscillator current" |
@@ -86,8 +86,11 @@ The update:
     u  = K·f + B + I + c·s                   K = 1 / (G·τ)
 
 and `FUN_00033798(u)` converts the result.  On entry the integrator is
-cleared and B is set to the EFC in force less c·s, so starting the
-loop does not move the oscillator.
+cleared and B is set to the EFC in force less c·s (`0x4835c`), so
+starting the loop does not move the oscillator.  That is the only
+store to B; the update (`0x4863a`) is the only read.  `startup_pll`,
+holdover and the aging fit leave it alone, so B stays where the
+hand-over put it, and the oscillator's drift accumulates in I.
 
 q is the seconds counter `FUN_00023818` returns, which `FUN_00023624`
 advances once a second; it lies in the region a warm restart preserves
