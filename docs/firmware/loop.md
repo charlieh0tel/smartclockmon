@@ -426,12 +426,18 @@ over SCPI within its limits (`../scpi/undocumented.md`).
 **The gain's second term and the measured uncertainty, Z3815A and
 58503B only.**  Beside G (A, `ASLOPe`) these two carry a second
 coefficient B (`BSLOPe`, the 58503B's `0x102722`) and a DAC-to-ADC
-ratio (`DADC`, `0x10271a`).  An EFC calibration in both writes all
-three: in the 58503B, `0x4d310` (called from `0x4c6b6`) and `0x4d1c8`,
-whose messages are `point= %d delta_f= %e efc=  %d`, `a= %e b= %e`,
-`low= %d high= %d dac/adc= %e`, `OCXO cal, a= %e` and `OCXO cal a out
-of range`; choosing the oscillator type resets them (G from the type's
-table, B to 0, the ratio to 16.0).  The older images have neither the
+ratio (`DADC`, `0x10271a`).  An EFC calibration in both sets them: in
+the 58503B, the state machine `0x4d310` (called from `0x4c6b6`) steps
+the EFC through ten points, measuring the frequency offset at each
+(`point= %d delta_f= %e efc=  %d`), and fits a and b (`0x4d1c8`, `a= %e
+b= %e`), writing G and B; measures the ratio at a low and a high EFC
+(`low= %d high= %d dac/adc= %e`); and, finishing, replaces a with the
+type's G when it falls outside the type's limits (`OCXO cal a out of
+range`), reports it (`OCXO cal, a= %e`), clears B (`0x4d744`), saves,
+and sets the loop's gain through `0x4d196` to A + B·u² at the EFC in
+force u -- which, with B just cleared, is A.  Choosing the oscillator
+type resets all three (G from the type's table, B to 0, the ratio to
+16.0).  The older images have neither the
 coefficients nor the calibration.  B's one use in arithmetic is the
 measured holdover uncertainty: at each new aging fit, `0x45d56` runs
 `0x45b26` over the last 32 samples, 24 hours, with the fit's
@@ -441,9 +447,13 @@ EFC error times an EFC-dependent gain times the window's seconds -- and
 stores the result at `0x102bfc`, valid while `0x1032af` is set, before
 saving the new fit's coefficients for the next run.
 `:SYNChronization:HOLDover:TUNCertainty:MEASured?` returns it
-(`0x4781c`).  So in these two models the oscillator's gain is A + B·e²
-at EFC e for that measurement; whether the loop itself applies B was
-not found.
+(`0x4781c`).  The loop does not apply B: the gain setter `0x4c7fc` --
+this image's counterpart of the Z3816A's `FUN_0004b022`, which derives
+1/G and the clamp from G -- has two callers, the loop's start
+(`0x4c924`), which passes G alone, and the end of the calibration,
+which passes A + B·u² just after clearing B.  The `BSLOPe` setter only
+stores and saves.  So B is fitted and then discarded, stays 0 unless
+`:BSLOPe` sets it, and enters only the measured-uncertainty sum.
 
 The Z3815A reads the word at `0x302000` as the Z3816A does, but bit 12
 where the Z3816A reads bit 8, and with it chooses τ as well as G.  A
