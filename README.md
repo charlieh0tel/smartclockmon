@@ -82,9 +82,9 @@ in SCPI.
 | Z3801A | yes | Different response formats |
 | Z3805A | yes | Answers as the Z3801A |
 | 58503B | no; may work | Firmware studied; heights above the ellipsoid |
-| 59551A | no; may work | Pulse output and event timestamping unused |
+| 59551A | no; may work | No commands for its pulse output or time tags |
 | Z3816A | no; may work | Firmware studied |
-| Z3815A | no  | Firmware studied; Furuno engine, unsupported |
+| Z3815A | no; may work | Firmware studied; Furuno GPS engine |
 
 The tools choose a dialect from `*IDN?`: the 58503A's for the
 58503A/B and 59551A, the Z3801A's for the others
