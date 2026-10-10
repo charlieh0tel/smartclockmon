@@ -316,12 +316,12 @@ The rest of the 25-byte block, from its ROM defaults
 | ------ | ------- | ------------------- |
 | +0, word | 0 | nothing but the block copies |
 | +2 | 0 | the alarm LED: `FUN_00049f76`, called from `pllp`, gathers bits from `FUN_0003ed82`, the +0x18 flag, `FUN_000324fc` and `FUN_00049f06` into the byte at `0x102c16` and sets +2 when any is set (`0x4a008`); the health monitor folds it into a status bit (`0x33d12`); `:LED:ALARm?` and `:LED:ALARm:MAJor?` return it (`FUN_0003d3d0`) |
-| +3 | 1 | a descriptor at `0x431bc` only |
+| +3 | 1 | the cell of the toggle structure at `0x431bc` (`restart.md`, "Restarting"); nothing refers to that structure by address, and it is not among the saved settings |
 | +4 | 0 | `:LED:ACTive?` returns it (`FUN_0003d3b6`) |
 | +5 | 0 | `:LED:ENABled?` returns it (`FUN_0003d458`) |
 | +6 | 1 | `:SYNChronization:HOLDover:RECovery:AUTO` (`FUN_0003f57a`; `:ROSCillator:HOLDover:RECovery:AUTO` is the same node): set to 1 when the loop starts (`0x4af60`); consulted when holdover begins (`0x472bc`, under the stage byte's move to 3) |
-| +7 | 0 | set to 1 by the `powerup` sub-state machine `FUN_0004a34a` (`0x4a764`); tested by SCPI handlers at `0x3c330` and `0x3c6de` |
-| +8, long | 0 | written by a SCPI setter (`0x3c35c`, through `FUN_00038f04`); its address is handed to the `powerup` sub-state machine (`0x4a382`) |
+| +7 | 0 | set to 1 by the `powerup` sub-state machine `FUN_0004a34a` (`0x4a764`), just after it stores +8 (`0x4a758`); the `:GPS:POSition` setter `FUN_0003c268` tests it (`0x3c330`) and the query `FUN_0003c6b0` fails with code 0xc while it is clear (`0x3c6de`) |
+| +8, long | 0 | written by the `powerup` sub-state machine (`0x4a758`, its address passed in at `0x4a382`) and, while +7 is set, by the `:GPS:POSition` setter from its argument (`0x3c35c`, through `FUN_00038f04`); which argument form reaches it was not traced |
 | +0xc, +0x10 | 0 | no reader found by address |
 | +0x14, float | 500 | τ |
 | +0x18 | 0 | a holdover-recovery flag: `FUN_000473ac`, called from the `holdover recovery` stage (`FUN_000478ce`, message `holdover recovery - Error with measurement`), counts its calls at `0x102bf6` and sets the flag with event 0x2e when the count passes the limit at `0x102566`; the `powerup` machine clears it (`0x4a094`) and so does the loop's start (`0x4afa0`); it is bit 0x20 of the alarm summary above |

@@ -120,7 +120,8 @@ following, and how.
 - Whether a watchdog warm start has been seen on a unit (the timeout
   is 8 s, `restart.md`, "The watchdog").
 
-- What τ-block bytes +3, +7 and +8 mean, and what the rest of the ROM
+- What τ-block bytes +7 and +8 mean beyond the `:GPS:POSition`
+  handlers' use of them (`loop.md`), and what the rest of the ROM
   defaults, `0x400de` to `0x40173`, hold.
 - What HQ stands for.  `FUN_00045f94` computes it from the fit's
   residuals: r = e − (a + b·y + c·w) at each sample, Σ½(Δr)² over
