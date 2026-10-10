@@ -133,7 +133,7 @@ a{color:var(--accent)}
     </div>
   </div>
   <figure class="fig splane">
-    <svg viewBox="0 0 520 290" role="img" aria-label="Closed-loop poles of the disciplining loop in the s-plane, scaled by tau"><line x1="30" y1="150" x2="505" y2="150" style="stroke:var(--rule);stroke-width:1.4"/><line x1="448.9" y1="22" x2="448.9" y2="278" style="stroke:var(--rule);stroke-width:1.4"/><line x1="65.6" y1="146" x2="65.6" y2="154" style="stroke:var(--muted)"/><text x="65.6" y="170" text-anchor="middle" class="sp-t">−3</text><line x1="193.3" y1="146" x2="193.3" y2="154" style="stroke:var(--muted)"/><text x="193.3" y="170" text-anchor="middle" class="sp-t">−2</text><line x1="321.1" y1="146" x2="321.1" y2="154" style="stroke:var(--muted)"/><text x="321.1" y="170" text-anchor="middle" class="sp-t">−1</text><line x1="444.9" y1="90.0" x2="452.9" y2="90.0" style="stroke:var(--muted)"/><text x="456.9" y="94.0" class="sp-t">+0.5j</text><line x1="444.9" y1="210.0" x2="452.9" y2="210.0" style="stroke:var(--muted)"/><text x="456.9" y="214.0" class="sp-t">−0.5j</text><text x="505" y="170" text-anchor="end" class="sp-t">σ·τ</text><text x="456.9" y="30" class="sp-t">jω·τ</text><rect x="443.9" y="145" width="10" height="10" style="fill:none;stroke:var(--muted);stroke-width:1.5"/><rect x="63.8" y="145" width="10" height="10" style="fill:none;stroke:var(--muted);stroke-width:1.5"/><circle cx="416.9" cy="150" r="5" style="fill:none;stroke:var(--muted);stroke-width:1.5"/><path d="M385.0,142L393.0,150L385.0,158L377.0,150Z" style="fill:none;stroke:var(--ff);stroke-width:1.8"/><path d="M394.8,143L408.8,157M394.8,157L408.8,143" style="stroke:var(--accent);stroke-width:2.6"/><path d="M269.5,81.8L283.5,95.8M269.5,95.8L283.5,81.8" style="stroke:var(--accent);stroke-width:2.6"/><path d="M269.5,204.2L283.5,218.2M269.5,218.2L283.5,204.2" style="stroke:var(--accent);stroke-width:2.6"/><text x="276.5" y="74.8" text-anchor="middle" class="sp-l">−1.35 ± 0.51j</text><text x="395.8" y="116" text-anchor="end" class="sp-l">−0.37</text><line x1="397.8" y1="118" x2="401.8" y2="140" style="stroke:var(--accent);stroke-width:1"/><text x="379.0" y="196" text-anchor="end" class="sp-m">−0.5, double, without the prefilter</text><line x1="385.0" y1="160" x2="381.0" y2="186" style="stroke:var(--ff);stroke-width:1"/><text x="408.9" y="240" text-anchor="end" class="sp-m">zero −0.25</text><line x1="416.9" y1="157" x2="410.9" y2="230" style="stroke:var(--muted);stroke-width:1"/><text x="68.8" y="132" text-anchor="middle" class="sp-m">prefilter −2.975</text><text x="457.9" y="140" class="sp-m">0, double</text></svg>
+    <svg id="splane" viewBox="0 0 520 290" role="img" aria-label="Closed-loop poles of the disciplining loop in the s-plane, scaled by tau"></svg>
     <figcaption><span style="color:var(--accent)">×</span> closed-loop poles of the 10 s update at τ = 500 s (within 6 % at 700 and 1000 s) · <span style="color:var(--ff)">◇</span> the double pole without the prefilter · □ open-loop poles · ○ open-loop zero. Both axes in units of 1/τ.</figcaption>
   </figure>
 </section>
@@ -256,6 +256,63 @@ a{color:var(--accent)}
   // d into the integrator sum
   wire([fD.r,[850,Y3],[850,Y3-40],[792,Y3-40],s3.b],{ff:true});
   label(780,Y3-48,'10·d / 2700 per update',{mono:true,anchor:'end',color:ff});
+})();
+</script>
+<script>
+// The s-plane: the closed-loop poles of the ten-second update, computed
+// here from the update law, so the figure cannot drift from it.  The
+// state is (phase error, filtered error, integrator), G taken as 1 since
+// it cancels; crates/smartclock/tests/loop_dynamics.rs checks the page's
+// figures against the same arithmetic.
+(function(){
+  const PERIOD=10, PREFILTER=29.75, TAU=500;
+  const svg=document.getElementById('splane'), NS='http://www.w3.org/2000/svg';
+  function el(n,a,txt){const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);if(txt!=null)e.textContent=txt;svg.appendChild(e);return e;}
+  // complex arithmetic, enough for the roots of a cubic
+  const C=(re,im)=>({re,im}), add=(a,b)=>C(a.re+b.re,a.im+b.im), sub=(a,b)=>C(a.re-b.re,a.im-b.im);
+  const mul=(a,b)=>C(a.re*b.re-a.im*b.im,a.re*b.im+a.im*b.re);
+  const div=(a,b)=>{const n=b.re*b.re+b.im*b.im;return C((a.re*b.re+a.im*b.im)/n,(a.im*b.re-a.re*b.im)/n);};
+  function roots(b,c,d){ // z^3 + b z^2 + c z + d, Durand-Kerner
+    const f=z=>add(add(add(mul(mul(z,z),z),mul(C(b,0),mul(z,z))),mul(C(c,0),z)),C(d,0));
+    const seed=C(0.4,0.9); const r=[C(1,0),seed,mul(seed,seed)];
+    for(let n=0;n<500;n++)for(let i=0;i<3;i++){let den=C(1,0);for(let j=0;j<3;j++)if(i!==j)den=mul(den,sub(r[i],r[j]));r[i]=sub(r[i],div(f(r[i]),den));}
+    return r;
+  }
+  function poles(tau){
+    const a=PREFILTER/tau, K=1/tau, k=1/(4*tau*tau);
+    const F=[a,1-a,0], I=[PERIOD*k*F[0],PERIOD*k*F[1],1+PERIOD*k*F[2]];
+    const D=[0,1,2].map(i=>K*F[i]+I[i]), X=[1-PERIOD*D[0],-PERIOD*D[1],-PERIOD*D[2]];
+    const m=[X,F,I];
+    const tr=m[0][0]+m[1][1]+m[2][2];
+    const mi=m[0][0]*m[1][1]-m[0][1]*m[1][0]+m[0][0]*m[2][2]-m[0][2]*m[2][0]+m[1][1]*m[2][2]-m[1][2]*m[2][1];
+    const det=m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])-m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])+m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+    return roots(-tr,mi,-det).map(z=>C(Math.log(Math.hypot(z.re,z.im))*tau/PERIOD,Math.atan2(z.im,z.re)*tau/PERIOD)).sort((x,y)=>y.re-x.re);
+  }
+  const X=v=>40+(v+3.2)/3.6*460, Y=w=>150-w*120, o0=X(0);
+  const text=(x,y,t,cls,anchor)=>el('text',{x,y,class:cls,'text-anchor':anchor||'start'},t);
+  const line=(x1,y1,x2,y2,style)=>el('line',{x1,y1,x2,y2,style});
+  const cross=(x,y)=>el('path',{d:`M${x-7},${y-7}L${x+7},${y+7}M${x-7},${y+7}L${x+7},${y-7}`,style:'stroke:var(--accent);stroke-width:2.6'});
+  const minus=v=>'\u2212'+v;
+  // axes
+  line(30,150,505,150,'stroke:var(--rule);stroke-width:1.4'); line(o0,22,o0,278,'stroke:var(--rule);stroke-width:1.4');
+  for(const t of [-3,-2,-1]){line(X(t),146,X(t),154,'stroke:var(--muted)');text(X(t),170,minus(-t),'sp-t','middle');}
+  for(const w of [0.5,-0.5]){line(o0-4,Y(w),o0+4,Y(w),'stroke:var(--muted)');text(o0+8,Y(w)+4,(w>0?'+':'\u2212')+'0.5j','sp-t');}
+  text(505,170,'\u03c3\u00b7\u03c4','sp-t','end'); text(o0+8,30,'j\u03c9\u00b7\u03c4','sp-t');
+  // open loop: the oscillator and integrator at 0, the prefilter at -p; the PI zero at -1/4
+  const p=PREFILTER/PERIOD;
+  for(const v of [0,-p])el('rect',{x:X(v)-5,y:145,width:10,height:10,style:'fill:none;stroke:var(--muted);stroke-width:1.5'});
+  el('circle',{cx:X(-0.25),cy:150,r:5,style:'fill:none;stroke:var(--muted);stroke-width:1.5'});
+  text(X(-p),132,'prefilter '+minus(p.toFixed(3)),'sp-m','middle'); text(o0+9,140,'0, double','sp-m');
+  line(X(-0.25),157,X(-0.25)-6,230,'stroke:var(--muted);stroke-width:1'); text(X(-0.25)-8,240,'zero '+minus('0.25'),'sp-m','end');
+  // the gains alone: a double pole at -1/2
+  const xd=X(-0.5); el('path',{d:`M${xd},142L${xd+8},150L${xd},158L${xd-8},150Z`,style:'fill:none;stroke:var(--ff);stroke-width:1.8'});
+  line(xd,160,xd-4,186,'stroke:var(--ff);stroke-width:1'); text(xd-6,196,minus('0.5')+', double, without the prefilter','sp-m','end');
+  // the closed loop
+  const [slow,upper,lower]=poles(TAU);
+  cross(X(slow.re),150); cross(X(upper.re),Y(upper.im)); cross(X(lower.re),Y(lower.im));
+  const pair=upper.im>0?upper:lower;
+  text(X(pair.re),Y(pair.im)-14,minus((-pair.re).toFixed(2))+' \u00b1 '+pair.im.toFixed(2)+'j','sp-l','middle');
+  line(X(slow.re)-4,118,X(slow.re),140,'stroke:var(--accent);stroke-width:1'); text(X(slow.re)-6,116,minus((-slow.re).toFixed(2)),'sp-l','end');
 })();
 </script>
 </body>
