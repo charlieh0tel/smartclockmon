@@ -131,7 +131,22 @@ order:
 | 3 | `: 1PPS TI exceeds hold threshold` |
 | none of these | none |
 
-Which code sets each bit was not traced.  The mode routine also
+What sets each bit, in the Z3816A (stage + `0x11` is `0x10283d`):
+
+| Bit | Set by | Shown |
+| --- | ------ | ----- |
+| 0 | `FUN_000494da`, a manual holdover's start, with the manual flag (refused in power-up); `FUN_0004948c` clears both | through the flag |
+| 1 | `startup_pll` (`FUN_00047bac`), `pll_normal` (`FUN_0004824a`) and `FUN_000498a8`, while the GPS 1 PPS valid flag at `0x102c23` is clear | `GPS 1PPS invalid` |
+| 2 | `startup_pll` and `pll_normal`, after ten seconds with no reading accepted and one that failed; `coarse` (`0x48da6`) and `fine` (`0x49444`) when they fail; `FUN_000498a8` when its reading fails and the byte at `0x100ebc` is clear | `internal hardware problem` |
+| 3 | `startup_pll` and `pll_normal`, after ten seconds with no reading accepted and none failed: each was beyond the hold threshold at `0x10256e` (the screen's `HOLD THR`), unless the byte at `0x102572` is set, or was skipped while `0x102c22` was set | `1PPS TI exceeds hold threshold` |
+| 4 | `startup_pll` and `pll_normal` while `0x102229`, the internal 1 PPS's error (`firmware/ovens.md`), is set; `FUN_000498a8` while the byte at `0x100ebc` is set | `internal hardware problem` |
+| 5 | `0x49520`, through the descriptor entry at `0x44c82`; `0x4953a` clears it | no; it keeps power-up waiting for GPS (`firmware/ovens.md`) |
+| 7 | holdover recovery (`FUN_000478ce`, `0x47a06`) while `0x1014a3` is set | no |
+
+Holdover recovery also sets bits 1, 2 and 4 (`0x47a54`, `0x47a62`,
+`0x4796e`, `0x47b02`), on conditions not read; any cause makes
+`startup_pll` and `pll_normal` return 2, to holdover.  `FUN_0004ad3e`,
+the GPS diagnostic, clears the byte.  The mode routine also
 handles causes the accessor never returns -- 1 and 4, and `0x40` and
 `0x80`, which would show `: switched to GPS 1PPS reference` (or `Ext`)
 and `: GPS receiver failure` -- so in the images that hold those two
