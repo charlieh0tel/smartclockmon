@@ -116,7 +116,8 @@ impl fmt::Display for EfcPercent {
 /// Which mode the disciplining loop is in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SmartClockMode {
-    /// Locked to GPS.
+    /// Locked, to GPS or to an external 1 PPS: `:SYNChronization:STATe?`
+    /// does not say which.
     Locked,
     /// Recovering from holdover.
     Recovery,
@@ -164,7 +165,7 @@ impl fmt::Display for SmartClockMode {
     /// receiver, and would have changed silently under a rename.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let text = match self {
-            Self::Locked => "locked to GPS",
+            Self::Locked => "locked",
             Self::Recovery => "recovering from holdover",
             Self::Holdover => "in holdover",
             Self::Waiting => "waiting to recover",
@@ -1063,7 +1064,7 @@ mod tests {
         // These go in front of whoever is diagnosing a receiver, so
         // they are sentences rather than Rust identifiers -- and a
         // rename must not change them silently.
-        assert_eq!(SmartClockMode::Locked.to_string(), "locked to GPS");
+        assert_eq!(SmartClockMode::Locked.to_string(), "locked");
         assert_eq!(SmartClockMode::Holdover.to_string(), "in holdover");
         assert_eq!(SmartClockMode::PowerUp.to_string(), "powering up");
         assert_eq!(HoldoverWaitReason::Gps.to_string(), "no satellites");

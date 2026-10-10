@@ -640,19 +640,22 @@ fn lock(frame: &mut Frame, area: Rect, app: &App) {
 /// The state comes from `:SYNChronization:STATe?`, which is on the
 /// one-second tier, but that returns a bare `LOCK` with no detail.  The
 /// detail -- "stabilizing frequency", "GPS acquisition", "GPS 1PPS
-/// invalid" -- exists only on the status screen, which no tier polls.
+/// invalid" -- exists only on the status screen, which no tier polls,
+/// and so does the reference a lock is to: the firmware writes
+/// `Locked to GPS` or `Locked to Ext` (docs/screen-format-strings.md,
+/// "Mode suffixes").
 ///
 /// So the two are combined, from a recent screen only
-/// ([`recent_screen`]), and the suffix is used only while the screen
-/// still agrees about the base state.  Otherwise a transition would
-/// show the fresh state carrying a stale explanation, which is worse
-/// than no explanation.
+/// ([`recent_screen`]), and the screen's reference and suffix are used
+/// only while it still agrees about the base state.  Otherwise a
+/// transition would show the fresh state carrying a stale
+/// explanation, which is worse than no explanation.
 fn mode_line(snapshot: &Reading, screen: Option<&Screen>) -> (String, Style) {
     let Some(mode) = snapshot.mode else {
         return ("--".to_owned(), Style::new().fg(Color::DarkGray));
     };
     let (base, screen_word, style) = match mode {
-        SmartClockMode::Locked => ("Locked to GPS", "Locked", Style::new().fg(Color::Green)),
+        SmartClockMode::Locked => ("Locked", "Locked", Style::new().fg(Color::Green)),
         SmartClockMode::Recovery => ("Recovery", "Recovery", Style::new().fg(Color::Yellow)),
         SmartClockMode::Holdover => (
             "Holdover",
@@ -664,16 +667,25 @@ fn mode_line(snapshot: &Reading, screen: Option<&Screen>) -> (String, Style) {
         SmartClockMode::Other => ("Other", "Other", Style::new().fg(Color::Magenta)),
     };
 
-    let detail = screen
+    let agreeing = screen
         .and_then(|s| s.mode.as_deref())
-        .filter(|text| text.starts_with(screen_word))
+        .filter(|text| text.starts_with(screen_word));
+    let base = match (mode, agreeing) {
+        (SmartClockMode::Locked, Some(text)) => text
+            .split_once(':')
+            .map_or(text, |(head, _)| head)
+            .trim()
+            .to_owned(),
+        _ => base.to_owned(),
+    };
+    let detail = agreeing
         .and_then(|text| text.split_once(':'))
         .map(|(_, suffix)| suffix.trim().to_owned())
         .filter(|suffix| !suffix.is_empty());
 
     match detail {
         Some(detail) => (format!("{base}: {detail}"), style),
-        None => (base.to_owned(), style),
+        None => (base, style),
     }
 }
 
@@ -1399,9 +1411,22 @@ mod tests {
     }
 
     #[test]
+    fn a_lock_to_the_external_reference_says_so() {
+        let s = snapshot(
+            Some(SmartClockMode::Locked),
+            Some(&screen_with("Locked to Ext: stabilizing frequency")),
+        );
+        assert_eq!(
+            mode_line(&s, s.screen.as_ref()).0,
+            "Locked to Ext: stabilizing frequency"
+        );
+    }
+
+    #[test]
     fn without_a_screen_the_state_still_shows() {
+        // :SYNC:STATe? names no reference, so none is guessed.
         let s = snapshot(Some(SmartClockMode::Locked), None);
-        assert_eq!(mode_line(&s, s.screen.as_ref()).0, "Locked to GPS");
+        assert_eq!(mode_line(&s, s.screen.as_ref()).0, "Locked");
     }
 
     #[test]
