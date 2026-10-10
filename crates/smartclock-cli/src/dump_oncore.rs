@@ -30,6 +30,10 @@ const ENTRY_SIZES: [u32; 2] = [56, 60];
 const ID_SLOT: u32 = 0;
 /// Where it keeps its kind (`Kind`).
 const KIND_SLOT: u32 = 4;
+/// Where it keeps its argument encoders, zero after the last.
+const ENCODER_SLOT: u32 = 6;
+/// How many encoders an entry has room for.
+const ENCODERS: u32 = 4;
 /// Where it keeps the pointer to its query form, zero if it has none.
 const QUERY_SLOT: u32 = 0x16;
 /// Where it keeps the length of the message the engine sends.
@@ -81,6 +85,11 @@ const SCRIPT_REACH: u32 = 16;
 const RECORD_INDEX: u32 = 0;
 /// Where a record keeps its mode (`Mode`).
 const RECORD_MODE: u32 = 2;
+/// Where a record's arguments start, a long for each of its message's
+/// encoders: encoder *k* sends argument *k*.
+const RECORD_ARGUMENTS: u32 = 4;
+/// The mode that sets a message from the record's own arguments.
+const MODE_OWN: Mode = 0;
 /// The largest mode a record holds.
 const MODE_LIMIT: u8 = 2;
 
@@ -107,6 +116,8 @@ struct Message {
     id: String,
     /// Its kind.
     kind: Kind,
+    /// How many argument encoders it has.
+    encoders: u32,
     /// Whether it has a query form.
     query: bool,
     /// The length of the message the engine sends, `@@` to line end.
@@ -122,12 +133,15 @@ struct Message {
 type Summary = (&'static str, fn(&Oncore) -> String);
 
 /// One record of a script or polling list.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Record {
     /// A message's index, or a step's.
     index: u16,
     /// What it asks.
     mode: Mode,
+    /// The arguments it sets its message from, in mode 0; empty
+    /// otherwise, and for a step, whose arguments are not read here.
+    arguments: Vec<i32>,
 }
 
 /// Everything read out of one image.
@@ -161,11 +175,20 @@ impl Oncore {
             )
     }
 
-    /// Records as a line shows them: name, a slash and the mode.
+    /// Records as a line shows them: name, a slash and the mode, and
+    /// any arguments in parentheses.
     fn records(&self, records: &[Record]) -> String {
         records
             .iter()
-            .map(|record| format!("{}/{}", self.name(record.index), record.mode))
+            .map(|record| {
+                let mut out = format!("{}/{}", self.name(record.index), record.mode);
+                if !record.arguments.is_empty() {
+                    let arguments: Vec<String> =
+                        record.arguments.iter().map(i32::to_string).collect();
+                    let _ = write!(out, "({})", arguments.join(","));
+                }
+                out
+            })
             .collect::<Vec<_>>()
             .join(" ")
     }
@@ -226,9 +249,17 @@ fn messages(image: &Image, start: u32, size: u32, count: u16) -> Result<Vec<Mess
                 (decoder != 0).then_some((decoder, record))
             })
             .collect();
+        let encoders = (0..ENCODERS)
+            .take_while(|&slot| {
+                image
+                    .u32(at + ENCODER_SLOT + 4 * slot)
+                    .is_some_and(|e| e != 0)
+            })
+            .count();
         out.push(Message {
             index,
             id,
+            encoders: u32::try_from(encoders)?,
             kind: image.u8(at + KIND_SLOT).context("an entry")?,
             query: image.u32(at + QUERY_SLOT).context("an entry")? != 0,
             length: image.u16(at + LENGTH_SLOT).context("an entry")?,
@@ -280,16 +311,40 @@ fn script_at(image: &Image, target: u32) -> Option<u32> {
 }
 
 /// The record at `at`, if it is one: an index below `limit` and a
-/// mode in range.
-fn record(image: &Image, at: u32, limit: u16) -> Option<Record> {
+/// mode in range.  `encoders` gives each message's encoder count, and
+/// so how many arguments a mode-0 record of it holds.
+fn record(image: &Image, at: u32, limit: u16, encoders: &BTreeMap<u16, u32>) -> Option<Record> {
     let index = image.u16(at + RECORD_INDEX)?;
     let mode = image.u8(at + RECORD_MODE)?;
-    (at.is_multiple_of(2) && index < limit && mode <= MODE_LIMIT).then_some(Record { index, mode })
+    if !at.is_multiple_of(2) || index >= limit || mode > MODE_LIMIT {
+        return None;
+    }
+    let count = if mode == MODE_OWN {
+        encoders.get(&index).copied().unwrap_or(0)
+    } else {
+        0
+    };
+    let arguments = (0..count)
+        .map(|k| {
+            let long = image.u32(at + RECORD_ARGUMENTS + 4 * k)?;
+            Some(i32::from_ne_bytes(long.to_ne_bytes()))
+        })
+        .collect::<Option<Vec<i32>>>()?;
+    Some(Record {
+        index,
+        mode,
+        arguments,
+    })
 }
 
 /// The zero-terminated list of record pointers at `at`, if every
 /// pointer is to a record.
-fn records(image: &Image, at: u32, limit: u16) -> Option<Vec<Record>> {
+fn records(
+    image: &Image,
+    at: u32,
+    limit: u16,
+    encoders: &BTreeMap<u16, u32>,
+) -> Option<Vec<Record>> {
     let mut out = Vec::new();
     let mut slot = at;
     loop {
@@ -297,7 +352,7 @@ fn records(image: &Image, at: u32, limit: u16) -> Option<Vec<Record>> {
         if pointer == 0 {
             return Some(out);
         }
-        out.push(record(image, pointer, limit)?);
+        out.push(record(image, pointer, limit, encoders)?);
         slot += 4;
     }
 }
@@ -329,11 +384,15 @@ fn oncore(bytes: &[u8]) -> Result<Oncore> {
         .checked_add(u16::try_from(script_starts.len())?)
         .context("a script index")?;
     let messages = messages(&image, table, entry_size, *first_step)?;
+    let encoders: BTreeMap<u16, u32> = messages
+        .iter()
+        .map(|message| (message.index, message.encoders))
+        .collect();
     let scripts = script_starts
         .iter()
         .zip(*first_script..)
         .map(|(&at, index)| {
-            let records = records(&image, at, limit).with_context(|| {
+            let records = records(&image, at, limit, &encoders).with_context(|| {
                 format!("script {index:#x} at {at:#x} is not a list of records")
             })?;
             Ok((index, at, records))
@@ -356,7 +415,9 @@ fn oncore(bytes: &[u8]) -> Result<Oncore> {
         if !list.is_multiple_of(2) || scripts.iter().any(|(_, start, _)| *start == list) {
             continue;
         }
-        if let Some(found) = records(&image, list, limit).filter(|r| r.len() >= LIST_LEAST) {
+        if let Some(found) =
+            records(&image, list, limit, &encoders).filter(|r| r.len() >= LIST_LEAST)
+        {
             lists.insert(list, found);
         }
     }

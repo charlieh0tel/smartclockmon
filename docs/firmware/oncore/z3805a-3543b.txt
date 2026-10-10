@@ -42,22 +42,22 @@ message 0x2e Cg kind 3 length 8 query decoder 0x4ef54 0x101056
 message 0x2f Ci kind 1 length 0
 message 0x30 Cj kind 3 length 294 decoder 0x4f87e 0x101059
 steps 0x31 to 0x46
-script 0x47 0x50cca Ci/0 Cf/0 Cj/0 step-0x43/0 step-0x3f/0 Cg/0 AB/0 Ab/0 At/0 Ad/0 Ae/0 Af/0 Ah/0 Aj/0 As/0 Aw/0 AD/0 Ba/0 Bb/0 Bc/0 Bk/0 step-0x40/0 Bn/2 Cg/0 step-0x3f/0
-script 0x48 0x50d32 Ci/0 step-0x3f/0 Cg/0 Cj/0 step-0x43/0 Ab/0 Ah/0 Aj/0 Ak/0 Al/0 An/0 Ao/0 Aq/0 Ar/0 Av/0 Aw/0 Ax/0 Ay/0 AB/0 AC/0 AD/0 Ba/0 Bb/0 Bc/0 Bk/0 Cg/0 step-0x3f/0 step-0x44/0
-script 0x49 0x50da6 step-0x3f/0 Cg/0 Cg/0 step-0x3f/0
-script 0x4a 0x50dba step-0x3f/0 Ca/0 Cg/0 step-0x3f/0
-script 0x4b 0x50dce Ba/0 Bb/0 Cg/0
-script 0x4c 0x50dde Ba/0 Bb/0 Bc/0 Bk/0
+script 0x47 0x50cca Ci/0(0) Cf/0 Cj/0 step-0x43/0 step-0x3f/0 Cg/0(0) AB/0(4) Ab/0(0,0,0) At/0(0) Ad/0(134372100) Ae/0(-439192200) Af/0(5500,1) Ah/0(2) Aj/0(0) As/0(134372100,-439192200,5500,1) Aw/0(0) AD/0(0,32) Ba/0(1) Bb/0(1) Bc/0(0) Bk/0(0) step-0x40/0 Bn/2 Cg/0(1) step-0x3f/0
+script 0x48 0x50d32 Ci/0(0) step-0x3f/0 Cg/0(0) Cj/0 step-0x43/0 Ab/0(0,0,0) Ah/0(2) Aj/0(0) Ak/0(10) Al/0(60) An/0(1) Ao/0(49) Aq/0(1) Ar/0(1) Av/0(0) Aw/0(0) Ax/0(0) Ay/0(0) AB/0(4) AC/0(120) AD/0(0,32) Ba/0(1) Bb/0(1) Bc/0(0) Bk/0(0) Cg/0(1) step-0x3f/0 step-0x44/0
+script 0x49 0x50da6 step-0x3f/0 Cg/0(0) Cg/0(1) step-0x3f/0
+script 0x4a 0x50dba step-0x3f/0 Ca/0 Cg/0(1) step-0x3f/0
+script 0x4b 0x50dce Ba/0(1) Bb/0(1) Cg/0(1)
+script 0x4c 0x50dde Ba/0(0) Bb/0(0) Bc/0(0) Bk/0(0)
 script 0x4d 0x50df2 Cj/0 step-0x43/0 Aa/1 Ab/1 Ac/1 Ad/1 Ae/1 Af/1 Ag/1 Ah/1 Aj/1 Ak/1 Al/1 Am/1 Ao/1 Aq/1 Ar/1 As/1 At/1 Aw/1 Ay/1 Az/1 AB/1 AD/1 Bj/1 Cg/1
-script 0x4e 0x50e66 Aw/2 Ba/0
-script 0x4f 0x50e72 As/2 At/0 step-0x40/0 Bn/2 step-0x3f/0 Cg/0 Cg/0 step-0x3f/0
-script 0x50 0x50e96 step-0x3f/0 Cg/0 Ad/2 Ae/2 Af/2 Cg/0 step-0x3f/0
-script 0x51 0x50eb6 step-0x3e/0 step-0x3b/0 At/0 step-0x40/0 Bn/2 step-0x3f/0 Cg/0 Cg/0 step-0x3f/0
-script 0x52 0x50ede step-0x3f/0 Cg/0 At/0 Ad/2 Ae/2 Af/2 step-0x40/0 Bn/2 Cg/0 step-0x3f/0 step-0x3d/0 step-0x3b/0
-script 0x53 0x50f12 At/0 step-0x40/0 Bn/2 step-0x3b/0
-script 0x54 0x50f26 As/2 At/0 step-0x40/0 Bn/2
-script 0x55 0x50f3a At/2 step-0x40/0 Bn/2 step-0x3f/0 Cg/0 Cg/0 step-0x3f/0
-script 0x56 0x50f5a As/2 step-0x3f/0 Cg/0 Cg/0 step-0x3f/0
-script 0x57 0x50f72 step-0x3f/0 Cg/0 Aa/2 Cg/0 step-0x3f/0
-script 0x58 0x50f8a step-0x3f/0 Cg/0 Ac/2 Cg/0 step-0x3f/0
-script 0x59 0x50fa2 Cg/0 step-0x3f/0 Ah/0 Ai/0 Ai/0 Ai/0 Ai/0 Ai/0 Ai/0 Ai/2
+script 0x4e 0x50e66 Aw/2 Ba/0(1)
+script 0x4f 0x50e72 As/2 At/0(1) step-0x40/0 Bn/2 step-0x3f/0 Cg/0(0) Cg/0(1) step-0x3f/0
+script 0x50 0x50e96 step-0x3f/0 Cg/0(0) Ad/2 Ae/2 Af/2 Cg/0(1) step-0x3f/0
+script 0x51 0x50eb6 step-0x3e/0 step-0x3b/0 At/0(0) step-0x40/0 Bn/2 step-0x3f/0 Cg/0(0) Cg/0(1) step-0x3f/0
+script 0x52 0x50ede step-0x3f/0 Cg/0(0) At/0(0) Ad/2 Ae/2 Af/2 step-0x40/0 Bn/2 Cg/0(1) step-0x3f/0 step-0x3d/0 step-0x3b/0
+script 0x53 0x50f12 At/0(0) step-0x40/0 Bn/2 step-0x3b/0
+script 0x54 0x50f26 As/2 At/0(1) step-0x40/0 Bn/2
+script 0x55 0x50f3a At/2 step-0x40/0 Bn/2 step-0x3f/0 Cg/0(0) Cg/0(1) step-0x3f/0
+script 0x56 0x50f5a As/2 step-0x3f/0 Cg/0(0) Cg/0(1) step-0x3f/0
+script 0x57 0x50f72 step-0x3f/0 Cg/0(0) Aa/2 Cg/0(1) step-0x3f/0
+script 0x58 0x50f8a step-0x3f/0 Cg/0(0) Ac/2 Cg/0(1) step-0x3f/0
+script 0x59 0x50fa2 Cg/0(1) step-0x3f/0 Ah/0(1) Ai/0(1,0) Ai/0(2,0) Ai/0(3,0) Ai/0(4,0) Ai/0(5,0) Ai/0(6,0) Ai/2

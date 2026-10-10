@@ -251,7 +251,9 @@ low byte of its argument long (`oncore/README.md`).
 | Z3816A 4001 | none | 1 (`0x468a0`) | 0 unless bit 4 of `+0x608` in its state block is set (`0x56228`) |
 | 58503B 1.01.04 | none | 0 (`0x47e40`) | 0 unless bit 4 of `0x1017e8` is set (`0x585d6`) |
 
-So the Z380x and 58503A images send MSL heights, as their manuals give
+The Z380x and 3633 init scripts also set the initial position with
+`@@Ad`, `@@Ae` and `@@Af` to the same place, `@@Af` with height type
+1.  So the Z380x and 58503A images send MSL heights, as their manuals give
 them, and the 58503B ellipsoid heights, as its manual gives them
 (above).  Whether anything sets the Z3816A's bit was not checked.
 

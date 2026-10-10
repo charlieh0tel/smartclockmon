@@ -63,7 +63,11 @@ A script is a zero-terminated list of pointers to records:
 Mode 0 sets the message from the record's own arguments, 1 queries it
 with its query form, 2 sets it from the request's arguments, which the
 task copies to `0x102536` (`0x53142` to `0x53160`).  `<image>.txt`
-writes a record as its ID or `step-0x..`, a slash and the mode.
+writes a record as its ID or `step-0x..`, a slash and the mode, and a
+mode-0 record of a message with its arguments in parentheses, one
+signed long for each of the message's encoders: encoder *k* sends
+argument *k* (58503B `0x56cb0`, called with the encoder's slot).  A
+step's arguments are not read.
 
 ## Polling lists
 
@@ -77,5 +81,4 @@ that is not a script.
 ## What this does not see
 
 Code also posts requests by index through the task's queue;
-`../gps.md`, "Requests", names those found.  The arguments of a mode-0
-record are not printed; `../gps.md` gives the ones that matter.
+`../gps.md`, "Requests", names those found.
