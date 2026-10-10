@@ -614,10 +614,10 @@ view cannot drift apart.  The library, bottom up:
 
 ## Open questions
 
-1. **Which state machine drives the mode suffixes.**  Still inferred
-   from outside (`docs/screen-format-strings.md`, "Mode suffixes").
-   The rest of what the firmware leaves open is in
-   `docs/firmware/README.md`, "What is not established".
+1. **What the firmware leaves open.**  The mode suffixes are now read
+   from the firmware: the loop's stage byte and its sub-states choose
+   them (`docs/screen-format-strings.md`, "Mode suffixes").  What
+   remains is in `docs/firmware/README.md`, "What is not established".
 
 2. **How far the z3801 dialect is confirmed.**  Of the z3801 entries,
    18 are `evidence = "hardware"`, 63 `firmware` and one `manual`;
