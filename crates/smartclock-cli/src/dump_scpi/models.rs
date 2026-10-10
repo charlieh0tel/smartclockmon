@@ -278,22 +278,48 @@ fn in_a_primary_list(path: &str) -> bool {
         .any(|manual| manual.lists(path) == Some(Listed::Primary))
 }
 
-/// The images, by heading, in which `holds` is true of an entry for
-/// `path`.
-fn holding(
+/// The mark in an image's column where something holds.
+const HOLDS: &str = "✓";
+
+/// For each image, `HOLDS` where `holds` is true of its entry for
+/// `path`, blank where not.
+fn marks(
     images: &[(String, Vec<Entry>)],
     path: &str,
     holds: impl Fn(&Entry) -> bool,
-) -> Vec<String> {
+) -> Vec<&'static str> {
     images
         .iter()
-        .filter(|(_, entries)| {
-            entries
+        .map(|(_, entries)| {
+            if entries
                 .iter()
                 .any(|entry| entry.path == path && holds(entry))
+            {
+                HOLDS
+            } else {
+                ""
+            }
         })
-        .map(|(name, _)| title(name))
         .collect()
+}
+
+/// A table's header: `leading` columns, then one per image, its model
+/// and revision on two lines.
+fn header(images: &[(String, Vec<Entry>)], leading: &[&str]) -> String {
+    let names: Vec<String> = leading
+        .iter()
+        .map(|&name| name.to_owned())
+        .chain(
+            images
+                .iter()
+                .map(|(name, _)| title(name).replacen(' ', "<br>", 1)),
+        )
+        .collect();
+    format!(
+        "| {} |\n|{}\n",
+        names.join(" | "),
+        " --- |".repeat(names.len())
+    )
 }
 
 /// Paths in no manual whose node has the very handlers of a path a
@@ -308,10 +334,10 @@ fn aliases(out: &mut String, images: &[(String, Vec<Entry>)]) {
          several paths is not counted.  A handler is passed its node, so\n\
          this makes the path another name for the documented one only\n\
          where the handler does not tell them apart; the\n\
-         `:SYSTem:COMMunicate` ports, for one, share a query that does.\n\n\
-         | Path | Same handlers as | Images |\n\
-         | ---- | ---------------- | ------ |\n",
+         `:SYSTem:COMMunicate` ports, for one, share a query that does.\n\
+         A ✓ marks each image where the path has handlers.\n\n",
     );
+    out.push_str(&header(images, &["Path", "Same handlers as"]));
     let mut found: Vec<(String, BTreeSet<String>)> = Vec::new();
     for (_, entries) in images {
         for entry in entries {
@@ -357,9 +383,9 @@ fn aliases(out: &mut String, images: &[(String, Vec<Entry>)]) {
             } else {
                 format!(" and {more} more")
             },
-            holding(images, &path, |entry| entry.query.is_some()
+            marks(images, &path, |entry| entry.query.is_some()
                 || entry.setter.is_some())
-            .join(", ")
+            .join(" | ")
         );
     }
     out.push('\n');
@@ -371,11 +397,10 @@ fn stubs(out: &mut String, images: &[(String, Vec<Entry>)]) {
         "## Stubs\n\n\
          Each path here has handlers, and each of them does nothing but\n\
          call the routine every such handler calls to refuse: the parser\n\
-         knows the path and the firmware does not implement it.  Images\n\
-         names those where it is a stub.\n\n\
-         | Path | Manuals | Images |\n\
-         | ---- | ------- | ------ |\n",
+         knows the path and the firmware does not implement it.  A ✓\n\
+         marks each image where it is a stub.\n\n",
     );
+    out.push_str(&header(images, &["Path", "Manuals"]));
     let paths: BTreeSet<(String, &str)> = images
         .iter()
         .flat_map(|(_, entries)| entries)
@@ -387,7 +412,7 @@ fn stubs(out: &mut String, images: &[(String, Vec<Entry>)]) {
             out,
             "| `{path}` | {} | {} |",
             letters(path).join(", "),
-            holding(images, path, |entry| entry.refuses).join(", ")
+            marks(images, path, |entry| entry.refuses).join(" | ")
         );
     }
     out.push('\n');
@@ -505,15 +530,7 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
         );
     }
     out.push('\n');
-    let header = format!(
-        "| Path | Manuals | Confirmed | {} |\n|{}\n",
-        images
-            .iter()
-            .map(|(name, _)| title(name).replacen(' ', "<br>", 1))
-            .collect::<Vec<_>>()
-            .join(" | "),
-        " --- |".repeat(images.len() + 3)
-    );
+    let header = header(images, &["Path", "Manuals", "Confirmed"]);
     for (name, rows) in sections(images) {
         let _ = write!(out, "### {name}\n\n{header}");
         for row in rows {

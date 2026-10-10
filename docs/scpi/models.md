@@ -36,235 +36,236 @@ several paths is not counted.  A handler is passed its node, so
 this makes the path another name for the documented one only
 where the handler does not tell them apart; the
 `:SYSTem:COMMunicate` ports, for one, share a query that does.
+A ✓ marks each image where the path has handlers.
 
-| Path | Same handlers as | Images |
-| ---- | ---------------- | ------ |
-| `:DANA` | `:SYSTem:ERRor` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:DIAGnostic:SLOG:COUNt` | `:DIAGnostic:LOG:COUNt` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:DIAGnostic:SLOG:READ` | `:DIAGnostic:LOG:READ` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:DIAGnostic:SLOG:READ:ALL` | `:DIAGnostic:LOG:READ:ALL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:DOUGlas:PROGress` | `:SOURce:GPSystem:POSition:SURVey:PROGress`, `:SOURce:PTIMe:GPSystem:POSition:SURVey:PROGress` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:DOUGlas:STATe` | `:SOURce:GPSystem:POSition:SURVey:STATe`, `:SOURce:PTIMe:GPSystem:POSition:SURVey:STATe` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:DOUGlas:STATe:POWerup` | `:SOURce:GPSystem:POSition:SURVey:STATe:POWerup` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:GARY` | `:DIAGnostic:LOG:READ:ALL` | 58503B 1.01.04, Z3815A 4010 |
-| `:GARY:CLEar` | `:DIAGnostic:LOG:CLEar` | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3816A 4001 |
-| `:GARY:COUNt` | `:DIAGnostic:LOG:COUNt` | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3816A 4001 |
-| `:GARY:READ` | `:DIAGnostic:LOG:READ` | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3816A 4001 |
-| `:GARY:READ:ALL` | `:DIAGnostic:LOG:READ:ALL` | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3816A 4001 |
-| `:KENneth:PREDicted` | `:SOURce:ROSCillator:HOLDover:TUNCertainty:PREDicted`, `:SOURce:SYNChronization:HOLDover:TUNCertainty:PREDicted` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:KENneth:PRESent` | `:SOURce:ROSCillator:HOLDover:TUNCertainty:PRESent`, `:SOURce:SYNChronization:HOLDover:TUNCertainty:PRESent` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:LED:ALARm:MAJor` | `:LED:ALARm` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:ROBin` | `:SENSe:DATA` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:ROBin:CLEar` | `:SENSe:DATA:CLEar` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:ROBin:MEMory:OVERflow:COUNt` | `:SENSe:DATA:MEMory:OVERflow:COUNt` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:ROBin:MEMory:SAVE` | `:SENSe:DATA:MEMory:SAVE` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:ROBin:POINts` | `:SENSe:DATA:POINts` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:ROBin:TSTamp` | `:SENSe:DATA:TSTamp` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:GPSystem:ADELay` | `:SOURce:GPSystem:REFerence:ADELay`, `:SOURce:PTIMe:GPSystem:ADELay` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:GPSystem:EMANgle` | `:SOURce:GPSystem:SATellite:TRACking:EMANgle`, `:SOURce:PTIMe:GPSystem:EMANgle` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:GPSystem:INITial:VPOSition` | `:SOURce:GPSystem:INITial:POSition`, `:SOURce:PTIMe:GPSystem:INITial:POSition` | 58503B 1.01.04 |
-| `:SOURce:PTIMe:GPSystem:INITial:VPOSition` | `:SOURce:GPSystem:INITial:POSition`, `:SOURce:PTIMe:GPSystem:INITial:POSition` | 58503B 1.01.04 |
-| `:SOURce:PTIMe:GPSystem:POSition:ACTual` | `:SOURce:GPSystem:POSition:ACTual` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:PTIMe:GPSystem:POSition:HOLD:STATe` | `:SOURce:GPSystem:POSition:HOLD:STATe` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:PTIMe:GPSystem:POSition:SURVey:STATe:POWerup` | `:SOURce:GPSystem:POSition:SURVey:STATe:POWerup` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:PTIMe:GPSystem:REFerence:ADELay` | `:SOURce:GPSystem:REFerence:ADELay`, `:SOURce:PTIMe:GPSystem:ADELay` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:PTIMe:GPSystem:REFerence:VALid` | `:SOURce:GPSystem:REFerence:VALid` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:EMANgle` | `:SOURce:GPSystem:SATellite:TRACking:EMANgle`, `:SOURce:PTIMe:GPSystem:EMANgle` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore:ALL` | `:SOURce:GPSystem:SATellite:TRACking:IGNore:ALL`, `:SOURce:GPSystem:SATellite:TRACking:INCLude:NONE` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore:NONE` | `:SOURce:GPSystem:SATellite:TRACking:IGNore:NONE`, `:SOURce:GPSystem:SATellite:TRACking:INCLude:ALL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore:STATe` | `:SOURce:GPSystem:SATellite:TRACking:IGNore:STATe`, `:SOURce:GPSystem:SATellite:TRACking:INCLude:STATe` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude:ALL` | `:SOURce:GPSystem:SATellite:TRACking:IGNore:NONE`, `:SOURce:GPSystem:SATellite:TRACking:INCLude:ALL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude:NONE` | `:SOURce:GPSystem:SATellite:TRACking:IGNore:ALL`, `:SOURce:GPSystem:SATellite:TRACking:INCLude:NONE` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude:STATe` | `:SOURce:GPSystem:SATellite:TRACking:IGNore:STATe`, `:SOURce:GPSystem:SATellite:TRACking:INCLude:STATe` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:PTIMe:TFOMerit` | `:SOURce:PTIMe:FFOMerit`, `:SOURce:SYNChronization:FFOMerit` and 1 more | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:SYNChronization:HOLDover:LIMit:THReshold` | `:SOURce:ROSCillator:HOLDover:LIMit:THReshold` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:ALARm` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:AUX` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:BOOT` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:CRAFt` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:DRTB` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:LOCal` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:PFORth` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:REMote` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SCI` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SER` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SER1` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SER2` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SERIAL1` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SERIAL2` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:TOD` | `:SYSTem:COMMunicate:SERIAL` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:PRINt` | `:SYSTem:STATus` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:PRINt:LENGth` | `:SYSTem:STATus:LENGth` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:TKN` | `:SYSTem:STATus` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:TKN:LENGth` | `:SYSTem:STATus:LENGth` | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
+| Path | Same handlers as | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `:DANA` | `:SYSTem:ERRor` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:DIAGnostic:SLOG:COUNt` | `:DIAGnostic:LOG:COUNt` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:DIAGnostic:SLOG:READ` | `:DIAGnostic:LOG:READ` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:DIAGnostic:SLOG:READ:ALL` | `:DIAGnostic:LOG:READ:ALL` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:DOUGlas:PROGress` | `:SOURce:GPSystem:POSition:SURVey:PROGress`, `:SOURce:PTIMe:GPSystem:POSition:SURVey:PROGress` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:DOUGlas:STATe` | `:SOURce:GPSystem:POSition:SURVey:STATe`, `:SOURce:PTIMe:GPSystem:POSition:SURVey:STATe` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:DOUGlas:STATe:POWerup` | `:SOURce:GPSystem:POSition:SURVey:STATe:POWerup` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:GARY` | `:DIAGnostic:LOG:READ:ALL` |  |  | ✓ |  |  | ✓ |  |
+| `:GARY:CLEar` | `:DIAGnostic:LOG:CLEar` | ✓ | ✓ |  | ✓ | ✓ |  | ✓ |
+| `:GARY:COUNt` | `:DIAGnostic:LOG:COUNt` | ✓ | ✓ |  | ✓ | ✓ |  | ✓ |
+| `:GARY:READ` | `:DIAGnostic:LOG:READ` | ✓ | ✓ |  | ✓ | ✓ |  | ✓ |
+| `:GARY:READ:ALL` | `:DIAGnostic:LOG:READ:ALL` | ✓ | ✓ |  | ✓ | ✓ |  | ✓ |
+| `:KENneth:PREDicted` | `:SOURce:ROSCillator:HOLDover:TUNCertainty:PREDicted`, `:SOURce:SYNChronization:HOLDover:TUNCertainty:PREDicted` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:KENneth:PRESent` | `:SOURce:ROSCillator:HOLDover:TUNCertainty:PRESent`, `:SOURce:SYNChronization:HOLDover:TUNCertainty:PRESent` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:LED:ALARm:MAJor` | `:LED:ALARm` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:ROBin` | `:SENSe:DATA` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:ROBin:CLEar` | `:SENSe:DATA:CLEar` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:ROBin:MEMory:OVERflow:COUNt` | `:SENSe:DATA:MEMory:OVERflow:COUNt` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:ROBin:MEMory:SAVE` | `:SENSe:DATA:MEMory:SAVE` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:ROBin:POINts` | `:SENSe:DATA:POINts` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:ROBin:TSTamp` | `:SENSe:DATA:TSTamp` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:GPSystem:ADELay` | `:SOURce:GPSystem:REFerence:ADELay`, `:SOURce:PTIMe:GPSystem:ADELay` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:GPSystem:EMANgle` | `:SOURce:GPSystem:SATellite:TRACking:EMANgle`, `:SOURce:PTIMe:GPSystem:EMANgle` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:GPSystem:INITial:VPOSition` | `:SOURce:GPSystem:INITial:POSition`, `:SOURce:PTIMe:GPSystem:INITial:POSition` |  |  | ✓ |  |  |  |  |
+| `:SOURce:PTIMe:GPSystem:INITial:VPOSition` | `:SOURce:GPSystem:INITial:POSition`, `:SOURce:PTIMe:GPSystem:INITial:POSition` |  |  | ✓ |  |  |  |  |
+| `:SOURce:PTIMe:GPSystem:POSition:ACTual` | `:SOURce:GPSystem:POSition:ACTual` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:PTIMe:GPSystem:POSition:HOLD:STATe` | `:SOURce:GPSystem:POSition:HOLD:STATe` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:PTIMe:GPSystem:POSition:SURVey:STATe:POWerup` | `:SOURce:GPSystem:POSition:SURVey:STATe:POWerup` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:PTIMe:GPSystem:REFerence:ADELay` | `:SOURce:GPSystem:REFerence:ADELay`, `:SOURce:PTIMe:GPSystem:ADELay` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:PTIMe:GPSystem:REFerence:VALid` | `:SOURce:GPSystem:REFerence:VALid` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:EMANgle` | `:SOURce:GPSystem:SATellite:TRACking:EMANgle`, `:SOURce:PTIMe:GPSystem:EMANgle` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore:ALL` | `:SOURce:GPSystem:SATellite:TRACking:IGNore:ALL`, `:SOURce:GPSystem:SATellite:TRACking:INCLude:NONE` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore:NONE` | `:SOURce:GPSystem:SATellite:TRACking:IGNore:NONE`, `:SOURce:GPSystem:SATellite:TRACking:INCLude:ALL` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:IGNore:STATe` | `:SOURce:GPSystem:SATellite:TRACking:IGNore:STATe`, `:SOURce:GPSystem:SATellite:TRACking:INCLude:STATe` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude:ALL` | `:SOURce:GPSystem:SATellite:TRACking:IGNore:NONE`, `:SOURce:GPSystem:SATellite:TRACking:INCLude:ALL` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude:NONE` | `:SOURce:GPSystem:SATellite:TRACking:IGNore:ALL`, `:SOURce:GPSystem:SATellite:TRACking:INCLude:NONE` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:PTIMe:GPSystem:SATellite:TRACking:INCLude:STATe` | `:SOURce:GPSystem:SATellite:TRACking:IGNore:STATe`, `:SOURce:GPSystem:SATellite:TRACking:INCLude:STATe` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:PTIMe:TFOMerit` | `:SOURce:PTIMe:FFOMerit`, `:SOURce:SYNChronization:FFOMerit` and 1 more | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SOURce:SYNChronization:HOLDover:LIMit:THReshold` | `:SOURce:ROSCillator:HOLDover:LIMit:THReshold` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SYSTem:COMMunicate:ALARm` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:AUX` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:BOOT` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:CRAFt` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:DRTB` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:LOCal` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:PFORth` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:REMote` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:SCI` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:SER` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:SER1` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:SER2` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:SERIAL1` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:SERIAL2` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:TOD` | `:SYSTem:COMMunicate:SERIAL` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:SYSTem:PRINt` | `:SYSTem:STATus` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:SYSTem:PRINt:LENGth` | `:SYSTem:STATus:LENGth` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:TKN` | `:SYSTem:STATus` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:TKN:LENGth` | `:SYSTem:STATus:LENGth` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 ## Stubs
 
 Each path here has handlers, and each of them does nothing but
 call the routine every such handler calls to refuse: the parser
-knows the path and the firmware does not implement it.  Images
-names those where it is a stub.
+knows the path and the firmware does not implement it.  A ✓
+marks each image where it is a stub.
 
-| Path | Manuals | Images |
-| ---- | ------- | ------ |
-| `:ALARm:ACO` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:ALARm:EXTRactor` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3816A 4001 |
-| `:ALARm:HARDware` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04 |
-| `:ALARm:OPERation` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3816A 4001 |
-| `:ANT1` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:AZEL` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:CALA` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:CEQU` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:DACP` |  | 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:DIAGnostic:DCOMplete` |  | 58503B 1.01.04 |
-| `:DIAGnostic:DOWNload` | A (INSTALL), B (INSTALL), Z (INSTALL) | 58503B 1.01.04 |
-| `:DIAGnostic:ERASe` | A (INSTALL), B (INSTALL), Z (INSTALL) | 58503B 1.01.04 |
-| `:DIAGnostic:FAIL:CHECksum` |  | 58503B 1.01.04 |
-| `:DIAGnostic:FAIL:CODE` |  | 58503B 1.01.04 |
-| `:DIAGnostic:ME` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:DIAGnostic:OUTPut` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3816A 4001 |
-| `:DIAGnostic:PRINt` |  | 58503B 1.01.04 |
-| `:DIAGnostic:REFerence:CPORt` |  | 58503B 1.01.04 |
-| `:DIAGnostic:REFerence:EXTernal:QUEStionable:HYSTeresis` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3816A 4001 |
-| `:DIAGnostic:REFerence:STATus` |  | 58503B 1.01.04 |
-| `:DIAGnostic:ROSCillator:EFControl:FPGA` |  | 58503B 1.01.04 |
-| `:DIAGnostic:TEMPerature` |  | 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:DIAGnostic:TSET` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:EFER` |  | 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:ESSD` |  | 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:ESSN` |  | 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:FMHO` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:GDOP` |  | 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:IPSU` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:LEAP` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:LED:ALARm:ACO` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:LED:ALARm:CRITical` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010, Z3816A 4001 |
-| `:LED:ALARm:MINor` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:LED:ALARm:USER` | Z | 58503B 1.01.04 |
-| `:LED:NGPS` |  | 58503B 1.01.04, Z3815A 4010 |
-| `:LED:STANdby` |  | 58503B 1.01.04, Z3815A 4010 |
-| `:MANI` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:OUTPut:ACTive` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3816A 4001 |
-| `:OUTPut:ACTive:DISable` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3816A 4001 |
-| `:OUTPut:ACTive:ENABle` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3816A 4001 |
-| `:OUTPut:ACTive:HOLDover:DURation:THReshold` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3816A 4001 |
-| `:OUTPut:HPOWer` |  | 58503B 1.01.04, Z3815A 4010 |
-| `:OUTPut:INACtive` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3816A 4001 |
-| `:OUTPut:PIN1:DELay:ALIGnment` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:OUTPut:PIN2:DELay:ALIGnment` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:OUTPut:PIN3:DELay:ALIGnment` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:OUTPut:PIN6:DELay:ALIGnment` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:OUTPut:PIN7:DELay:ALIGnment` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:OUTPut:PIN8:DELay:ALIGnment` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:OUTPut:PINS:DELay:ALIGnment` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:OUTPut:PRIMary` |  | 58503B 1.01.04, Z3815A 4010 |
-| `:PAVG` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:PMD1` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:POS1` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:R1PO` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RACD` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RAST` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RAT1` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RAT2` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RAT3` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:REAL` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:REQU` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RFOU` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RLOC` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RMHO` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RPHS` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RSPR` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RSST` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RSSU` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RSTG` |  | 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:RTAD` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RTSA` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RTZO` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RVST` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:RWHO` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SIGQ` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:SOURce:GPSystem:POSition:BINary` |  | 58503B 1.01.04 |
-| `:SOURce:PTIMe:GPSystem:POSition:BINary` |  | 58503B 1.01.04 |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1:ACTion` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2:ACTion` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR:ACTion` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1:ACTion` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2:ACTion` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD:ACTion` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:ROSCillator:HOLDover:HYSTeresis` |  | 58503B 1.01.04 |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1:ACTion` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2:ACTion` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR:ACTion` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1:ACTion` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2:ACTion` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD:ACTion` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SOURce:SYNChronization:HOLDover:HYSTeresis` |  | 58503B 1.01.04 |
-| `:STATus:AACKnowledge` |  | 58503B 1.01.04 |
-| `:STATus:OPERation:CRITical` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:OPERation:HARDware:CONDition:EEPRom` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:OPERation:HARDware:CONDition:TI` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:OPERation:HARDware:CRITical` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:OPERation:HARDware:MAJor` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:OPERation:HARDware:MINor` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:OPERation:HOLDover:CRITical` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:OPERation:HOLDover:MAJor` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:OPERation:HOLDover:MINor` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:OPERation:MAJor` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:OPERation:MINor` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:OPERation:POWerup:CRITical` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:OPERation:POWerup:MAJor` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:OPERation:POWerup:MINor` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:QUEStionable:CONDition:TRESet` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:QUEStionable:CRITical` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:QUEStionable:MAJor` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:STATus:QUEStionable:MINor` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:ALARm:ADDRess` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:ALARm:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:AUX:ADDRess` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:AUX:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:BOOT:ADDRess` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:BOOT:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:CRAFt:ADDRess` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:CRAFt:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:DRTB:ADDRess` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:DRTB:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:LOCal:ADDRess` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:LOCal:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:PFORth:ADDRess` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:PFORth:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:REMote:ADDRess` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:REMote:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SCI:ADDRess` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SCI:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SER1:ADDRess` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SER1:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SER2:ADDRess` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SER2:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SER:ADDRess` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SER:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SERIAL1:ADDRess` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SERIAL1:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SERIAL2:ADDRess` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SERIAL2:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SERIAL:ADDRess` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:SERIAL:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:COMMunicate:TOD:ADDRess` |  | 58503A 3633, 58503A 3704, Z3815A 4010, Z3816A 4001 |
-| `:SYSTem:COMMunicate:TOD:CONTrol:HPACe` |  | 58503B 1.01.04, Z3816A 4001 |
-| `:SYSTem:SRESet` |  | 58503B 1.01.04 |
-| `:TEMP` |  | 58503B 1.01.04 |
-| `:TIMD` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:TIME` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:TMD1` |  | 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:UNSL` |  | 58503A 3633, 58503A 3704, 58503B 1.01.04, Z3815A 4010 |
-| `:W1PO` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:WACD` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:WAT1` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:WAT2` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:WAT3` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:WEAL` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:WFOU` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:WLOC` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
-| `:WTZO` |  | 58503A 3633, 58503A 3704, Z3801A 3543, Z3805A 3543B, Z3815A 4010, Z3816A 4001 |
+| Path | Manuals | 58503A<br>3633 | 58503A<br>3704 | 58503B<br>1.01.04 | Z3801A<br>3543 | Z3805A<br>3543B | Z3815A<br>4010 | Z3816A<br>4001 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `:ALARm:ACO` |  | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:ALARm:EXTRactor` |  | ✓ | ✓ | ✓ |  |  |  | ✓ |
+| `:ALARm:HARDware` |  | ✓ | ✓ | ✓ |  |  |  |  |
+| `:ALARm:OPERation` |  | ✓ | ✓ | ✓ |  |  |  | ✓ |
+| `:ANT1` |  | ✓ | ✓ | ✓ |  |  | ✓ |  |
+| `:AZEL` |  | ✓ | ✓ | ✓ |  |  | ✓ |  |
+| `:CALA` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:CEQU` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:DACP` |  |  | ✓ | ✓ |  |  | ✓ |  |
+| `:DIAGnostic:DCOMplete` |  |  |  | ✓ |  |  |  |  |
+| `:DIAGnostic:DOWNload` | A (INSTALL), B (INSTALL), Z (INSTALL) |  |  | ✓ |  |  |  |  |
+| `:DIAGnostic:ERASe` | A (INSTALL), B (INSTALL), Z (INSTALL) |  |  | ✓ |  |  |  |  |
+| `:DIAGnostic:FAIL:CHECksum` |  |  |  | ✓ |  |  |  |  |
+| `:DIAGnostic:FAIL:CODE` |  |  |  | ✓ |  |  |  |  |
+| `:DIAGnostic:ME` |  | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:DIAGnostic:OUTPut` |  | ✓ | ✓ | ✓ |  |  |  | ✓ |
+| `:DIAGnostic:PRINt` |  |  |  | ✓ |  |  |  |  |
+| `:DIAGnostic:REFerence:CPORt` |  |  |  | ✓ |  |  |  |  |
+| `:DIAGnostic:REFerence:EXTernal:QUEStionable:HYSTeresis` |  | ✓ | ✓ | ✓ |  |  |  | ✓ |
+| `:DIAGnostic:REFerence:STATus` |  |  |  | ✓ |  |  |  |  |
+| `:DIAGnostic:ROSCillator:EFControl:FPGA` |  |  |  | ✓ |  |  |  |  |
+| `:DIAGnostic:TEMPerature` |  |  |  | ✓ |  |  | ✓ | ✓ |
+| `:DIAGnostic:TSET` |  | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:EFER` |  |  | ✓ | ✓ |  |  | ✓ |  |
+| `:ESSD` |  |  | ✓ | ✓ |  |  | ✓ |  |
+| `:ESSN` |  |  | ✓ | ✓ |  |  | ✓ |  |
+| `:FMHO` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:GDOP` |  |  | ✓ | ✓ |  |  | ✓ |  |
+| `:IPSU` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:LEAP` |  | ✓ | ✓ | ✓ |  |  | ✓ |  |
+| `:LED:ALARm:ACO` |  | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:LED:ALARm:CRITical` |  | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `:LED:ALARm:MINor` |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:LED:ALARm:USER` | Z |  |  | ✓ |  |  |  |  |
+| `:LED:NGPS` |  |  |  | ✓ |  |  | ✓ |  |
+| `:LED:STANdby` |  |  |  | ✓ |  |  | ✓ |  |
+| `:MANI` |  | ✓ | ✓ | ✓ |  |  | ✓ |  |
+| `:OUTPut:ACTive` |  | ✓ | ✓ | ✓ |  |  |  | ✓ |
+| `:OUTPut:ACTive:DISable` |  | ✓ | ✓ | ✓ |  |  |  | ✓ |
+| `:OUTPut:ACTive:ENABle` |  | ✓ | ✓ | ✓ |  |  |  | ✓ |
+| `:OUTPut:ACTive:HOLDover:DURation:THReshold` |  | ✓ | ✓ | ✓ |  |  |  | ✓ |
+| `:OUTPut:HPOWer` |  |  |  | ✓ |  |  | ✓ |  |
+| `:OUTPut:INACtive` |  | ✓ | ✓ | ✓ |  |  |  | ✓ |
+| `:OUTPut:PIN1:DELay:ALIGnment` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:OUTPut:PIN2:DELay:ALIGnment` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:OUTPut:PIN3:DELay:ALIGnment` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:OUTPut:PIN6:DELay:ALIGnment` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:OUTPut:PIN7:DELay:ALIGnment` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:OUTPut:PIN8:DELay:ALIGnment` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:OUTPut:PINS:DELay:ALIGnment` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:OUTPut:PRIMary` |  |  |  | ✓ |  |  | ✓ |  |
+| `:PAVG` |  | ✓ | ✓ | ✓ |  |  | ✓ |  |
+| `:PMD1` |  | ✓ | ✓ | ✓ |  |  | ✓ |  |
+| `:POS1` |  | ✓ | ✓ | ✓ |  |  | ✓ |  |
+| `:R1PO` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RACD` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RAST` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RAT1` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RAT2` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RAT3` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:REAL` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:REQU` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RFOU` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RLOC` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RMHO` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RPHS` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RSPR` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RSST` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RSSU` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RSTG` |  |  | ✓ | ✓ |  |  | ✓ |  |
+| `:RTAD` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RTSA` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RTZO` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RVST` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:RWHO` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:SIGQ` |  | ✓ | ✓ | ✓ |  |  | ✓ |  |
+| `:SOURce:GPSystem:POSition:BINary` |  |  |  | ✓ |  |  |  |  |
+| `:SOURce:PTIMe:GPSystem:POSition:BINary` |  |  |  | ✓ |  |  |  |  |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR1:ACTion` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR2:ACTion` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THR:ACTion` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD1:ACTion` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD2:ACTion` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SOURce:ROSCillator:HOLDover:DURation:STATus:THRESHOLD:ACTion` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SOURce:ROSCillator:HOLDover:HYSTeresis` |  |  |  | ✓ |  |  |  |  |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR1:ACTion` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR2:ACTion` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THR:ACTion` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD1:ACTion` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD2:ACTion` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SOURce:SYNChronization:HOLDover:DURation:STATus:THRESHOLD:ACTion` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SOURce:SYNChronization:HOLDover:HYSTeresis` |  |  |  | ✓ |  |  |  |  |
+| `:STATus:AACKnowledge` |  |  |  | ✓ |  |  |  |  |
+| `:STATus:OPERation:CRITical` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:OPERation:HARDware:CONDition:EEPRom` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:OPERation:HARDware:CONDition:TI` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:OPERation:HARDware:CRITical` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:OPERation:HARDware:MAJor` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:OPERation:HARDware:MINor` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:OPERation:HOLDover:CRITical` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:OPERation:HOLDover:MAJor` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:OPERation:HOLDover:MINor` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:OPERation:MAJor` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:OPERation:MINor` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:OPERation:POWerup:CRITical` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:OPERation:POWerup:MAJor` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:OPERation:POWerup:MINor` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:QUEStionable:CONDition:TRESet` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:QUEStionable:CRITical` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:QUEStionable:MAJor` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:STATus:QUEStionable:MINor` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:ALARm:ADDRess` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:ALARm:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:AUX:ADDRess` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:AUX:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:BOOT:ADDRess` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:BOOT:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:CRAFt:ADDRess` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:CRAFt:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:DRTB:ADDRess` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:DRTB:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:LOCal:ADDRess` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:LOCal:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:PFORth:ADDRess` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:PFORth:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:REMote:ADDRess` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:REMote:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:SCI:ADDRess` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:SCI:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:SER1:ADDRess` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:SYSTem:COMMunicate:SER1:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:SER2:ADDRess` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:SYSTem:COMMunicate:SER2:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:SER:ADDRess` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:SYSTem:COMMunicate:SER:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:SERIAL1:ADDRess` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:SYSTem:COMMunicate:SERIAL1:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:SERIAL2:ADDRess` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:SYSTem:COMMunicate:SERIAL2:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:SERIAL:ADDRess` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:SYSTem:COMMunicate:SERIAL:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:COMMunicate:TOD:ADDRess` |  | ✓ | ✓ |  |  |  | ✓ | ✓ |
+| `:SYSTem:COMMunicate:TOD:CONTrol:HPACe` |  |  |  | ✓ |  |  |  | ✓ |
+| `:SYSTem:SRESet` |  |  |  | ✓ |  |  |  |  |
+| `:TEMP` |  |  |  | ✓ |  |  |  |  |
+| `:TIMD` |  | ✓ | ✓ | ✓ |  |  | ✓ |  |
+| `:TIME` |  | ✓ | ✓ | ✓ |  |  | ✓ |  |
+| `:TMD1` |  |  | ✓ | ✓ |  |  | ✓ |  |
+| `:UNSL` |  | ✓ | ✓ | ✓ |  |  | ✓ |  |
+| `:W1PO` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:WACD` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:WAT1` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:WAT2` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:WAT3` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:WEAL` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:WFOU` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:WLOC` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| `:WTZO` |  | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
 
 ## Every path
 
