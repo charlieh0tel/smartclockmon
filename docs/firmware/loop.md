@@ -455,6 +455,26 @@ which passes A + B·u² just after clearing B.  The `BSLOPe` setter only
 stores and saves.  So B is fitted and then discarded, stays 0 unless
 `:BSLOPe` sets it, and enters only the measured-uncertainty sum.
 
+**The Z3815A's extra stage.**  The Z3815A's state printer names one
+stage more than the others, between `startup pll` and `normal pll`:
+`n3 lock pll`, with sub-states `sync1`, `wait1`, `wait2`, `measure1`
+to `measure3`, `calc_freq`, `sync2`, `slew`, `leapsec`, `check_time`,
+`pll`, `exit1` and `exit2` (names from `0x2cd9b` on); its log names the
+stage `Went into PLL lock to other card`.  Around it the image runs a
+card state of its own -- `[ Active ]`, `[ Standby ]`, `[ Unlocked ]`,
+`[ Blocked ]` and `[ ALARM ]` on the status screen (`0x5973c` on) --
+whose transitions it logs with a reason (`0x34f00` on): `ACT from
+STBY`, `ACT from STBY time deviation`, `ACT from UNLOCK`, `STBY from
+ACT` with `other card`, `time deviation` or `10 min hold`, `BLK from
+ACT` with `other card`, `user` or `extractor`, `WARMUP from ACT, clock
+off`, and `switchover ACT unstable`; it prints `locked_ticks`,
+`standby_unlck_ticks` and the measured uncertainty (`tunc:meas`) beside
+them.  So the Z3815A is built to work as one of two cards, the standby
+one locking its oscillator to the other's; its console words
+`n3_phase`, `n3_duart_res`, `set_mux` and the `s3_` words
+(`pforth/models.md`) are its alone.  None of the other images has the
+stage or the card states.
+
 The Z3815A reads the word at `0x302000` as the Z3816A does, but bit 12
 where the Z3816A reads bit 8, and with it chooses τ as well as G.  A
 second routine stores −2.125 × 10⁻¹² unconditionally (`0x50c14`);
