@@ -98,8 +98,10 @@ slope of the fitted curve a + b·y + c·ln y now, in EFC units per
 change the fit predicts over the ten seconds between updates.
 
 The factor 10 matches the ten seconds between updates.  What kind of
-loop this is -- proportional-integral on the prefiltered error, a
-double pole at −1/(2τ) -- is worked out in
+loop this is -- proportional-integral on the prefiltered error, with
+gains that alone would give a double pole at −1/(2τ), and closed-loop
+poles at −0.37/τ and (−1.35 ± 0.51j)/τ once the prefilter is counted
+-- is worked out in
 [`loop.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/loop.html),
 "What kind of loop that is"; this file is the evidence for its
 numbers.
