@@ -301,6 +301,7 @@ fn address(text: &str) -> std::result::Result<u32, String> {
 
 mod dump_scpi;
 mod flash;
+mod image;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();

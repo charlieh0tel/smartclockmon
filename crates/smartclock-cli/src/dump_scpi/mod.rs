@@ -15,6 +15,8 @@ use anyhow::Result;
 use anyhow::bail;
 use anyhow::ensure;
 
+use crate::image::Image;
+
 mod models;
 
 /// Where a node keeps the pointer to its keyword pair.
@@ -82,25 +84,8 @@ const CALLS_LIMIT: u32 = 64;
 /// which tells the two root lists apart.
 const COMMON_MARKER: &str = "IDN";
 
-/// A firmware image, read as the CPU32 reads it: big-endian.
-struct Image<'a>(&'a [u8]);
-
+/// What the SCPI walk reads from an image beyond words and longs.
 impl Image<'_> {
-    fn u16(&self, at: u32) -> Option<u16> {
-        let at = usize::try_from(at).ok()?;
-        Some(u16::from_be_bytes(self.0.get(at..at + 2)?.try_into().ok()?))
-    }
-
-    fn u32(&self, at: u32) -> Option<u32> {
-        let at = usize::try_from(at).ok()?;
-        Some(u32::from_be_bytes(self.0.get(at..at + 4)?.try_into().ok()?))
-    }
-
-    /// Whether `at` is inside the image.
-    fn holds(&self, at: u32) -> bool {
-        usize::try_from(at).is_ok_and(|at| at < self.0.len())
-    }
-
     /// The routine the handler at `at` passes its refusal to, if the
     /// handler is the `REFUSAL` stub.
     fn refusal_target(&self, at: u32) -> Option<u32> {
