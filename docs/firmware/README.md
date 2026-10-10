@@ -138,11 +138,6 @@ following, and how.
   float at `0x102bcc` times 5.4 × 10⁻⁸.  Nothing in the image writes
   `0x102bcc`, and it lies in the RAM the start-up code clears, so the
   word prints zero.
-- What step `0x59` does.  The `diag` stage's request,
-  `FUN_0004a13c` with index `0x59`, names a step, not a message
-  (`gps.md`, "Requests"): the step jump table at `0x512b0` sends it to
-  `0x513dc`, which clears `0x1016ee` and calls `FUN_00050274` and
-  `FUN_0005059e`, not traced.
 - What a Z380x engine does with `@@Ci` format 0, which the init
   scripts send and `VPCommands.pdf` does not define (`gps.md`,
   "Requests").

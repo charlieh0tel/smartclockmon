@@ -228,7 +228,11 @@ arguments at `0x102564` -- `gps_php` (`0x1b352`) code 5 and four
 longs -- which `FUN_00047074` maps to an index: code 5 to `0x12`,
 `@@As`.  In the Z3816A, step `0x59` goes through the step jump table
 at `0x512b0` to `0x513dc`, which clears `0x1016ee` and calls
-`FUN_00050274` and `FUN_0005059e`.
+`FUN_00050274`, which points `0x101602` back at `0x1014dc` and clears
+`0x1016e7`, and `FUN_0005059e`, which empties the task's ring of
+pending requests: six 26-byte messages at `0x1016f0`, filled from the
+queue by `FUN_00050710` and emptied by `0x505f6`.  So the `diag`
+stage's request discards whatever requests were waiting.
 
 The third poster maps an index read from a request record (Z3801A
 `FUN_00042df0`, which reads the record through `0x10200a`; Z3816A
