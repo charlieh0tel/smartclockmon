@@ -112,9 +112,8 @@ request scripts in `oncore/`.
 following, and how.
 
 - Whether the port's second open matters.
-- What PE6 drives, pulsed only on a cold start; what the settings byte
-  that blocks the warm restore on the 58503A and Z3816A is; what bit 1
-  of `0xfff925` does on 3704.
+- What PE6 drives, pulsed only on a cold start; what bit 1 of
+  `0xfff925` does on 3704.
 - What `crash 7` does, and whether a task spinning at mask 4 after
   `crash 8` is preempted or ends in the watchdog.
 - The watchdog's timeout, and whether a watchdog warm start has been

@@ -38,7 +38,16 @@ software, halt-monitor or loss-of-clock reset passes), the flag word at
 `0x100002` is 1, and, on the 58503A, Z3816A, Z3815A and 58503B, a
 settings byte is clear (3633 `0x102270`, 3704 `0x102276`, Z3816A
 `0x10262c`, Z3815A `0x102652`, 58503B `0x1029b4`, each tested just
-after the first read of RSR).  With the checksum good and the flag 0, a
+after the first read of RSR).  The settings byte records that the
+last start-up found neither EEPROM settings record good: the Z3816A's
+loader (`0x42080`) clears it, reads the record at `0x4000c0` and then
+the second, rewriting the first from the second when only the second
+is good, and sets the byte only when both fail and the ROM defaults
+(`FUN_00042448`) are loaded; each of the other images clears and sets
+its byte the same way beside its `0x4000c0` load (3633 `0x324f0`,
+`0x3251a`; 3704 `0x327b2`, `0x327dc`; Z3815A `0x46f14`, `0x46f3e`;
+58503B `0x42aae`, `0x42ada`).  So after a start-up that lost its
+settings, the next restart is cold too.  With the checksum good and the flag 0, a
 second branch loads the ROM defaults; on those four models that branch
 also requires RSR to be exactly SYS, which `RESET` gives.  Anything else is a cold start, which also
 pulses PE6.  The checksum is an 8-bit sum stored as sum and
