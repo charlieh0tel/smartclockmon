@@ -119,8 +119,6 @@ following, and how.
   `crash 8` is preempted or ends in the watchdog.
 - The watchdog's timeout, and whether a watchdog warm start has been
   seen on a unit.
-- Whether `:DIAGnostic:SYSTem:PSTartup`, which makes the root task
-  start the console instead of SCPI, is stored in the EEPROM.
 
 - What τ-block bytes +3, +7 and +8 mean, and what the rest of the ROM
   defaults, `0x400de` to `0x40173`, hold.

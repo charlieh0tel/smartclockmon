@@ -171,6 +171,17 @@ invalidates both EEPROM settings records, the first step of
 `:SYSTem:PRESet`, without restarting; the next start-up reloads and
 rewrites the defaults.
 
+What the settings records hold, in the Z3816A, is a table at `0x42648`
+of the parameter structures (above, "Restarting"): 23 numeric records,
+then from `0x426a4` 18 toggles.  `FUN_000421a2` packs their cells into
+the record at `0x4000c0` (`Warning: Entire nv register is being
+used` when they fill it), and `FUN_000424a6` reads them back at
+start-up.  The loop task saves after each structure a handler posts
+(`0x46b06`, just after `finish_scpi_cmd`), so a setting is written to
+the EEPROM when it is set.  `:DIAGnostic:SYSTem:PSTartup`, which makes
+the root task start the console instead of SCPI, is the first toggle
+(`0x4314c`, cell `0x102617`): it survives a power cycle.
+
 ## The installer
 
 Read from all five images; the bench check of entry and exit is below.
