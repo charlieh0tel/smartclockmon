@@ -177,6 +177,18 @@ enum Command {
         #[arg(long, requires = "models")]
         html: bool,
     },
+    /// Print every word a flash image's pForth console knows, from its
+    /// dictionary and its diagnostic table (docs/firmware/pforth/README.md).
+    /// Needs no receiver.
+    DumpPforth {
+        /// Full 512 KiB images: one, or with `--models` any number.
+        #[arg(required = true)]
+        images: Vec<PathBuf>,
+        /// Print the words side by side by image, as Markdown
+        /// (docs/firmware/pforth/models.md).
+        #[arg(long)]
+        models: bool,
+    },
     /// Read the whole flash, 512 KiB from address 0, as `read-memory`
     /// does.
     ReadFlash {
@@ -299,6 +311,7 @@ fn address(text: &str) -> std::result::Result<u32, String> {
     parsed.map_err(|e| format!("{text} is not an address: {e}"))
 }
 
+mod dump_pforth;
 mod dump_scpi;
 mod flash;
 mod image;
@@ -328,6 +341,9 @@ fn main() -> Result<()> {
     } = &cli.command
     {
         return dump_scpi::run(images, *models, *html);
+    }
+    if let Command::DumpPforth { images, models } = &cli.command {
+        return dump_pforth::run(images, *models);
     }
 
     if let Some(daemon) = cli.daemon.clone() {
@@ -549,7 +565,8 @@ fn run<T: Transport>(mut session: Session<T>, command: &Command, checked: &[Stri
         | Command::Flash(_)
         | Command::JoinChips(_)
         | Command::SplitChips(_)
-        | Command::DumpScpi { .. } => unreachable!("handled before the session is opened"),
+        | Command::DumpScpi { .. }
+        | Command::DumpPforth { .. } => unreachable!("handled before the session is opened"),
         Command::Note { .. } | Command::Fact { .. } => {
             unreachable!("refused without --daemon, before the port is opened")
         }
@@ -585,6 +602,7 @@ fn typed(command: &Command) -> Result<Vec<String>> {
         | Command::JoinChips(_)
         | Command::SplitChips(_)
         | Command::DumpScpi { .. }
+        | Command::DumpPforth { .. }
         | Command::Note { .. }
         | Command::Fact { .. }
         | Command::Sensors { .. } => Vec::new(),
@@ -992,6 +1010,7 @@ fn through_daemon(socket: &Path, command: &Command) -> Result<()> {
             models,
             html,
         } => dump_scpi::run(images, *models, *html),
+        Command::DumpPforth { images, models } => dump_pforth::run(images, *models),
         Command::Probe { .. } | Command::Sweep { .. } => anyhow::bail!(
             "probe and sweep send hundreds of commands and need the port to themselves; \
              stop smartclockd and use --device"

@@ -3,9 +3,10 @@
 The firmware contains a Forth interpreter, identified by
 `pForth $Revision: 1.2 $` at `0x28fa4`.
 
-Its dictionary runs from about `0x2a400` to `0x2ad00`: 152 words, each
-an entry of a link to the previous entry, a code pointer, two 16-bit
-fields and the name.  The names are lower case -- `dup`, `swap`, `if`,
+Its dictionary runs from `0x2a472` to `0x2aeea`: 154 words, each an
+entry of a link to the previous entry, a code pointer, two 16-bit
+fields and the name.  Every image's words, by image, are in
+`pforth/`.  The names are lower case -- `dup`, `swap`, `if`,
 `do`, `loop`, `:`, `create`, `does>`, `words`, `sin`, `cos` -- and
 include words that call the real-time system directly: `spawn`,
 `suspend`, `resume`, `priority`, `my_pid`, `send_x`, `request_x`,
@@ -79,8 +80,8 @@ and `0x2efb6` for open, close, read, write and control.  So the
 console reads and writes the same port as SCPI.  The same
 `de_open(0)` is made at `0x2f286`, and `de_open(1)` at `0x2f34a`.
 
-The word list (`0x2a500` to `0x2b100`, 89 kernel words, and the 69
-diagnostic words from `0x2c800`; every code pointer in both tables is
+The word list (the 154 kernel words, and the 80 diagnostic words from
+`0x2c86c`; every code pointer in both tables is
 an even ROM address) is a stock kernel plus pSOS wrappers -- `spawn`,
 `delete`, `suspend`, `resume`, `priority`, `send_x`, `request_x`,
 `signal_v`, `wait_v`, `dev_init`, `dev_open`, `dev_close`, `dev_read`,
@@ -522,18 +523,17 @@ the like.
 
 Every image carries `pForth $Revision: 1.2 $`, the `PFORTH` value of
 `:SYSTem:LANGuage` and the kernel word list with `halt`, whose code is
-the same five instructions in each (the table in "Leaving it").  The
-diagnostic words differ.  Against the Z3816A's, from the table of code
-addresses and names around `loop_time` (read on 2026-10-09):
-
-| Image | Words | Adds | Lacks |
-| ----- | ----- | ---- | ----- |
-| Z3816A 4001 | 80 | | |
-| Z3801A 3543, Z3805A 3543B | 85 | `adc_5v`, `adc_ant_curr`, `adc_doven`, `adc_m15v`, `adc_oven`, `adc_p15v`, `adc_temp`, `force_1pps`, `pr_1pps` | `clr_satview`, `force_ext_1pps`, `force_gps_1pps`, `pr_satview` |
-| 58503A 3633 | 86 | the seven `adc_` words, `pr_1pps` | `clr_satview`, `pr_satview` |
-| 58503A 3704 | 79 | `pr_1pps` | `clr_satview`, `pr_satview` |
-| Z3815A 4010 | 89 | `efc_comp`, `efc_comp_debug`, `n3_duart_res`, `n3_phase`, `pr_1pps`, `pr_bad_act`, `puck`, `s3_gps_avail`, `s3_hw_fail`, `s3_out_reg`, `s3_testmode`, `set_mux` | `cal`, `clr_satview`, `pr_satview` |
-| 58503B 1.01.04 | 78 | | `cal`, `phase_off` |
+the same five instructions in each (the table in "Leaving it").
+Every image has the same 154 kernel words; the diagnostic words
+differ, and every image's are side by side in `pforth/models.md`, from
+`smartclock-cli dump-pforth`.  They number 80 in the Z3816A, 85 in the
+Z3801A and Z3805A, 86 in 58503A 3633, 79 in 3704, 89 in the Z3815A and
+78 in the 58503B.  Against the Z3816A's, the Z3801A, Z3805A and 3633
+add the `adc_` words (temperature, ovens, supplies, antenna current)
+and lack `clr_satview` and `pr_satview`; 3704 drops the `adc_` words
+again; the Z3815A adds `efc_comp`, `efc_comp_debug`, `puck`, `set_mux`
+and its `s3_` and `n3_` words and lacks `cal`; the 58503B lacks `cal`
+and `phase_off`.
 
 So the 58503B has no `phase_off`, the one writer of the loop's phase
 setpoint x₀ (`loop.md`, "The loop"), and 3704 drops the `adc_` words
