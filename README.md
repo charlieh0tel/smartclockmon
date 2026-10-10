@@ -105,7 +105,7 @@ describes the bench.
 | [`docs/efc.md`](docs/efc.md) | how the receiver reports its control voltage, measured at the oscillator's EFC pin |
 | [`docs/ocxo.md`](docs/ocxo.md) | the oscillator |
 | [`docs/sensors.md`](docs/sensors.md) | logging the host's sensors beside the receivers |
-| [`docs/firmware/`](docs/firmware/) | the firmware: the 1 PPS measurement, the disciplining loop, the GPS engine interface and the pForth console |
+| [`docs/firmware/`](docs/firmware/) | the firmware: the 1 PPS measurement, the disciplining loop, the GPS engine interface, the Oncore messages each image sends and decodes, and the pForth console |
 | [`docs/loop.html`](https://htmlpreview.github.io/?https://github.com/charlieh0tel/smartclockmon/blob/main/docs/loop.html) | the disciplining loop as a block diagram, with its update law, constants and closed-loop poles |
 | [`docs/hardware-investigations.md`](docs/hardware-investigations.md) | what only a bench can settle |
 | [`docs/scpi/`](docs/scpi/) | SCPI from the firmware: the keyword table, every image's command tree as `smartclock-cli dump-scpi` prints it, the trees side by side against the manuals, and what bench receivers answered |

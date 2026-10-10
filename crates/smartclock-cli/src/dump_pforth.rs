@@ -7,7 +7,6 @@
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
-use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::Context as _;
@@ -15,6 +14,7 @@ use anyhow::Result;
 use anyhow::bail;
 use anyhow::ensure;
 
+use crate::image;
 use crate::image::Image;
 
 /// A kernel word every image's dictionary holds, to find it by.
@@ -111,16 +111,10 @@ impl Image<'_> {
     }
 }
 
-/// Where the first occurrence of `name` followed by a NUL is.
+/// Every place `name` occurs followed by a NUL.
 fn find(image: &Image, name: &str) -> Vec<u32> {
     let needle: Vec<u8> = name.bytes().chain([0]).collect();
-    image
-        .0
-        .windows(needle.len())
-        .enumerate()
-        .filter(|(_, window)| *window == needle.as_slice())
-        .filter_map(|(at, _)| u32::try_from(at).ok())
-        .collect()
+    image.find(&needle)
 }
 
 /// The kernel's dictionary, from its first entry to its last.
@@ -328,33 +322,17 @@ fn markdown(images: &[(String, Vec<Word>)]) -> String {
     out
 }
 
-/// An image read from `path`, with its words.
-fn read(path: &Path) -> Result<Vec<Word>> {
-    let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
-    words(&bytes).with_context(|| format!("reading {}", path.display()))
-}
-
 /// Print one image's words, one a line; with `models`, the words of
 /// all of them side by side as Markdown instead.
 pub(crate) fn run(images: &[PathBuf], models: bool) -> Result<()> {
     if models {
-        let all = images
-            .iter()
-            .map(|path| {
-                let name = path
-                    .file_stem()
-                    .and_then(|stem| stem.to_str())
-                    .with_context(|| format!("{} has no usable name", path.display()))?;
-                Ok((name.to_owned(), read(path)?))
-            })
-            .collect::<Result<Vec<_>>>()?;
-        print!("{}", markdown(&all));
+        print!("{}", markdown(&image::load_all(images, words)?));
         return Ok(());
     }
     let [image] = images else {
         bail!("give one image, or --models and any number");
     };
-    for line in lines(&read(image)?) {
+    for line in lines(&image::load(image, words)?) {
         println!("{line}");
     }
     Ok(())

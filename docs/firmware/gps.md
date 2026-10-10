@@ -204,6 +204,63 @@ cold start zeroes the byte.  So 1.01.04 surveys, holds, reports and
 commands the ellipsoid height, as 097-58503-13 (3-17, 4-5) says.  A
 write through a computed pointer would escape this search.
 
+## Requests
+
+`oncore/` holds each Oncore image's message table, request scripts and
+polling lists, read by `smartclock-cli dump-oncore`, and `oncore/models.md`
+sets the messages side by side.  The GPS task reads requests from a
+queue -- Z3801A `0x103678`, Z3805A `0x1037fc`, 3633 `0x1039be`, 3704
+`0x1039d0`, Z3816A `0x103d62`, 58503B `0x10448a` -- and three places
+post to it in each image.
+
+A helper copies four argument longs and posts an index and a mode
+(Z3801A `FUN_00046600`, Z3816A `FUN_0004a13c`).  Its calls:
+
+| Z3801A | Z3816A | Index | Names |
+| ------ | ------ | ----- | ----- |
+| `0x466d4`, `0x47248` | `0x4a210`, `0x4adc0` | `0x45`, `0x59` | a step |
+| `0x4677a`, `0x472d8` | `0x4a2b8`, `0x4ae54` | `0x4a`, `0x5e` | the script holding `Ca` (and in the Z3816A `Fa`) |
+| `0x46dac` | `0x4a8f4` | `0x26` | `@@Bj`, mode 0 |
+| `0x471ae` | `0x4ad26` | from a switch | in the Z3801A, the console's `gps_` words |
+
+In the Z3801A the console words leave a code at `0x102562` and
+arguments at `0x102564` -- `gps_php` (`0x1b352`) code 5 and four
+longs -- which `FUN_00047074` maps to an index: code 5 to `0x12`,
+`@@As`.  In the Z3816A, step `0x59` goes through the step jump table
+at `0x512b0` to `0x513dc`, which clears `0x1016ee` and calls
+`FUN_00050274` and `FUN_0005059e`.
+
+The third poster maps an index read from a request record (Z3801A
+`FUN_00042df0`, which reads the record through `0x10200a`; Z3816A
+`FUN_00046714`) and copies arguments out of the record.  For `@@As`
+and the scripts that set it (Z3801A `0x12`, `0x4f`, `0x56`) it copies
+the record's `+0x1e`, `+0x22` and `+0x26` as the first three
+arguments and a constant as the fourth, the height type.
+
+**The `@@As` height type.**  `@@As` sets the position-hold position;
+its last byte is the height type, 0 for GPS-ellipsoid height and 1 for
+MSL (`VPCommands.pdf`, Position-Hold Position).  An encoder sends the
+low byte of its argument long (`oncore/README.md`).
+
+| Image | Init script's `@@As` | Third poster's type | Sender |
+| ----- | -------------------- | ------------------- | ------ |
+| Z3801A 3543 | 37.3256° N, 121.9978° W, 55 m, type 1 (script `0x47`, record `0x50a20`) | 1 (`0x42f60`) | as given |
+| Z3805A 3543B | the same (record `0x50a62`) | 1 (`0x42f34`) | as given |
+| 58503A 3633 | the same (script `0x52`, record `0x51d92`) | 1 (`0x42f88`) | as given |
+| 58503A 3704 | none | 1 (`0x42f90`) | as given |
+| Z3816A 4001 | none | 1 (`0x468a0`) | 0 unless bit 4 of `+0x608` in its state block is set (`0x56228`) |
+| 58503B 1.01.04 | none | 0 (`0x47e40`) | 0 unless bit 4 of `0x1017e8` is set (`0x585d6`) |
+
+So the Z380x and 58503A images send MSL heights, as their manuals give
+them, and the 58503B ellipsoid heights, as its manual gives them
+(above).  Whether anything sets the Z3816A's bit was not checked.
+
+**`@@Ci`.**  The Z3801A's and Z3805A's init scripts (`0x47`, `0x48`)
+open with `@@Ci`, switch I/O format, with an argument long of 0
+(Z3801A record `0x50ae8`), so format 0.  `VPCommands.pdf` defines 1,
+NMEA, and 2, Loran emulation, and no other.  No other image's scripts
+send `@@Ci`.
+
 ## In every image
 
 The Z3801A, Z3805A, both 58503As, the Z3816A and the 58503B talk to an

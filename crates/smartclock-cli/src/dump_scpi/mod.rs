@@ -7,7 +7,6 @@
 //! tables are not found exactly once is refused rather than guessed at.
 
 use std::collections::BTreeSet;
-use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::Context as _;
@@ -15,6 +14,7 @@ use anyhow::Result;
 use anyhow::bail;
 use anyhow::ensure;
 
+use crate::image;
 use crate::image::Image;
 
 mod models;
@@ -339,20 +339,11 @@ fn entries(bytes: &[u8]) -> Result<Vec<Entry>> {
     Ok(entries)
 }
 
-/// An image read from `path`, with its tree.
-fn read(path: &Path) -> Result<Vec<Entry>> {
-    let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
-    entries(&bytes).with_context(|| format!("reading {}", path.display()))
-}
-
 /// Print one image's paths, one a line; with `models`, the trees of
 /// all of them side by side, as Markdown or with `html` as a page.
 pub(crate) fn run(images: &[PathBuf], models: bool, html: bool) -> Result<()> {
     if models {
-        let trees = images
-            .iter()
-            .map(|path| Ok((name(path)?, read(path)?)))
-            .collect::<Result<Vec<_>>>()?;
+        let trees = image::load_all(images, entries)?;
         if html {
             print!("{}", models::html(&trees));
         } else {
@@ -363,18 +354,10 @@ pub(crate) fn run(images: &[PathBuf], models: bool, html: bool) -> Result<()> {
     let [image] = images else {
         bail!("give one image, or --models and any number");
     };
-    for entry in read(image)? {
+    for entry in image::load(image, entries)? {
         println!("{}", entry.line());
     }
     Ok(())
-}
-
-/// An image's name: its file name without the extension.
-fn name(path: &Path) -> Result<String> {
-    path.file_stem()
-        .and_then(|stem| stem.to_str())
-        .map(str::to_owned)
-        .with_context(|| format!("{} has no usable name", path.display()))
 }
 
 #[cfg(test)]

@@ -59,6 +59,10 @@ test-hw:
 # The browser tests' own Playwright and Chromium, into the test
 # directory's node_modules rather than the home directory.
 WEB_TESTS := crates/smartclock-web/tests/browser
+
+# The images for an Oncore engine: all but the Z3815A's, whose engine
+# is a Furuno.
+ONCORE_IMAGES := $(filter-out %/z3815a-4010.bin,$(wildcard third_party/firmware/*.bin))
 web-deps:
 	cd $(WEB_TESTS) && npm ci --no-fund --no-audit && npm run install-browser
 
@@ -90,6 +94,12 @@ docs:
 	done
 	$(CARGO) run -q -p smartclock-cli -- dump-pforth --models third_party/firmware/*.bin \
 		> docs/firmware/pforth/models.md
+	for image in $(ONCORE_IMAGES); do \
+		$(CARGO) run -q -p smartclock-cli -- dump-oncore $$image \
+			> docs/firmware/oncore/$$(basename $$image .bin).txt || exit 1; \
+	done
+	$(CARGO) run -q -p smartclock-cli -- dump-oncore --models $(ONCORE_IMAGES) \
+		> docs/firmware/oncore/models.md
 
 # Fail if an HTML page in docs/ scrolls sideways at desktop width.
 # Needs Chrome; not part of ci.

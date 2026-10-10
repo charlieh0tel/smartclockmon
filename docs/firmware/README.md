@@ -64,12 +64,14 @@ lanes: each carries the Z3816A's routine, instruction for instruction,
 at `0x45e` (`restart.md`, "Boot check").  `interval.md`, `loop.md`,
 `ovens.md`, `console.md` and `gps.md` each end with an "In every image"
 section setting all seven images side by side, `restart.md`'s tables
-cover all seven, their command trees are in `scpi/` and their console
-words in `pforth/`.
+cover all seven, their command trees are in `scpi/`, their console
+words in `pforth/` and the six Oncore images' message tables and
+request scripts in `oncore/`.
 
 ## Contents
 
 - [The GPS receiver link](gps.md)
+- [Oncore message tables](oncore/README.md)
 - [The interval](interval.md)
 - [The disciplining loop](loop.md)
 - [The ovens](ovens.md)
@@ -136,10 +138,11 @@ following, and how.
   float at `0x102bcc` times 5.4 × 10⁻⁸.  Nothing in the image writes
   `0x102bcc`, and it lies in the RAM the start-up code clears, so the
   word prints zero.
-- What the GPS task does with the message the `diag` stage posts:
-  `FUN_0004a13c(5, buffer, 0x59)` -- type 5, in the task's code table
-  at `0x5239a` -- reaches `FUN_0005086e`, which builds the Oncore
-  messages through `FUN_000504c2`; which messages was not transcribed.
+- What step `0x59` does.  The `diag` stage's request,
+  `FUN_0004a13c` with index `0x59`, names a step, not a message
+  (`gps.md`, "Requests"): the step jump table at `0x512b0` sends it to
+  `0x513dc`, which clears `0x1016ee` and calls `FUN_00050274` and
+  `FUN_0005059e`, not traced.
 - The six-byte descriptor entries: `FUN_00046652` switches on the
   first byte of the word (0 to 3) and compares the second with the
   byte at `0x1026e0` before the loop task honors the entry; what the
