@@ -77,6 +77,7 @@ request scripts in `oncore/`.
 - [The ovens](ovens.md)
 - [The debug console](console.md)
 - [Restarting](restart.md)
+- [The floating-point library](softfloat.md)
 
 ## Summary
 

@@ -509,37 +509,9 @@ message in all but the Z3815A and 58503B.
 A software floating-point library does the arithmetic; the decompiler
 shows it only as calls with the operands hidden.  Each routine was
 identified by running it in an emulator (Unicorn, on a 68000 core) on
-known inputs, and the update above was transcribed from the
-disassembly of `0x4850c` to `0x48674`.  Operands go in D0 and D1 and
-the result comes back in D0; a double routine returns D0:D1 and leaves
-a copy in A0:A1, which the next call may take as its other operand:
-
-| Routine | Operation |
-| ------- | --------- |
-| `0x64b6a` | D0 − D1 |
-| `0x64b68` | D1 − D0 |
-| `0x64b8e` | D0 + D1 |
-| `0x65df4` | D0 × D1 |
-| `0x652ba` | D0 ÷ D1 |
-| `0x652b8` | D1 ÷ D0: exchanges the two and falls into the divide |
-| `0x234f2` | absolute value of the float on the stack |
-| `0x65130` | compare D0 with D1 |
-| `0x65ce2`, `0x65c3c` | integer to float |
-| `0x65a90`, `0x65b22` | float to integer |
-| `0x659f8` | float to double, in D0:D1 |
-| `0x65bdc` | integer to double |
-| `0x657a6` | double to float |
-| `0x652ae` | divide the float at A0 by D1, in place |
-| `0x64b5e` | add D1 to the float at A0, in place |
-| `0x64b54` | subtract D1 from the float at A0, in place |
-| `0x64e26` | double D0:D1 + double A0:A1 |
-| `0x660d4` | double D0:D1 × double A0:A1 |
-| `0x6553e` | double A0:A1 ÷ double D0:D1 |
-| `0x6552c` | double D0:D1 ÷ double A0:A1: exchanges the two and falls into the divide |
-| `0x68a32` | pow(x, y) of the two doubles on the stack, x the lower |
-| `0x6519a` | compare doubles: negative when A0:A1 < D0:D1 |
-| `0x684e4` | natural log of the double on the stack |
-| `0x693f0` | square root of the double on the stack |
+known inputs (`softfloat.md` has the routines and their operands in
+every image), and the update above was transcribed from the
+disassembly of `0x4850c` to `0x48674`.
 
 The constants, as single-precision floats: `0x41ee0000` is 29.75,
 `0x4528c000` 2700, `0x40800000` 4, `0x41200000` 10, `0x302bcc77`
