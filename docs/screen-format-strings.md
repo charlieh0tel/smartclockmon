@@ -135,17 +135,20 @@ What sets each bit, in the Z3816A (stage + `0x11` is `0x10283d`):
 
 | Bit | Set by | Shown |
 | --- | ------ | ----- |
-| 0 | `FUN_000494da`, a manual holdover's start, with the manual flag (refused in power-up); `FUN_0004948c` clears both | through the flag |
+| 0 | `FUN_000494da`, with the manual flag, which `:SYNChronization:HOLDover:INITiate` (`0x3f40a`) posts unless a manual holdover is on (refused in power-up); `FUN_0004948c`, which `:SYNChronization:HOLDover:RECovery:INITiate` (`0x3f594`) posts, clears both | through the flag |
 | 1 | `startup_pll` (`FUN_00047bac`), `pll_normal` (`FUN_0004824a`) and `FUN_000498a8`, while the GPS 1 PPS valid flag at `0x102c23` is clear | `GPS 1PPS invalid` |
 | 2 | `startup_pll` and `pll_normal`, after ten seconds with no reading accepted and one that failed; `coarse` (`0x48da6`) and `fine` (`0x49444`) when they fail; `FUN_000498a8` when its reading fails and the byte at `0x100ebc` is clear | `internal hardware problem` |
 | 3 | `startup_pll` and `pll_normal`, after ten seconds with no reading accepted and none failed: each was beyond the hold threshold at `0x10256e` (the screen's `HOLD THR`), unless the byte at `0x102572` is set, or was skipped while `0x102c22` was set | `1PPS TI exceeds hold threshold` |
 | 4 | `startup_pll` and `pll_normal` while `0x102229`, the internal 1 PPS's error (`firmware/ovens.md`), is set; `FUN_000498a8` while the byte at `0x100ebc` is set | `internal hardware problem` |
-| 5 | `0x49520`, through the descriptor entry at `0x44c82`; `0x4953a` clears it | no; it keeps power-up waiting for GPS (`firmware/ovens.md`) |
+| 5 | `0x49520`, which also sets `0x10283f` and the holdover request at `0x102c21`; the `:GPS:REFerence:ADELay` setter (`FUN_0003bbd6`, and its aliases) and the `:DIAGnostic:TOFFset` setter (`0x3b52e`) post it before writing their value, whose parameter records (`0x4341c`, `0x43458`) name `0x4953a`, which clears it, and `0x4946c`, which calls `0x4953a`, as their setters | no; it keeps power-up waiting for GPS (`firmware/ovens.md`) |
 | 7 | holdover recovery (`FUN_000478ce`, `0x47a06`) while `0x1014a3` is set | no |
 
-Holdover recovery also sets bits 1, 2 and 4 (`0x47a54`, `0x47a62`,
-`0x4796e`, `0x47b02`), on conditions not read; any cause makes
-`startup_pll` and `pll_normal` return 2, to holdover.  `FUN_0004ad3e`,
+Holdover recovery sets bits 1 and 4 as `pll_normal` does (`0x47a54`,
+`0x47a62`), and bit 2 when its count of failed readings passes 5
+(`0x4796e`, logging `holdover recovery - Error with measurement`) or
+when the reading fails as recovery ends (`0x47b02`).  Any cause makes
+`startup_pll`, `pll_normal` and holdover recovery return 2, to
+holdover.  `FUN_0004ad3e`,
 the GPS diagnostic, clears the byte.  The mode routine also
 handles causes the accessor never returns -- 1 and 4, and `0x40` and
 `0x80`, which would show `: switched to GPS 1PPS reference` (or `Ext`)
@@ -279,6 +282,21 @@ offsets in the state block, the cause read as the word at `+0x10`
 | Z3816A 4001 | `0x10282c` | `0x495a8` | `+0x12` | `+0x15`, `+0x17` |
 | Z3815A 4010 | `0x10286e` | `0x4f3d6` | `+0x21` | `+0x25`, `+0x27` |
 | 58503B 1.01.04 | `0x102bb2` | `0x4acee` | `+0x13` | `+0x1f`, `+0x21` |
+
+Every image sets the cause bits from the same places: a sweep for
+stores to the cause through a register holding the stage's address
+finds, in each, bit 0 set once and cleared once, bit 1 set five
+times, bit 2 seven times (six in the 58503B), bit 3 twice, bit 4 six
+times and bit 7 once.  3704, the 58503B and the Z3815A keep the
+cause as a word and add bit 8: in the 58503B `0x4aba2`, the setter
+both the `:DIAGnostic:ROSCillator:EFControl:MODE` and `:DATA`
+parameter records name, sets it while the mode byte at `0x10288c` is
+nonzero and then writes `:DATA`'s value, at `0x10288e`, to the EFC
+(`FUN_00032d34`), and clears it otherwise; `0x4abf0` clears bit and
+mode once its count at stage + `0x6f0` passes 600 in mode 2.  The
+cause accessor does not test bit 8, so it is never shown.  The
+58503B's clear at `0x4b168` keeps bits 0, 5, 6 and 8 (`andi.w
+#0xff61`).
 
 The Z3815A's stages run one higher from `n3 lock pll`, 6
 (`firmware/loop.md`, "The Z3815A's extra stage"): 5 to 7 mark

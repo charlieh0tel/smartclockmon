@@ -47,17 +47,25 @@ clears the flag, restarts into the defaults, and `:SYSTem:PON`, which
 zeroes the region, restarts cold.  No console word reaches `trap #12`.
 
 Two actions reach it, and the SCPI handlers that name them, through
-descriptor lists at `0x44c9a` to `0x44cb2` of six-byte entries (a word
-and a function), are:
+six-byte action entries at `0x44c9a` to `0x44cb2` (a word and a
+function; see below), are:
 
 | Command | Handler | Action | What it does first |
 | ------- | ------- | ------ | ------------------ |
 | `:SYSTem:PON` | `FUN_0003ff52`, list at `0x44ca0` | `FUN_000496f8` | zeroes the whole region `0x100000` to `0x100c3b` that a warm restart would restore -- the loop state, the health records, the τ block -- so the restart loads the defaults, as a power-up does |
 | `:SYSTem:PRESet` | `FUN_0003ff78`, list at `0x44ca6` | `FUN_000496ca` | writes two settings records to the EEPROM at `0x4000c0` (`FUN_0004206a`, twice through `FUN_0004203e` and `FUN_000408fe`), clears the flag word at `0x100002` and recomputes the region's checksum into `0x100000` |
 
-The `:GPS:POSition` handler `FUN_0003c268` passes the list starting at
-`0x44c9a`, six bytes before `:SYSTem:PON`'s; what the parser does with
-a list and where it stops were not traced.  `PON` is a keyword of the
+A handler posts one entry, not a list: `FUN_00039524` sends its
+address, an index and a value to the `pllc` queue (id at `0x103d6a`),
+and the loop task checks it in `FUN_00046652`, whose messages name it
+`pll_scpi: validate_or_doaction()`.  The entry's first byte is a type
+and its second the largest index it takes (`setup index > max index`
+otherwise); type 2 calls the entry's function with the index and the
+value, type 1 is `toggle_change`, type 0 goes to `FUN_00046560`, type
+3 does nothing, and any other is `unknown structure type`.  Every
+entry from `0x44c70` to `0x44cb2` is type 2.  The `:GPS:POSition`
+handler `FUN_0003c268` posts the entry at `0x44c9a`, six bytes before
+`:SYSTem:PON`'s, whose function is `FUN_00049da2`.  `PON` is a keyword of the
 Z3816A image (`0x5a280`), both 58503A images (`console.md`, "The
 58503A image"), the Z3815A's and the 58503B's (`../scpi/`); the Z3801A's image has the same `:SYSTem:PRESet` action,
 `FUN_00045cca` (`0x2f66a` passes its list at `0x41392`), and no `PON`,
