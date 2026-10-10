@@ -188,7 +188,21 @@ moved by that step while the rms falls (`FUN_0004587a`), and sets c
 from the last three trials (`FUN_00045a78`).  Every fit but mode 0
 ends by resetting a so the curve passes through the newest sample
 (`FUN_0004571c`).  HQ is `FUN_00045f94`'s result for modes 2 to 4 and
-4.32 × 10⁻⁴ for modes 0 and 1; what it measures was not traced.  128
+4.32 × 10⁻⁴ for modes 0 and 1:
+
+    r_i  = e_i − (a + b·y_i + c·w_i)        over the samples in the ring
+    A    = √( Σ ½(r_i − r_{i−1})² / (n − ½) ) n the number of differences
+    T    = Δy · 86400 / 32                  the ring's span, in seconds
+    u    = rms · 86400 / 1.6 × 10¹² · √(K / T)
+    v    = k · A / 16 / (T / 2700)^1.5
+    HQ   = 2.5 · √(u² + v²)
+
+with k = 2.5 × 10⁻⁴ and K = 345600 in mode 2, k = 5.5 × 10⁻⁵ and
+K = 259200 in modes 3 and 4 (`0x460f6` to `0x46196`, `0x461ae` to
+`0x4623e`, the common tail `0x46244` to `0x462da`); the 16 is the
+code's division by 10⁻¹¹ and then by 1.6 × 10¹².  A is an Allan-like
+deviation of the residual EFC at 2700 s.  What HQ stands for, and the
+units its constants assume, were not established.  128
 in units of 2700 s is 96 hours.
 
 **Back to the loop.**  `curv` then sends event 0x100 to `pllp`.  At the
@@ -497,7 +511,8 @@ shows it only as calls with the operands hidden.  Each routine was
 identified by running it in an emulator (Unicorn, on a 68000 core) on
 known inputs, and the update above was transcribed from the
 disassembly of `0x4850c` to `0x48674`.  Operands go in D0 and D1 and
-the result comes back in D0:
+the result comes back in D0; a double routine returns D0:D1 and leaves
+a copy in A0:A1, which the next call may take as its other operand:
 
 | Routine | Operation |
 | ------- | --------- |
@@ -520,6 +535,8 @@ the result comes back in D0:
 | `0x64e26` | double D0:D1 + double A0:A1 |
 | `0x660d4` | double D0:D1 × double A0:A1 |
 | `0x6553e` | double A0:A1 ÷ double D0:D1 |
+| `0x6552c` | double D0:D1 ÷ double A0:A1: exchanges the two and falls into the divide |
+| `0x68a32` | pow(x, y) of the two doubles on the stack, x the lower |
 | `0x6519a` | compare doubles: negative when A0:A1 < D0:D1 |
 | `0x684e4` | natural log of the double on the stack |
 | `0x693f0` | square root of the double on the stack |

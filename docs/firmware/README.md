@@ -123,16 +123,9 @@ following, and how.
 - What τ-block bytes +7 and +8 mean beyond the `:GPS:POSition`
   handlers' use of them (`loop.md`), and what the rest of the ROM
   defaults, `0x400de` to `0x40173`, hold.
-- What HQ stands for.  `FUN_00045f94` computes it from the fit's
-  residuals: r = e − (a + b·y + c·w) at each sample, Σ½(Δr)² over
-  consecutive samples divided by n − 8 and rooted -- an Allan-like
-  deviation of the residual EFC at 2700 s -- combined with the fit's
-  rms, the ring's span in seconds (Δy·86400/32) raised to 1.5 by
-  `pow` (`0x68a32`), and the constants 0.00025, 10⁻¹¹, 1.6 × 10¹²,
-  86400, 345600 and a final 2.5·√(·); the operand order of two of the
-  double routines was not verified, so the formula is not transcribed.
-  By its constants it is a time error predicted over a day; nothing
-  but the debug print and the copy to `0x102866` reads it.
+- What HQ stands for, and the units its constants assume (its
+  formula is in `loop.md`, "The fit").  Nothing but the debug print
+  and the copy to `0x102866` reads it.
 - The console's `current drift = %.1e / day` (`0x2c3bf`) prints the
   float at `0x102bcc` times 5.4 × 10⁻⁸.  Nothing in the image writes
   `0x102bcc`, and it lies in the RAM the start-up code clears, so the
