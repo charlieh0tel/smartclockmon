@@ -206,7 +206,7 @@ revision.  Its EEPROM took 6 seconds.  It begins with the model
 two settings records `:SYSTem:PRESet` writes at `0x4000c0` in the
 Z3816A image; and from `0x1c0` holds the diagnostic log, starting
 with `Log cleared`.  The rest of its layout is not worked out.  The
-first session is `docs/z3801a-pforth.txt`.
+first session is `../sessions/z3801a-3543-pforth.txt`.
 
 The bench 58503A (3710A01056, 3704-C) works the same way at 19200 8N1.
 The same day its ROM came back in 647 seconds and is
@@ -229,14 +229,14 @@ from `z3801a-3543.bin`.  Its console words are the Z3801A's, all 242.
 Its EEPROM, `third_party/firmware/eeprom/z3805a-3625A01487-eeprom.bin`, opens with
 `Z3805A`, `3625A01487` and `AS` where the Z3801A's has `AQ`; its
 diagnostic log is stamped with calendar dates where the Z3801A's uses
-hex.  The session is `docs/z3805a-pforth.txt`.
+hex.  The session is `../sessions/z3805a-3543b-pforth.txt`.
 
 The 58503A's and the Z3801A's firmware words differ.  The 58503A's has
 `force_ext_1pps` and `force_gps_1pps` where the Z3801A's has
 `force_1pps`, and lacks the Z3801A's `adc_5v`, `adc_p15v`, `adc_m15v`,
 `adc_oven`, `adc_doven`, `adc_ant_curr` and `adc_temp`; the rest are
-the same.  The sessions are `docs/58503a-pforth.txt` and
-`docs/z3801a-pforth.txt`.
+the same.  The sessions are `../sessions/58503a-3704-pforth.txt` and
+`../sessions/z3801a-3543-pforth.txt`.
 
 ## Which port
 
