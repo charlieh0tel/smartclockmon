@@ -23,7 +23,7 @@ design, open questions and known defects.
 | `smartclock` | the library: transports, SCPI framing, the command table, parsers, the status screen scraper, the polling task, and the Allan deviation |
 | `smartclockd` | holds the serial port, logs to SQLite, serves clients over a Unix socket and, if asked, TCP |
 | `smartclockmon` | terminal monitor: dashboard, history graphs, journal, status screen and stability |
-| `smartclock-cli` | queries, `diagnose`, notes and facts, the host's sensors, transcripts, sweeps for undocumented commands, ROM and EEPROM reads, chip dumps joined into an image and split back, and firmware loading ([notes](docs/firmware/restart.md#the-flasher)) |
+| `smartclock-cli` | queries, `diagnose`, notes and facts, the host's sensors, transcripts, sweeps for undocumented commands, ROM and EEPROM reads, chip dumps joined and split, firmware loading ([notes](docs/firmware/restart.md#the-flasher)), and readers of a firmware image's SCPI tree, console words and Oncore messages |
 | `smartclock-exporter` | Prometheus metrics for every receiver, from the daemons' readings |
 | `smartclock-web` | browser view: live state, zoomable history, the status screen, stability, receivers compared, and measures correlated |
 | `smartclock-sensord` | logs room temperature, humidity and pressure from hwmon, IIO and TEMPer USB sticks ([design](docs/sensors.md)) |
@@ -76,14 +76,19 @@ HP / Agilent / Symmetricom SmartClock receivers: GPS-disciplined OCXO
 references with 10 MHz and 1 PPS outputs, reporting over a serial port
 in SCPI.
 
-| Model  | Command tree                 | Tested on hardware | Notes |
-| ------ | ---------------------------- | ------------------ | ----- |
-| 58503A | `:GPS:`, `:SYNC:`            | yes | Primary development target |
-| Z3801A | `:PTIME:GPSYSTEM:`, `:ROSC:` | yes | Divergent tree; different response formats |
-| Z3805A | `:PTIME:GPSYSTEM:`, `:ROSC:` | yes | Answers the Z3801A tree |
-| 58503B | `:GPS:`, `:SYNC:`            | no; may work | Same tree as the 58503A by its manual |
-| 59551A | `:GPS:`, `:SYNC:`            | no; may work | The 58503A tree; its pulse output and event timestamping are unused |
-| Z3816A | `:PTIME:GPSYSTEM:`, `:ROSC:` | no; may work | Firmware image studied; assumed to answer as the Z3801A |
+| Model  | Tested | Notes |
+| ------ | ------ | ----- |
+| 58503A | yes | Primary development target |
+| Z3801A | yes | Different response formats |
+| Z3805A | yes | Answers as the Z3801A |
+| 58503B | no; may work | Firmware studied; heights above the ellipsoid |
+| 59551A | no; may work | Pulse output and event timestamping unused |
+| Z3816A | no; may work | Firmware studied |
+| Z3815A | no  | Firmware studied; Furuno engine, unsupported |
+
+The tools choose a dialect from `*IDN?`: the 58503A's for the
+58503A/B and 59551A, the Z3801A's for the others
+([`docs/commands.md`](docs/commands.md)).
 
 Their mid-1990s Motorola GPS engines predate the week rollovers of
 1999 and 2019, so a unit reports a date 1024 weeks in the past.  Time
@@ -110,7 +115,7 @@ describes the bench.
 | [`docs/hardware-investigations.md`](docs/hardware-investigations.md) | what only a bench can settle |
 | [`docs/sessions/`](docs/sessions/) | sessions with the bench receivers as captured: pForth consoles and early wire transcripts |
 | [`docs/scpi/`](docs/scpi/) | SCPI from the firmware: the keyword table, every image's command tree as `smartclock-cli dump-scpi` prints it, the trees side by side against the manuals, and what bench receivers answered |
-| [`docs/screen-format-strings.md`](docs/screen-format-strings.md) | the status screen's printf templates |
+| [`docs/screen-format-strings.md`](docs/screen-format-strings.md) | the status screen's templates, and what drives its mode line |
 
 Vendor manuals are in `third_party/`; `097-59551-02` (59551A/58503A)
 and `097-z3801-01` (Z3801A) are the primary references, and
