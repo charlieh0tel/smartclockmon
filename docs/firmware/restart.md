@@ -160,14 +160,20 @@ Read from all five images; the bench check of entry and exit is below.
 - *Telling it apart.*  `*IDN?` names a place, not a revision: `Peru`
   on the Z3801A, `Oman` on 58503A 3633, `USA` on 3704 and the Z3816A;
   `:SYSTem:LANGuage?` always answers `INSTALL`.  The Z3815A's and
-58503B's installers are stored packed, as the others are, and were not
-unpacked here, so their names are not known.
+58503B's is `Vatican`.  Each name is the string before the installer's
+`Copyright Hewlett-Packard Co.`, read from the unpacked image: the
+record stream "Forced installer entry" describes, at `0x8000` to
+`0x128ea` in those two images (`0x8000` to `0x128ce` in the Z3816A),
+unpacked into `0x100400` to `0x10ac50`.
 - *Which share one.*  Compared byte for byte below `0x10000` (the
   Z3816A, Z3815A and 58503B: `0x20000`): the Z3801A's and Z3805A's are
   identical, and the Z3815A's and 58503B's differ only in four bytes at
-  `0x4000`, `55 55 aa aa` in the Z3815A where the 58503B's are erased.
+  `0x4000`, `55 55 aa aa` in the Z3815A where the 58503B's are erased,
+  outside the record stream, so the two unpack to the same installer.
   The rest differ from each other: 3633 and 3704 share 37 % of their
-  bytes, the Z3816A and Z3815A 70 %.
+  bytes, the Z3816A and Z3815A 70 %.  Unpacked, the Vatican installer
+  holds the USA installer's strings but for its name, its code at
+  addresses 28 bytes on.
 - *Commands.*  `*IDN?`, `*CLS`, `:SYSTem:LANGuage`, `:SYSTem:ERRor?`,
   `:DIAGnostic:TEST? n` (0 summary, 1 checksum flags, 2 CPU, 3 RAM,
   4 DUART), `:DIAGnostic:ERASe`, `:DIAGnostic:ERASe?` (1 when the
@@ -336,8 +342,8 @@ codes are 1200, 2400, 9600 and 19200 baud at the part's standard
 read each time the installer starts and is not stored.
 
 The Peru installer (Z3801A 3543, Z3805A 3543B) and the USA installer
-(58503A 3704, Z3816A 4001) do not read `0x302000`; the Z3815A's and
-58503B's installers were not unpacked.  Of the primaries, the Z3801A,
+(58503A 3704, Z3816A 4001) do not read `0x302000`, nor does the
+Vatican installer (Z3815A 4010, 58503B 1.01.04).  Of the primaries, the Z3801A,
 Z3805A and both 58503As never read it.  The Z3816A reads bit 8 of the
 word there once, to pick G (see `loop.md`, "τ and G").  The Z3815A
 reads the word in ten places (`0x33c04` to `0x50bf4`), testing bits 7,
