@@ -175,8 +175,23 @@ The console word `crash n` is the same code in every image: 4 writes
 to unmapped `0x700000`, 5 writes a long to an odd address, 6 divides
 by zero -- all three answered by the console's handler -- and 8 calls
 the fatal routine (Z3801A `0x1ee7e`) with `Force crash from pforth`,
-which records it, prints `FATAL ERROR:` and `RESET to recover.` and
-spins at interrupt mask 4.  None is a way back to SCPI.
+which records it, prints `FATAL ERROR:` and `RESET to recover.`, sets
+the interrupt mask to 4 (`FUN_00013378`) and spins.  7 computes 7.0 −
+7.0 and then 0.0 / 0.0 in the floating-point library (`0x5d2a0`,
+`0x5d9d8`, Z3801A `0x1bdd2`); the start-up code's control word
+(`0x7480` into `0x10372e`, at `0x1463e`) enables the invalid-operation
+trap, so `FUN_00013e36` names it `fp operand error: ` with the
+routine's name and passes it, through `0x1ec04`, to the same fatal
+routine.  None is a way back to SCPI.
+
+The spin does not mask the PIT, which interrupts at level 5 (PICR
+`0x0542`, set by `0x220de`), so the kernel's tick runs and higher
+priority tasks still preempt the spinning one.  Whether it ends in the
+watchdog depends on where the task that called the fatal routine ranks
+against the five whose heartbeats `hmon` checks.  The Z3816A creates
+`gpsm` at 100, `hmon` at 200, `pllp` at 175 and `curv` at 25
+(`0x2321a` to `0x23288`) and the SCPI task at 25 (`0x2303e`); the
+console task's priority was not read.
 `master_reset` sends the GPS engine `Cf` in every image (see
 `console.md`, "Resetting the GPS engine from the console"), and `clear_nv`
 invalidates both EEPROM settings records, the first step of

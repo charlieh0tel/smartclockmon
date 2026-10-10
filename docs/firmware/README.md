@@ -114,8 +114,9 @@ following, and how.
 - Whether the port's second open matters.
 - What PE6 drives, pulsed only on a cold start; what bit 1 of
   `0xfff925` does on 3704.
-- What `crash 7` does, and whether a task spinning at mask 4 after
-  `crash 8` is preempted or ends in the watchdog.
+- Whether a fatal stop from the console ends in the watchdog: the
+  console task's priority against the heartbeat tasks' (`restart.md`,
+  "The watchdog").
 - Whether a watchdog warm start has been seen on a unit (the timeout
   is 8 s, `restart.md`, "The watchdog").
 
