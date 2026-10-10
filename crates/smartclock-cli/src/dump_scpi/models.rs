@@ -1,6 +1,7 @@
 //! `dump-scpi --models`: the trees of several images side by side,
 //! against the manuals and the command table (docs/scpi/models.md).
 
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
@@ -488,8 +489,11 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
          (evidence `hardware`); blank, no receiver has, or the path has no\n\
          entry.  An image's cell is `q` where its node has a\n\
          query handler, `s` a setter, `qs` both, `-` neither, and blank\n\
-         where the image has no such path.  A table for each top-level\n\
-         keyword keeps each one short.\n\n",
+         where the image has no such path.  Paths that reach the same node\n\
+         in every image that holds them share a row, the others named after\n\
+         \"also\" by the keyword that differs; a path a manual lists leads,\n\
+         else the shortest.  A table for each top-level keyword keeps each\n\
+         one short.\n\n",
     );
     for manual in &MANUALS {
         let _ = writeln!(
@@ -501,14 +505,20 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
         );
     }
     out.push('\n');
-    let paths: BTreeSet<(String, &str)> = images
+    let nodes: Vec<BTreeMap<&str, &Entry>> = images
         .iter()
-        .flat_map(|(_, entries)| entries)
-        .map(|entry| (entry.path.to_ascii_lowercase(), entry.path.as_str()))
+        .map(|(_, entries)| {
+            entries
+                .iter()
+                .map(|entry| (entry.path.as_str(), entry))
+                .collect()
+        })
         .collect();
-    let branches: BTreeSet<&str> = paths
+    let rows = rows(&nodes);
+    let branches: BTreeSet<&str> = rows
         .iter()
-        .filter_map(|(_, path)| {
+        .filter_map(|row| {
+            let path = row[0];
             let (root, rest) = path.trim_start_matches(':').split_once(':')?;
             (!path.starts_with('*') && !rest.is_empty()).then_some(root)
         })
@@ -527,12 +537,12 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
             LEAVES_SECTION.to_owned()
         }
     };
-    let mut sections: Vec<(String, Vec<&str>)> = Vec::new();
-    for (_, path) in &paths {
-        let name = section(path);
+    let mut sections: Vec<(String, Vec<&Vec<&str>>)> = Vec::new();
+    for row in &rows {
+        let name = section(row[0]);
         match sections.iter_mut().find(|(each, _)| *each == name) {
-            Some((_, members)) => members.push(path),
-            None => sections.push((name, vec![path])),
+            Some((_, members)) => members.push(row),
+            None => sections.push((name, vec![row])),
         }
     }
     sections.sort_by_key(|(name, _)| {
@@ -553,22 +563,91 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
     );
     for (name, members) in sections {
         let _ = write!(out, "### {name}\n\n{header}");
-        for path in members {
-            let cells: Vec<&str> = images
+        for row in members {
+            let lead = row[0];
+            let cells: Vec<&str> = nodes
                 .iter()
-                .map(|(_, entries)| cell(entries.iter().find(|entry| entry.path == path)))
+                .map(|image| cell(image.get(lead).copied()))
                 .collect();
-            let manuals = letters(path);
+            let manuals = merged(row.iter().flat_map(|path| letters(path)));
+            let confirmed = merged(
+                row.iter()
+                    .flat_map(|path| confirmed(path).into_iter().map(str::to_owned)),
+            );
+            let also = if row.len() > 1 {
+                format!(
+                    " (also {})",
+                    row[1..]
+                        .iter()
+                        .map(|other| format!("`{}`", difference(lead, other)))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            } else {
+                String::new()
+            };
             let _ = writeln!(
                 out,
-                "| `{path}` | {} | {} | {} |",
+                "| `{lead}`{also} | {} | {} | {} |",
                 manuals.join(", "),
-                confirmed(path).join(", "),
+                confirmed.join(", "),
                 cells.join(" | ")
             );
         }
         out.push('\n');
     }
+}
+
+/// The table's rows: each a set of paths that reach the same node in
+/// every image that holds any of them, the one to show first leading.
+/// A path a manual lists leads; otherwise the shortest.
+fn rows<'a>(nodes: &[BTreeMap<&'a str, &'a Entry>]) -> Vec<Vec<&'a str>> {
+    let mut groups: BTreeMap<Vec<Option<u32>>, Vec<&str>> = BTreeMap::new();
+    let paths: BTreeSet<&str> = nodes
+        .iter()
+        .flat_map(|image| image.keys().copied())
+        .collect();
+    for path in paths {
+        let key = nodes
+            .iter()
+            .map(|image| image.get(path).map(|entry| entry.node))
+            .collect();
+        groups.entry(key).or_default().push(path);
+    }
+    let mut rows: Vec<Vec<&str>> = groups
+        .into_values()
+        .map(|mut group| {
+            group.sort_by_key(|path| (!in_a_manual(path), path.len(), path.to_ascii_lowercase()));
+            group
+        })
+        .collect();
+    rows.sort_by_key(|row| row[0].to_ascii_lowercase());
+    rows
+}
+
+/// How `other` differs from `lead`: the one keyword that differs, when
+/// only one does; otherwise the whole path.
+fn difference<'a>(lead: &str, other: &'a str) -> &'a str {
+    let ours: Vec<&str> = lead.split(':').collect();
+    let theirs: Vec<&str> = other.split(':').collect();
+    if ours.len() == theirs.len() {
+        let differing: Vec<usize> = (0..ours.len()).filter(|&i| ours[i] != theirs[i]).collect();
+        if let [only] = differing.as_slice() {
+            return theirs[*only];
+        }
+    }
+    other
+}
+
+/// `items` in order, each once.
+fn merged(items: impl Iterator<Item = String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for item in items {
+        if !out.contains(&item) {
+            out.push(item);
+        }
+    }
+    out
 }
 
 #[cfg(test)]
