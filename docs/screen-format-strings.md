@@ -177,3 +177,27 @@ so the leap field can carry `+` or `-`.
 ## Identity
 
     HEWLETT-PACKARD,%s,%s,%s-%c
+
+## In every image
+
+Each string this file quotes was looked for in every image
+(2026-10-09).  55 of the 88 are in all seven.  The rest divide by
+family:
+
+| String | Z3801A 3543, Z3805A 3543B | 58503A 3633, 3704 | Z3816A 4001 | Z3815A 4010 | 58503B 1.01.04 |
+| ------ | ------------------------- | ----------------- | ----------- | ----------- | -------------- |
+| the frame's `Receiver Status` header, `Synchronized to GPS Time` | ✓ | ✓ | ✓ | | ✓ |
+| `GPS 1PPS CLK`, `EXT 1PPS CLK` and their `Valid`/`invalid` forms, `rel to GPS` and its variants, `Invalid: GPS rcvr err`, `ELEV MASK %2d deg%3s%-25.25s%2s` | ✓ | | | | |
+| `GPS 1PPS`, `Ext 1PPS` and their forms, `Questionable accuracy` | | ✓ | ✓ | ✓ | ✓ |
+| the front-panel strings (`HLD USR` to `SURVEY HALT`) | | ✓ | | | ✓ |
+| `PRN  El  Az   SS`, the tracked group's header | ✓ | ✓ | | | |
+| `PRN  El  Az  C/N`, `------------------- GPSR `, `GT-74 Command Log` | | | | ✓ | |
+
+So the 58503B has a front panel's strings as the 58503A does.  The
+Z3815A's screen is headed `------------------- GPSR ` and
+` Status ----` rather than `Receiver Status`, has no `Synchronized to
+GPS Time` (every image has `Synchronized to UTC`), heads its tracked
+satellites `PRN  El  Az  C/N` for its Furuno engine's carrier-to-noise
+figure, and adds a `GT-74 Command Log` screen.  The Z3816A and 58503B
+hold neither signal-column header, only `PRN  El  Az`; how they head
+that column, if they do, was not traced.
