@@ -144,6 +144,7 @@ a{color:var(--accent)}
   <div class="eq eqgrid"><span>EFC(t) = a + b·y + c·ln y</span><span>y = t / 2700 s, t the seconds since cold start</span></div>
   <p>to those samples (a least-squares line, plus a one-dimensional search on c once there are enough points). The slope of that curve now, b + c/y, is d: the EFC change per 2700 s the fit predicts. Each update the integrator advances by 10·d/2700 — the predicted change over ten seconds — before the loop sees any phase error from it. In holdover the same curve keeps advancing the EFC with nothing to correct it; <code>startup_pll</code> also takes its first EFC from it after a restart.</p>
   <p>The Z3815A and 58503B compute the same slope once per fit, not every ten seconds, and each update moves a running value toward it with time constant τ, so a new fit's change of slope reaches the oscillator over about τ rather than at once.</p>
+  <p>The Z3815A and 58503B also run an EFC calibration that fits the oscillator's gain as two coefficients, A (which is G) and B, and use A + B·e² at EFC e to turn each day's fit error into the measured holdover uncertainty that <code>:SYNChronization:HOLDover:TUNCertainty:MEASured?</code> reports.</p>
   <p>Samples are weighted by how much of the window was averaged: 3 if all 2700 seconds, 2 if at least 675, else 1; and everything in the first three hours after a cold start gets weight 1. A fit needs at least three samples, so d is zero for the first hours after a power-up.</p>
 </section>
 

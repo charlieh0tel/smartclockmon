@@ -331,15 +331,18 @@ limits, a getter and a setter -- and the limits given are the record's.
 ### `:DIAGnostic:ROSCillator:EFControl:BSLOPe`
 
 - **Images:** 58503B, Z3815A.
-- **Handler:** a second coefficient beside G: the 58503B's record
+- **Handler:** a second coefficient B beside G: the 58503B's record
   (`0x43eec`) names `0x102722`, which choosing the oscillator type
-  clears; its limits too are held in RAM.
+  clears and the EFC calibration sets; its limits too are held in RAM.
+  The measured holdover uncertainty uses it, taking the oscillator's
+  gain as A + B·e² at EFC e (`../firmware/loop.md`, "In every image").
 
 ### `:DIAGnostic:ROSCillator:EFControl:DADC`
 
 - **Images:** 58503B, Z3815A.
-- **Handler:** a value with limits ±20 (`0x43e84`, cell `0x10271a`);
-  choosing the oscillator type sets it to 16.0.
+- **Handler:** a DAC-to-ADC ratio with limits ±20 (`0x43e84`, cell
+  `0x10271a`): the EFC calibration measures it (`low= %d high= %d
+  dac/adc= %e`), and choosing the oscillator type sets it to 16.0.
 
 ### `:DIAGnostic:ROSCillator:TCO`
 
@@ -429,8 +432,10 @@ limits, a getter and a setter -- and the limits given are the record's.
 - **Images:** 58503B, Z3815A; the handler of
   `:SYNChronization:HOLDover:TUNCertainty:MEASured`, which the older
   images lack.
-- **Handler:** reads its value through `0x4781c` and refuses when that
-  fails.
+- **Handler:** returns, through `0x4781c`, the time error the aging
+  fit of 24 hours before would have accumulated since, which each new
+  fit recomputes (`../firmware/loop.md`, "In every image"); it refuses
+  until that has been computed once.
 
 ## Stubs a receiver refused
 

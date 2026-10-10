@@ -423,6 +423,28 @@ entries are filled: G −1.25 × 10⁻¹², the Z3816A's, with limits
 `:DIAGnostic:ROSCillator:EFControl:ASLOPe`'s, so G can be read and set
 over SCPI within its limits (`../scpi/undocumented.md`).
 
+**The gain's second term and the measured uncertainty, Z3815A and
+58503B only.**  Beside G (A, `ASLOPe`) these two carry a second
+coefficient B (`BSLOPe`, the 58503B's `0x102722`) and a DAC-to-ADC
+ratio (`DADC`, `0x10271a`).  An EFC calibration in both writes all
+three: in the 58503B, `0x4d310` (called from `0x4c6b6`) and `0x4d1c8`,
+whose messages are `point= %d delta_f= %e efc=  %d`, `a= %e b= %e`,
+`low= %d high= %d dac/adc= %e`, `OCXO cal, a= %e` and `OCXO cal a out
+of range`; choosing the oscillator type resets them (G from the type's
+table, B to 0, the ratio to 16.0).  The older images have neither the
+coefficients nor the calibration.  B's one use in arithmetic is the
+measured holdover uncertainty: at each new aging fit, `0x45d56` runs
+`0x45b26` over the last 32 samples, 24 hours, with the fit's
+coefficients as they stood 32 samples back, summing for each later
+sample (e − (a + b·y + c·ln y)) · (A + B·e²) · 2700 -- the old fit's
+EFC error times an EFC-dependent gain times the window's seconds -- and
+stores the result at `0x102bfc`, valid while `0x1032af` is set, before
+saving the new fit's coefficients for the next run.
+`:SYNChronization:HOLDover:TUNCertainty:MEASured?` returns it
+(`0x4781c`).  So in these two models the oscillator's gain is A + B·e²
+at EFC e for that measurement; whether the loop itself applies B was
+not found.
+
 The Z3815A reads the word at `0x302000` as the Z3816A does, but bit 12
 where the Z3816A reads bit 8, and with it chooses τ as well as G.  A
 second routine stores −2.125 × 10⁻¹² unconditionally (`0x50c14`);
