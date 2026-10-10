@@ -505,6 +505,61 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
         );
     }
     out.push('\n');
+    let header = format!(
+        "| Path | Manuals | Confirmed | {} |\n|{}\n",
+        images
+            .iter()
+            .map(|(name, _)| title(name).replacen(' ', "<br>", 1))
+            .collect::<Vec<_>>()
+            .join(" | "),
+        " --- |".repeat(images.len() + 3)
+    );
+    for (name, rows) in sections(images) {
+        let _ = write!(out, "### {name}\n\n{header}");
+        for row in rows {
+            let also = if row.also.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " (also {})",
+                    row.also
+                        .iter()
+                        .map(|other| format!("`{other}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            };
+            let _ = writeln!(
+                out,
+                "| `{}`{also} | {} | {} | {} |",
+                row.lead,
+                row.manuals.join(", "),
+                row.confirmed.join(", "),
+                row.cells.join(" | ")
+            );
+        }
+        out.push('\n');
+    }
+}
+
+/// One row of the path table: the paths that reach the same node in
+/// every image that holds any of them.
+#[derive(Debug)]
+struct Row {
+    /// The path shown: one a manual lists, else the shortest.
+    lead: String,
+    /// The other paths, each as it differs from the lead.
+    also: Vec<String>,
+    /// Each image's cell, in the images' order (`cell`).
+    cells: Vec<&'static str>,
+    /// The manuals listing any of the paths (`letters`).
+    manuals: Vec<String>,
+    /// The receivers that have answered any of them (`confirmed`).
+    confirmed: Vec<String>,
+}
+
+/// The path table's rows by section, in the order they are shown.
+fn sections(images: &[(String, Vec<Entry>)]) -> Vec<(String, Vec<Row>)> {
     let nodes: Vec<BTreeMap<&str, &Entry>> = images
         .iter()
         .map(|(_, entries)| {
@@ -537,9 +592,27 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
             LEAVES_SECTION.to_owned()
         }
     };
-    let mut sections: Vec<(String, Vec<&Vec<&str>>)> = Vec::new();
-    for row in &rows {
-        let name = section(row[0]);
+    let mut sections: Vec<(String, Vec<Row>)> = Vec::new();
+    for paths in &rows {
+        let lead = paths[0];
+        let row = Row {
+            lead: lead.to_owned(),
+            also: paths[1..]
+                .iter()
+                .map(|other| difference(lead, other).to_owned())
+                .collect(),
+            cells: nodes
+                .iter()
+                .map(|image| cell(image.get(lead).copied()))
+                .collect(),
+            manuals: merged(paths.iter().flat_map(|path| letters(path))),
+            confirmed: merged(
+                paths
+                    .iter()
+                    .flat_map(|path| confirmed(path).into_iter().map(str::to_owned)),
+            ),
+        };
+        let name = section(lead);
         match sections.iter_mut().find(|(each, _)| *each == name) {
             Some((_, members)) => members.push(row),
             None => sections.push((name, vec![row])),
@@ -552,50 +625,7 @@ fn table(out: &mut String, images: &[(String, Vec<Entry>)]) {
             name.to_ascii_lowercase(),
         )
     });
-    let header = format!(
-        "| Path | Manuals | Confirmed | {} |\n|{}\n",
-        images
-            .iter()
-            .map(|(name, _)| title(name).replacen(' ', "<br>", 1))
-            .collect::<Vec<_>>()
-            .join(" | "),
-        " --- |".repeat(images.len() + 3)
-    );
-    for (name, members) in sections {
-        let _ = write!(out, "### {name}\n\n{header}");
-        for row in members {
-            let lead = row[0];
-            let cells: Vec<&str> = nodes
-                .iter()
-                .map(|image| cell(image.get(lead).copied()))
-                .collect();
-            let manuals = merged(row.iter().flat_map(|path| letters(path)));
-            let confirmed = merged(
-                row.iter()
-                    .flat_map(|path| confirmed(path).into_iter().map(str::to_owned)),
-            );
-            let also = if row.len() > 1 {
-                format!(
-                    " (also {})",
-                    row[1..]
-                        .iter()
-                        .map(|other| format!("`{}`", difference(lead, other)))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            } else {
-                String::new()
-            };
-            let _ = writeln!(
-                out,
-                "| `{lead}`{also} | {} | {} | {} |",
-                manuals.join(", "),
-                confirmed.join(", "),
-                cells.join(" | ")
-            );
-        }
-        out.push('\n');
-    }
+    sections
 }
 
 /// The table's rows: each a set of paths that reach the same node in
