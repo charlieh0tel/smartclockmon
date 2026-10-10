@@ -116,8 +116,8 @@ following, and how.
   `0xfff925` does on 3704.
 - What `crash 7` does, and whether a task spinning at mask 4 after
   `crash 8` is preempted or ends in the watchdog.
-- The watchdog's timeout, and whether a watchdog warm start has been
-  seen on a unit.
+- Whether a watchdog warm start has been seen on a unit (the timeout
+  is 8 s, `restart.md`, "The watchdog").
 
 - What τ-block bytes +3, +7 and +8 mean, and what the rest of the ROM
   defaults, `0x400de` to `0x40173`, hold.

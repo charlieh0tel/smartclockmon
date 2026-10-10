@@ -153,9 +153,12 @@ clock, GPS, loop, monitor and spool tasks set (Z3801A block
 `0x1009b0`).  All healthy, it resets a countdown to 8; otherwise it
 prints `watchdog:` and counts down, and it writes SWSR only while the
 count is above zero.  So the kicks stop about nine seconds after a
-task stops reporting, and the hardware resets the unit some seconds
-later (the timeout itself is from SYPCR's prescaler, not established
-here).  That reset goes through the boot code and its checksums, and
+task stops reporting, and the hardware resets the unit 8 s after the
+last: SYPCR `0xcc` sets SWE, SWP (÷ 512) and SWT 00, a ratio of 2¹⁸
+(MC68331UM table 4-4), and the time-out is that ratio over the EXTAL
+frequency, 32.768 kHz (`README.md`, SYNCR; PITR `0x0008` gives the
+1024 ticks a second above at the same reference).  Every image writes
+the same SYPCR and PITR.  That reset goes through the boot code and its checksums, and
 with the region good and the flag set it is a warm start, which writes
 the pending exception, fatal message or `Watchdog timeout: clk ... gps
 ... mon ... pll ... spl ...` to the EEPROM log at `0x4001c0`
